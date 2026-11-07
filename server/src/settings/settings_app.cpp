@@ -87,8 +87,6 @@ bool g_lingering = false;
 bool g_reload_pending = false;
 bool g_theme_refresh_pending = false;
 bool g_settings_light = false;
-// 第一份快照真正下发给页面之后才启动更新探测；一个设置进程只探一轮。
-bool g_model_update_check_started = false;
 // restartServer 之后主动刷新的剩余次数；Server 落位 .gram.new 后提前结束。
 int g_restart_refresh_remaining = 0;
 // A DPI rebuild recreates the About page, so page-local button state cannot be
@@ -1389,6 +1387,17 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
             collocation::StartDownload(json::value_to<std::string>(value.at("data").at("modelId")));
             PostConfig(false);
         }
+        else if (type == "collocationModelCheckUpdate")
+        {
+            // 用户主动点「检查更新」才探测远端：单个模型、后台线程跑，不阻塞页面。结果回来后
+            // 走 kModelUpdateChecked 刷新快照，按钮根据 update_available 变成「更新」。
+            const std::string model_id = json::value_to<std::string>(value.at("data").at("modelId"));
+            const HWND target = hwnd;
+            std::thread([target, model_id] {
+                collocation::CheckForUpdates(model_id);
+                PostMessageW(target, kModelUpdateChecked, 0, 0);
+            }).detach();
+        }
         else if (type == "collocationModelDelete")
         {
             // 下载中与当前生效解析的 id 在 DeleteModel 里拒绝；无论成败都回快照刷新列表。
@@ -2037,17 +2046,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         if (g_worker)
         {
             g_worker->Drain(!g_closing);
-            // 第一份快照真正下发之后才探测：此时页面已经有模型列表，探测结果回来只需刷新
-            // 快照。线程不碰 g_worker，避免进程退出时的生命周期竞争；窗口先关掉时消息自然丢弃。
-            if (!g_model_update_check_started && !g_closing && !g_last_config_message.empty())
-            {
-                g_model_update_check_started = true;
-                const HWND target = hwnd;
-                std::thread([target] {
-                    collocation::CheckForUpdates();
-                    PostMessageW(target, kModelUpdateChecked, 0, 0);
-                }).detach();
-            }
+            // 不在窗口显示时自动探测模型更新：联网请求只在用户点「检查更新」时发生。
             if (g_closing && g_worker->Stopped())
             {
                 // The settings window leaves without destroying its window: see the

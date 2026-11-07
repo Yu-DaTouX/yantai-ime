@@ -1201,6 +1201,8 @@ struct ModelRow
     std::shared_ptr<BareRadio> radio;
     std::shared_ptr<Button> download;
     std::function<void()> downloadAction;
+    // 已下载的模型把同一个按钮换成「检查更新」：只有用户点下去才发 HEAD 探测请求。
+    std::function<void()> checkAction;
     std::function<void()> restartAction;
     std::shared_ptr<Hideable> importBox;
     std::shared_ptr<Button> import;
@@ -1227,7 +1229,7 @@ std::vector<Span> NameSpans(const std::wstring &name, const std::wstring &meta, 
 
 ModelRow MakeModelRow(PageContext &context, const std::string &id, const std::wstring &name, const std::wstring &meta,
                       const std::string &url, bool withRadio, const char *downloadType, const char *importType,
-                      const char *deleteType)
+                      const char *deleteType, const char *checkType = nullptr)
 {
     ModelRow row;
     row.id = id;
@@ -1252,6 +1254,8 @@ ModelRow MakeModelRow(PageContext &context, const std::string &id, const std::ws
     }
     row.download = std::make_shared<Button>(L"下载", ButtonKind::Secondary);
     row.downloadAction = [model, downloadType, data]() { model->Post(downloadType, data); };
+    if (checkType != nullptr && hasId)
+        row.checkAction = [model, checkType, data]() { model->Post(checkType, data); };
     // 待重启时同一个按钮换成「重启」，直接走设置页已有的 restartServer 动作。
     row.restartAction = [model]() { model->Post("restartServer"); };
     row.download->SetOnClick(row.downloadAction);
@@ -2284,7 +2288,8 @@ VisualPtr BuildInputPage(PageContext &context)
                     }
                     ModelRow row = MakeModelRow(context, id, Widen(entry.value("displayName", id)), meta,
                                                 entry.value("url", std::string()), true, "collocationModelDownload",
-                                                "collocationModelImport", "collocationModelDelete");
+                                                "collocationModelImport", "collocationModelDelete",
+                                                "collocationModelCheckUpdate");
                     if (msimeui::Window *window = context.host.Window())
                         row.view->Attach(window);
                     s->collocationList->Add(row.view);
@@ -2313,9 +2318,16 @@ VisualPtr BuildInputPage(PageContext &context)
                 row.status->SetText(StatusText(status));
                 // 每次快照都重设按钮文本和动作，避免上一次的「更新 / 重启」残留到别的状态。
                 // 待重启时按钮直接变成可点的「重启」，点下去走设置页已有的 restartServer。
-                row.download->SetText(pending ? L"重启输入法" : (update_available ? L"更新" : L"下载"));
-                row.download->SetOnClick(pending ? row.restartAction : row.downloadAction);
-                row.download->SetDisabled(pending ? false : ((stateName == "ready" && !update_available) || anyBusy));
+                // 已就绪且没有已知更新时按钮是「检查更新」：点了才向远端发探测请求，不点不联网。
+                const bool can_check = stateName == "ready" && !update_available && row.checkAction;
+                row.download->SetText(pending  ? L"重启输入法"
+                                      : update_available ? L"更新"
+                                      : can_check        ? L"检查更新"
+                                                         : L"下载");
+                row.download->SetOnClick(pending  ? row.restartAction
+                                         : can_check ? row.checkAction
+                                                     : row.downloadAction);
+                row.download->SetDisabled(pending ? false : ((stateName == "ready" && !can_check) || anyBusy));
                 row.importBox->SetVisible(stateName != "ready");
                 row.import->SetDisabled(anyBusy);
                 row.removeBox->SetVisible(stateName == "ready");

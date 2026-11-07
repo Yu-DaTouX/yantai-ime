@@ -40,7 +40,7 @@ procedure InitializeWizard;
 begin
   NetworkPage := CreateInputOptionPage(wpWelcome, 'Network', 'Network', 'Network', False, False);
   CloudCandidatesIndex := NetworkPage.Add('Cloud candidates');
-  NetworkPage.Values[CloudCandidatesIndex] := ExpandConstant('{param:CLOUD|1}') <> '0';
+  NetworkPage.Values[CloudCandidatesIndex] := ExpandConstant('{param:CLOUD|0}') <> '0';
 end;
 
 { 与 msime_setup.iss 的 PrepareToInstall / MigrateUserDataDir 同序：先记下配置是否已存在，

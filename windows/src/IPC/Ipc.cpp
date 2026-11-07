@@ -1168,10 +1168,10 @@ void DebugTsfIssue47(const wchar_t *stage, uint64_t requestId, UINT code, WCHAR 
         return;
     }
 
-    // This is an explicitly enabled, short-lived diagnostic trace. Keep both
-    // the VK and translated code point so a TestKeyDown can be matched to the
-    // exact OnKeyDown/edit-session path. Composition/candidate/document text
-    // is deliberately still excluded.
+    // This is an explicitly enabled, short-lived diagnostic trace. Record the
+    // VK and a coarse key class only: composition/candidate/document text is
+    // excluded, and so is the translated character itself — a printable key's
+    // code point would put every typed letter into the log.
     const wchar_t *keyClass = L"other";
     if (wch != L'\0' && std::iswprint(static_cast<wint_t>(wch)) != 0)
     {
@@ -1198,16 +1198,14 @@ void DebugTsfIssue47(const wchar_t *stage, uint64_t requestId, UINT code, WCHAR 
     {
         keyClass = L"control";
     }
-    const wchar_t keyText[2] = {wch != L'\0' && std::iswprint(static_cast<wint_t>(wch)) != 0 ? wch : L'-', L'\0'};
-
     const uint64_t sequence = issue47Sequence.fetch_add(1, std::memory_order_relaxed) + 1;
     const std::wstring message =
-        fmt::format(L"[msime][issue47] seq={} stage={} request={} vk=0x{:02X} wch=U+{:04X} key={} "
-                    L"key_class={} category={} function={} eaten={} composing={} buffer_len={} "
+        fmt::format(L"[msime][issue47] seq={} stage={} request={} vk=0x{:02X} key_class={} "
+                    L"category={} function={} eaten={} composing={} buffer_len={} "
                     L"result=0x{:08X} correlation={} process={}\n",
-                    sequence, stage, requestId, code, static_cast<unsigned int>(wch), keyText, keyClass, category,
-                    function, eaten, composing ? 1 : 0, virtualKeyLength, static_cast<unsigned long>(result),
-                    correlationToken, Global::current_process_name.empty() ? L"unknown" : Global::current_process_name);
+                    sequence, stage, requestId, code, keyClass, category, function, eaten, composing ? 1 : 0,
+                    virtualKeyLength, static_cast<unsigned long>(result), correlationToken,
+                    Global::current_process_name.empty() ? L"unknown" : Global::current_process_name);
     QueueTsfDiagnosticLog(message);
 }
 

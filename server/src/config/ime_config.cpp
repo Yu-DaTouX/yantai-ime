@@ -152,7 +152,8 @@ std::atomic_bool g_candidate_translation_show_pos{true};
 std::atomic_bool g_candidate_translation_single_sense{false};
 int g_english_mixed_input_min_chars = kEnglishMixedInputMinCharsDefault;
 int g_english_mixed_input_first_page_count = kEnglishMixedInputFirstPageCountDefault;
-bool g_cloud_candidates_enabled = true;
+// 云候选默认关闭：新装和缺字段的老配置都不发拼音到云端，必须用户在设置页主动打开。
+bool g_cloud_candidates_enabled = false;
 // 整句候选来源与去重补位开关：词格、Google 和神经速度档默认开，神经效果档与去重补位默认关。
 bool g_assoc_sentence_wordlattice = false;
 bool g_assoc_sentence_google = true;
@@ -667,7 +668,7 @@ bool LoadImeConfig()
                     ? count
                     : kEnglishMixedInputFirstPageCountDefault;
         }
-        g_cloud_candidates_enabled = tbl["general"]["cloud_candidates"].value_or(true);
+        g_cloud_candidates_enabled = tbl["general"]["cloud_candidates"].value_or(false);
         g_assoc_sentence_wordlattice = tbl["association"]["sentence_wordlattice"].value_or(false);
         g_assoc_sentence_google = tbl["association"]["sentence_google"].value_or(true);
         g_assoc_sentence_neural_desktop = tbl["association"]["sentence_neural_desktop"].value_or(false);

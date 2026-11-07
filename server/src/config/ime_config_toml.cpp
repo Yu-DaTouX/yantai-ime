@@ -1,5 +1,6 @@
 // config.toml 的文本级原语：保留格式的键值替换与插入、跨行值定位、赋值遍历，以及读文件、原子写文件与解析校验。
 #include "config/ime_config_internal.h"
+#include "utils/common_utils.h"
 #include <Windows.h>
 #include <filesystem>
 #include <fstream>
@@ -281,9 +282,16 @@ bool WriteFileTextAtomically(const std::filesystem::path &path, const std::strin
     }
     if (MoveFileExW(temp_path.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
     {
+        // 新文件名会丢掉旧文件的显式 ACL；目录的继承 ACL 一般已经够，这里再补一道，保证任何一次
+        // 设置保存后 config.toml（含 Token）都只对当前用户可读。
+        CommonUtils::protect_user_data_file(path.wstring());
         return true;
     }
     const bool replaced = WriteFileBytes(path, text);
+    if (replaced)
+    {
+        CommonUtils::protect_user_data_file(path.wstring());
+    }
     std::error_code error;
     std::filesystem::remove(temp_path, error);
     return replaced;

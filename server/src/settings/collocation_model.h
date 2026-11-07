@@ -60,7 +60,7 @@ struct CatalogEntry
     const char *size_hint;
     const char *license;
     const char *license_note; // 可为空串：无补充说明
-    // 是否参与「打开设置时探测远端更新」。只有上游会原地重传、且地址稳定的条目才置 true；
+    // 是否参与「用户点检查更新时探测远端更新」。只有上游会原地重传、且地址稳定的条目才置 true；
     // 八股文固定 tag、白霜 raw master 保持默认 false，后续启用只改这一行。
     bool track_updates = false;
     // 可选镜像源：首次下载时优先尝试，失败（连不上/非 200/读中断/长度不符）回退 host/path
@@ -137,7 +137,7 @@ UpdateVerdict CompareRemoteIdentity(const RemoteIdentity &installed, long long l
 // 补记录判据：调用方已保证 CompareRemoteIdentity 判了 Current，这里只回答「这个结论是否站不住、
 // 该把本次探测的身份写回 .remote」。站不住指三者之一——本次探测的源与记录来源不同（跨源只比过
 // 长度，校准过来下一轮才是同源比校验器）、记录里没有 ETag、本次探测没给 ETag。同源且两边都有
-// ETag 时不写：ETag 已相同，不该每次打开设置都重写 .remote。远端没有可用身份时也不写——那本就
+// ETag 时不写：ETag 已相同，不该每次检查更新都重写 .remote。远端没有可用身份时也不写——那本就
 // 判不出 Current。不联网、不读盘，供 CheckForUpdates 与测试共用。
 bool ShouldBackfillIdentity(const RemoteIdentity &installed, const std::string &installed_source,
                             const RemoteIdentity &remote, const std::string &remote_source);
@@ -169,12 +169,13 @@ bool WriteRemoteIdentity(const std::filesystem::path &model_directory, const Rem
 // 磁盘现状 + 本进程下载态，按目录条目逐 id 给出。轻量，可随配置快照频繁调用；绝不联网。
 std::map<std::string, ModelStatus> GetModelStatuses();
 
-// 对 track_updates 且已就绪的条目做一次探测并把结论记进本进程内存。先 HEAD 主源；主源探不到
-// （连不上 / 非 200 / 无可用身份）或探到了却判不了（例如跨源只剩一侧长度）时，条目有镜像就用
-// 镜像的 Range 请求兜底，比对照镜像自己的 source 做。一个进程只探一轮，重复调用直接返回；
-// 两条路都得不出结论时静默放弃，不改变已有结论。判「当前」且记录里的身份不足以支持这个结论
-// （记录来自别的源、缺 ETag、或本次探测没给 ETag）时把本次身份写回 .remote。
-void CheckForUpdates();
+// 对 track_updates 且已就绪的条目做一次探测并把结论记进本进程内存。网络请求只在用户主动点
+// 「检查更新」时发生（设置页不再在打开时自动探测），传空 model_id 表示整个目录；传具体 id 时
+// 只探那一条，用户可以重复点。先 HEAD 主源；主源探不到（连不上 / 非 200 / 无可用身份）或
+// 探到了却判不了（例如跨源只剩两侧长度）时，条目有镜像就用镜像的 Range 请求兜底，比对照镜像
+// 自己的 source 做。两条路都得不出结论时静默放弃，不改变已有结论。判「当前」且记录里的身份
+// 不足以支持这个结论（记录来自别的源、缺 ETag、或本次探测没给 ETag）时把本次身份写回 .remote。
+void CheckForUpdates(const std::string &only_model_id = std::string());
 
 // 把校验通过、等待落位的 <id>.gram.new 换到 <id>.gram（及 .remote.new → .remote）。
 // Server 启动与设置进程初始 worker 各调一次，谁先拿到文件谁完成；旧文件仍被映射时保留待更新。

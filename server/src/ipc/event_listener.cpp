@@ -832,8 +832,8 @@ void RegisterStatusSnapshotWindow(HWND toolbar_window)
 bool SendCurrentDataToClient(uint64_t client_id, uint64_t activation_epoch, uint64_t request_id)
 {
     const UINT msg_type = Global::MsgTypeToTsf;
-    FANY_IPC_LOGF(L"[msime]: [ipc] send-current-data: msg_type={}, text={}", msg_type,
-                  ::Global::candidate_ui.selected_text);
+    FANY_IPC_LOGF(L"[msime]: [ipc] send-current-data: msg_type={}, text_units={}", msg_type,
+                  ::Global::candidate_ui.selected_text.size());
     const ULONGLONG send_started_at_ms = GetTickCount64();
     const bool sent = SendToTsfClientViaNamedpipe(client_id, activation_epoch, msg_type, request_id,
                                                   ::Global::candidate_ui.selected_text);

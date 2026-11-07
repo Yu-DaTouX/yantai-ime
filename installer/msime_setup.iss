@@ -597,9 +597,9 @@ begin
     DataDirPage.Values[0] := Chosen;
 end;
 
-{ 云候选是唯一一个装完就会联网的功能：输入过程中把当前拼写发给 Google 的 input-tools 服务。
-  出厂默认开启，而安装器此前没有任何一屏提到过它，用户要读文档才会知道。这一页把它摆到安装
-  过程里，选择写进首次生成的 config.toml。
+{ 云候选是唯一一个不用凭据、开启即联网的功能：输入过程中把当前拼写发给 Google 的 input-tools
+  服务。出厂默认关闭（config.default.toml 里 cloud_candidates = false），这一页让用户在首次
+  安装时明确选择要不要打开，选择写进首次生成的 config.toml。
 
   升级时跳过：那时 config.toml 已经属于用户，安装器不该替他重新决定。}
 procedure InitializeWizard;
@@ -625,7 +625,7 @@ begin
     '联网功能',
     '选择安装后哪些功能可以联网',
     '拼音切分、候选排序和词频学习全部在本机完成，不联网。' + #13#10 +
-    '下面这一项是唯一一个装完就会生效的联网功能。AI 联想、候选翻译、语音输入都需要你自己填入 API token 之后才会发出任何请求。' + #13#10#13#10 +
+    '出厂时联网功能全部关闭，下面这一项也要勾选后才会生效。AI 联想、候选翻译、语音输入都需要你自己填入 API token 并主动打开，否则不会发出任何请求。' + #13#10#13#10 +
     '安装后随时可以在「设置 → 输入」里改变这个选择。',
     False,
     False
@@ -633,7 +633,7 @@ begin
   CloudCandidatesIndex := NetworkPage.Add(
     '启用云候选：输入过程中把当前正在输入的拼写通过 HTTPS 发送给 Google 的 input-tools 服务' +
     '（inputtools.google.com），换回一条额外候选。已上屏的文本、词库内容和学习到的词频都不会发送。');
-  NetworkPage.Values[CloudCandidatesIndex] := True;
+  NetworkPage.Values[CloudCandidatesIndex] := False;
 #endif
 end;
 

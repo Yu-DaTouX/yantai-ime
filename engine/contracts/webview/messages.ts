@@ -9,6 +9,7 @@ export type ClientMessage =
   | { "type": "openHelpcodeDirectory"; "protocolVersion"?: 1 }
   | { "type": "openShuangpinDirectory"; "protocolVersion"?: 1 }
   | { "type": "collocationModelDownload"; "protocolVersion"?: 1; "data": { "modelId": string } }
+  | { "type": "collocationModelCheckUpdate"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelDelete"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelImport"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelStatusRequest"; "protocolVersion"?: 1 }
@@ -92,6 +93,7 @@ export type SettingsMessage =
   | { "type": "openHelpcodeDirectory"; "protocolVersion"?: 1 }
   | { "type": "openShuangpinDirectory"; "protocolVersion"?: 1 }
   | { "type": "collocationModelDownload"; "protocolVersion"?: 1; "data": { "modelId": string } }
+  | { "type": "collocationModelCheckUpdate"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelDelete"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelImport"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelStatusRequest"; "protocolVersion"?: 1 }

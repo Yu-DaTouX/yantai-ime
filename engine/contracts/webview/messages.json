@@ -48,6 +48,23 @@
         "additionalProperties": false
       }
     },
+    "collocationModelCheckUpdate": {
+      "surfaces": [
+        "settings"
+      ],
+      "data": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "modelId"
+        ],
+        "additionalProperties": false
+      }
+    },
     "collocationModelDelete": {
       "surfaces": [
         "settings"

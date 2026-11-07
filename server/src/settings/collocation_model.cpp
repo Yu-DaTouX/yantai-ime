@@ -234,7 +234,7 @@ bool ProbeRemoteIdentity(const wchar_t *host, const wchar_t *path, const wchar_t
     HINTERNET session = NetworkProxy::OpenWinHttpSession(L"MetasequoiaImeServer/1.0");
     if (session == nullptr)
         return false;
-    // 探测必须短：它跑在设置进程的后台线程里，但一次挂住会拖慢「打开设置即可见更新」。
+    // 探测必须短：它跑在设置进程的后台线程里，但一次挂住会拖慢用户点了「检查更新」之后的反馈。
     WinHttpSetTimeouts(session, 10000, 10000, 10000, 10000);
     HINTERNET connection = WinHttpConnect(session, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
     HINTERNET request = nullptr;
@@ -332,7 +332,8 @@ std::mutex g_mutex;
 std::map<std::string, RuntimeState> g_states;
 // 本进程探测出的「该 id 有新版本」。只在 g_mutex 下访问；进程生命周期内不做后台轮询。
 std::map<std::string, bool> g_updates;
-// CheckForUpdates 一个进程只跑一轮，重复调用（比如窗口重复激活）直接返回。
+// 批量探测（CheckForUpdates 不传 id）一个进程只跑一轮；单条探测由用户点「检查更新」触发，
+// 不受这个标志限制，可以重复点。
 std::atomic<bool> g_update_check_started{false};
 
 void ClearUpdateFlag(const std::string &model_id)
@@ -977,14 +978,16 @@ std::map<std::string, ModelStatus> GetModelStatuses()
     return statuses;
 }
 
-void CheckForUpdates()
+void CheckForUpdates(const std::string &only_model_id)
 {
-    // 一个设置进程只探一轮：窗口反复显示/隐藏不重复联网；失败也不循环重试。
-    if (g_update_check_started.exchange(true))
+    // 批量探测（空 id）一个进程只跑一轮；单条探测由用户点「检查更新」触发，允许重复。
+    if (only_model_id.empty() && g_update_check_started.exchange(true))
         return;
     for (const auto &entry : Catalog())
     {
         const std::string model_id = entry.id;
+        if (!only_model_id.empty() && model_id != only_model_id)
+            continue;
         if (!entry.track_updates)
             continue;
         std::error_code fs_error;
@@ -1043,7 +1046,7 @@ void CheckForUpdates()
         // 补记录：判「当前」时，只要记录里那组校验器不足以支持这个结论，就写回本次探测的
         // 身份（含 source）。三种情况由 ShouldBackfillIdentity 判定，各漏掉一个就会永远
         // 重复探测或让老记录空着。同源且两边都有 ETag 时不写——ETag 已相同，主源长期不给
-        // ETag 的机器不该每次打开设置都重写 .remote。判 Update 时不写：下一次更新下载成功
+        // ETag 的机器不该每次检查更新都重写 .remote。判 Update 时不写：下一次更新下载成功
         // 会记下新字节的身份。写入用 MergeIdentityForBackfill 而不是整体覆盖探测结果：
         // 镜像兜底判出的 Current 是弱口径，跨源时只校准 source、留住旧校验器，弱结论才不会被
         // 固化成「同源纯长度」，主源恢复后仍按 ETag 比。

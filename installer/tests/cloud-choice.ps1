@@ -34,6 +34,7 @@ try {
     # Lock：安装期间独占打开原目录的 config.toml，让迁移失败。
     $cases = @(
         @{ Name = 'fresh-default'; SameDir = $true; Previous = ''; Target = ''; Choice = '0'; Expected = 'false' },
+        @{ Name = 'fresh-enabled'; SameDir = $true; Previous = ''; Target = ''; Choice = '1'; Expected = 'true' },
         @{ Name = 'fresh-moved'; SameDir = $false; Previous = ''; Target = ''; Choice = '0'; Expected = 'false' },
         @{ Name = 'target-existing'; SameDir = $false; Previous = ''; Target = 'true'; Choice = '0'; Expected = 'true' },
         @{ Name = 'upgrade-moved'; SameDir = $false; Previous = 'true'; Target = ''; Choice = '0'; Expected = 'true' },

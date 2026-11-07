@@ -750,6 +750,28 @@ TEST_CASE(translation_provider_migration_keeps_tencent_gate)
     fs::remove_all(unique_root, ec);
 }
 
+// 新装默认不联网：老配置里根本没有 cloud_candidates 这个键时也必须是关，只有显式写 true
+// （安装向导勾选或设置页开关）才发拼音。
+TEST_CASE(cloud_candidates_defaults_off_when_key_is_missing)
+{
+    namespace fs = std::filesystem;
+    const fs::path unique_root = MakeProfileRoot() / L"cloud-candidates-default";
+    const fs::path data_dir = unique_root / L"metasequoiaime";
+    std::error_code ec;
+    fs::remove_all(unique_root, ec);
+    SeedTemplate(data_dir);
+    WriteText(data_dir / L"config.toml", "[general]\nfloating_toolbar = true\n");
+    {
+        ScopedConfigLocation location(unique_root);
+        InitImeConfig();
+        REQUIRE(!GetConfiguredCloudCandidatesEnabled());
+        REQUIRE(SetConfiguredCloudCandidatesEnabled(true));
+        InitImeConfig();
+        REQUIRE(GetConfiguredCloudCandidatesEnabled());
+    }
+    fs::remove_all(unique_root, ec);
+}
+
 TEST_CASE(config_recovers_unparseable_file_and_saves)
 {
     namespace fs = std::filesystem;

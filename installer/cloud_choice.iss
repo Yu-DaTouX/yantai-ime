@@ -57,7 +57,7 @@ begin
 end;
 
 { 网络页因为旧配置存在而跳过。旧配置没搬过去，新目录就会装上出厂配置，
-  用户关掉的云候选会被悄悄打开，所以必须中止安装。}
+  用户主动打开的云候选会被悄悄关掉，所以必须中止安装。}
 function ConfigMigrationFailure(const OldDir, NewDir: String): String;
 begin
   Result := '';
@@ -81,8 +81,10 @@ begin
       '该文件仍留在 ' + OldDir + '，本次安装没有改动它。';
 end;
 
-{ 只改本次安装新生成的 config.toml。写入失败不中止安装：此时文件已经落盘，
-  中止只会留下一个缺登录任务和目录权限的半成品。改为提示用户到设置页手动关闭。}
+{ 只改本次安装新生成的 config.toml：把向导里的勾选结果原样写进 cloud_candidates，
+  勾选就写 true、不勾写 false（出厂配置已是 false，这一步保证勾选能生效、不勾也确定是关）。
+  写入失败不中止安装：此时文件已落盘，中止只会留下一个缺登录任务和目录权限的半成品。
+  改为提示用户到设置页手动改。}
 procedure ApplyNetworkChoiceToUserConfig;
 var
   Lines: TArrayOfString;
@@ -90,11 +92,14 @@ var
   Trimmed: String;
   InGeneral: Boolean;
   Problem: String;
+  Wanted: String;
 begin
   if UserConfigExistedBeforeInstall or (NetworkPage = nil) then
     Exit;
   if NetworkPage.Values[CloudCandidatesIndex] then
-    Exit;
+    Wanted := 'true'
+  else
+    Wanted := 'false';
 
   Problem := '缺少 cloud_candidates';
   if not LoadStringsFromFile(UserConfigPath, Lines) then
@@ -109,7 +114,7 @@ begin
         InGeneral := (Trimmed = '[general]')
       else if InGeneral and (Pos('cloud_candidates', Trimmed) = 1) then
       begin
-        Lines[Index] := 'cloud_candidates = false';
+        Lines[Index] := 'cloud_candidates = ' + Wanted;
         if SaveStringsToUTF8FileWithoutBOM(UserConfigPath, Lines, False) then
           Exit;
         Problem := '无法保存';
@@ -120,7 +125,7 @@ begin
 
   Log('Cannot apply cloud candidates choice to ' + UserConfigPath + ': ' + Problem);
   SuppressibleMsgBox(
-    '无法把「不启用云候选」写入 ' + UserConfigPath + '（' + Problem + '）。' + #13#10 +
-    '云候选目前仍是开启状态，请在安装完成后到「设置 → 输入」里关闭它。',
+    '无法把云候选选择写入 ' + UserConfigPath + '（' + Problem + '）。' + #13#10 +
+    '安装已完成，请到「设置 → 输入」里确认云候选是否关闭。',
     mbError, MB_OK, IDOK);
 end;
