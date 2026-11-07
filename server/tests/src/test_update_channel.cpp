@@ -70,6 +70,9 @@ TEST_CASE(update_channel_auto_update_only_runs_on_release_lines)
 {
     // dev 构建永远不参与自动更新：它的版本号每天变，比较结果没有意义。
     REQUIRE(update_channel::SupportsAutoUpdate(Parsed("0.7.1")));
+    // 0.x 也是正式版：分叉后的新起点从 0.1.0 起，不能因为主版本号小于 1 就跳过。
+    REQUIRE(update_channel::SupportsAutoUpdate(Parsed("0.1.0")));
+    REQUIRE_EQ(std::string(update_channel::ChannelNameOf("0.1.0")), std::string("release"));
     REQUIRE(update_channel::SupportsAutoUpdate(Parsed("0.7.1-nightly.20261022.7fa6fb1a")));
     REQUIRE(!update_channel::SupportsAutoUpdate(Parsed("0.7.1-dev.20261022.7fa6fb1a")));
     Version invalid;
@@ -100,14 +103,16 @@ TEST_CASE(update_channel_survives_absurd_version_numbers)
 
 TEST_CASE(update_channel_reads_the_tag_out_of_a_release_url)
 {
-    REQUIRE(update_channel::TagFromReleaseUrl("https://github.com/metasequoiaime/MSIME-Windows/releases/tag/v0.7.1") ==
-            "v0.7.1");
+    REQUIRE(update_channel::TagFromReleaseUrl("https://github.com/Yu-DaTouX/yantai-ime/releases/tag/v0.1.0") ==
+            "v0.1.0");
     REQUIRE(update_channel::TagFromReleaseUrl(
-                "https://github.com/metasequoiaime/MSIME-Windows/releases/tag/0.7.1-nightly.20261022.7fa6fb1a") ==
-            "0.7.1-nightly.20261022.7fa6fb1a");
-    // 别的仓库、别的路径形状一律不认。
+                "https://github.com/Yu-DaTouX/yantai-ime/releases/tag/0.1.0-nightly.20261022.7fa6fb1a") ==
+            "0.1.0-nightly.20261022.7fa6fb1a");
+    // 别的仓库、别的路径形状一律不认。上游仓库的发布页现在也算别人家。
+    REQUIRE(update_channel::TagFromReleaseUrl("https://github.com/metasequoiaime/MSIME-Windows/releases/tag/v0.7.1")
+                .empty());
     REQUIRE(update_channel::TagFromReleaseUrl("https://example.com/releases/tag/v1").empty());
-    REQUIRE(update_channel::TagFromReleaseUrl("https://github.com/metasequoiaime/x/releases/latest").empty());
+    REQUIRE(update_channel::TagFromReleaseUrl("https://github.com/Yu-DaTouX/yantai-ime/releases/latest").empty());
 }
 
 TEST_CASE(update_check_puts_installers_under_the_data_directory)

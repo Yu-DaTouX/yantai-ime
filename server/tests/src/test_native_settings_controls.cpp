@@ -150,18 +150,18 @@ TEST_CASE(SettingsCssButtonHandlerOutlivesTheDialogItCloses)
 TEST_CASE(SettingsCssButtonFinishesPostingAfterClosingItself)
 {
     msimeui::Window window(L"settings-controls-tests", L"", 200, 200);
-    auto button = std::make_shared<native_settings::CssButton>(L"国内镜像下载", native_settings::CssButton::Style());
+    auto button = std::make_shared<native_settings::CssButton>(L"前往下载", native_settings::CssButton::Style());
     native_settings::CssButton *raw = button.get();
     raw->Attach(&window);
     raw->Arrange({0.0f, 0.0f, 100.0f, 30.0f});
 
     int posted = 0;
     std::string postedUrl;
-    const std::string mirror = "https://dl.msime.app/gh/example";
-    raw->SetOnClick([&button, &posted, &postedUrl, mirror]() {
+    const std::string download = "https://github.com/Yu-DaTouX/yantai-ime/releases/tag/v0.1.0";
+    raw->SetOnClick([&button, &posted, &postedUrl, download]() {
         button.reset();
         ++posted;
-        postedUrl = mirror;
+        postedUrl = download;
     });
 
     const POINT point{10, 10};
@@ -170,7 +170,7 @@ TEST_CASE(SettingsCssButtonFinishesPostingAfterClosingItself)
 
     REQUIRE(!button);
     REQUIRE_EQ(posted, 1);
-    REQUIRE_EQ(postedUrl, mirror);
+    REQUIRE_EQ(postedUrl, download);
 }
 
 TEST_CASE(SettingsButtonIgnoresDisabledAndOutsideClicks)

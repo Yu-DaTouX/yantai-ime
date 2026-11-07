@@ -34,19 +34,22 @@ TEST_CASE(update_download_rejects_bad_digests_before_touching_the_network)
     REQUIRE(!IsSha256Hex(""));
 }
 
-TEST_CASE(update_download_builds_github_first_then_the_mirror)
+TEST_CASE(update_download_builds_the_github_release_asset_url)
 {
     using namespace native_settings::update_download;
-    const std::string release = "https://github.com/metasequoiaime/MSIME-Windows/releases/tag/v0.11.1";
-    const std::vector<std::string> channels = ChannelUrls(release, "MetasequoiaIME_Setup_v0.11.1.exe");
-    REQUIRE_EQ(channels.size(), size_t{2});
-    REQUIRE_EQ(channels[0], std::string("https://github.com/metasequoiaime/MSIME-Windows/releases/download/v0.11.1/"
-                                        "MetasequoiaIME_Setup_v0.11.1.exe"));
-    REQUIRE_EQ(channels[1], "https://dl.msime.app/gh/" + channels[0]);
+    const std::string release = "https://github.com/Yu-DaTouX/yantai-ime/releases/tag/v0.1.0";
+    const std::vector<std::string> channels = ChannelUrls(release, "MetasequoiaIME_Setup_v0.1.0.exe");
+    // 只有 GitHub Release 资产一条通道，没有镜像。
+    REQUIRE_EQ(channels.size(), size_t{1});
+    REQUIRE_EQ(channels[0], std::string("https://github.com/Yu-DaTouX/yantai-ime/releases/download/v0.1.0/"
+                                        "MetasequoiaIME_Setup_v0.1.0.exe"));
 
-    // 不是本仓库的发布页地址时不产生任何通道，调用方据此报错而不是乱下。
+    // 不是本仓的发布页地址时不产生任何通道，调用方据此报错而不是乱下。
     REQUIRE(
         ChannelUrls("https://github.com/other/repo/releases/tag/v1.0.0", "MetasequoiaIME_Setup_v1.0.0.exe").empty());
+    REQUIRE(ChannelUrls("https://github.com/metasequoiaime/MSIME-Windows/releases/tag/v0.7.1",
+                        "MetasequoiaIME_Setup_v0.7.1.exe")
+                .empty());
     REQUIRE(ChannelUrls("https://msime.app/download/", "MetasequoiaIME_Setup_v1.0.0.exe").empty());
     // 安装包名不合法时同样不产生通道。
     REQUIRE(ChannelUrls(release, "setup.exe").empty());
@@ -57,7 +60,7 @@ TEST_CASE(update_download_refuses_to_start_without_a_digest)
     using namespace native_settings::update_download;
     Request request;
     request.current_version = "0.11.1";
-    request.release_url = "https://github.com/metasequoiaime/MSIME-Windows/releases/tag/v0.11.1";
+    request.release_url = "https://github.com/Yu-DaTouX/yantai-ime/releases/tag/v0.11.1";
     request.installer_name = "MetasequoiaIME_Setup_v0.11.1.exe";
     request.directory = test::TempRoot() / L"update-download-unit";
 
@@ -81,6 +84,9 @@ TEST_CASE(update_download_only_runs_on_release_builds)
 
     // 正式版放行。发布页的 tag 带 v，清单里的 version 字段两种写法都出现过。
     REQUIRE(IsReleaseVersion("0.11.1"));
+    // 0.x 也算正式版：本分叉从 0.1.0 起发版，不能卡在主版本号上。
+    REQUIRE(IsReleaseVersion("0.1.0"));
+    REQUIRE(IsReleaseVersion("v0.1.0"));
     REQUIRE(IsReleaseVersion("v0.11.1"));
     REQUIRE(IsReleaseVersion("V0.11.1"));
     REQUIRE(IsReleaseVersion(" 0.11.1 "));
@@ -103,7 +109,7 @@ TEST_CASE(update_download_refuses_nightly_builds_before_touching_the_network)
     using namespace native_settings::update_download;
     Request request;
     request.current_version = "0.11.1-nightly.20261010.d1adf7df7682";
-    request.release_url = "https://github.com/metasequoiaime/MSIME-Windows/releases/tag/0.11.1";
+    request.release_url = "https://github.com/Yu-DaTouX/yantai-ime/releases/tag/0.11.1";
     request.installer_name = "MetasequoiaIME_Setup_v0.11.1.exe";
     request.installer_sha256 = std::string(64, 'a');
     request.directory = test::TempRoot() / L"update-download-nightly";

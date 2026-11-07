@@ -1,5 +1,6 @@
 #include "settings/update_channel.h"
 
+#include "settings/update_source.h"
 #include "utils/common_utils.h"
 
 #include <algorithm>
@@ -15,7 +16,13 @@ namespace
 // 主版本只接受数字段；预发布标签是第一个 '-' 之后的全部内容，'+' 之后视为构建元数据和
 // 版本比较无关，直接丢掉。允许前导的 v/V，因为标签和安装包名都这么写。
 constexpr char kVersionPattern[] = R"(^\s*[vV]?(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?\s*$)";
-constexpr char kTagPattern[] = R"(^https://github\.com/metasequoiaime/[\w.-]+/releases/tag/([\w.+-]+)$)";
+// 发布页地址的形状。仓库地址来自 update_source，仓库改名只改那一处。
+const std::regex &TagPattern()
+{
+    static const std::regex pattern("^" + update_source::RegexEscapedRepositoryUrl() +
+                                    "/releases/tag/([\\w.+-]+)$");
+    return pattern;
+}
 
 bool SplitPrerelease(const std::string &prerelease, std::vector<std::string> &identifiers)
 {
@@ -202,9 +209,8 @@ const char *ChannelNameOf(const std::string &version)
 
 std::string TagFromReleaseUrl(const std::string &url)
 {
-    static const std::regex pattern(kTagPattern);
     std::smatch match;
-    if (!std::regex_match(url, match, pattern))
+    if (!std::regex_match(url, match, TagPattern()))
         return {};
     return match[1].str();
 }

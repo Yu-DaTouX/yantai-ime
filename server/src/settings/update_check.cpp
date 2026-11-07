@@ -6,6 +6,7 @@
 #include "settings/native/native_settings_update_download.h"
 #include "settings/settings_launcher.h"
 #include "settings/update_channel.h"
+#include "settings/update_source.h"
 #include "utils/network_proxy.h"
 
 #include <Windows.h>
@@ -24,8 +25,9 @@ namespace update_check
 {
 namespace
 {
-constexpr char kManifestUrl[] = "https://msime.app/update.json";
-
+// 清单地址来自 update_source，仓库改名只改那一处。GitHub 会先用 302 把
+// /releases/latest/download/ 跳到实际资产的地址，下面的请求显式放开了重定向
+// （WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS）。
 using Clock = std::chrono::steady_clock;
 
 std::mutex &Mutex()
@@ -278,7 +280,7 @@ void CheckOnce()
     // 缓存穿透：加一个时间戳，免得 CDN 一直返回旧清单。
     const long long stamp = std::chrono::system_clock::now().time_since_epoch().count();
     std::string body;
-    if (!HttpGetText(std::string(kManifestUrl) + "?t=" + std::to_string(stamp), body))
+    if (!HttpGetText(update_source::ManifestUrl() + "?t=" + std::to_string(stamp), body))
     {
         done(std::string());
         return;
