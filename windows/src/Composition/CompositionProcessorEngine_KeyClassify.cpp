@@ -15,7 +15,6 @@
 #include <string>
 #include <fmt/xchar.h>
 #include "Ipc.h"
-#include "TemporaryJapaneseKeyPolicy.h"
 #include "FanyUtils.h"
 #include "FanyLog.h"
 #include "EditSession.h"
@@ -95,23 +94,15 @@ bool IsEndHelpcodeMarkerKey(UINT uCode, WCHAR wch, const WCHAR *buffer, DWORD_PT
                                                           HelpcodeUppercaseTriggers());
 }
 
-// 日语模式禁用 -/= 翻页：'-' 是长音符（ー）的输入键。空编码时也要起头组合，
-// 候选框第一项是长音符 ー、第二项是普通连字符 '-'（候选由服务端提供）。
-bool IsJapaneseKeyMode(const WCHAR *raw, DWORD_PTR length)
-{
-    return FanyImeTemporaryJapanese::IsMode(Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed),
-                                            GetTemporaryJapanesePolicy(), raw, static_cast<std::size_t>(length));
-}
-
 // 直接辅助码下用引导键进入末尾辅助码（UsesDirectHelpcodeEndTrigger）：输入末尾形状合适的引导键（Server 发来的
 // 反引号、分号），以及删掉它留下的末尾段开头的退格（Ctrl/Alt 组合不在这里，Ctrl+Backspace 仍按单元删）。两者
 // 都由 Server 改写输入串并回 CompositionRestored；改写不了时 Server 照旧把引导键当标点回帧。发送时打上
 // FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite，Server 以这个标记为准（见 KeyEventSink.cpp）。分号先让给
-// ing 韵母，日语模式不收。
+// ing 韵母。
 bool IsDirectHelpcodeEndTriggerRewriteKeyAt(UINT uCode, WCHAR wch, const WCHAR *buffer, DWORD_PTR length,
                                             DWORD_PTR caret)
 {
-    if (buffer == nullptr || length == 0 || !UsesDirectHelpcodeEndTrigger() || IsJapaneseKeyMode(buffer, length))
+    if (buffer == nullptr || length == 0 || !UsesDirectHelpcodeEndTrigger())
     {
         return false;
     }
@@ -128,23 +119,9 @@ bool IsDirectHelpcodeEndTriggerRewriteKeyAt(UINT uCode, WCHAR wch, const WCHAR *
     return (backtick || semicolon) && FanyImeDirectHelpcode::AcceptsEndTriggerAt(buffer, size, at);
 }
 
-bool IsJapaneseLongVowelKey(UINT uCode, WCHAR wch, const WCHAR *raw, DWORD_PTR length)
-{
-    return ClassifyJapaneseKey(uCode, wch, 0, Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed),
-                               GetTemporaryJapanesePolicy(), raw, static_cast<std::size_t>(length), true)
-               .Function == FUNCTION_INPUT;
-}
 
 // '_' '=' '+' 在日语模式下也不翻页，但它们没有假名写法，按标点上屏处理，
 // 且只在已有编码时接管——空编码时仍然是普通标点，归应用程序。
-bool IsJapaneseMinusEqualPunctuationKey(UINT uCode, WCHAR wch, BOOL fComposing, CANDIDATE_MODE candidateMode,
-                                        DWORD_PTR keystrokeLength, const WCHAR *raw)
-{
-    return ClassifyJapaneseKey(uCode, wch, 0, Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed),
-                               GetTemporaryJapanesePolicy(), raw, static_cast<std::size_t>(keystrokeLength),
-                               fComposing || candidateMode != CANDIDATE_NONE)
-               .Function == FUNCTION_PUNCTUATION;
-}
 
 bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT uCode, WCHAR wch, CANDIDATE_MODE candidateMode,
                                                                 const WCHAR *raw, DWORD_PTR keystrokeLength)
@@ -166,13 +143,7 @@ bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT uCode, WCHA
         return false;
     case VK_OEM_MINUS:
     case VK_OEM_PLUS:
-        // 日语模式下这两个键不翻页，交给下面的标点判定处理；但 '-' 走长音符输入，
-        // 不是标点上屏。
-        if (!IsJapaneseKeyMode(raw, keystrokeLength) || IsJapaneseLongVowelKey(uCode, wch, raw, keystrokeLength))
-        {
-            return false;
-        }
-        break;
+        return false;
     default:
         break;
     }
@@ -215,16 +186,6 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeedForFreshComposition(UINT uCode
     // mode, wildcard flags, or virtual-key buffer may affect the first key in
     // the replacement session.
     if (IsManualPinyinSeparatorInComposition(pwch ? *pwch : 0, FALSE, CANDIDATE_NONE, 0))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            pKeyState->Function = FUNCTION_INPUT;
-        }
-        return TRUE;
-    }
-    // 日语模式下 '-' 单独按也要起头组合，弹出候选框选长音符 ー 或普通 '-'。
-    if (IsJapaneseLongVowelKey(uCode, pwch ? *pwch : 0, nullptr, 0))
     {
         if (pKeyState)
         {
@@ -294,15 +255,6 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
         return TRUE;
     }
 
-    if (IsJapaneseLongVowelKey(uCode, pwch ? *pwch : 0, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength()))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            pKeyState->Function = FUNCTION_INPUT;
-        }
-        return TRUE;
-    }
 
     // T-mode: digits, '/' and ':' that still extend a date/time are input. The rest keep their usual
     // meaning below (digits select, '/' and ':' are punctuation); Shift+digit never matches here.
@@ -332,24 +284,13 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
         return TRUE;
     }
 
-    if (IsJapaneseMinusEqualPunctuationKey(uCode, pwch ? *pwch : 0, fComposing, candidateMode,
-                                           _keystrokeBuffer.GetLength(), _keystrokeBuffer.Get()))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            pKeyState->Function = FUNCTION_PUNCTUATION;
-        }
-        return TRUE;
-    }
 
     // The Server owns the configurable comma/period behavior. Always route
     // these keys through it while candidates are active; its response decides
     // whether the key navigates or commits the highlighted candidate with punctuation.
     const bool isCommaPeriodPagingKey = uCode == VK_OEM_COMMA || uCode == VK_OEM_PERIOD;
     const bool isBracketPagingKey = uCode == VK_OEM_4 || uCode == VK_OEM_6;
-    const bool isMinusEqualPagingKey = (uCode == VK_OEM_MINUS || uCode == VK_OEM_PLUS) &&
-                                       !IsJapaneseKeyMode(_keystrokeBuffer.Get(), _keystrokeBuffer.GetLength());
+    const bool isMinusEqualPagingKey = (uCode == VK_OEM_MINUS || uCode == VK_OEM_PLUS);
     if (candidateMode != CANDIDATE_NONE &&
         (isMinusEqualPagingKey || isCommaPeriodPagingKey || isBracketPagingKey || uCode == VK_TAB ||
          uCode == VK_PRIOR || uCode == VK_NEXT || uCode == VK_UP || uCode == VK_DOWN))

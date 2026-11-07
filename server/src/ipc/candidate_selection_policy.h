@@ -160,8 +160,7 @@ inline std::optional<size_t> SlottedEnglishIndex(const std::vector<WordItem> &it
 // The learned English slot (EnglishPlacement) moves the English candidate away
 // from that default afterwards, and explicit English ranking choices are
 // reapplied last.
-inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t local_prefix_slots = 1,
-                                         const EnglishPlacement &english_placement = {})
+inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const EnglishPlacement &english_placement = {})
 {
     // 字母词与首个符号先取出，固定位置的候选留在原下标，等于在不含它们的列表上放固定位置；列表已归一化过时，
     // 这还原出上次放它们之前的列表，再归一化结果不变。
@@ -262,7 +261,7 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t lo
 
     // 没有云候选时 AI 紧跟在英文后面，它和英文前面的候选一样不该被额外的英文挤出首页。
     const bool ai_follows_english = !cloud_candidate && ai_candidate;
-    size_t slot = IndexAfterLocalCandidates(items, local_prefix_slots);
+    size_t slot = IndexAfterLocalCandidates(items, 1);
     if (!date_time_candidates.empty())
     {
         insert_at(slot++, std::move(date_time_candidates.front()));

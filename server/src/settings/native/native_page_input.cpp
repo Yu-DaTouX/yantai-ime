@@ -1285,10 +1285,7 @@ struct InputPage
 
     // Input mode
     std::vector<std::shared_ptr<Hideable>> chineseSections;
-    std::shared_ptr<Hideable> japaneseSection;
-    std::shared_ptr<RadioGroup> modeGroup = std::make_shared<RadioGroup>();
     std::shared_ptr<RadioGroup> schemeGroup = std::make_shared<RadioGroup>();
-    std::shared_ptr<RadioGroup> japaneseGroup = std::make_shared<RadioGroup>();
     std::shared_ptr<Dropdown> shuangpin;
     std::shared_ptr<Label> shuangpinDirectory;
     std::shared_ptr<Hideable> shuangpinDirectoryBox;
@@ -1431,13 +1428,6 @@ struct InputPage
         singleSenseBlock->SetDisabled(!enabled);
     }
 
-    void SyncMode(const std::string &mode)
-    {
-        const bool japanese = mode == "japanese";
-        for (auto &section : chineseSections)
-            section->SetVisible(!japanese);
-        japaneseSection->SetVisible(japanese);
-    }
 };
 
 // Section card that can be hidden (`hidden` attribute) without leaving its margin behind.
@@ -1573,18 +1563,6 @@ VisualPtr BuildInputPage(PageContext &context)
     PageBuilder page(L"输入");
 
     // ---- 输入模式 ----
-    {
-        auto chinese = s->modeGroup->Add(L"中文", "chinese");
-        auto japanese = s->modeGroup->Add(L"日文", "japanese");
-        s->modeGroup->SetValue("chinese");
-        s->modeGroup->SetOnChanged([s, model](const std::string &mode) {
-            s->SyncMode(mode);
-            model->Update("input.mode", mode);
-        });
-        auto grid = std::make_shared<TwoColumns>(chinese, japanese);
-        page.AddSection(Col({MakeTitleBlock(L"输入模式", L"切换中文或日文输入，并保留各模式上次选择的方案"),
-                             WithMarginTop(grid, 12.0f)}));
-    }
 
     // ---- 输入方案 ----
     {
@@ -1690,21 +1668,6 @@ VisualPtr BuildInputPage(PageContext &context)
     }
 
     // ---- 日语方案 ----
-    {
-        auto romaji = s->japaneseGroup->Add(L"罗马音", "romaji");
-        s->japaneseGroup->SetValue("romaji");
-        s->japaneseGroup->SetOnChanged([model](const std::string &value) {
-            if (value == "romaji")
-                model->Update("input.japanese_schema", value);
-        });
-        auto options = Col({romaji}, 8.0f);
-        options->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
-        s->japaneseSection =
-            AddHideableSection(page,
-                               Col({MakeTitle(L"日语方案"), options,
-                                    Description(L"直接输入罗马音，提供平假名、片假名及日语词库候选", 10.0f)}),
-                               false);
-    }
 
     // ---- 输入纠错 ----
     page.AddSection(
@@ -2067,12 +2030,11 @@ VisualPtr BuildInputPage(PageContext &context)
                  s->collocationToggle),
              // 这一节里唯一联网的一项。它跟 AI 联想无关：不要 Token，也不用选服务商，
              // 默认还开着，所以必须留一个能点得到的地方。
-             FrequencyRow(
-                 SubBlock(L"云候选",
-                          L"联网，把当前的全拼（双拼会先还原成全拼，日文输入时是罗马字）发送到 Google 的 inputtools "
-                          L"服务换取一个候选。对方会收到拼音、你的 IP 地址和请求元数据，不会收到已上屏的文字、"
-                          L"词库或设置。默认开启，无需账号；需要走代理时在「帮助」页设置，详见 PRIVACY.md"),
-                 Toggle(context, "general.cloud_candidates"))});
+             FrequencyRow(SubBlock(L"云候选",
+                                   L"联网，把当前的全拼（双拼会先还原成全拼）发送到 Google 的 inputtools "
+                                   L"服务换取一个候选。对方会收到拼音、你的 IP 地址和请求元数据，不会收到已上屏的文字、"
+                                   L"词库或设置。默认开启，无需账号；需要走代理时在「帮助」页设置，详见 PRIVACY.md"),
+                          Toggle(context, "general.cloud_candidates"))});
         content->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         page.AddSection(
             Col({MakeTitleBlock(L"整句与云候选", L"输入多个拼音音节时，额外提供整句或云端给出的候选"), content}));
@@ -2105,13 +2067,9 @@ VisualPtr BuildInputPage(PageContext &context)
     // ---- Snapshot -> page (config-sync.ts) ----
     context.OnConfig([s, state, model, host, &context]() {
         (void)state;
-        const std::string mode = model->GetString("input.mode") == "japanese" ? "japanese" : "chinese";
-        s->modeGroup->SetValue(mode);
-        s->SyncMode(mode);
         const std::string schema = model->GetString("input.schema");
         if (schema == "quanpin" || schema == "shuangpin" || schema == "wubi")
             s->schemeGroup->SetValue(schema);
-        s->japaneseGroup->SetValue("romaji");
 
         // Custom shuangpin schemas follow the built-in ones; broken ones are listed greyed out.
         if (const Json *schemas = model->Find("input.custom_shuangpin_schemas"); schemas && schemas->is_array())

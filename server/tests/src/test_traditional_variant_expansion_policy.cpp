@@ -231,21 +231,6 @@ TEST_CASE(variant_expansion_keeps_every_spelling_of_the_same_word_under_another_
 }
 
 // 日语方案的候选不论来源一律原样保留。
-TEST_CASE(variant_expansion_leaves_every_japanese_candidate_alone)
-{
-    for (const auto source :
-         {CandidateSource::Database, CandidateSource::UserDatabase, CandidateSource::Generated,
-          CandidateSource::Fallback, CandidateSource::NeuralDesktop, CandidateSource::NeuralKeyboard,
-          CandidateSource::Collocation, CandidateSource::CloudSuggestion, CandidateSource::AiSuggestion})
-    {
-        WordItem japanese("tai", "台", 7, source);
-        japanese.scheme = SchemeType::JapaneseRomaji;
-        REQUIRE(FanyImeIpc::VariantExpansionFor(japanese) == FanyImeIpc::VariantExpansion::Unchanged);
-        const auto expanded = Expand({japanese});
-        REQUIRE_EQ(expanded.size(), size_t{1});
-        RequireUnchanged(expanded[0], japanese);
-    }
-}
 
 // 去重只在填了 output_text 的项之间比；原样保留的来源不参与，也不会被删。
 TEST_CASE(variant_expansion_does_not_deduplicate_against_sources_it_keeps_unchanged)
@@ -356,7 +341,7 @@ TEST_CASE(mixed_candidate_order_moves_a_learned_english_slot_out_of_a_spelling_g
     FanyImeIpc::EnglishPlacement placement;
     placement.slot = 3;
     placement.input = "ta";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequireTaiGroupIntact(items);
     REQUIRE_EQ(Words(items), (Spellings{"你", "台", "台", "台", "台", "ta", "他", "她", "它"}));
 }
@@ -447,7 +432,7 @@ TEST_CASE(mixed_candidate_order_keeps_extra_first_page_english_after_a_slot_move
     placement.input = "ta";
     placement.page_size = 9;
     placement.first_page_count = 3;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequireTaiGroupIntact(items);
     REQUIRE_EQ(Words(items), (Spellings{"你", "台", "台", "台", "台", "ta", "tab", "tad", "他", "她", "它"}));
 }
@@ -489,8 +474,7 @@ TEST_CASE(async_insertion_without_conversion_compares_words_only)
     WordItem fu("fu", "复", 8);
     fu.output_text = "復";
     const std::vector<WordItem> items = {tai, fu};
-    for (const auto &settings : {Settings(false), Settings(true, SchemeType::JapaneseRomaji),
-                                 Settings(true, SchemeType::Quanpin, /*radical_candidate_list=*/true)})
+    for (const auto &settings : {Settings(false), Settings(true, SchemeType::Quanpin, /*radical_candidate_list=*/true)})
     {
         for (const auto source : kAsyncSources)
         {

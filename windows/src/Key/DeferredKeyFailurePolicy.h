@@ -25,10 +25,6 @@ enum class DeferredKeyFailureReason
     // The request was written but its reply never arrived: the Server may
     // already have acted on it (committed a candidate). Never resend.
     DeliveryAmbiguous,
-    // The key itself was applied and both sides agree on the result, but it
-    // landed in a different state than the one the keys queued behind it were
-    // classified for (a language cycle answered as the binary toggle).
-    ProjectionInvalidated,
 };
 
 // How much state the failure discards.
@@ -48,24 +44,8 @@ enum class DeferredKeyFailureKind
     Transport,
 };
 
-inline DeferredKeyFailureKind ResolveDeferredKeyFailure(DeferredKeyFailureReason reason, bool offlineLaneActive,
-                                                        bool serverModeMayHaveChanged = false)
+inline DeferredKeyFailureKind ResolveDeferredKeyFailure(DeferredKeyFailureReason reason, bool offlineLaneActive)
 {
-    if (reason == DeferredKeyFailureReason::ProjectionInvalidated)
-    {
-        // Nothing to undo on either side; only the queue behind it is wrong.
-        return offlineLaneActive ? DeferredKeyFailureKind::Offline : DeferredKeyFailureKind::Resync;
-    }
-    // The Server changes language before answering a cycle. If that reply is
-    // not applied, for any reason including a newer focus token or composition
-    // epoch, clearing composition on the same token cannot restore the native
-    // mode the Server already switched to (and the requester is left out of the
-    // InputModeChanged broadcast): reconnect and receive a fresh snapshot. A
-    // focus change is handled by the caller; activation re-sends the language.
-    if (serverModeMayHaveChanged && !offlineLaneActive)
-    {
-        return DeferredKeyFailureKind::Transport;
-    }
     switch (reason)
     {
     case DeferredKeyFailureReason::Superseded:
@@ -84,7 +64,7 @@ inline DeferredKeyFailureKind ResolveDeferredKeyFailure(DeferredKeyFailureReason
 // Reason for an edit session that ran but did not apply its key. The caller
 // derives the flags from the session's own validation and HRESULT.
 inline DeferredKeyFailureReason ClassifyEditSessionFailure(bool superseded, bool deliveryAmbiguous,
-                                                           bool transportBroken, bool projectionInvalidated = false)
+                                                           bool transportBroken)
 {
     if (superseded)
     {
@@ -97,10 +77,6 @@ inline DeferredKeyFailureReason ClassifyEditSessionFailure(bool superseded, bool
     if (transportBroken)
     {
         return DeferredKeyFailureReason::TransportBroken;
-    }
-    if (projectionInvalidated)
-    {
-        return DeferredKeyFailureReason::ProjectionInvalidated;
     }
     return DeferredKeyFailureReason::HostEditRejected;
 }

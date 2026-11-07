@@ -494,7 +494,7 @@ TEST_CASE(LearnedEnglishSlotCanMakeEnglishTheFirstMixedCandidate)
     FanyImeIpc::EnglishPlacement placement;
     placement.slot = 0;
     placement.input = "github";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
 
     REQUIRE_EQ(items[0].word, std::string("GitHub"));
     REQUIRE_EQ(items[1].word, std::string("个"));
@@ -513,7 +513,7 @@ TEST_CASE(LearnedEnglishSlotMovesEnglishBehindItsDefaultPosition)
     FanyImeIpc::EnglishPlacement placement;
     placement.slot = 3;
     placement.input = "ni";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     // 槽位是列表下标：英文挪到下标 3；emoji 排在候选列表末尾，不挤占中文候选。
     REQUIRE_EQ(items[0].word, std::string("你"));
     REQUIRE_EQ(items[1].word, std::string("呢"));
@@ -539,7 +539,7 @@ TEST_CASE(PinyinInputPrefersExactEnglishAndParksCompletionsOnTheFirstPage)
         local("不少"),
         WordItem("bus", "bus", 0, CandidateSource::EnglishDictionary),
     };
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[0].word, std::string("不是"));
     REQUIRE_EQ(items[1].word, std::string("bus"));
     REQUIRE_EQ(items[2].word, std::string("不少"));
@@ -557,7 +557,7 @@ TEST_CASE(PinyinInputPrefersExactEnglishAndParksCompletionsOnTheFirstPage)
         };
     };
     items = zai_items();
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[0].word, std::string("在"));
     REQUIRE_EQ(items[1].word, std::string("再"));
     REQUIRE_EQ(items[4].word, std::string("zaire"));
@@ -567,14 +567,14 @@ TEST_CASE(PinyinInputPrefersExactEnglishAndParksCompletionsOnTheFirstPage)
     // 学到的槽位优先于默认位置，补全词可以一直升到首位。
     placement.slot = 0;
     items = zai_items();
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[0].word, std::string("zaire"));
     REQUIRE_EQ(items[1].word, std::string("在"));
 
     // 槽位不超过首页末位。
     placement.slot = 9;
     items = zai_items();
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(*FanyImeIpc::SlottedEnglishIndex(items), size_t{4});
 }
 
@@ -663,7 +663,7 @@ TEST_CASE(BestEmojiMixedCandidateTakesTheLastSlotOfTheFirstPage)
                                    local("宰"),
                                    local("崽"),
                                    kaomoji()};
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.size(), size_t{9});
     REQUIRE_EQ(items[0].word, std::string("在"));
     REQUIRE_EQ(items[3].word, std::string("灾"));
@@ -675,7 +675,7 @@ TEST_CASE(BestEmojiMixedCandidateTakesTheLastSlotOfTheFirstPage)
 
     // 不满一页时首个 emoji 就落在末尾。
     items = {local("在"), emoji("\xF0\x9F\x91\x8B"), local("再")};
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[2].word, std::string("\xF0\x9F\x91\x8B"));
 
     // 补全词默认也想占首页末位：emoji 占末位，补全词让到倒数第二位，两者都在首页。
@@ -688,7 +688,7 @@ TEST_CASE(BestEmojiMixedCandidateTakesTheLastSlotOfTheFirstPage)
              local("灾"),
              local("宰"),
              emoji("\xF0\x9F\x91\x8B")};
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[3].word, std::string("zaire"));
     REQUIRE_EQ(items[4].word, std::string("\xF0\x9F\x91\x8B"));
     REQUIRE_EQ(*FanyImeIpc::SlottedEnglishIndex(items), size_t{3});
@@ -702,7 +702,7 @@ TEST_CASE(BestEmojiMixedCandidateTakesTheLastSlotOfTheFirstPage)
              local("灾"),
              local("宰"),
              emoji("\xF0\x9F\x91\x8B")};
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[3].word, std::string("zaire"));
     REQUIRE_EQ(items[4].word, std::string("\xF0\x9F\x91\x8B"));
 }
@@ -747,7 +747,7 @@ TEST_CASE(FirstSymbolMixedCandidateTakesTheLastSlotOfTheFirstPage)
     // 首个符号在首页末位，其余符号排在最后。
     std::vector<WordItem> items = {local("一"), symbol("①"), symbol("⑴"), local("以"),
                                    local("已"), local("意"), local("义"), local("亿")};
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.size(), size_t{8});
     REQUIRE_EQ(items[0].word, std::string("一"));
     REQUIRE_EQ(items[1].word, std::string("以"));
@@ -757,7 +757,7 @@ TEST_CASE(FirstSymbolMixedCandidateTakesTheLastSlotOfTheFirstPage)
 
     // 有 emoji 和云候选时：云候选仍紧跟首个中文候选；首页末位归 emoji，符号在它前一位；其余符号排在颜文字之后。
     items = {local("一"), symbol("①"), symbol("⑴"), kaomoji(), emoji(), cloud(), local("以"), local("已"), local("意")};
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[1].source, CandidateSource::CloudSuggestion);
     REQUIRE_EQ(items[3].word, std::string("①"));
     REQUIRE_EQ(items[4].source, CandidateSource::Emoji);
@@ -766,7 +766,7 @@ TEST_CASE(FirstSymbolMixedCandidateTakesTheLastSlotOfTheFirstPage)
 
     // 再归一化一次位置不变（异步结果回来、翻页扩展都会重排）。
     const auto before = items;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     for (size_t index = 0; index < items.size(); ++index)
         REQUIRE_EQ(items[index].word, before[index].word);
 }
@@ -841,26 +841,12 @@ TEST_CASE(QuickPhraseGroupStaysWholeAndAheadOfAsyncCandidates)
     FanyImeIpc::EnglishPlacement placement;
     placement.slot = 0;
     placement.input = "ni";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[0].word, std::string("快捷一"));
     REQUIRE_EQ(items[1].word, std::string("nice"));
     REQUIRE_EQ(items[2].word, std::string("你"));
 }
 
-TEST_CASE(JapaneseSingleKanaPairStaysAheadOfCloudCandidate)
-{
-    std::vector<WordItem> items = {
-        WordItem("Ka", "か", 1000000, CandidateSource::Generated),
-        WordItem("Ka", "カ", 999999, CandidateSource::Generated),
-        WordItem("ka", "蚊", 1, CandidateSource::CloudSuggestion),
-        WordItem("ka", "科", 100, CandidateSource::Database),
-    };
-
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 2);
-    REQUIRE_EQ(items[0].word, std::string("か"));
-    REQUIRE_EQ(items[1].word, std::string("カ"));
-    REQUIRE_EQ(items[2].source, CandidateSource::CloudSuggestion);
-}
 
 TEST_CASE(EngineShuangpinAiCandidateConsumesFullRawInput)
 {
@@ -1712,9 +1698,6 @@ TEST_CASE(UnitlessSchemesReportNoSegmentBoundaries)
     InputLetters(wubi, "nihao");
     REQUIRE(wubi.segment_raw_boundaries().empty());
 
-    EngineInputSession japanese(SchemeType::JapaneseRomaji);
-    InputLetters(japanese, "nihao");
-    REQUIRE(japanese.segment_raw_boundaries().empty());
 }
 
 TEST_CASE(SegmentBoundariesKeepHelpcodeAndJianpinTailAsTheirOwnUnits)

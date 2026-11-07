@@ -1,8 +1,7 @@
 """构建输入：msime-dictionary checkout，以及 inputs.lock.json 按大小和 SHA-256 固定、首次使用时下载并缓存的仓外文件。
 
 仓外文件有三类：msime 仓库 resources/dictionary-sources/ 下人工维护的读音纠错、emoji 和颜文字
-（固定在 Release 所用的 msime 提交；符号表改在 msime-dictionary 的 sources/symbols/）；ECDICT 与 SCOWL Aspell 包（Rust 构建器的锁文件同样固定它们）；
-rime-jp_sela 的 jp_sela.dict.yaml（旧 msime.db 的 japanese_lexicon 来源）。
+（固定在 Release 所用的 msime 提交；符号表改在 msime-dictionary 的 sources/symbols/）；ECDICT 与 SCOWL Aspell 包（Rust 构建器的锁文件同样固定它们）。
 """
 
 from __future__ import annotations
@@ -59,7 +58,6 @@ class Inputs:
     msime_files: dict[str, Path]
     ecdict: Path
     scowl: Path
-    jp_sela: Path
 
     def source(self, relative: str) -> Path:
         path = self.dictionary / relative
@@ -87,9 +85,9 @@ def fetch(dictionary: Path, cache: Path, resources: Path | None) -> Inputs:
         files[relative] = _ensure(cache / "msime" / msime["commit"][:12] / relative, url, entry["size"],
                                   entry["sha256"], f"msime/{relative}")
     external = {name: _ensure(cache / name, entry["url"], entry["size"], entry["sha256"], name)
-                for name, entry in lock["external"].items()}
+                for name, entry in lock["external"].items() if name != "jp_sela.dict.yaml"}
     return Inputs(dictionary, msime["commit"], files, external["ecdict.csv"],
-                  external["aspell6-en-2026.02.25-0.tar.bz2"], external["jp_sela.dict.yaml"])
+                  external["aspell6-en-2026.02.25-0.tar.bz2"])
 
 
 def git_state(checkout: Path) -> tuple[str, bool]:

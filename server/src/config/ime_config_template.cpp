@@ -90,6 +90,10 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
 std::string MergeTomlIntoTemplate(const std::string &template_text, std::map<std::string, std::string> user_values,
                                   const std::map<std::string, std::string> &baseline_values)
 {
+    // Read the legacy mode before the new template drops it.
+    const auto mode = user_values.find(MakeTomlAssignmentId("input", "mode"));
+    if (mode != user_values.end() && UnquoteTomlScalar(mode->second) == "japanese")
+        user_values[MakeTomlAssignmentId("input", "schema")] = "\"quanpin\"";
     const auto fallback_id = MakeTomlAssignmentId("appearance", "fallback_fonts");
     if (!user_values.empty() && user_values.find(fallback_id) == user_values.end())
     {

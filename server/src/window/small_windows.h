@@ -41,7 +41,6 @@ void UpdateFtbDoubleSingleByteState(int doubleSingleByteState);
 void UpdateFtbEnglishInputModeState(int enabled);
 void UpdateFtbCapsLockState(int enabled);
 void UpdateFtbCharacterSetState();
-void UpdateFtbInputModeState(int japaneseMode);
 // 把配置的可选按钮重新套到工具栏上并调整宿主尺寸。
 void ApplyConfiguredFloatingToolbarItems();
 

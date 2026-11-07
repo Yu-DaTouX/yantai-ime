@@ -300,7 +300,8 @@
         "type": "object",
         "properties": {
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Active configuration path; removed Japanese input mode, schema, R-mode and trilingual-cycle settings are ignored."
           },
           "value": {
             "anyOf": [
@@ -509,32 +510,6 @@
         "required": [
           "requestId",
           "dictionary",
-          "action"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "statsRequest": {
-      "surfaces": [
-        "settings"
-      ],
-      "data": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "overview",
-              "clearAll",
-              "openDirectory"
-            ]
-          }
-        },
-        "required": [
-          "requestId",
           "action"
         ],
         "additionalProperties": false

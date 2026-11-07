@@ -1,7 +1,6 @@
 #include "../../core/ime_session.h"
 #include "../../core/data_path.h"
 #include "../../english/english_dictionary.h"
-#include "../../japanese/romaji_converter.h"
 #include "../../neural/neural_decoder.h"
 #include "../../quanpin/quanpin_query.h"
 #include "../../quanpin/word_lattice.h"
@@ -84,10 +83,6 @@ class Database
 
 int run_test()
 {
-    if (japanese::HiraganaToKatakana("かな") != "カナ" || japanese::HiraganaToRomaji("カナ") != "kana")
-    {
-        throw std::runtime_error("Kana conversion changed during the platform port.");
-    }
 
     {
         // 多音字的生僻读音：大 读 tai 只占 大 全部权重的 0.14%，单字行要在 penalty 上扣分，

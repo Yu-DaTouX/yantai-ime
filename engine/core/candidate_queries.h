@@ -19,8 +19,7 @@ class CandidateQueries
     {
     }
     local_modes::LocalQueryResult local(LocalInputMode mode, const std::string &preedit, SchemeType scheme,
-                                        const std::function<local_modes::LocalDateTime()> &clock,
-                                        const std::vector<WordItem> &engine_candidates);
+                                        const std::function<local_modes::LocalDateTime()> &clock);
     std::vector<WordItem> mixed(std::vector<WordItem> candidates, const std::string &prefix, SchemeType scheme,
                                 EnglishInputOptions english_options, MixedExpressiveOptions expressive_options,
                                 bool dedicated_english, LocalInputMode local_mode);

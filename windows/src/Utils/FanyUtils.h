@@ -15,8 +15,6 @@ std::string::size_type count_utf8_chars(const std::string &str);
 // (%LOCALAPPDATA%\metasequoiaime by default; the installer may place it on another volume).
 // Returns TRUE for Chinese (default), FALSE for English.
 BOOL ReadConfiguredDefaultImeModeChinese();
-// Read input.mode from the shared config. TRUE when Japanese input is active.
-BOOL ReadConfiguredJapaneseInputMode();
 // Read input.punctuation_lock from shared config.toml.
 // 0 = follow IME, 1 = always Chinese punctuation, 2 = always English punctuation.
 int ReadConfiguredPunctuationLock();

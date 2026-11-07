@@ -2747,9 +2747,6 @@ int run_test()
                 "The requested double-pinyin scheme was not retained.");
         require(shuangpin_session.handle_character('n').handled && shuangpin_session.preedit() == "n",
                 "A valid Shuangpin letter was rejected.");
-        metasequoia::InputSession japanese_session(SchemeType::JapaneseRomaji);
-        require(japanese_session.handle_character('k').handled && japanese_session.preedit() == "k",
-                "A valid Japanese romaji letter was rejected.");
         metasequoia::InputSession wubi_session(SchemeType::Wubi);
         require(!wubi_session.handle_character('z').handled && wubi_session.preedit().empty(),
                 "An unsupported Wubi letter was swallowed.");
@@ -2923,9 +2920,6 @@ int run_test()
         require(!session.has_composition() && session.candidates().empty(),
                 "Switching schemes did not discard the old composition.");
 
-        session.switch_scheme(SchemeType::JapaneseRomaji);
-        require(session.scheme() == SchemeType::JapaneseRomaji,
-                "Switching without a composition did not update the active scheme.");
         session.switch_scheme(SchemeType::Quanpin);
 
         const std::vector<std::string> supported_helpcode_schemas{"lantian",     "ziranma", "shouyou2_0",

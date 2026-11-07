@@ -1,5 +1,5 @@
 // 安装时把 scripts/pack-dictionary-source.py 导出的文本源还原成数据目录里的 msime.db、english.db、
-// others.db 和 dict_japanese.dat。只做机械还原，不解释数据：拼音、权重这些规则都在导出之前定好了。
+// others.db。只做机械还原，不解释数据：拼音、权重这些规则都在导出之前定好了。
 // 格式说明见 pack-dictionary-source.py 的文件头，两边要一起改。
 
 #include <sqlite3.h>
@@ -399,122 +399,6 @@ void restore_database(const fs::path &dump, const fs::path &target, const std::s
              elapsed(started));
 }
 
-// ---- 日文模型（MSJPDT1，布局见 scripts/dictionary_build/japanese_model.py）----
-
-template <typename T> void put(std::string &out, T value)
-{
-    char bytes[sizeof(T)];
-    std::memcpy(bytes, &value, sizeof(T)); // x86/x64 都是小端，与文件格式一致。
-    out.append(bytes, sizeof(T));
-}
-
-std::string sha256_hex(const std::string &data)
-{
-    BCRYPT_ALG_HANDLE algorithm = nullptr;
-    if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0)))
-        throw std::runtime_error("cannot open SHA-256 provider");
-    unsigned char digest[32];
-    const NTSTATUS status = BCryptHash(algorithm, nullptr, 0, reinterpret_cast<PUCHAR>(const_cast<char *>(data.data())),
-                                       static_cast<ULONG>(data.size()), digest, sizeof(digest));
-    BCryptCloseAlgorithmProvider(algorithm, 0);
-    if (!BCRYPT_SUCCESS(status))
-        throw std::runtime_error("SHA-256 failed");
-    static const char hex[] = "0123456789abcdef";
-    std::string result;
-    for (const unsigned char byte : digest)
-    {
-        result.push_back(hex[byte >> 4]);
-        result.push_back(hex[byte & 15]);
-    }
-    return result;
-}
-
-void restore_japanese(const fs::path &tokens_path, const fs::path &connection_path, const fs::path &target,
-                      const std::string &label)
-{
-    const auto started = std::chrono::steady_clock::now();
-    const std::string text = read_file(tokens_path);
-    const std::string connection = read_file(connection_path);
-    Lines lines(text);
-    if (lines.expect() != "MSIME-JP-DUMP 1")
-        throw std::runtime_error("not a Japanese model dump: " + to_utf8(tokens_path.wstring()));
-    const std::string_view summary = lines.expect();
-    const size_t first = summary.find(' ');
-    const size_t second = summary.find(' ', first + 1);
-    if (first == std::string_view::npos || second == std::string_view::npos)
-        throw std::runtime_error("bad Japanese model summary line");
-    const auto size = parse_number<uint32_t>(summary.substr(0, first));
-    const auto count = parse_number<uint32_t>(summary.substr(first + 1, second - first - 1));
-    const std::string expected_sha256(summary.substr(second + 1));
-    if (connection.size() != static_cast<size_t>(size) * size * 2)
-        throw std::runtime_error("connection matrix size does not match the model");
-
-    // 字符串按词条顺序（先读音后表层）首次出现时追加，重复的复用，与 japanese_model.pack 一致。
-    std::string strings;
-    std::unordered_map<std::string, std::pair<uint32_t, uint16_t>> locations;
-    std::string records;
-    records.reserve(static_cast<size_t>(count) * 20);
-    std::string value;
-    auto intern = [&](std::string_view field) {
-        unescape(field, value);
-        const auto found = locations.find(value);
-        if (found != locations.end())
-            return found->second;
-        if (value.size() > 0xFFFF)
-            throw std::runtime_error("dictionary string exceeds u16 length");
-        const std::pair<uint32_t, uint16_t> location{static_cast<uint32_t>(strings.size()),
-                                                     static_cast<uint16_t>(value.size())};
-        strings += value;
-        locations.emplace(value, location);
-        return location;
-    };
-    for (uint32_t index = 0; index < count; ++index)
-    {
-        const auto fields = split_tabs(lines.expect());
-        if (fields.size() != 5)
-            throw std::runtime_error("bad Japanese token at line " + std::to_string(lines.number()));
-        const auto reading = intern(fields[0]);
-        const auto surface = intern(fields[1]);
-        put(records, reading.first);
-        put(records, reading.second);
-        put(records, surface.first);
-        put(records, surface.second);
-        put(records, parse_number<uint16_t>(fields[2]));
-        put(records, parse_number<uint16_t>(fields[3]));
-        put(records, parse_number<int32_t>(fields[4]));
-    }
-    std::string_view rest;
-    if (lines.next(rest))
-        throw std::runtime_error("trailing data after Japanese tokens");
-
-    std::string model;
-    model.reserve(56 + records.size() + connection.size() + strings.size());
-    model.append("MSJPDT1", 8); // 含结尾的 NUL
-    put<uint32_t>(model, 1);
-    put<uint32_t>(model, count);
-    put<uint32_t>(model, size);
-    put<uint32_t>(model, 0);
-    const uint64_t token_offset = 56;
-    const uint64_t connection_offset = token_offset + records.size();
-    const uint64_t string_offset = connection_offset + connection.size();
-    put(model, token_offset);
-    put(model, connection_offset);
-    put(model, string_offset);
-    put<uint64_t>(model, strings.size());
-    model += records;
-    model += connection;
-    model += strings;
-    if (sha256_hex(model) != expected_sha256)
-        throw std::runtime_error("rebuilt Japanese model does not match the original SHA-256");
-
-    std::ofstream output(target, std::ios::binary | std::ios::trunc);
-    output.write(model.data(), static_cast<std::streamsize>(model.size()));
-    output.close();
-    if (!output)
-        throw std::runtime_error("cannot write " + to_utf8(target.wstring()));
-    log_line(label + ": " + std::to_string(count) + " tokens, " + elapsed(started));
-}
-
 int run(int argc, wchar_t **argv)
 {
     fs::path source;
@@ -568,10 +452,6 @@ int run(int argc, wchar_t **argv)
             built.push_back(building);
             restore_database(source / dump, building, to_utf8(name.wstring()));
         }
-        const fs::path japanese = data_dir / L"dict_japanese.dat.building";
-        built.push_back(japanese);
-        restore_japanese(source / L"dict_japanese.tokens", source / L"dict_japanese.connection", japanese,
-                         "dict_japanese.dat");
     }
     catch (...)
     {

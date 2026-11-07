@@ -414,8 +414,7 @@ std::string BuildCurrentCandidatePage()
 
 void PrepareCandidateTranslationRequest()
 {
-    const bool japanese = g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-    const bool enabled = GetConfiguredCandidateTranslationsEnabled() && !IsUiLessMode() && !japanese;
+    const bool enabled = GetConfiguredCandidateTranslationsEnabled() && !IsUiLessMode();
     auto &ui = Global::candidate_ui;
     if (IsCandidateSubPageActive())
     {
@@ -972,7 +971,6 @@ bool RespellCandidatesForCharacterSetChange()
         g_candidate_list_character_set == GetConfiguredCharacterSet())
         return false;
     if (!FanyImeIpc::CandidateListFollowsCharacterSet(
-            /*japanese_scheme=*/g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji,
             /*radical_candidate_list=*/IsRadicalCandidateListActive(), /*english_input_mode=*/g_english_input_mode))
         return false;
     const FanyImeIpc::CandidateUiOwner owner = SnapshotCandidateUiOwner();

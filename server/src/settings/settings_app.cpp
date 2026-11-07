@@ -336,9 +336,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
         {"type", "configSnapshot"},
         {"data",
          {{"input",
-           {{"mode", GetConfiguredInputMode()},
-            {"schema", GetConfiguredInputSchemeName()},
-            {"japanese_schema", GetConfiguredJapaneseSchema()},
+           {{"schema", GetConfiguredInputSchemeName()},
             {"character_set", GetConfiguredCharacterSet()},
             {"default_ime_mode", GetConfiguredDefaultImeMode()},
             {"ime_mode_scope", GetConfiguredImeModeScope()},
@@ -462,8 +460,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"switch_language_ctrl_alt_space", GetConfiguredSwitchLanguageCtrlAltSpaceEnabled()},
             {"toggle_character_set_ctrl_shift_f", GetConfiguredCharacterSetShortcutEnabled()},
             {"commit_pinyin_shift_enter", GetConfiguredPinyinCommitShortcutEnabled()},
-            {"input_state_shortcuts", BuildInputStateShortcutMetadata()},
-            {"trilingual_cycle", GetConfiguredTrilingualCycleEnabled()}}},
+            {"input_state_shortcuts", BuildInputStateShortcutMetadata()}}},
           {"frequency_adjustment",
            {{"mode", frequency.mode},
             {"trigger_count", frequency.trigger_count},
@@ -482,7 +479,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"symbol_mode", GetConfiguredSymbolModeEnabled()},
             {"jianpin_mode", GetConfiguredJianpinModeEnabled()},
             {"y_mode", GetConfiguredYModeEnabled()},
-            {"r_mode", GetConfiguredRModeEnabled()},
             {"v_mode", GetConfiguredVModeEnabled()},
             {"clipboard_history", GetConfiguredClipboardHistoryEnabled()}}},
           {"language_bar",
@@ -636,12 +632,8 @@ void PostConfig(bool refresh_skin_catalog = false)
 bool ApplyConfigUpdate(const json::object &data)
 {
     const std::string path = json::value_to<std::string>(data.at("path"));
-    if (path == "input.mode")
-        return SetConfiguredInputMode(json::value_to<std::string>(data.at("value")));
     if (path == "input.schema")
         return SetConfiguredInputScheme(json::value_to<std::string>(data.at("value")));
-    if (path == "input.japanese_schema")
-        return SetConfiguredJapaneseSchema(json::value_to<std::string>(data.at("value")));
     if (path == "input.character_set")
         return SetConfiguredCharacterSet(json::value_to<std::string>(data.at("value")));
     if (path == "input.default_ime_mode")
@@ -846,8 +838,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredJianpinModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.y_mode")
         return SetConfiguredYModeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "utility.r_mode")
-        return SetConfiguredRModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.v_mode")
         return SetConfiguredVModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.clipboard_history")
@@ -886,8 +876,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCharacterSetShortcutEnabled(json::value_to<bool>(data.at("value")));
     if (path == "keybindings.commit_pinyin_shift_enter")
         return SetConfiguredPinyinCommitShortcutEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "keybindings.trilingual_cycle")
-        return SetConfiguredTrilingualCycleEnabled(json::value_to<bool>(data.at("value")));
     if (const std::size_t index = InputStateShortcutIndex(path); index < FanyImeInputStateShortcuts::Definitions.size())
         return data.at("value").is_string() &&
                SetConfiguredInputStateShortcut(index, json::value_to<std::string>(data.at("value")));

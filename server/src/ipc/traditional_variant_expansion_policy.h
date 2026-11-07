@@ -30,8 +30,6 @@ enum class VariantExpansion
 
 inline VariantExpansion VariantExpansionFor(const WordItem &item)
 {
-    if (item.scheme == SchemeType::JapaneseRomaji)
-        return VariantExpansion::Unchanged;
     switch (item.source)
     {
     case CandidateSource::Database:
@@ -326,7 +324,6 @@ struct CandidateSpellingSettings
 inline WordItem WithFirstTraditionalSpellingOf(WordItem item, const CandidateSpellingSettings &settings)
 {
     if (!ShouldConvertCandidateTextToTraditional(settings.traditional_character_set,
-                                                 settings.scheme == SchemeType::JapaneseRomaji,
                                                  settings.radical_candidate_list))
         return item;
     auto spelled = ExpandTraditionalVariants({item}, settings.index, settings.region);

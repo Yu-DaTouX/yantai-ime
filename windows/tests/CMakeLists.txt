@@ -126,10 +126,6 @@ add_test(NAME caret_extent COMMAND test_caret_extent)
 
 # Link the same inline key classifier used by normal and queued TSF paths.
 if(WIN32)
-    add_executable(test_temporary_japanese_input temporary_japanese_input.cpp)
-    target_include_directories(test_temporary_japanese_input PRIVATE ../src/Header)
-    target_compile_features(test_temporary_japanese_input PRIVATE cxx_std_17)
-    add_test(NAME temporary_japanese_input COMMAND test_temporary_japanese_input)
 endif()
 
 # Exercise the session-side commit-reply contract without loading a TIP into a host. The paths

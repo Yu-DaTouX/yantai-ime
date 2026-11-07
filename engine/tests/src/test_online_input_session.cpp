@@ -248,19 +248,6 @@ int main()
         require(shuangpin.handle_character('A').handled && !shuangpin.online_query().has_value(),
                 "Active Shuangpin helpcode input was exposed to online providers.");
 
-        metasequoia::InputSession japanese(SchemeType::JapaneseRomaji);
-        type(japanese, "ka");
-        const auto japanese_query = japanese.online_query();
-        require(japanese_query.has_value() && japanese_query->query_text == "ka" && japanese_query->cloud_eligible &&
-                    !japanese_query->ai_eligible,
-                "Japanese did not expose a cloud-only online query.");
-        require(japanese.apply_online_candidate(*japanese_query, "蚊", CandidateSource::CloudSuggestion),
-                "A current Japanese cloud candidate was rejected.");
-        require(japanese.candidates().size() >= 3 && japanese.candidates()[2].word == "蚊" &&
-                    japanese.candidates()[2].source == CandidateSource::CloudSuggestion,
-                "A Japanese cloud candidate displaced the hiragana/katakana pair.");
-        require(!japanese.apply_online_candidate(*japanese_query, "AI", CandidateSource::AiSuggestion),
-                "Japanese accepted an AI suggestion despite being cloud-only.");
 
         metasequoia::InputSession wubi(SchemeType::Wubi);
         type(wubi, "aaaa");

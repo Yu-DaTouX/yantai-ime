@@ -13,7 +13,6 @@
 #include "ipc/candidate_ui_owner.h"
 #include "ipc/traditional_variant_expansion_policy.h"
 #include "global/globals.h"
-#include "engine/japanese/romaji_converter.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "cloud/cloud_translation.h"
 #include "cloud/translation_gloss.h"
@@ -118,10 +117,7 @@ void ApplyCloudCandidate(const std::string &candidate, const std::string &pinyin
 
     size_t insert_index = items.size() >= 1 ? 1 : 0;
     items.insert(items.begin() + insert_index, WithFirstTraditionalSpelling(*accepted));
-    const bool preserve_single_kana_pair =
-        g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji &&
-        japanese::IsSingleKanaConversion(japanese::ConvertRomaji(g_inputSession->get_pinyin_sequence()));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, preserve_single_kana_pair ? 2 : 1, CurrentEnglishPlacement(items));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, CurrentEnglishPlacement(items));
     Global::cloud_candidate = {true, candidate, cloud_query_state.committed_pinyin};
 
     Global::candidate_ui.item_total_count = static_cast<int>(items.size());
@@ -245,7 +241,7 @@ void ApplyAiCandidate(const std::string &candidate, const std::string &identity,
                 items.end());
     const size_t insert_index = std::min<size_t>(2, items.size());
     items.insert(items.begin() + insert_index, WithFirstTraditionalSpelling(*accepted));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, CurrentEnglishPlacement(items));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, CurrentEnglishPlacement(items));
     (void)0;
     Global::ai_candidate = {true, candidate, query.committed_pinyin};
     Global::candidate_ui.item_total_count = static_cast<int>(items.size());
@@ -317,8 +313,7 @@ void ApplyEnglishCandidates(std::vector<WordItem> candidates, const std::string 
 void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation, bool merge)
 {
     if (!EnglishIme::IsTranslationCurrent(generation) || !GetConfiguredCandidateTranslationsEnabled() ||
-        IsUiLessMode() || g_candidate_translation_signature.empty() || IsCandidateSubPageActive() ||
-        (g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji))
+        IsUiLessMode() || g_candidate_translation_signature.empty() || IsCandidateSubPageActive())
         return;
 
     std::vector<EnglishIme::TranslationQuery> misses;
@@ -486,7 +481,7 @@ void ApplyMixedCandidates(MixedCandidates::Result result, const std::string &inp
     // 全被去重掉、列表也没少东西时，屏幕上的那页就是对的，不必重画。
     if (!changed && items.size() == size_before)
         return;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, CurrentEnglishPlacement(items));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, CurrentEnglishPlacement(items));
 
     Global::candidate_ui.item_total_count = static_cast<int>(items.size());
     Global::candidate_ui.page_index = 0;

@@ -38,7 +38,7 @@ namespace
 {
 std::shared_ptr<IInputSession> PersistentInputSession()
 {
-    return g_r_mode_original_session ? g_r_mode_original_session : g_inputSession;
+    return g_inputSession;
 }
 
 // A task that waited at least this long was delivered behind a stalled worker,
@@ -512,19 +512,17 @@ void WorkerThread()
                 SyncServerCapsLockState(*capsLockSnapshot);
             const bool capsLockEnabled =
                 capsLockSnapshot.has_value() ? *capsLockSnapshot : GetServerCapsLockState() != 0;
-            const bool japaneseMode = GetActiveInputMode() == "japanese";
             if (FanyImeUi::ShouldShowInputModeEvent(trigger, GetConfiguredCaretStateIndicatorOnFocus(), capsLockEnabled,
-                                                    imeEnabled, japaneseMode))
+                                                    imeEnabled))
             {
-                PostCaretStateBadge(FanyImeUi::InputModeBadge(imeEnabled, japaneseMode, capsLockEnabled),
-                                    task.pipe_data.point[0], task.pipe_data.point[1]);
+                PostCaretStateBadge(FanyImeUi::InputModeBadge(imeEnabled, capsLockEnabled), task.pipe_data.point[0],
+                                    task.pipe_data.point[1]);
             }
             break;
         }
 
         case TaskType::PuncSwitch: {
-            PostCaretStateBadge(FanyImeUi::PunctuationBadge(task.pipe_data.keycode != 0, task.pipe_data.wch != 0,
-                                                            GetActiveInputMode() == "japanese"),
+            PostCaretStateBadge(FanyImeUi::PunctuationBadge(task.pipe_data.keycode != 0, task.pipe_data.wch != 0),
                                 task.pipe_data.point[0], task.pipe_data.point[1]);
             break;
         }
@@ -816,11 +814,6 @@ void WorkerThread()
             {
                 break;
             }
-            // 日文候选没有拼音词库的行：置顶会按罗马音键写进拼音日志，升级回放时变成中文候选（#869）。
-            if (task.type == TaskType::UiPinCandidate && item.scheme == SchemeType::JapaneseRomaji)
-            {
-                break;
-            }
             // 长词前缀补全（#1343）的键比首选长：置顶会拿同页别的键的权重当阶梯，固定位置会把它钉在首选的
             // 输入下面，下次首选换了它还占着那一格。删除照常，按它自己的完整读音删。
             if (item.prefix_completion &&
@@ -938,7 +931,6 @@ void WorkerThread()
         case TaskType::ReloadInputSession: {
             ClearState();
             Global::candidate_ui.page_size = GetConfiguredCandidatePageSize();
-            g_language_cycle_parked_session.reset();
             g_inputSession = CreateInputSessionFromConfig();
             Global::candidate_ui.set_items({});
             PostMessage(::global_hwnd, WM_HIDE_MAIN_WINDOW, 0, 0);
@@ -946,19 +938,15 @@ void WorkerThread()
         }
 
         case TaskType::EnsureInputSessionMatchesConfig: {
-            const SchemeType wanted = GetConfiguredActiveInputScheme();
+            const SchemeType wanted = GetConfiguredInputScheme();
             const bool has_session = g_inputSession != nullptr;
             const bool configured_scheme_matches = has_session && g_inputSession->current_scheme_type() == wanted;
-            const bool session_is_japanese =
-                has_session && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-            if (FanyImeIpc::InputSessionMatchesConfig(configured_scheme_matches, g_r_mode_triggered,
-                                                      session_is_japanese))
+            if (configured_scheme_matches)
             {
                 break;
             }
             ClearState();
             Global::candidate_ui.page_size = GetConfiguredCandidatePageSize();
-            g_language_cycle_parked_session.reset();
             g_inputSession = CreateInputSessionFromConfig();
             Global::candidate_ui.set_items({});
             PostMessage(::global_hwnd, WM_HIDE_MAIN_WINDOW, 0, 0);
@@ -1031,7 +1019,7 @@ void WorkerThread()
             if (!g_inputSession)
                 break;
             // 守卫和 ApplyRescoredOrder 一致：造词/译文页占着、用户已开始选词、候选页已经
-            // 不在了，都不该拿引擎结果去覆盖界面。英文输入与日语等非拼音方案没有可重排的
+            // 不在了，都不该拿引擎结果去覆盖界面。英文输入等非拼音模式没有可重排的
             // 拼音整句，而且 PrepareCandidateList 在英文模式下会故意发出空页，直接跳过。
             // 五笔本身没有拼音整句，但开了拼音混输时同一个混合查询会把全拼词典的整句一并
             // 算出来（见 ImeSession::refresh_candidates 的混输分支），停手后同样要补这一次。

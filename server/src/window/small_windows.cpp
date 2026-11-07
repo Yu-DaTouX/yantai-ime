@@ -176,7 +176,6 @@ struct FloatingToolbarState
     int punctuation = 1;
     int english_input_mode = 0;
     int caps_lock = 0;
-    int japanese_input_mode = 0;
 };
 
 FloatingToolbarState floatingToolbarState;
@@ -199,8 +198,7 @@ void RenderFloatingToolbarState()
     {
         FloatingToolbarPresenter::Instance().SyncUi(
             floatingToolbarState.cn_en, floatingToolbarState.double_single_byte, floatingToolbarState.punctuation,
-            floatingToolbarState.english_input_mode, floatingToolbarState.caps_lock,
-            floatingToolbarState.japanese_input_mode);
+            floatingToolbarState.english_input_mode, floatingToolbarState.caps_lock);
     }
 }
 } // namespace
@@ -356,20 +354,6 @@ void UpdateFtbCharacterSetState()
     RevealAutoHiddenFloatingToolbar(L"input-state-changed");
 }
 
-void UpdateFtbInputModeState(int japaneseMode)
-{
-    if (japaneseMode != 0 && japaneseMode != 1)
-    {
-        return;
-    }
-    const bool changed = floatingToolbarState.japanese_input_mode != japaneseMode;
-    floatingToolbarState.japanese_input_mode = japaneseMode;
-    RenderFloatingToolbarState();
-    if (changed)
-    {
-        RevealAutoHiddenFloatingToolbar(L"input-state-changed");
-    }
-}
 
 void ApplyConfiguredFloatingToolbarItems()
 {

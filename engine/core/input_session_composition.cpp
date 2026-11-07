@@ -5,7 +5,6 @@
 #include "../quanpin/quanpin_utils.h"
 #include "../shuangpin/shuangpin_query.h"
 #include "../shuangpin/shuangpin_utils.h"
-#include "../japanese/romaji_converter.h"
 #include <algorithm>
 #include <cctype>
 
@@ -622,10 +621,6 @@ std::string InputSession::build_pinyin_segmentation_with_cases(bool shuangpin_ra
     {
         return request().raw_input;
     }
-    if (is_japanese())
-    {
-        return request().raw_input_with_cases.empty() ? request().raw_input : request().raw_input_with_cases;
-    }
     // 句中辅助码的反引号段在切分串里只是一个 '，显示时按原样接回对应音节后面；
     // 末尾补 ' 也要看用户敲的原串，否则 ulpb`x 会显示成 ul'pb`x'。
     const std::string &typed = get_pinyin_sequence_with_cases();
@@ -715,10 +710,6 @@ bool InputSession::is_all_complete_pure_pinyin() const
     {
         return request().valid;
     }
-    if (is_japanese())
-    {
-        return japanese::ConvertRomaji(request().raw_input).complete;
-    }
     if (is_shuangpin())
     {
         const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
@@ -802,7 +793,7 @@ bool InputSession::wubi_four_code_is_complete() const
 
 bool InputSession::has_active_helpcode() const
 {
-    if (is_wubi() || is_japanese())
+    if (is_wubi())
     {
         return false;
     }
@@ -855,11 +846,10 @@ int InputSession::store_user_phrase_from_canonical_pinyin(std::string pinyin, st
 // 走正常调频。
 std::optional<std::string> InputSession::learn_sentence_candidate(const WordItem &selected)
 {
-    // 本地模式（U/K/E/M/J/Y/R、日期时间）和英文模式也用 Generated 装自己的候选，
+    // 本地模式（U/K/E/M/J/Y、日期时间）和英文模式也用 Generated 装自己的候选，
     // 那些不是拼音整句，不能往拼音用户词库里塞。五笔码表候选也不进这里：混输追加的整句
     // 候选自带 Quanpin 方案，按候选自己的方案判断，不看会话方案。
-    if (local_input_mode_ != LocalInputMode::None || dedicated_english_mode_ || is_japanese() ||
-        is_wubi_native_candidate(selected))
+    if (local_input_mode_ != LocalInputMode::None || dedicated_english_mode_ || is_wubi_native_candidate(selected))
     {
         return std::nullopt;
     }
@@ -902,38 +892,6 @@ InputSession::SelectionTransition InputSession::advance_composition_after_select
     SelectionTransition transition;
     transition.selected_canonical_pinyin = selected_canonical_pinyin;
     transition.wubi_native = selected_scheme == SchemeType::Wubi;
-    if (is_japanese())
-    {
-        transition.full_pure_pinyin = request().raw_input;
-        const std::string typed = request().raw_input_with_cases;
-        const size_t consumed = selected_pinyin.size();
-        std::string rest_raw_input;
-        std::string rest_raw_input_with_cases;
-        if (consumed > 0 && consumed < typed.size() && typed.compare(0, consumed, selected_pinyin) == 0)
-        {
-            rest_raw_input = request().raw_input.substr(consumed);
-            rest_raw_input_with_cases = typed.substr(consumed);
-            // ka'ta 选「か」剩下 'ta：开头的分隔符转不出假名，留着会让剩余输入一个候选都没有。
-            remove_consumed_leading_separators(rest_raw_input, rest_raw_input_with_cases);
-        }
-        transition.continues_composition = !rest_raw_input_with_cases.empty();
-        transition.consumed_raw_input_with_cases = typed.substr(0, typed.size() - rest_raw_input_with_cases.size());
-        if (transition.continues_composition)
-        {
-            engine_.replace_japanese_raw_input(rest_raw_input, rest_raw_input_with_cases);
-            online_requests_.invalidate();
-            // 固定候选位打开时 candidates() 返回的是混排列表，不重建就还是选词前整串的那份。
-            update_mixed_candidates();
-            if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-            {
-                local_preedit_ = "R" + engine_.get_preedit();
-                local_candidates_ = engine_.get_candidates();
-            }
-        }
-        transition.current_segmentation = request().segmentation;
-        transition.current_segmentation_with_cases = request().raw_input_with_cases;
-        return transition;
-    }
     if (transition.wubi_native)
     {
         transition.full_pure_pinyin = request().normalized_input;
@@ -1147,14 +1105,6 @@ InputSession::CloudQueryState InputSession::get_cloud_query_state() const
 {
     CloudQueryState state;
 
-    if (is_japanese())
-    {
-        state.cache_key = request().raw_input;
-        state.committed_pinyin = request().raw_input;
-        state.should_query = !request().raw_input.empty();
-        state.query_text = state.should_query ? request().raw_input : std::string{};
-        return state;
-    }
 
     if (is_wubi())
     {
@@ -1263,10 +1213,6 @@ std::size_t InputSession::wubi_native_candidate_count() const
                                                   [](const WordItem &item) { return is_wubi_native_candidate(item); }));
 }
 
-bool InputSession::is_japanese() const
-{
-    return current_scheme_type() == SchemeType::JapaneseRomaji;
-}
 
 void InputSession::clear_pending_sequence()
 {
@@ -1294,9 +1240,6 @@ void InputSession::apply_pending_sequence()
         break;
     case SchemeType::Wubi:
         engine_.replace_wubi_raw_input(raw_input, raw_input_with_cases, pending_wubi_literal_input_);
-        break;
-    case SchemeType::JapaneseRomaji:
-        engine_.replace_japanese_raw_input(raw_input, raw_input_with_cases);
         break;
     }
     clear_pending_sequence();

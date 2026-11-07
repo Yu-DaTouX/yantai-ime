@@ -27,7 +27,6 @@
 #include "../../../engine/contracts/ipc_negotiation.h"
 #include "../../../engine/contracts/mid_sentence_helpcode.h"
 #include "KeyEventSinkInternal.h"
-#include "TemporaryJapaneseKeyPolicy.h"
 
 using namespace key_event_sink_detail;
 
@@ -40,8 +39,6 @@ constexpr size_t MAX_DEFERRED_KEY_DOWN_COUNT = static_cast<size_t>(MAX_PINYIN_LE
 struct DeferredShadowState
 {
     bool imeOpen = false;
-    bool japaneseMode = false;
-    FanyImeTemporaryJapanese::Policy temporaryJapanesePolicy = 0;
     bool punctuationOpen = false;
     bool doubleSingleByteOpen = false;
     size_t inputLength = 0;
@@ -86,9 +83,7 @@ void ApplyDeferredKeyState(DeferredShadowState &shadow, const _KEYSTROKE_STATE &
     switch (keyState.Function)
     {
     case FUNCTION_INPUT:
-        shadow.caret =
-            FanyImeTemporaryJapanese::ClampCaret(shadow.japaneseMode, shadow.temporaryJapanesePolicy,
-                                                 shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
+        shadow.caret = min(shadow.caret, shadow.rawInput.size());
         // 和真正加入按键缓冲时一样，分号触发的句中辅助码记成反引号，末尾辅助码的触发键记成 kEndMarker。
         wch = CCompositionProcessorEngine::NormalizeMidSentenceHelpcodeTrigger(wch, shadow.rawInput.data(),
                                                                                shadow.rawInput.size(), shadow.caret);
@@ -115,8 +110,7 @@ void ApplyDeferredKeyState(DeferredShadowState &shadow, const _KEYSTROKE_STATE &
         break;
     case FUNCTION_BACKSPACE: {
         shadow.caret = min(shadow.caret, shadow.rawInput.size());
-        if (FanyImeTemporaryJapanese::CanBackspace(shadow.japaneseMode, shadow.temporaryJapanesePolicy,
-                                                   shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret))
+        if (shadow.caret > 0)
         {
             shadow.rawInput.erase(shadow.caret - 1, 1);
             --shadow.caret;
@@ -150,35 +144,14 @@ void ApplyDeferredKeyState(DeferredShadowState &shadow, const _KEYSTROKE_STATE &
         // commits and ends the composition rather than merely opening a list.
         clearComposition();
         break;
-    case FUNCTION_CYCLE_INPUT_MODE: {
-        shadow.temporaryJapanesePolicy = FanyImeTemporaryJapanese::LeaveEnglish(shadow.temporaryJapanesePolicy);
-        const auto destination = FanyImeTrilingualInput::Next(shadow.imeOpen, shadow.japaneseMode);
-        const bool wasImeOpen = shadow.imeOpen;
-        shadow.imeOpen = destination != FanyImeTrilingualInput::Mode::English;
-        if (shadow.imeOpen)
-        {
-            shadow.japaneseMode = destination == FanyImeTrilingualInput::Mode::Japanese;
-        }
-        // CN -> JP leaves OPENCLOSE unchanged, so its compartment callback
-        // does not reset a user's punctuation choice either.
-        if (shadow.imeOpen != wasImeOpen)
-        {
-            shadow.punctuationOpen = Global::ResolveFollowedPunctuationOpen(shadow.imeOpen) != FALSE;
-        }
-        clearComposition();
-        break;
-    }
     case FUNCTION_TOGGLE_ENGLISH_CANDIDATES:
-        shadow.temporaryJapanesePolicy = FanyImeTemporaryJapanese::ToggleEnglish(shadow.temporaryJapanesePolicy);
         clearComposition();
         break;
     case FUNCTION_CANCEL:
         clearComposition();
         break;
     case FUNCTION_MOVE_LEFT:
-        if (FanyImeTemporaryJapanese::CanMoveCaret(shadow.japaneseMode, shadow.temporaryJapanesePolicy,
-                                                   shadow.rawInput.data(), shadow.rawInput.size(),
-                                                   static_cast<std::int64_t>(shadow.caret) - 1))
+        if (shadow.caret > 0)
         {
             --shadow.caret;
         }
@@ -248,8 +221,6 @@ const wchar_t *DeferredKeyFailureReasonName(DeferredKeyFailureReason reason)
         return L"transport-broken";
     case DeferredKeyFailureReason::DeliveryAmbiguous:
         return L"delivery-ambiguous";
-    case DeferredKeyFailureReason::ProjectionInvalidated:
-        return L"projection-invalidated";
     default:
         return L"unknown";
     }
@@ -292,8 +263,6 @@ void CMetasequoiaIME::_EnsureDeferredKeyProjection()
     _deferredKeyProjectionValid = true;
     _deferredProjectedImeOpen = _pCompositionProcessorEngine && _pThreadMgr &&
                                 _pCompositionProcessorEngine->GetIMEMode(_pThreadMgr, _tfClientId) != FALSE;
-    _deferredProjectedJapaneseMode = Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed);
-    _deferredProjectedTemporaryJapanesePolicy = GetTemporaryJapanesePolicy();
     _deferredProjectedPunctuationOpen =
         _pCompositionProcessorEngine && _pThreadMgr &&
         _pCompositionProcessorEngine->GetPunctuationMode(_pThreadMgr, _tfClientId) != FALSE;
@@ -331,8 +300,6 @@ void CMetasequoiaIME::_ApplyDeferredKeyProjection(const _KEYSTROKE_STATE &keySta
     _EnsureDeferredKeyProjection();
     DeferredShadowState shadow;
     shadow.imeOpen = _deferredProjectedImeOpen;
-    shadow.japaneseMode = _deferredProjectedJapaneseMode;
-    shadow.temporaryJapanesePolicy = _deferredProjectedTemporaryJapanesePolicy;
     shadow.punctuationOpen = _deferredProjectedPunctuationOpen;
     shadow.doubleSingleByteOpen = _deferredProjectedDoubleSingleByteOpen;
     shadow.inputLength = _deferredProjectedInputLength;
@@ -362,8 +329,6 @@ void CMetasequoiaIME::_ApplyDeferredKeyProjection(const _KEYSTROKE_STATE &keySta
         return;
     }
     _deferredProjectedImeOpen = shadow.imeOpen;
-    _deferredProjectedJapaneseMode = shadow.japaneseMode;
-    _deferredProjectedTemporaryJapanesePolicy = shadow.temporaryJapanesePolicy;
     _deferredProjectedPunctuationOpen = shadow.punctuationOpen;
     _deferredProjectedInputLength = shadow.inputLength;
     _deferredProjectedRawInput = std::move(shadow.rawInput);
@@ -494,8 +459,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
     if (_deferredKeyProjectionValid)
     {
         shadow.imeOpen = _deferredProjectedImeOpen;
-        shadow.japaneseMode = _deferredProjectedJapaneseMode;
-        shadow.temporaryJapanesePolicy = _deferredProjectedTemporaryJapanesePolicy;
         shadow.punctuationOpen = _deferredProjectedPunctuationOpen;
         shadow.doubleSingleByteOpen = _deferredProjectedDoubleSingleByteOpen;
         shadow.inputLength = _deferredProjectedInputLength;
@@ -506,8 +469,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
     else
     {
         shadow.imeOpen = _pCompositionProcessorEngine->GetIMEMode(_pThreadMgr, _tfClientId) != FALSE;
-        shadow.japaneseMode = Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed);
-        shadow.temporaryJapanesePolicy = GetTemporaryJapanesePolicy();
         shadow.punctuationOpen = _pCompositionProcessorEngine->GetPunctuationMode(_pThreadMgr, _tfClientId) != FALSE;
         shadow.doubleSingleByteOpen =
             _pCompositionProcessorEngine->GetDoubleSingleByteMode(_pThreadMgr, _tfClientId) != FALSE;
@@ -523,11 +484,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         shadow.candidateActive = _candidateMode == CANDIDATE_ORIGINAL;
     }
 
-    // Settings can change while keys wait. Keep the projected English toggle, but
-    // always use the latest configured R-mode eligibility.
-    shadow.temporaryJapanesePolicy = static_cast<FanyImeTemporaryJapanese::Policy>(
-        (shadow.temporaryJapanesePolicy & FanyImeTemporaryJapanese::EnglishCandidates) |
-        (GetTemporaryJapanesePolicy() & FanyImeTemporaryJapanese::Allowed));
 
     const auto setKeyState = [keyState](KEYSTROKE_CATEGORY category, KEYSTROKE_FUNCTION function) {
         keyState->Category = category;
@@ -556,7 +512,7 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
 
     // 与同步路径（CompositionProcessorEngine_KeyClassify.cpp）一致：直接辅助码下进入末尾辅助码的引导键和删掉它的退格
     // 交给 Server 改写，按影子状态算。
-    if (shadow.imeOpen && !shadow.japaneseMode &&
+    if (shadow.imeOpen &&
         CCompositionProcessorEngine::IsDirectHelpcodeEndTriggerRewriteKey(
             *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret))
     {
@@ -570,15 +526,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
     {
         isInputKey = _pCompositionProcessorEngine->IsVirtualKeyNeedForFreshComposition(*classifiedCode, &inputWch,
                                                                                        &inputState) != FALSE;
-        // A queued cycle can change CN/JP before its settings snapshot arrives.
-        // Only the long-vowel key depends on that language in the fresh helper.
-        if (*classifiedCode == VK_OEM_MINUS && *classifiedWch == L'-')
-        {
-            isInputKey = ClassifyJapaneseKey(*classifiedCode, *classifiedWch, capturedModifiers, shadow.japaneseMode,
-                                             shadow.temporaryJapanesePolicy, shadow.rawInput.data(),
-                                             shadow.rawInput.size(), shadow.inputLength > 0)
-                             .Function == FUNCTION_INPUT;
-        }
         if (!isInputKey && shadow.inputLength > 0 &&
             ((*classifiedWch == L'\'') || (_pCompositionProcessorEngine->IsWildcard() &&
                                            _pCompositionProcessorEngine->IsWildcardChar(*classifiedWch))))
@@ -587,7 +534,7 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         }
         // 直接辅助码开着时 ; 韵母不看奇偶（辅码会打乱奇偶），交给下面的 IsDirectHelpcodeInputKey，与同步路径和
         // Server 用同一条规则；这里再按奇偶放行，uiab/; 这类输入两边就会分叉。
-        if (!isInputKey && !shadow.japaneseMode && Global::MicrosoftShuangpinEnabled.load(std::memory_order_relaxed) &&
+        if (!isInputKey && Global::MicrosoftShuangpinEnabled.load(std::memory_order_relaxed) &&
             !Global::DirectHelpcodeEnabled.load(std::memory_order_relaxed) && *classifiedCode == VK_OEM_1 &&
             *classifiedWch == L';' && !shadow.rawInput.empty())
         {
@@ -598,25 +545,25 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
                  (Global::EndHelpcodeTriggers.load(std::memory_order_relaxed) & FanyImeEndHelpcode::kUppercase) != 0});
         }
         // 与 CompositionProcessorEngine_KeyClassify.cpp 的句中辅助码、末尾辅助码（间接）判断一致，按影子状态算。
-        if (!isInputKey && !shadow.japaneseMode)
+        if (!isInputKey)
         {
             isInputKey = CCompositionProcessorEngine::IsMidSentenceHelpcodeTriggerKey(
                 *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
         }
         // 直接辅助码的 / 与不看奇偶的 ; 韵母，同样按影子状态算。
-        if (!isInputKey && !shadow.japaneseMode)
+        if (!isInputKey)
         {
             isInputKey = CCompositionProcessorEngine::IsDirectHelpcodeInputKey(
                 *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
         }
         // T 模式指定日期时间的数字、/ 和 :，与同步路径同一条形状规则，按影子状态算。
-        if (!isInputKey && !shadow.japaneseMode)
+        if (!isInputKey)
         {
             isInputKey = CCompositionProcessorEngine::IsDateTimeInputKey(
                 *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
         }
         // V 模式的数字和运算符，同上。
-        if (!isInputKey && !shadow.japaneseMode)
+        if (!isInputKey)
         {
             isInputKey = CCompositionProcessorEngine::IsVModeInputKey(*classifiedWch, shadow.rawInput.data(),
                                                                       shadow.rawInput.size(), shadow.caret);
@@ -635,13 +582,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         }
     }
 
-    const auto japaneseKey = ClassifyJapaneseKey(
-        *classifiedCode, *classifiedWch, capturedModifiers, shadow.japaneseMode, shadow.temporaryJapanesePolicy,
-        shadow.rawInput.data(), shadow.rawInput.size(), shadow.inputLength > 0);
-    const bool japaneseKeyMode = FanyImeTemporaryJapanese::IsMode(shadow.japaneseMode, shadow.temporaryJapanesePolicy,
-                                                                  shadow.rawInput.data(), shadow.rawInput.size());
-    if (isInputKey && japaneseKey.Function == FUNCTION_INPUT)
-        return setKeyState(CATEGORY_COMPOSING, FUNCTION_INPUT);
 
     if (shadow.candidateActive && isInputKey)
     {
@@ -685,11 +625,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
             return setKeyState(CATEGORY_CANDIDATE, FUNCTION_MOVE_PAGE_BOTTOM);
         case VK_OEM_MINUS:
         case VK_OEM_PLUS:
-            if (japaneseKeyMode)
-            {
-                // 日语模式禁用 -/= 翻页：'-' 输入长音符（ー），其余字符退回标点上屏。
-                return setKeyState(japaneseKey.Category, japaneseKey.Function);
-            }
             return setKeyState(CATEGORY_CANDIDATE, FUNCTION_SERVER_CANDIDATE_KEY);
         case VK_OEM_COMMA:
         case VK_OEM_PERIOD:
@@ -845,8 +780,6 @@ void CMetasequoiaIME::_ClearDeferredKeyDowns()
     }
     _deferredKeyProjectionValid = false;
     _deferredProjectedImeOpen = false;
-    _deferredProjectedJapaneseMode = false;
-    _deferredProjectedTemporaryJapanesePolicy = 0;
     _deferredProjectedPunctuationOpen = false;
     _deferredProjectedDoubleSingleByteOpen = false;
     _deferredProjectedInputLength = 0;
@@ -971,8 +904,7 @@ void CMetasequoiaIME::_FailDeferredKey(uint64_t replayToken, DeferredKeyFailureR
     {
         return;
     }
-    DeferredKeyFailureKind kind = ResolveDeferredKeyFailure(
-        reason, _serverUnavailableFallbackActive, _deferredKeyInFlight.keyState.Function == FUNCTION_CYCLE_INPUT_MODE);
+    DeferredKeyFailureKind kind = ResolveDeferredKeyFailure(reason, _serverUnavailableFallbackActive);
     if (_deferredKeyInFlight.focusGeneration != _deferredKeyFocusGeneration)
     {
         // A focus change already discarded everything this key belonged to.
@@ -1121,14 +1053,6 @@ void CMetasequoiaIME::_DrainOneDeferredKeyDown()
         // it only clears the local composition.
         if (offlineState.Function == FUNCTION_TOGGLE_ENGLISH_CANDIDATES)
             offlineState.Function = FUNCTION_CANCEL;
-        if (offlineState.Function == FUNCTION_CYCLE_INPUT_MODE)
-        {
-            // Its tail was classified for the projected destination. The
-            // cycle cannot run offline, so discard that tail through the
-            // normal offline failure path while preserving local raw input.
-            _FailDeferredKey(replayToken, DeferredKeyFailureReason::HostEditRejected);
-            return;
-        }
         if (offlineState.Function == FUNCTION_TOGGLE_CHARACTER_SET)
         {
             _CompleteDeferredKeyReplay(replayToken);

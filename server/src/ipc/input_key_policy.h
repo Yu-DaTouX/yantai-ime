@@ -6,30 +6,14 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "engine/contracts/temporary_japanese_input.h"
 
 namespace FanyImeIpc
 {
-struct JapaneseKeyRoute
-{
-    bool long_vowel;
-    bool suppress_paging;
-};
-
-inline JapaneseKeyRoute ResolveJapaneseKeyRoute(bool japanese, uint32_t key, uint32_t character, uint32_t modifiers,
-                                                bool session_available)
-{
-    const auto action = FanyImeTemporaryJapanese::ClassifyKey(key, character, modifiers, japanese, 0,
-                                                              static_cast<const char *>(nullptr), 0, false);
-    return {session_available && action == FanyImeTemporaryJapanese::KeyAction::LongVowel,
-            japanese && (key == 0xBD || key == 0xBB)};
-}
 
 inline std::size_t ResolveCompositionCaret(std::size_t caret, const std::string &display_raw,
-                                           const std::string &engine_raw, bool temporary_japanese)
+                                           const std::string &engine_raw)
 {
-    return !temporary_japanese && display_raw != engine_raw && caret == 0 && !engine_raw.empty() ? engine_raw.size()
-                                                                                                 : caret;
+    return display_raw != engine_raw && caret == 0 && !engine_raw.empty() ? engine_raw.size() : caret;
 }
 
 inline constexpr uint32_t kVirtualKeyShift = 0x10;
@@ -79,9 +63,9 @@ constexpr bool IsShiftedPagingSymbolKey(uint32_t keycode, uint32_t character, ui
 
 // Return -1 / +1 for the first / last Han character, or zero for an ordinary key.
 constexpr int WordToCharacterDirection(uint32_t keycode, uint32_t character, uint32_t modifiers, bool enabled,
-                                       bool minus_equal, bool japanese_long_vowel = false)
+                                       bool minus_equal)
 {
-    if (!enabled || japanese_long_vowel || (modifiers & kKeyModifierMask) != 0)
+    if (!enabled || (modifiers & kKeyModifierMask) != 0)
         return 0;
     if (minus_equal)
         return keycode == 0xBD && character == '-' ? -1 : keycode == 0xBB && character == '=' ? 1 : 0;
@@ -151,20 +135,13 @@ constexpr bool ShouldLearnEnteredEnglishWord(bool dedicated_english_mode, bool s
     return dedicated_english_mode || shift_letter_special_mode || (chinese_scheme && !all_complete_pinyin);
 }
 
-constexpr bool InputSessionMatchesConfig(bool configured_scheme_matches, bool temporary_r_mode_active,
-                                         bool session_is_japanese)
-{
-    return configured_scheme_matches || (temporary_r_mode_active && session_is_japanese);
-}
 
 // is_date_time_input_key：Shift+T 指定日期时间里进输入串的数字、/ 和 :。TSF 把它们当输入键，pinyin 预编辑
 // 样式和 UILess 下同样要等这一帧。
 constexpr bool ShouldSendCompositionReply(bool is_alpha_key, bool is_manual_pinyin_separator,
-                                          bool is_microsoft_shuangpin_ing_key, bool is_japanese_long_vowel,
-                                          bool is_date_time_input_key = false)
+                                          bool is_microsoft_shuangpin_ing_key, bool is_date_time_input_key = false)
 {
-    return is_alpha_key || is_manual_pinyin_separator || is_microsoft_shuangpin_ing_key || is_japanese_long_vowel ||
-           is_date_time_input_key;
+    return is_alpha_key || is_manual_pinyin_separator || is_microsoft_shuangpin_ing_key || is_date_time_input_key;
 }
 
 // Backspace inside a live creating-word state retracts the newest selection
@@ -257,11 +234,9 @@ constexpr bool HasEscapeCreatingWordShape(uint32_t keycode, bool creating_word_a
 // Rime's ClearNonConfirmedComposition: with the option on, Esc drops only the
 // unselected spelling and keeps the selected word on screen alone. With no
 // spelling left (the word is already alone) the next Esc cancels everything.
-// R mode is excluded: its temporary Japanese session is only restored by a
-// full reset.
-constexpr bool ShouldEscapeKeepSelectedWord(bool option_enabled, std::size_t raw_length, bool r_mode_active)
+constexpr bool ShouldEscapeKeepSelectedWord(bool option_enabled, std::size_t raw_length)
 {
-    return option_enabled && raw_length > 0 && !r_mode_active;
+    return option_enabled && raw_length > 0;
 }
 
 // Ctrl+Backspace inside a composition deletes one segmentation unit instead of
