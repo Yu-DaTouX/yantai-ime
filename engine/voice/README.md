@@ -22,7 +22,7 @@ cmake --build build-voice --config Release --parallel
 ctest --test-dir build-voice -C Release --output-on-failure
 ```
 
-Set `MSIME_VOICE_CAPTURE=OFF` if the host already supplies PCM. The library downloads no models. Imported Silero/ONNX code is built only by the standalone Windows host below, outside the supported public targets; the supported VAD here is RMS-based.
+Set `MSIME_VOICE_CAPTURE=OFF` if the host already supplies PCM. The library downloads no models. The supported VAD here is RMS-based.
 
 ## Call from a host
 
@@ -41,7 +41,7 @@ std::string text = recognizer.recognize(pcm); // worker queue, mono 16 kHz float
 // Host dispatches text to its UI/input-method thread and commits it.
 ```
 
-`CloudSttWorker` supports multipart `file` + `model` with JSON `text`, `transcription` or `result.text` responses. This is a protocol adapter, not a claim that every provider supports that protocol. Endpoints/models are host configuration; the token-only constructor retains the old SiliconFlow defaults for the imported Windows host. The WebSocket/Doubao transport lives in `server/`; the codecs here support a host that keeps its own transport.
+`CloudSttWorker` supports multipart `file` + `model` with JSON `text`, `transcription` or `result.text` responses. This is a protocol adapter, not a claim that every provider supports that protocol. Endpoints/models are host configuration; the token-only constructor retains the old SiliconFlow defaults. The WebSocket/Doubao transport lives in `server/`; the codecs here support a host that keeps its own transport.
 
 ### Streaming scope
 
@@ -63,10 +63,6 @@ cross-platform library. They are kept rather than stripped: they are working cod
 in a Windows build, and rewriting them out would be a large untested change. The macOS example host
 that exercised them was removed — see [UPSTREAM.md](../UPSTREAM.md) — so treat those branches as
 unverified here.
-
-## Imported Windows host
-
-The original standalone UI and hotkeys remain under `platforms/windows/`. Build it with `MSIME_VOICE_WINDOWS_APP=ON` and `VCPKG_MANIFEST_FEATURES=windows-app`. It links the shared targets and is off by default; the shipped product's voice input is `server/`, not this. See [the imported usage guide](platforms/windows/README.md) for the asset/config layout.
 
 Common capture, WAV and provider codecs belong here; `server/` keeps its evolved provider transport, native interaction and streaming behaviour.
 
