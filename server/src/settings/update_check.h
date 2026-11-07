@@ -6,7 +6,9 @@
 // 一次探测：
 //   1. 本机版本必须是正式版（update_channel::SupportsAutoUpdate），否则连清单都不请求；
 //   2. 读配置 appearance.auto_download_update，关着就什么都不做；
-//   3. GET https://msime.app/update.json，版本必须同通道且比当前新；
+//   3. GET https://github.com/Yu-DaTouX/yantai-ime/releases/latest/download/update.json
+//      （GitHub 会 302 跳转到实际资产地址，WinHTTP 已放开跟随重定向），版本必须同通道
+//      且比当前新；
 //   4. 已有校验通过的包就跳过；否则交给下载器，落进数据目录的 updates/<版本>/；
 //   5. 通过 UpdateInstallerReady 广播给所有已连接的 TSF 客户端，由它询问用户。
 //

@@ -10,8 +10,8 @@
       "draft": true,
       "prerelease": true,
       "force-tag-creation": true,
-      "pull-request-header": "This PR prepares the next Metasequoia IME for Windows release.",
-      "pull-request-footer": "The Release workflow merges this PR itself once CI is green on it, then builds, signs and publishes the release. Merging it by hand does the same thing, one run earlier. Every release spends one code signing signature; the certificate allows 3000 a month, so that is not a constraint."
+      "pull-request-header": "这个 PR 准备本分支的下一个版本。",
+      "pull-request-footer": "CI 通过后 Release 工作流会自行合并这个 PR，然后构建并发布。手动合并效果相同，只是提前一个 run。没有配置签名证书时发布会产出带 -unsigned 后缀的未签名安装包，不会因此失败。"
     }
   }
 }

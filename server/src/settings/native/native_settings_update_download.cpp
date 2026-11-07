@@ -1,5 +1,6 @@
 #include "settings/native/native_settings_update_download.h"
 
+#include "settings/update_source.h"
 #include "utils/network_proxy.h"
 
 #include <Windows.h>
@@ -28,7 +29,6 @@ constexpr std::uint64_t kStallSeconds = 20;
 // 安装包上限。当前安装包约 100 MB，留十倍余量；超过就当作清单或重定向出了问题。
 constexpr std::uint64_t kMaxInstallerBytes = 1024ull * 1024 * 1024;
 constexpr int kAttemptsPerChannel = 3;
-constexpr char kMirrorPrefix[] = "https://dl.msime.app/gh/";
 constexpr char kPartSuffix[] = ".part";
 
 using Clock = std::chrono::steady_clock;
@@ -117,7 +117,7 @@ Attempt FetchOnce(const std::string &url, const std::filesystem::path &target, C
                                    : nullptr;
     if (request)
     {
-        // GitHub 的 release 资产会 302 到 CDN，镜像也会跳转，显式放开重定向。
+        // GitHub 的 release 资产会 302 到 objects.githubusercontent.com，显式放开重定向。
         DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
         WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof(policy));
     }
@@ -144,8 +144,7 @@ Attempt FetchOnce(const std::string &url, const std::filesystem::path &target, C
         close_all();
         return attempt;
     }
-    // 404 单独区分：镜像是按需回源的，新版本刚发布时它可能还没有，换下一条就好，
-    // 重试同一条不会有不同结果。
+    // 404 单独区分：资产可能还没传完或已被删，重试同一条不会有不同结果。
     if (status == HTTP_STATUS_NOT_FOUND)
     {
         attempt.outcome = Outcome::NotFound;
@@ -345,13 +344,16 @@ bool IsReleaseVersion(const std::string &version)
 std::vector<std::string> ChannelUrls(const std::string &release_url, const std::string &installer_name)
 {
     // 发布页地址换成资产地址：releases/tag/<tag> → releases/download/<tag>/<name>。
-    static const std::regex tag(R"(^(https://github\.com/metasequoiaime/[\w.-]+)/releases/tag/([\w.+-]+)$)");
-    std::smatch match;
-    if (!IsInstallerName(installer_name) || !std::regex_match(release_url, match, tag))
+    // 仓库地址来自 update_source，且只认本仓：清单里的地址来自网络，不能让一条坏数据
+    // 把下载引到别的仓库。
+    const std::string prefix = update_source::ReleasesPageUrl() + "/tag/";
+    if (!IsInstallerName(installer_name) || release_url.rfind(prefix, 0) != 0)
         return {};
-    const std::string github = match[1].str() + "/releases/download/" + match[2].str() + "/" + installer_name;
-    // 镜像按前缀拼接原始资产地址，和关于页里「国内镜像下载」按钮用的是同一条形状。
-    return {github, std::string(kMirrorPrefix) + github};
+    const std::string tag = release_url.substr(prefix.size());
+    static const std::regex tag_pattern(R"(^[\w.+-]+$)");
+    if (!std::regex_match(tag, tag_pattern))
+        return {};
+    return {update_source::RepositoryUrl() + "/releases/download/" + tag + "/" + installer_name};
 }
 
 std::filesystem::path DefaultDirectory()

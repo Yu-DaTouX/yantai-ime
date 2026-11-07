@@ -3,6 +3,7 @@
 #include "msime_version.h"
 #include "settings/native/native_settings_update_download.h"
 #include "settings/update_channel.h"
+#include "settings/update_source.h"
 
 #include "msimeui/DeviceResources.h"
 #include "msimeui/Window.h"
@@ -24,12 +25,8 @@ namespace native_settings
 {
 namespace
 {
-constexpr char kUpdateManifestUrl[] = "https://msime.app/update.json";
-constexpr char kReleasesPageUrl[] = "https://github.com/metasequoiaime/MSIME-Windows/releases";
-constexpr char kDownloadMirrorPrefix[] = "https://dl.msime.app/gh/";
+// 更新清单、发布页和仓库里的文件链接都来自 update_source，仓库改名只改那一处。
 constexpr char kWebsiteUrl[] = "https://msime.app/";
-constexpr char kLicenseUrl[] = "https://github.com/metasequoiaime/MSIME-Windows/blob/main/LICENSE";
-constexpr char kPrivacyUrl[] = "https://github.com/metasequoiaime/MSIME-Windows/blob/main/PRIVACY.md";
 // The version the page shows (partials/about-settings.html), sourced from version.txt.
 constexpr char kShownVersion[] = "v" MSIME_PRODUCT_VERSION;
 
@@ -97,6 +94,13 @@ std::string HttpGet(const std::string &url)
             ? WinHttpOpenRequest(connection, L"GET", path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                  parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0)
             : nullptr;
+    if (request)
+    {
+        // 清单地址是 /releases/latest/download/update.json，GitHub 会 302 到实际资产所在的
+        // objects.githubusercontent.com；WinHTTP 默认不跟重定向，这里显式放开。
+        DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
+        WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof(policy));
+    }
     DWORD status = 0;
     DWORD statusSize = sizeof(status);
     if (request && WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, nullptr, 0, 0, 0) &&
@@ -380,7 +384,7 @@ void FinishUpdateDownload(const std::shared_ptr<AboutState> &state, const std::s
 }
 
 void ShowUpdateDialog(PageContext &context, const Version &latest, const std::string &releaseUrl,
-                      const std::string &mirrorUrl, const nlohmann::json &manifest)
+                      const nlohmann::json &manifest)
 {
     SettingsModel *model = &context.model;
     HostServices *host = &context.host;
@@ -427,15 +431,6 @@ void ShowUpdateDialog(PageContext &context, const Version &latest, const std::st
     auto later = std::make_shared<CssButton>(L"稍后", DialogButtonStyle(false));
     later->SetOnClick([host]() { host->CloseModal(); });
     actions->Add(later);
-    if (!mirrorUrl.empty())
-    {
-        auto mirror = std::make_shared<CssButton>(L"国内镜像下载", DialogButtonStyle(false));
-        mirror->SetOnClick([host, model, mirrorUrl]() {
-            host->CloseModal();
-            model->Post("openExternalUrl", Json(mirrorUrl));
-        });
-        actions->Add(mirror);
-    }
     auto download = std::make_shared<CssButton>(L"前往下载", DialogButtonStyle(true));
     download->SetOnClick([host, model, releaseUrl]() {
         host->CloseModal();
@@ -465,14 +460,14 @@ void CheckForUpdate(PageContext &context, const std::shared_ptr<AboutState> &sta
     setStatus(L"", TextRole::Muted);
     PageContext *ctx = &context;
     const auto stamp = std::chrono::system_clock::now().time_since_epoch().count();
-    const std::string url = std::string(kUpdateManifestUrl) + "?t=" + std::to_string(stamp);
+    const std::string url = update_source::ManifestUrl() + "?t=" + std::to_string(stamp);
     RunInBackground(
         context.host.Hwnd(), [url]() { return HttpGet(url); },
         [ctx, state, current, setStatus](const std::string &body) {
             state->check->SetDisabled(false);
             state->check->SetText(L"检查更新");
             const nlohmann::json manifest = nlohmann::json::parse(body, nullptr, false);
-            const std::string releases = kReleasesPageUrl;
+            const std::string releases = update_source::ReleasesPageUrl();
             Version latest;
             std::string releaseUrl;
             bool valid = manifest.is_object() && manifest.contains("version") && manifest["version"].is_string() &&
@@ -493,17 +488,8 @@ void CheckForUpdate(PageContext &context, const std::shared_ptr<AboutState> &sta
                 setStatus(L"已是最新版本", TextRole::Accent);
                 return;
             }
-            // mirrorDownloadUrl
-            std::string mirror;
-            static const std::regex tag(R"(^https://github\.com/metasequoiaime/([\w.-]+)/releases/tag/([\w.+-]+)$)");
-            static const std::regex installer(R"(^MetasequoiaIME_Setup_v[\w.-]+\.exe$)", std::regex::icase);
-            std::smatch match;
-            const std::string name = manifest.value("installerName", std::string());
-            if (std::regex_match(releaseUrl, match, tag) && std::regex_match(name, installer))
-                mirror = std::string(kDownloadMirrorPrefix) + "https://github.com/metasequoiaime/" + match[1].str() +
-                         "/releases/download/" + match[2].str() + "/" + name;
             setStatus(L"发现新版本 v" + Widen(latest.display), TextRole::Accent);
-            ShowUpdateDialog(*ctx, latest, releaseUrl, mirror, manifest);
+            ShowUpdateDialog(*ctx, latest, releaseUrl, manifest);
         });
 }
 
@@ -534,7 +520,7 @@ void DownloadUpdate(PageContext &context, const std::shared_ptr<AboutState> &sta
 
     PageContext *ctx = &context;
     const auto stamp = std::chrono::system_clock::now().time_since_epoch().count();
-    const std::string url = std::string(kUpdateManifestUrl) + "?t=" + std::to_string(stamp);
+    const std::string url = update_source::ManifestUrl() + "?t=" + std::to_string(stamp);
     std::weak_ptr<AboutState> weak = state;
     RunInBackground(
         context.host.Hwnd(), [url]() { return HttpGet(url); },
@@ -547,9 +533,9 @@ void DownloadUpdate(PageContext &context, const std::shared_ptr<AboutState> &sta
             if (valid)
             {
                 releaseUrl = manifest["releaseUrl"].get<std::string>();
-                valid =
-                    (releaseUrl == kReleasesPageUrl || releaseUrl.rfind(std::string(kReleasesPageUrl) + "/", 0) == 0) &&
-                    ParseVersion(manifest["version"].get<std::string>(), latest);
+                const std::string releases = update_source::ReleasesPageUrl();
+                valid = (releaseUrl == releases || releaseUrl.rfind(releases + "/", 0) == 0) &&
+                        ParseVersion(manifest["version"].get<std::string>(), latest);
             }
             if (!valid)
             {
@@ -572,7 +558,7 @@ void DownloadUpdate(PageContext &context, const std::shared_ptr<AboutState> &sta
                 state->status->SetText(L"发现新版本 v" + Widen(latest.display) + L"，请在弹窗里选择下载方式");
                 state->status->SetRole(TextRole::Accent);
                 state->statusBox->SetVisible(true);
-                ShowUpdateDialog(*ctx, latest, releaseUrl, std::string(), manifest);
+                ShowUpdateDialog(*ctx, latest, releaseUrl, manifest);
                 return;
             }
 
@@ -751,11 +737,13 @@ VisualPtr BuildAboutPage(PageContext &context)
         const wchar_t *detail;
         const char *url;
     };
+    const std::string licenseUrl = update_source::RepositoryUrl() + "/blob/main/LICENSE";
+    const std::string privacyUrl = update_source::RepositoryUrl() + "/blob/main/PRIVACY.md";
     const Link documents[] = {
         // The space before the detail <span> belongs to the title text.
         {L"官网 ", L"msime.app", kWebsiteUrl},
-        {L"开源许可协议", nullptr, kLicenseUrl},
-        {L"隐私政策", nullptr, kPrivacyUrl},
+        {L"开源许可协议", nullptr, licenseUrl.c_str()},
+        {L"隐私政策", nullptr, privacyUrl.c_str()},
     };
     for (size_t i = 0; i < std::size(documents); ++i)
     {

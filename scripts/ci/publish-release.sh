@@ -10,6 +10,9 @@
 #
 # Requires GH_TOKEN, GH_REPO, TAG_NAME, ASSET_PATH, ASSET_NAME, ASSET_SHA256, SIGNING_ENABLED,
 # DICTIONARY_TAG, PRODUCT_MANIFEST, RELEASE_TRIGGER and TARGET_SHA.
+#
+# Also generates and uploads two derived assets next to the installer: update.json, which the
+# client's update checker polls, and <installer>.sha256 for manual verification.
 set -euo pipefail
 
 if [[ "$RELEASE_TRIGGER" == push ]]; then
@@ -38,8 +41,44 @@ else
     channel=(--prerelease=false --latest)
 fi
 
-gh release upload "$release_tag" "$ASSET_PATH" "$PRODUCT_MANIFEST" --repo "$GH_REPO" --clobber
+# The update manifest the client polls:
+# https://github.com/<repo>/releases/latest/download/update.json
+#
+# Fields are fixed by server/src/settings/update_check.cpp; anything missing or malformed makes
+# the client treat the release as "no update" rather than as an error:
+#   version          MAJOR.MINOR.PATCH with no prerelease label (0.x counts as a release)
+#   releaseUrl       https://github.com/<repo>/releases/tag/<tag>, and <tag> must parse to version
+#   installerName    the installer asset name (MetasequoiaIME_Setup_v<version>[-unsigned].exe)
+#   installerSha256  64 lowercase hex characters
+#   signed           false for an -unsigned build; the about page shows a warning then
+#
+# The manifest points at the stable tag on purpose: TAG_NAME with no -beta suffix. An automatic
+# build therefore carries an update.json that names the stable release it belongs to. That is
+# harmless because /releases/latest/ only resolves to a non-prerelease release, and automatic
+# builds are published as prereleases.
+manifest_version="${TAG_NAME#v}"
+manifest_release_url="https://github.com/${GH_REPO}/releases/tag/${TAG_NAME}"
+manifest_signed=false
+if [[ "$SIGNING_ENABLED" == true ]]; then
+    manifest_signed=true
+fi
+manifest_file="release-assets/update.json"
+checksum_file="release-assets/${ASSET_NAME}.sha256"
+mkdir -p release-assets
+jq -n \
+    --arg version "$manifest_version" \
+    --arg releaseUrl "$manifest_release_url" \
+    --arg installerName "$ASSET_NAME" \
+    --arg installerSha256 "$ASSET_SHA256" \
+    --argjson signed "$manifest_signed" \
+    '{version: $version, releaseUrl: $releaseUrl, installerName: $installerName, installerSha256: $installerSha256, signed: $signed}' \
+    > "$manifest_file"
 
+# Same checksum in sha256sum's format, so a user can verify the download by hand.
+printf '%s  %s\n' "$ASSET_SHA256" "$ASSET_NAME" > "$checksum_file"
+
+gh release upload "$release_tag" "$ASSET_PATH" "$PRODUCT_MANIFEST" "$manifest_file" "$checksum_file" \
+    --repo "$GH_REPO" --clobber
 gh release view "$release_tag" --repo "$GH_REPO" --json body --jq .body > notes.md
 {
     if [[ -n "$banner" ]]; then

@@ -4,22 +4,22 @@
 // installerSha256，再按下面的通道顺序把安装包拉到临时目录，校验通过才交给调用方
 // 去问用户装不装。
 //
-// 通道顺序固定为 GitHub 官方在前、国内镜像在后。镜像只是加速与兜底，不保证新版本
-// 一发就缓存到（它按需回源），所以 404 单独处理：直接换下一条，不占重试次数。
+// 安装包直接从本仓 GitHub Release 的资产地址下载，并按清单里的 SHA256 校验；不再走
+// 任何第三方镜像。清单里的发布页地址必须是本仓（Yu-DaTouX/yantai-ime）的
+// releases/tag/ 形式，下载地址由它推出来。
 //
-// 安装包下载只在正式版上开放。nightly 与 dev 构建不下载：nightly 的清单不由官网提供
-// （msime-web 只认 MAJOR.MINOR.PATCH 的 tag，固定 tag「nightly」解析不出可比版本），
-// dev 构建的版本号每天变，比较结果没有意义。见 IsReleaseVersion。
+// 安装包下载只在正式版上开放。nightly 与 dev 构建不下载：它们的版本号里带着预发布
+// 标签，与本仓 Release 上的正式版不可比，也不该被当成可自动更新的版本。
 //
-// 每条通道最多试 3 次。每次从头开始，不做断点续传：续传要处理服务器不支持 Range
-// 的情况，风险大于收益，而一条已经证明慢的通道续下去也不会变快。
+// 只有一条通道（GitHub Release 资产），最多试 3 次。每次从头开始，不做断点续传：续传要
+// 处理服务器不支持 Range 的情况，风险大于收益。
 //
 // 「慢」的判定是首段测速：连接建立后观察 10 秒（或收满 1 MB，先到为准），低于
 // 50 KB/s 就认为这条通道不顶用，关掉换下一条，不计入失败次数。测速期间收到的字节
 // 就是下载的开头，不重开会话。
 //
 // 另有两条兜底：全程 20 秒收不到任何字节当作这次尝试失败；任何状态码不是 200 的响应
-// 都算失败，404 除外（见上）。
+// 都算失败，404 单独记为 NotFound（资产还没传完或已被删）。
 
 #include <cstdint>
 #include <filesystem>
@@ -33,7 +33,7 @@ namespace native_settings::update_download
 enum class Outcome
 {
     Ok,
-    // 服务器说没有这个包。镜像通常是还没缓存到新版本。
+    // 服务器说没有这个包（资产还没传完或已被删）。
     NotFound,
     // 网络、超时、状态码异常。
     Failed,
@@ -88,8 +88,8 @@ struct Request
 // 线程安全：只依赖配置里的代理设置，不在内部保存任何跨调用的状态。
 Result Download(const Request &request);
 
-// 通道地址：GitHub 官方 → 国内镜像。release_url 不是本仓库的 releases/tag 形式
-// 时返回空。
+// 通道地址：只有本仓 GitHub Release 资产一条。release_url 不是本仓的
+// releases/tag 形式时返回空。
 std::vector<std::string> ChannelUrls(const std::string &release_url, const std::string &installer_name);
 
 // 清单里的 installerSha256 是否合法：64 个小写十六进制字符。
