@@ -8,7 +8,7 @@ This directory used to be a submodule of `metasequoiaime/MSIME-Engine`. It is no
 
 | Directory | Purpose |
 | --- | --- |
-| `core/`, `quanpin/`, `shuangpin/`, `english/`, `japanese/` | Input sessions and candidate lookup |
+| `core/`, `quanpin/`, `shuangpin/`, `english/` | Input sessions and candidate lookup |
 | `contracts/` | The authoritative IPC wire format, dictionary format, punctuation policy and settings-window message schema |
 | `helpcode/` | Helpcode (形码) tables and generators |
 | `local_modes/`, `providers/`, `user_dictionary/` | Local modes, online candidate sources, the user dictionary |

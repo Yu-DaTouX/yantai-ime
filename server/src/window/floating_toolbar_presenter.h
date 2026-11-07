@@ -17,8 +17,7 @@ class FloatingToolbarPresenter
     void ApplyAppearance();
     // suggestedRect: WM_DPICHANGED's recommended placement (lParam).
     void RelayoutHost(FLOAT scaleOverride = 0.0f, const RECT *suggestedRect = nullptr);
-    void SyncUi(int cnEn, int doubleSingleByte, int punctuation, int englishInputMode, int capsLock,
-                int japaneseInputMode);
+    void SyncUi(int cnEn, int doubleSingleByte, int punctuation, int englishInputMode, int capsLock);
     bool HitCaptionDrag(POINT clientPoint) const;
     // Physical px per side of transparent margin (shadow, or the stroke slack
     // when the shadow is off) that may hang off a

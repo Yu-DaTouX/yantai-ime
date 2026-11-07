@@ -11,7 +11,7 @@ import re
 
 MANIFEST_NAME = 'dictionary-manifest.json'
 SUPPORTED_FORMATS = (1,)
-DESKTOP_FILES = frozenset({'msime.db', 'english.db', 'others.db', 'dict_japanese.dat', 'mozc_dictionary_oss_README.txt'})
+DESKTOP_FILES = frozenset({'msime.db', 'english.db', 'others.db'})
 MOBILE_FILES = frozenset({'msime.db', 'msime.db.sha256'})
 
 
@@ -35,10 +35,12 @@ def verify_product(directory, profile='desktop', required_files=None):
         raise ValueError('Dictionary product profile mismatch')
     expected = DESKTOP_FILES if profile == 'desktop' else MOBILE_FILES
     files = manifest.get('files', {})
-    if set(files) != expected:
+    # Locked older releases may still contain retired Japanese assets.
+    legacy = {'dict_japanese.dat', 'mozc_dictionary_oss_README.txt'} if profile == 'desktop' else set()
+    if not expected <= set(files) or not set(files) <= expected | legacy:
         raise ValueError('Dictionary artifact set does not match its profile')
     selected = expected if required_files is None else frozenset(required_files)
-    if not selected <= expected:
+    if not selected <= expected | legacy:
         raise ValueError('Requested files are not part of this dictionary product')
     for name, entry in files.items():
         if (Path(name).name != name or '/' in name or '\\' in name or
@@ -49,11 +51,4 @@ def verify_product(directory, profile='desktop', required_files=None):
             path = directory / name
             if not path.is_file() or path.stat().st_size != entry['size'] or sha256(path) != entry['sha256']:
                 raise ValueError(f'Dictionary artifact changed: {name}')
-    if profile == 'desktop':
-        if manifest.get('engine_compatibility', {}).get('japanese_model_magic') != 'MSJPDT1':
-            raise ValueError('Unsupported Japanese model format')
-        if 'dict_japanese.dat' in selected:
-            with (directory / 'dict_japanese.dat').open('rb') as model:
-                if model.read(8) != b'MSJPDT1\0':
-                    raise ValueError('Japanese model header does not match its declared format')
     return manifest

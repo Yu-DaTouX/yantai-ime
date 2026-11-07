@@ -12,8 +12,6 @@ std::string InputSession::editing_text() const
 {
     if (dedicated_english_mode_)
         return dedicated_english_preedit_;
-    if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-        return "R" + engine_.get_request().raw_input_with_cases;
     if (local_input_mode_ != LocalInputMode::None)
         return local_preedit_;
     return get_pinyin_sequence_with_cases();
@@ -250,7 +248,6 @@ KeyResult InputSession::insert_at_caret(char character)
             break;
         case LocalInputMode::Emoji:
         case LocalInputMode::Kaomoji:
-        case LocalInputMode::TemporaryJapanese:
             accepted = accepted || character == '\'';
             break;
         default:
@@ -273,25 +270,20 @@ KeyResult InputSession::replace_editing_text(std::string text, std::size_t caret
         dedicated_english_preedit_ = std::move(text);
         update_dedicated_english_candidates();
     }
-    else if (local_input_mode_ != LocalInputMode::None && local_input_mode_ != LocalInputMode::TemporaryJapanese)
+    else if (local_input_mode_ != LocalInputMode::None)
     {
         local_preedit_ = std::move(text);
         diagnostic = update_local_candidates();
     }
     else
     {
-        const auto payload = local_input_mode_ == LocalInputMode::TemporaryJapanese ? text.substr(1) : text;
+        const auto payload = text;
         auto normalized = payload;
         std::transform(normalized.begin(), normalized.end(), normalized.begin(),
                        [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
         set_pinyin_sequence(normalized);
         set_pinyin_sequence_with_cases(payload);
         apply_pending_sequence();
-        if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-        {
-            local_preedit_ = "R" + engine_.get_preedit();
-            local_candidates_ = engine_.get_candidates();
-        }
     }
     caret_ = caret;
     online_requests_.invalidate();

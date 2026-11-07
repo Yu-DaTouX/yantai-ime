@@ -44,7 +44,7 @@ TEST_CASE(MixedEnglishFirstPageCountPreservesTheExistingSingleCandidateDefault)
     auto items = MixedEnglishItems();
     FanyImeIpc::EnglishPlacement placement;
     placement.page_size = 6;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{1});
     REQUIRE_EQ(items.front().word, std::string("中文0"));
     REQUIRE_EQ(items[1].word, std::string("work"));
@@ -61,14 +61,14 @@ TEST_CASE(MixedEnglishFirstPageCountShowsRealInflectionsWithoutRemovingOtherCand
         placement.first_page_count = count;
         placement.require_exact = true;
         placement.input = "wor"; // 中文可解析的前缀，但没有完全相同的英文词。
-        FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
         REQUIRE_EQ(EnglishOnFirstPage(items, 6), count);
         REQUIRE_EQ(items.size(), original_size);
         REQUIRE_EQ(items.front().word, std::string("中文0"));
         REQUIRE_EQ(items[6 - count].word, std::string("work"));
         REQUIRE_EQ(items[7 - count].word, std::string("works"));
         const auto normalized = items;
-        FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
         REQUIRE_EQ(items.size(), normalized.size());
         for (size_t index = 0; index < items.size(); ++index)
             REQUIRE_EQ(items[index].word, normalized[index].word);
@@ -83,7 +83,7 @@ TEST_CASE(MixedEnglishFirstPageCountReservesEmojiAndClampsLearnedSlots)
     placement.page_size = 6;
     placement.first_page_count = 3;
     placement.slot = 5;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.front().word, std::string("中文0"));
     REQUIRE_EQ(items[2].word, std::string("work"));
     REQUIRE_EQ(items[3].word, std::string("works"));
@@ -99,7 +99,7 @@ TEST_CASE(MixedEnglishFirstPageCountHonorsSmallPagesAndExplicitFixedPositions)
         FanyImeIpc::EnglishPlacement placement;
         placement.page_size = page_size;
         placement.first_page_count = 3;
-        FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
         REQUIRE(EnglishOnFirstPage(items, page_size) <= (std::max)(size_t{1}, page_size - 1));
         if (page_size > 1)
             REQUIRE_EQ(items.front().word, std::string("中文0"));
@@ -109,10 +109,10 @@ TEST_CASE(MixedEnglishFirstPageCountHonorsSmallPagesAndExplicitFixedPositions)
     FanyImeIpc::EnglishPlacement placement;
     placement.page_size = 6;
     placement.first_page_count = 3;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[3].word, std::string("workplace"));
     const auto normalized = items;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     for (size_t index = 0; index < items.size(); ++index)
         REQUIRE_EQ(items[index].word, normalized[index].word);
 }
@@ -126,7 +126,7 @@ TEST_CASE(MixedEnglishFirstPageCountSharesThePageWithCloudAiAndEmoji)
     FanyImeIpc::EnglishPlacement placement;
     placement.page_size = 6;
     placement.first_page_count = 3;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.front().word, std::string("中文0"));
     REQUIRE_EQ(items[1].source, CandidateSource::CloudSuggestion);
     REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{2});
@@ -136,7 +136,7 @@ TEST_CASE(MixedEnglishFirstPageCountSharesThePageWithCloudAiAndEmoji)
                              [](const WordItem &item) { return item.source == CandidateSource::AiSuggestion; }),
                1);
     const auto normalized = items;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     for (size_t index = 0; index < items.size(); ++index)
         REQUIRE_EQ(items[index].word, normalized[index].word);
 }
@@ -152,7 +152,7 @@ TEST_CASE(MixedEnglishFirstPageCountDoesNotSplitQuickPhraseGroupsOrDisplaceTheCh
         FanyImeIpc::EnglishPlacement placement;
         placement.page_size = 6;
         placement.first_page_count = 3;
-        FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
         for (size_t index = 0; index < phrases; ++index)
             REQUIRE_EQ(items[index].source, CandidateSource::QuickPhrase);
         REQUIRE_EQ(items[phrases].word, std::string("中文0"));
@@ -168,7 +168,7 @@ TEST_CASE(MixedEnglishFirstPageCountIncludesFixedEnglishAndKeepsTheEmojiSlot)
     FanyImeIpc::EnglishPlacement placement;
     placement.page_size = 6;
     placement.first_page_count = 3;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{3});
     REQUIRE_EQ(items.front().word, std::string("中文0"));
     REQUIRE_EQ(items[1].word, std::string("workplace"));
@@ -182,7 +182,7 @@ TEST_CASE(MixedEnglishFixedFirstWordLeavesTheSlotToTheNextUnfixedWord)
     FanyImeIpc::EnglishPlacement placement;
     placement.page_size = 6;
     placement.first_page_count = 2;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.front().word, std::string("work"));
     REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{2});
     const auto slotted = FanyImeIpc::SlottedEnglishIndex(items);
@@ -201,7 +201,7 @@ TEST_CASE(MixedEnglishSingleCompletionStillMovesAheadOfAsyncCandidates)
     placement.page_size = 5;
     placement.require_exact = true;
     placement.input = "wor";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[3].word, std::string("work"));
     REQUIRE_EQ(items[4].source, CandidateSource::Emoji);
 }
@@ -216,7 +216,7 @@ TEST_CASE(MixedEnglishLearnedSlotDoesNotPushCloudOrAiOffTheFirstPage)
     placement.page_size = 6;
     placement.first_page_count = 3;
     placement.slot = 1;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.front().word, std::string("中文0"));
     REQUIRE_EQ(items[1].word, std::string("work"));
     const auto on_first_page = [&](CandidateSource source) {
@@ -235,7 +235,7 @@ TEST_CASE(MixedEnglishFirstPageCountUsesDifferentWordsRatherThanCaseVariants)
     FanyImeIpc::EnglishPlacement placement;
     placement.page_size = 6;
     placement.first_page_count = 3;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items[1].word, std::string("work"));
     REQUIRE_EQ(items[2].word, std::string("works"));
     REQUIRE_EQ(items[3].word, std::string("worked"));
@@ -331,7 +331,7 @@ FanyImeIpc::EnglishPlacement PageOf(size_t page_size)
 void RequireStableUnderRenormalization(std::vector<WordItem> items, const FanyImeIpc::EnglishPlacement &placement)
 {
     const auto once = WordsOf(items);
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequireWords(items, once);
 }
 } // namespace
@@ -341,7 +341,7 @@ TEST_CASE(LatinWordTakesTheLastSlotOfTheFirstPage)
     // 引擎把字母词插在覆盖整串的候选之后（这里是下标 2）；server 把它挪到首页末位。
     auto items = ChineseItems(12);
     items.insert(items.begin() + 2, Latin("浙L", 4));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 5), {"浙L"}, ChineseWords(5, 12)}));
     RequireStableUnderRenormalization(items, PageOf(6));
 }
@@ -351,7 +351,7 @@ TEST_CASE(LatinWordAtTheHeadMovesBehindTheChineseCandidates)
     // nabla：引擎里没有覆盖整串的普通词，字母词排第一。
     auto items = ChineseItems(8);
     items.insert(items.begin(), Latin("Nabla算子", 3));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(5));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(5));
     RequireWords(items, Concat({ChineseWords(0, 4), {"Nabla算子"}, ChineseWords(4, 8)}));
 }
 
@@ -361,7 +361,7 @@ TEST_CASE(OtherLatinWordsFollowTheFirstInTheEngineOrder)
     auto items = ChineseItems(10);
     items.insert(items.begin() + 1, Latin("U盘", 5));
     items.insert(items.begin() + 2, Latin("U盘锁", 20));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 5), {"U盘", "U盘锁"}, ChineseWords(5, 10)}));
     RequireStableUnderRenormalization(items, PageOf(6));
 }
@@ -374,7 +374,7 @@ TEST_CASE(FirstSymbolFollowsTheLatinWordsAndTheRestFollowKaomoji)
     items.push_back(MixedSource("→", CandidateSource::Symbol));
     items.push_back(MixedSource("←", CandidateSource::Symbol));
     items.push_back(MixedSource("(^_^)", CandidateSource::Kaomoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 5), {"T恤", "T恤衫", "→"}, ChineseWords(5, 8), {"(^_^)", "←"}}));
     RequireStableUnderRenormalization(items, PageOf(6));
 }
@@ -386,7 +386,7 @@ TEST_CASE(FirstSymbolAloneTakesTheLastSlotOfTheFirstPage)
     items.insert(items.begin() + 1, MixedSource("→", CandidateSource::Symbol));
     items.insert(items.begin() + 2, MixedSource("←", CandidateSource::Symbol));
     items.push_back(MixedSource("(^_^)", CandidateSource::Kaomoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 5), {"→"}, ChineseWords(5, 8), {"(^_^)", "←"}}));
 }
 
@@ -401,7 +401,7 @@ TEST_CASE(LatinWordTakesTheLastOrdinarySlotBeforeEnglishAndEmoji)
     FanyImeIpc::EnglishPlacement placement = PageOf(6);
     placement.require_exact = true;
     placement.input = "wor";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequirePrefix(items,
                   Concat({ChineseWords(0, 3), {"T恤", "work", "\xF0\x9F\x98\x80", "T恤衫", "→"}, ChineseWords(3, 12)}));
     RequireStableUnderRenormalization(items, placement);
@@ -415,7 +415,7 @@ TEST_CASE(FirstPageTailWithoutEnglishPutsTheLatinWordBeforeTheEmoji)
     items.push_back(MixedSource("→", CandidateSource::Symbol));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     items.push_back(MixedSource("\xF0\x9F\x98\x81", CandidateSource::Emoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 4),
                                 {"T恤", "\xF0\x9F\x98\x80", "T恤衫", "→"},
                                 ChineseWords(4, 10),
@@ -431,7 +431,7 @@ TEST_CASE(ExactEnglishKeepsItsSlotNextToTheLatinWord)
     FanyImeIpc::EnglishPlacement placement = PageOf(6);
     placement.require_exact = true;
     placement.input = "work";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequirePrefix(items, {"中文0", "work", "中文1", "中文2", "T恤", "\xF0\x9F\x98\x80", "中文3"});
 }
 
@@ -444,7 +444,7 @@ TEST_CASE(LearnedEnglishSlotKeepsItsPlaceNextToTheLatinWord)
         items.insert(items.begin() + 1, Latin("T恤", 10));
         FanyImeIpc::EnglishPlacement placement = PageOf(6);
         placement.slot = slot;
-        FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
         REQUIRE_EQ(items[slot].word, std::string("work"));
         REQUIRE_EQ(items[latin_index].word, std::string("T恤"));
     }
@@ -455,7 +455,7 @@ TEST_CASE(LatinWordInAShortListTakesTheLastOrdinarySlot)
     // 不满一页：占列表里除首选外最后一个普通候选的位置。
     auto items = ChineseItems(3);
     items.insert(items.begin() + 1, Latin("浙L", 4));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, {"中文0", "中文1", "浙L", "中文2"});
 
     // 首个 emoji 在它的位置上不动，第二条字母词接在它后面。
@@ -463,14 +463,14 @@ TEST_CASE(LatinWordInAShortListTakesTheLastOrdinarySlot)
     items.insert(items.begin() + 1, Latin("T恤", 10));
     items.insert(items.begin() + 2, Latin("T恤衫", 9));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, {"中文0", "T恤", "\xF0\x9F\x98\x80", "T恤衫", "中文1"});
 
     // 除首选外没有普通候选：排在末尾。
     items = ChineseItems(1);
     items.insert(items.begin(), Latin("浙L", 4));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, {"中文0", "\xF0\x9F\x98\x80", "浙L"});
 
     // 不知道每页候选数时整张列表当一页。
@@ -489,7 +489,7 @@ TEST_CASE(SmallPageWithoutOrdinarySlotsPutsTheLatinWordAfterTheFirstPage)
     FanyImeIpc::EnglishPlacement placement = PageOf(3);
     placement.require_exact = true;
     placement.input = "wor";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequirePrefix(items, {"中文0", "work", "\xF0\x9F\x98\x80", "T恤", "中文1"});
 
     // 英文精确匹配紧跟首选，同样不被挤出首页。
@@ -497,7 +497,7 @@ TEST_CASE(SmallPageWithoutOrdinarySlotsPutsTheLatinWordAfterTheFirstPage)
     items.insert(items.begin() + 1, Latin("T恤", 10));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     placement.input = "work";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequirePrefix(items, {"中文0", "work", "\xF0\x9F\x98\x80", "T恤", "中文1"});
 }
 
@@ -536,7 +536,7 @@ TEST_CASE(FixedPositionsKeepTheirPlaceAroundTheLatinWord)
     auto items = MixedEnglishItems();
     items.back().fixed_position = 6;
     items.insert(items.begin() + 1, Latin("T恤", 10));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequirePrefix(items, {"中文0", "work", "中文1", "中文2", "T恤", "workplace", "中文3"});
     RequireStableUnderRenormalization(items, PageOf(6));
 
@@ -545,7 +545,7 @@ TEST_CASE(FixedPositionsKeepTheirPlaceAroundTheLatinWord)
     control[5].fixed_position = 6;
     items = WithLatinInsertedKeepingFixed(control, 1, {Latin("T恤", 10)});
     REQUIRE_EQ(items[5].word, std::string("中文5"));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 4), {"T恤", "中文5", "中文4"}, ChineseWords(6, 10)}));
     RequireStableUnderRenormalization(items, PageOf(6));
 
@@ -579,7 +579,7 @@ TEST_CASE(LatinWordsMoveAsWholeSpellingGroups)
     items.insert(items.begin() + 1, tee);
     items.insert(items.begin() + 2, SpellingOf(tee, "T卹"));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 3), {"T恤", "T恤", "\xF0\x9F\x98\x80"}, ChineseWords(3, 8)}));
     REQUIRE_EQ(items[4].variant_rank, 1);
     RequireStableUnderRenormalization(items, PageOf(6));
@@ -589,7 +589,7 @@ TEST_CASE(LatinWordsMoveAsWholeSpellingGroups)
     items.insert(items.begin() + 4, SpellingOf(Chinese(3), "中文叁"));
     items.insert(items.begin() + 1, Latin("浙L", 4));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 4), {"中文3", "\xF0\x9F\x98\x80", "浙L"}, ChineseWords(4, 8)}));
     REQUIRE_EQ(items[4].variant_rank, 1);
 }
@@ -605,7 +605,7 @@ TEST_CASE(SpellingGroupTakesTheLastRunOfOrdinarySlotsThatHoldsIt)
     items.push_back(WordItem("work", "work", 0, CandidateSource::EnglishDictionary));
     FanyImeIpc::EnglishPlacement placement = PageOf(6);
     placement.slot = 4;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequireWords(items, Concat({ChineseWords(0, 2), {"T恤", "T恤", "work"}, ChineseWords(2, 8)}));
     REQUIRE_EQ(items[3].variant_rank, 1);
     RequireStableUnderRenormalization(items, placement);
@@ -617,7 +617,7 @@ TEST_CASE(SpellingGroupTakesTheLastRunOfOrdinarySlotsThatHoldsIt)
     items.insert(items.begin() + 2, SpellingOf(tee, "T卹"));
     std::rotate(items.begin() + 4, items.begin() + 6, items.begin() + 7);
     RequirePrefix(items, Concat({{"中文0", "T恤", "T恤", "中文1", "中文4", "中文2"}}));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({{"中文0", "中文1", "T恤", "T恤", "中文4", "中文2", "中文3"}, ChineseWords(5, 8)}));
     RequireStableUnderRenormalization(items, PageOf(6));
 }
@@ -631,10 +631,10 @@ std::vector<WordItem> PlacedThenArrived(std::vector<WordItem> engine, const Word
     auto items = engine;
     FanyImeIpc::PlaceQueriedLatinWords(items, page_size);
     items.insert(items.begin() + static_cast<std::ptrdiff_t>((std::min)(at, items.size())), async);
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(page_size));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(page_size));
     auto once = engine;
     once.push_back(async);
-    FanyImeIpc::NormalizeMixedCandidateOrder(once, 1, PageOf(page_size));
+    FanyImeIpc::NormalizeMixedCandidateOrder(once, PageOf(page_size));
     RequireWords(items, WordsOf(once));
     RequireStableUnderRenormalization(items, PageOf(page_size));
     return items;
@@ -712,7 +712,7 @@ TEST_CASE(FixedLatinWordStaysAtItsFixedIndex)
     REQUIRE(queried[3].latin_word);
 
     auto normalized = items;
-    FanyImeIpc::NormalizeMixedCandidateOrder(normalized, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(normalized, PageOf(6));
     RequireWords(normalized, expected);
     REQUIRE_EQ(normalized[3].fixed_position, 3);
 }
@@ -744,7 +744,7 @@ TEST_CASE(FirstSymbolFollowsTheLatinWordsEvenWhenListedBeforeThem)
     std::vector<WordItem> items = ChineseItems(8);
     items.insert(items.begin() + 1, MixedSource("→", CandidateSource::Symbol));
     items.push_back(Latin("T恤", 10));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, Concat({ChineseWords(0, 5), {"T恤", "→"}, ChineseWords(5, 8)}));
 }
 
@@ -786,7 +786,7 @@ TEST_CASE(GeneratedSentenceWithLettersStaysAnOrdinaryCandidate)
     auto queried = items;
     FanyImeIpc::PlaceQueriedLatinWords(queried, 6);
     RequireWords(queried, expected);
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, expected);
 }
 
@@ -808,11 +808,11 @@ TEST_CASE(QueriedThenAsyncNormalizationEqualsOneNormalization)
     auto twice = engine;
     FanyImeIpc::PlaceQueriedLatinWords(twice, 6);
     twice.insert(twice.end(), async.begin(), async.end());
-    FanyImeIpc::NormalizeMixedCandidateOrder(twice, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(twice, placement);
 
     auto once = engine;
     once.insert(once.end(), async.begin(), async.end());
-    FanyImeIpc::NormalizeMixedCandidateOrder(once, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(once, placement);
     RequireWords(twice, WordsOf(once));
     RequireStableUnderRenormalization(twice, placement);
 }
@@ -824,7 +824,7 @@ TEST_CASE(MixedOrderWithoutLatinWordsOrSymbolsIsUnchanged)
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     items.push_back(MixedSource("云", CandidateSource::CloudSuggestion));
     items.push_back(MixedSource("AI", CandidateSource::AiSuggestion));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, {"中文0", "云", "AI", "中文1", "中文2", "\xF0\x9F\x98\x80"});
 
     items = MixedEnglishItems();
@@ -833,7 +833,7 @@ TEST_CASE(MixedOrderWithoutLatinWordsOrSymbolsIsUnchanged)
     FanyImeIpc::EnglishPlacement placement = PageOf(6);
     placement.require_exact = true;
     placement.input = "wor";
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     RequireWords(items, Concat({ChineseWords(0, 4),
                                 {"work", "\xF0\x9F\x98\x80"},
                                 ChineseWords(4, 12),
@@ -842,7 +842,7 @@ TEST_CASE(MixedOrderWithoutLatinWordsOrSymbolsIsUnchanged)
     items = ChineseItems(4);
     items.push_back(MixedSource("2026年11月2日", CandidateSource::DateTime));
     items.push_back(MixedSource("云", CandidateSource::CloudSuggestion));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, PageOf(6));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
     RequireWords(items, {"中文0", "2026年11月2日", "云", "中文1", "中文2", "中文3"});
 }
 
@@ -1394,7 +1394,7 @@ void Arrive(std::vector<WordItem> &items, const DifferentialCase &test_case, int
         Append(items, appended);
         Append(items, symbols);
     }
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, test_case.placement);
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, test_case.placement);
 }
 
 void RequireCase(bool condition, const std::string &what, const std::vector<WordItem> &control,
@@ -1429,9 +1429,9 @@ std::optional<DifferentialRun> RunCase(const DifferentialCase &test_case)
             return std::nullopt;
         Append(*input, test_case.symbols);
         run.control = control_input;
-        FanyImeIpc::NormalizeMixedCandidateOrder(run.control, 1, test_case.placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(run.control, test_case.placement);
         run.actual = *input;
-        FanyImeIpc::NormalizeMixedCandidateOrder(run.actual, 1, test_case.placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(run.actual, test_case.placement);
         return run;
     }
     auto input = WithLatinWords(test_case.engine, test_case);
@@ -1550,7 +1550,7 @@ TEST_CASE(LatinWordsAndSymbolsOnlyTakeOrdinarySlots)
                     page_size);
 
         auto control_again = control;
-        FanyImeIpc::NormalizeMixedCandidateOrder(control_again, 1, test_case.placement);
+        FanyImeIpc::NormalizeMixedCandidateOrder(control_again, test_case.placement);
         const bool control_stable = WordsOf(control_again) == WordsOf(control);
         unstable_control += control_stable ? 0 : 1;
         if (group.empty())

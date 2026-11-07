@@ -103,7 +103,7 @@ inline bool SetExpandedCandidatesKeepingPagePosition(Global::CandidateUiState &u
                          [&](const WordItem &item) { return item.word == candidate.word; }))
             expanded.push_back(candidate);
     }
-    NormalizeMixedCandidateOrder(expanded, 1, english_placement);
+    NormalizeMixedCandidateOrder(expanded, english_placement);
     const int current_page = ui.page_index;
     const int current_selection = ui.selected_index_in_page;
     ui.set_items(std::move(expanded));

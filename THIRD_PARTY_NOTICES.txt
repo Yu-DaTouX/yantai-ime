@@ -1106,7 +1106,7 @@ The installer writes dictionary and helpcode data from these sources:
   (originally the archived MSIME-Dict and MSIME-HelpCode; the upstream
    attribution below is retained)
 
-Installed as msime.db, others.db, english.db, dict_japanese.dat, sc.lm,
+Installed as msime.db, others.db, english.db, sc.lm,
 dict_pinyin.dat, pinyin.txt, helpcodes/*.txt and radical/decomposition.txt
 under the application data directory.
 
@@ -1137,10 +1137,6 @@ The Chinese tables that msime.db is built from (cn/BaseDictAllV1Part1.txt and cn
 sc.lm is the Simplified Chinese trigram language model distributed with libime, converted from its ARPA form by kenlm's build_binary. It is copyright 2022~2026 CSSlayer and licensed under the GNU Lesser General Public License version 2.1 or later; that text is the one reproduced in section 13 below. Its notice is installed beside the model as libime-lm-NOTICE.md.
 
   libime                  LGPL-2.1+  https://github.com/fcitx/libime
-
-dict_japanese.dat is a Viterbi model built from the Mozc open source dictionary. The notice that dictionary ships with, which itself carries the IPAdic and Okinawa dictionary terms, is installed beside the model as MOZC_DICTIONARY_LICENSE.txt and is not duplicated here.
-
-  Mozc open source dictionary  https://github.com/google/mozc
 
 Sources of helpcodes/*.txt, via MSIME-HelpCode:
 

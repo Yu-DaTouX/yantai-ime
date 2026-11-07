@@ -2,7 +2,6 @@
 #include "../schemes/quanpin_scheme.h"
 #include "../schemes/shuangpin_scheme.h"
 #include "../schemes/wubi_scheme.h"
-#include "../schemes/japanese_romaji_scheme.h"
 #include "../quanpin/quanpin_utils.h"
 #include "../shuangpin/shuangpin_query.h"
 #include "../contracts/direct_helpcode.h"
@@ -373,16 +372,6 @@ std::vector<WordItem> ImeSession::query_without_syllable_helpcodes()
     return provider_registry_.resolve(request.scheme).query(request);
 }
 
-void ImeSession::replace_japanese_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
-{
-    if (scheme_->type() != SchemeType::JapaneseRomaji)
-        return;
-    auto *japanese_scheme = dynamic_cast<JapaneseRomajiScheme *>(scheme_.get());
-    if (!japanese_scheme)
-        return;
-    japanese_scheme->set_raw_input(raw_input, raw_input_with_cases);
-    refresh_candidates();
-}
 
 void ImeSession::replace_active_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
 {
@@ -396,9 +385,6 @@ void ImeSession::replace_active_raw_input(const std::string &raw_input, const st
         return;
     case SchemeType::Wubi:
         replace_wubi_raw_input(raw_input, raw_input_with_cases);
-        return;
-    case SchemeType::JapaneseRomaji:
-        replace_japanese_raw_input(raw_input, raw_input_with_cases);
         return;
     }
 }
@@ -593,8 +579,6 @@ std::unique_ptr<IInputScheme> ImeSession::create_scheme(SchemeType scheme_type) 
         return std::make_unique<QuanpinScheme>();
     case SchemeType::Wubi:
         return std::make_unique<WubiScheme>();
-    case SchemeType::JapaneseRomaji:
-        return std::make_unique<JapaneseRomajiScheme>();
     default:
         throw std::runtime_error("Unknown scheme type.");
     }

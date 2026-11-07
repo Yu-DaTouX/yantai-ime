@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""把构建好的词库（MetasequoiaImeDict/out/ 下的 msime.db、english.db、others.db、dict_japanese.dat）导出成
+"""把构建好的词库（MetasequoiaImeDict/out/ 下的 msime.db、english.db、others.db）导出成
 安装时由 MetasequoiaImeDictionaryBuild.exe 还原的文本源。
 
 SQLite 的页结构和索引压缩率很差，同样的内容按行写成文本，安装包里能小一大截。这里只做机械导出，
@@ -16,10 +16,6 @@ SQLite 的页结构和索引压缩率很差，同样的内容按行写成文本�
 列编码每列一个字母：i 整数、t 文本、x 逐值带类型（首字母 n 空、i 整数、r 浮点、t 文本、b 十六进制 BLOB）。
 文本把 \\、TAB、\\n、\\r、NUL 转义成 \\\\、\\t、\\n、\\r、\\0。行按 rowid 顺序写出，还原后同权重的先后不变。
 
-日文模型（MSJPDT1）拆成 dict_japanese.tokens（文本：头一行「MSIME-JP-DUMP 1」，第二行「矩阵边长 词条数 原文件 SHA-256」，
-其后每行「读音<TAB>表层<TAB>左 id<TAB>右 id<TAB>代价」）和 dict_japanese.connection（原样的 i16 小端连接矩阵）。
-还原程序按同样的规则重新打包，并核对 SHA-256 与原文件一致。
-
 用法：
     python scripts/pack-dictionary-source.py --out MetasequoiaImeDict/out --target installer/dictionary_source
 """
@@ -27,17 +23,13 @@ SQLite 的页结构和索引压缩率很差，同样的内容按行写成文本�
 from __future__ import annotations
 
 import argparse
-import hashlib
 import shutil
 import sqlite3
-import struct
 import sys
 from contextlib import closing
 from pathlib import Path
 
 DATABASES = ("msime.db", "english.db", "others.db")
-JAPANESE = "dict_japanese.dat"
-JAPANESE_MAGIC = b"MSJPDT1\0"
 # 建表前要恢复的库级设置；page_size 与发布的库一致，user_version 是 english.db 的 schema 版本号。
 PRAGMAS = ("page_size", "user_version", "application_id")
 
@@ -119,31 +111,6 @@ def dump_database(path: Path, target: Path) -> int:
     return rows_written
 
 
-def dump_japanese(path: Path, tokens_target: Path, connection_target: Path) -> int:
-    """按 japanese_model.pack 的布局读回词条和连接矩阵。"""
-    data = path.read_bytes()
-    if data[:8] != JAPANESE_MAGIC:
-        raise ValueError(f"{path} 头部不是 MSJPDT1")
-    version, count, size, _ = struct.unpack_from("<IIII", data, 8)
-    token_offset, connection_offset, string_offset, string_size = struct.unpack_from("<QQQQ", data, 24)
-    if version != 1 or token_offset != 56 or connection_offset != token_offset + count * 20 \
-            or string_offset != connection_offset + size * size * 2 or string_offset + string_size != len(data):
-        raise ValueError(f"{path} 的布局与 MSJPDT1 版本 1 不符")
-    strings = data[string_offset:]
-    record = struct.Struct("<IHIHHHi")
-    with tokens_target.open("w", encoding="utf-8", newline="\n") as out:
-        out.write("MSIME-JP-DUMP 1\n")
-        out.write(f"{size} {count} {hashlib.sha256(data).hexdigest()}\n")
-        for index in range(count):
-            reading_at, reading_length, surface_at, surface_length, left, right, cost = record.unpack_from(
-                data, token_offset + index * 20)
-            reading = strings[reading_at:reading_at + reading_length].decode("utf-8")
-            surface = strings[surface_at:surface_at + surface_length].decode("utf-8")
-            out.write(f"{escape(reading)}\t{escape(surface)}\t{left}\t{right}\t{cost}\n")
-    connection_target.write_bytes(data[connection_offset:string_offset])
-    return count
-
-
 def main() -> None:
     # CI 的 Windows runner 上 stdout 是 cp1252 管道，打印中文会抛 UnicodeEncodeError，让整个打包失败。
     # 进度提示只是日志，编码不了的字符写成 \uXXXX 即可。
@@ -160,9 +127,6 @@ def main() -> None:
     for name in DATABASES:
         rows = dump_database(args.out / name, args.target / f"{Path(name).stem}.dump")
         print(f"{name}: {rows} 行")
-    tokens = dump_japanese(args.out / JAPANESE, args.target / "dict_japanese.tokens",
-                           args.target / "dict_japanese.connection")
-    print(f"{JAPANESE}: {tokens} 个词条")
 
 
 if __name__ == "__main__":

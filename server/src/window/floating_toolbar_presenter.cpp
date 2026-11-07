@@ -75,7 +75,6 @@ struct ToolbarIcon
     const wchar_t *fallbackText;
 };
 
-constexpr ToolbarIcon kIconJa = {0xE7DE, L"日"};
 constexpr ToolbarIcon kIconCn = {0xE982, L"中"};
 constexpr ToolbarIcon kIconEn = {0xE983, L"英"};
 constexpr ToolbarIcon kIconHalfWidth = {0xEC46, L"半"};
@@ -485,7 +484,6 @@ struct FloatingToolbarPresenter::Impl
     int punctuation = 1;
     int englishInputMode = 0;
     int capsLock = 0;
-    int japaneseInputMode = 0;
     // 皮肤的图片模式（[toolbar] mode = "image"）：一整张背景图，按钮按皮肤的坐标摆在上面，
     // 不画底色、描边、阴影、把手与分隔线，窗口裁成背景图不透明部分的形状。
     bool imageMode = false;
@@ -548,7 +546,6 @@ bool FloatingToolbarPresenter::Bind(HWND hwnd)
     impl_->window->AdoptExistingHwnd(hwnd);
     impl_->window->SetStealFocusOnClick(false);
     bound_ = impl_->resources.EnsureForComposition(hwnd);
-    impl_->japaneseInputMode = GetActiveInputMode() == "japanese" ? 1 : 0;
     ApplyTheme();
     FTB_DIAG_LOGF(L"ftb-d2d bind hwnd={:#x} composition={}", reinterpret_cast<uintptr_t>(hwnd), bound_ ? 1 : 0);
     return bound_;
@@ -594,11 +591,6 @@ void FloatingToolbarPresenter::RebuildScene()
     {
         specs.push_back(TextSpec("status", "en-candidate", L"En", true,
                                  []() { FanyNamedPipe::EnqueueExitEnglishInputModeTask(); }));
-    }
-    else if (impl_->japaneseInputMode == 1)
-    {
-        specs.push_back(
-            GlyphSpec("status", "ja", kIconJa, []() { FanyNamedPipe::EnqueueToolbarLanguageToggleTask(true); }));
     }
     else
     {
@@ -1007,7 +999,7 @@ RECT FloatingToolbarPresenter::ShadowInsetsPx(int hostWidthPx, int hostHeightPx,
 }
 
 void FloatingToolbarPresenter::SyncUi(int cnEn, int doubleSingleByte, int punctuation, int englishInputMode,
-                                      int capsLock, int japaneseInputMode)
+                                      int capsLock)
 {
     if (!impl_)
     {
@@ -1018,7 +1010,6 @@ void FloatingToolbarPresenter::SyncUi(int cnEn, int doubleSingleByte, int punctu
     impl_->punctuation = punctuation;
     impl_->englishInputMode = englishInputMode;
     impl_->capsLock = capsLock;
-    impl_->japaneseInputMode = japaneseInputMode;
     if (!bound_)
     {
         return;

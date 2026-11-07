@@ -14,8 +14,8 @@ from pathlib import Path
 from . import inputs
 
 REPOSITORY = "metasequoiaime/msime-dictionary"
-ASSETS = ("msime-pinyin.db", "msime-wubi.db", "msime-english.db", "msime-others.db", "msime-japanese.dat",
-          "msime-mozc_dictionary_oss_README.txt", "msime-mozc_LICENSE.txt", "msime-scowl_Copyright.txt",
+ASSETS = ("msime-pinyin.db", "msime-wubi.db", "msime-english.db", "msime-others.db",
+          "msime-scowl_Copyright.txt",
           "msime-dictionary-manifest.json")
 
 
@@ -97,10 +97,7 @@ def compare(built: Path, tag: str, cache: Path, checkout_commit: str, msime_comm
             closing(sqlite3.connect(f"file:{release / 'msime-english.db'}?mode=ro", uri=True)) as theirs:
         if ours.execute("PRAGMA user_version").fetchone() != theirs.execute("PRAGMA user_version").fetchone():
             problems.append("english.db: user_version 不同")
-    for ours, theirs in (("dict_japanese.dat", "msime-japanese.dat"),
-                         ("mozc_dictionary_oss_README.txt", "msime-mozc_dictionary_oss_README.txt"),
-                         ("mozc_LICENSE.txt", "msime-mozc_LICENSE.txt"),
-                         ("scowl_Copyright.txt", "msime-scowl_Copyright.txt")):
+    for ours, theirs in (("scowl_Copyright.txt", "msime-scowl_Copyright.txt"),):
         checked += 1
         if inputs.sha256(built / ours) != inputs.sha256(release / theirs):
             problems.append(f"{ours} 与 {tag}/{theirs} 字节不同")

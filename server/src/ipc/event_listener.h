@@ -11,7 +11,6 @@
 #include "session/input_session.h"
 #include "english/english_ime.h"
 #include "mixed/mixed_candidates.h"
-#include "engine/contracts/temporary_japanese_input.h"
 
 inline std::condition_variable pipe_queueCv;
 inline std::atomic_bool pipe_running = true;
@@ -24,8 +23,6 @@ inline std::atomic<bool> g_candidate_move_msg_pending{false};
 
 namespace FanyNamedPipe
 {
-FanyImeTemporaryJapanese::Policy TemporaryJapanesePolicy();
-std::wstring TemporaryJapanesePolicyPayload();
 enum class CandidateUiAction
 {
     Commit,

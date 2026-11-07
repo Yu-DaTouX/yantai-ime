@@ -36,9 +36,8 @@ namespace
 // timer; one still in the posted queue runs from its own message.
 bool IsCommitReplyPollMessage(UINT message)
 {
-    return message == WM_AsyncServerCandidateKey || message == WM_AsyncCycleInputMode ||
-           message == WM_AsyncFinalizeCandidate || message == WM_AsyncNumberCandidateCommit ||
-           message == WM_AsyncPunctuationCommit;
+    return message == WM_AsyncServerCandidateKey || message == WM_AsyncFinalizeCandidate ||
+           message == WM_AsyncNumberCandidateCommit || message == WM_AsyncPunctuationCommit;
 }
 
 class CPunctuationCommitEditSession : public CEditSessionBase
@@ -414,7 +413,6 @@ bool CMetasequoiaIME::_PostAsyncKeyRequest(UINT message, UINT code, WCHAR wch, u
     switch (message)
     {
     case WM_AsyncServerCandidateKey:
-    case WM_AsyncCycleInputMode:
     case WM_AsyncFinalizeCandidate:
     case WM_AsyncPunctuationCommit:
     case WM_AsyncNumberCandidateCommit:
@@ -424,8 +422,7 @@ bool CMetasequoiaIME::_PostAsyncKeyRequest(UINT message, UINT code, WCHAR wch, u
         return false;
     }
 
-    const DeferredKeyFailureKind resetKind =
-        message == WM_AsyncCycleInputMode ? DeferredKeyFailureKind::Transport : DeferredKeyFailureKind::Resync;
+    const DeferredKeyFailureKind resetKind = DeferredKeyFailureKind::Resync;
     const uint64_t focusToken = expectedFocusToken != 0 ? expectedFocusToken : _CaptureFocusSessionToken();
     const uint64_t compositionEpoch =
         expectedCompositionEpoch != 0 ? expectedCompositionEpoch : _CaptureCompositionEpoch();

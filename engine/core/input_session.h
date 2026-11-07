@@ -230,7 +230,7 @@ class InputSession
     // Offsets in get_pinyin_sequence_with_cases() where one input unit starts,
     // always including 0 (when non-empty) and raw.size(). A unit is one syllable:
     // the `ma` of ni'hao'ma, one 1-2 key syllable in shuangpin. Schemes and
-    // local modes without the unit model (wubi, japanese, U/K/E/M/J/Y/R and the
+    // local modes without the unit model (wubi, U/K/E/M/J/Y and the
     // dedicated English scheme) return an empty vector, and hosts then fall back
     // to single-character editing. An active autocorrect/helpcode display is
     // mapped back to the raw spans the engine actually cut, so a deleted unit
@@ -326,7 +326,6 @@ class InputSession
     static bool is_wubi_native_candidate(const WordItem &item);
     // 当前列表里五笔码表候选的条数；顶字与四码自动上屏只认它，追加的拼音候选不算。
     std::size_t wubi_native_candidate_count() const;
-    bool is_japanese() const;
     void clear_pending_sequence();
     void apply_pending_sequence();
 
@@ -417,7 +416,6 @@ class InputSession
     std::vector<WordItem> dedicated_english_candidates_;
     std::vector<WordItem> mixed_candidates_;
     LocalInputMode local_input_mode_ = LocalInputMode::None;
-    std::optional<SchemeType> temporary_original_scheme_;
     std::string local_preedit_;
     std::vector<WordItem> local_candidates_;
     std::function<local_modes::LocalDateTime()> local_date_time_provider_;

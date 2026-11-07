@@ -53,8 +53,7 @@ void InputSession::apply_candidate_positions(std::vector<WordItem> &items)
         return;
     const auto journal = path_to_utf8(paths_.user(assets::user_journal));
     const bool super_jianpin = local_input_mode_ == LocalInputMode::SuperJianpin;
-    const bool regular =
-        local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_ && scheme() != SchemeType::JapaneseRomaji;
+    const bool regular = local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_;
     if (regular && is_wubi())
     {
         // 混输组合里五笔与拼音候选共存，固定位置必须按候选自己的上下文分别结算：五笔候选
@@ -126,8 +125,7 @@ KeyResult InputSession::set_candidate_position(std::size_t index, int position)
     const auto selected = candidates()[index];
     const bool english = selected.source == CandidateSource::EnglishDictionary;
     if (!english &&
-        ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase) ||
-         scheme() == SchemeType::JapaneseRomaji))
+        ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase)))
         return {};
     const bool wubi = is_wubi_native_candidate(selected) && local_input_mode_ != LocalInputMode::SuperJianpin;
     const auto context = position_context(english, wubi);
@@ -159,7 +157,7 @@ KeyResult InputSession::remove_candidate(std::size_t index)
     const bool english = selected.source == CandidateSource::EnglishDictionary;
     if (!english &&
         ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase) ||
-         scheme() == SchemeType::JapaneseRomaji || HelpcodeUtils::count_utf8_chars(selected.word) <= 1))
+         HelpcodeUtils::count_utf8_chars(selected.word) <= 1))
         return {};
 
     const bool wubi = is_wubi_native_candidate(selected) && local_input_mode_ != LocalInputMode::SuperJianpin;

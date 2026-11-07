@@ -8,7 +8,7 @@
 
 | 目录 | 职责 |
 |---|---|
-| `core/`、`quanpin/`、`shuangpin/`、`english/`、`japanese/` | 输入会话和候选查询 |
+| `core/`、`quanpin/`、`shuangpin/`、`english/` | 输入会话和候选查询 |
 | `contracts/` | 与 server、前端页面共享的协议、词库格式和标点策略 |
 | `helpcode/` | 辅助码数据和生成脚本 |
 | `local_modes/`、`providers/`、`user_dictionary/` | 本地模式、在线候选来源、用户词库 |
@@ -50,7 +50,7 @@ cd .\tests\
 
 ## 数据
 
-引擎读取的词库**不在本目录内**，也不由本仓库构建：`msime.db`（全拼、五笔、快捷短语、日语词表）、`english.db`（英文候选与中英释义）、`others.db`（emoji、颜文字、符号）、`dict_japanese.dat`（日语整句模型）都来自 `product-lock.json` 钉住的词库 Release，构建时下载。建库流水线随专门化一并移除，见 [UPSTREAM.md](UPSTREAM.md)。
+引擎读取的词库**不在本目录内**，也不由本仓库构建：`msime.db`（全拼、五笔、快捷短语）、`english.db`（英文候选与中英释义）、`others.db`（emoji、颜文字、符号）都来自 `product-lock.json` 钉住的词库 Release，构建时下载。建库流水线随专门化一并移除，见 [UPSTREAM.md](UPSTREAM.md)。
 
 候选窗的中英翻译除了 `english.db` 的大表之外，还有一层人工覆盖：`english.db` 同目录下的 `custom_translations.txt`，格式为 `源<Tab>释义`，优先级高于大表（见 `english/english_dictionary.cpp`）。要纠正某条释义时改这里，不要动 ECDICT 生成的大表。
 

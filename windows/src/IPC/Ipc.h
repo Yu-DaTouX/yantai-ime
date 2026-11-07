@@ -15,8 +15,6 @@
 #include "../../../engine/contracts/enumeration_comma.h"
 #include "../../../engine/contracts/mid_sentence_helpcode.h"
 #include "../../../engine/contracts/v_mode_input.h"
-#include "../../../engine/contracts/temporary_japanese_input.h"
-#include "../../../engine/contracts/trilingual_input.h"
 
 class CMetasequoiaIME;
 
@@ -33,9 +31,7 @@ void BindNamedpipeFocusState(
     _In_opt_ std::atomic<uint64_t> *expectedWorkerFocusToken, _In_opt_ std::atomic<bool> *localSessionResetPending,
     _In_opt_ std::atomic<UINT> *localSessionResetToken, _In_opt_ std::atomic<bool> *workerCommitReady,
     _In_opt_ std::atomic<uint64_t> *acknowledgedWorkerFocusToken, _In_opt_ std::atomic<HANDLE> *workerPipeHandle,
-    _In_opt_ std::atomic<UINT> *workerPipeGeneration,
-    _In_opt_ std::atomic<FanyImeTemporaryJapanese::Policy> *temporaryJapanesePolicy);
-FanyImeTemporaryJapanese::Policy GetTemporaryJapanesePolicy();
+    _In_opt_ std::atomic<UINT> *workerPipeGeneration);
 // Wake-up events owned by the bound service, so the UI thread and the IPC worker
 // thread block instead of polling. workerAckEvent is signalled by the worker when
 // it records the expected focus token; workerPipePublishedEvent is signalled when
@@ -65,7 +61,6 @@ bool UsesHorizontalArrowSelection();
 // CompositionRestore（改写后的输入串要靠它的回复落地），且不是 UILess 宿主。
 bool UsesDirectHelpcodeEndTrigger();
 bool SupportsCaretStateIndicator();
-bool SupportsTrilingualCycle();
 bool SupportsInputStateShortcuts();
 bool FlushNamedpipeFocusSessionReset();
 bool FlushNamedpipeImeDeactivation(uint64_t focusToken = 0);
@@ -211,9 +206,6 @@ inline bool IsDeliveredServerRequestId(uint64_t requestId)
 // request was delivered. The key is dropped with the composition and never
 // sent again (DeferredKeyFailureReason::DeliveryAmbiguous).
 constexpr HRESULT FANY_E_COMMIT_REPLY_AMBIGUOUS = __HRESULT_FROM_WIN32(ERROR_TIMEOUT);
-// A key handler applied its key, but the result differs from what the deferred
-// FIFO projected for the keys queued behind it. Maps to ProjectionInvalidated.
-constexpr HRESULT FANY_S_PROJECTION_INVALIDATED = MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_ITF, 0x0301);
 
 //
 // Modifiers:
@@ -326,9 +318,7 @@ inline std::atomic<unsigned> DirectHelpcodeEndTriggerKeys{0};
 // V 模式（数字转中文、算式计算）由哪个前缀开启：双拼只认大写 V，全拼 V、v 都认，关着或不是全拼/双拼时
 // 不开。V 后面的数字和 . + - * / ( ) 按 engine/contracts/v_mode_input.h 的规则当编码键吃掉。
 inline std::atomic<FanyImeVModeInput::Trigger> VModeTrigger{FanyImeVModeInput::Trigger::Off};
-inline std::atomic_bool JapaneseInputModeEnabled{false};
 // Enabled only after a supporting Server sends the persisted setting.
-inline std::atomic_bool TrilingualCycleEnabled{false};
 inline std::atomic_bool CapsLockEnabled{false};
 
 // The punctuation the mode-following paths select; a configured lock still wins.

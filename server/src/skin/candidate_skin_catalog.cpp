@@ -1243,7 +1243,7 @@ bool IsAnimatableImagePath(const std::string &path)
 
 const std::vector<std::string> *ToolbarButtonStates(const std::string &key)
 {
-    static const std::vector<std::string> status = {"cn", "en", "ja", "caps", "en-candidate"};
+    static const std::vector<std::string> status = {"cn", "en", "caps", "en-candidate"};
     static const std::vector<std::string> fullwidth = {"full", "half"};
     static const std::vector<std::string> punctuation = {"cn", "en"};
     static const std::vector<std::string> characterSet = {"simplified", "traditional"};

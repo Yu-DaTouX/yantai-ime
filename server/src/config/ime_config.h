@@ -267,20 +267,8 @@ const std::vector<std::string> &GetSystemFontFamilies();
 // typographic family name Chromium expects in CSS. Returns the input on failure.
 std::string ResolveSystemFontFamilyForCss(const std::string &font);
 SchemeType GetConfiguredInputScheme();
-// The Chinese scheme is preserved while Japanese mode is active.
-SchemeType GetConfiguredActiveInputScheme();
 std::string GetConfiguredInputSchemeName();
 bool SetConfiguredInputScheme(const std::string &scheme);
-const std::string &GetConfiguredInputMode();
-bool SetConfiguredInputMode(const std::string &mode);
-bool GetConfiguredTrilingualCycleEnabled();
-bool SetConfiguredTrilingualCycleEnabled(bool enabled);
-// Runtime language during cycling; the saved preference remains GetConfiguredInputMode().
-const std::string &GetActiveInputMode();
-// Changes memory only. The key handler applies the session and publishes in request order.
-bool SetActiveInputMode(const std::string &mode);
-const std::string &GetConfiguredJapaneseSchema();
-bool SetConfiguredJapaneseSchema(const std::string &schema);
 const std::string &GetConfiguredCharacterSet();
 bool SetConfiguredCharacterSet(const std::string &character_set);
 bool GetConfiguredCharacterSetShortcutEnabled();
@@ -611,8 +599,6 @@ bool GetConfiguredJianpinModeEnabled();
 bool SetConfiguredJianpinModeEnabled(bool enabled);
 bool GetConfiguredYModeEnabled();
 bool SetConfiguredYModeEnabled(bool enabled);
-bool GetConfiguredRModeEnabled();
-bool SetConfiguredRModeEnabled(bool enabled);
 // V 模式：数字转中文、算式计算。双拼按大写 V 触发，全拼大小写 V 都可以，规则见
 // engine/contracts/v_mode_input.h。
 bool GetConfiguredVModeEnabled();

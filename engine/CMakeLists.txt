@@ -43,9 +43,6 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     direct_helpcode/direct_resolver.cpp
     direct_helpcode/spelling_graph.cpp
     english/english_dictionary.cpp
-    japanese/japanese_matrix_search.cpp
-    japanese/japanese_sentence_decoder.cpp
-    japanese/romaji_converter.cpp
     local_modes/date_time_query.cpp
     local_modes/emoji_query.cpp
     local_modes/jianpin_query.cpp
@@ -58,7 +55,6 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     neural/sentence_model.cpp
     neural/neural_decoder.cpp
     neural/rescore_worker.cpp
-    providers/japanese_candidate_provider.cpp
     providers/pinyin_candidate_provider.cpp
     providers/provider_registry.cpp
     providers/wubi_candidate_provider.cpp
@@ -70,7 +66,6 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     quanpin/quanpin_utils.cpp
     quanpin/lattice_rerank.cpp
     quanpin/word_lattice.cpp
-    schemes/japanese_romaji_scheme.cpp
     schemes/quanpin_scheme.cpp
     schemes/shuangpin_scheme.cpp
     schemes/wubi_scheme.cpp
@@ -201,12 +196,6 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME punctuation_contract COMMAND test_punctuation_contract)
 
-    add_executable(test_japanese_romaji tests/src/test_japanese_romaji.cpp)
-    if(MSVC)
-        target_compile_options(test_japanese_romaji PRIVATE /utf-8)
-    endif()
-    target_link_libraries(test_japanese_romaji PRIVATE MetasequoiaIme::Engine)
-    add_test(NAME japanese_romaji COMMAND test_japanese_romaji)
 
     add_executable(test_platform_api tests/src/test_platform_api.cpp tests/src/test_public_session.cpp)
     target_link_libraries(test_platform_api PRIVATE MetasequoiaIme::Engine)
@@ -301,12 +290,6 @@ if(BUILD_TESTING)
     target_link_libraries(test_temporary_input_session PRIVATE MetasequoiaIme::Engine)
     add_test(NAME temporary_input_session COMMAND test_temporary_input_session)
 
-    add_executable(test_japanese_candidates tests/src/test_japanese_candidates.cpp)
-    if(MSVC)
-        target_compile_options(test_japanese_candidates PRIVATE /utf-8)
-    endif()
-    target_link_libraries(test_japanese_candidates PRIVATE MetasequoiaIme::Engine)
-    add_test(NAME japanese_candidates COMMAND test_japanese_candidates)
 
     add_executable(test_local_modes tests/src/test_local_modes.cpp)
     target_link_libraries(test_local_modes PRIVATE MetasequoiaIme::Engine)

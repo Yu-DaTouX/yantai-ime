@@ -66,7 +66,6 @@ enum class LocalInputMode
     Kaomoji,
     SuperJianpin,
     TemporaryEnglish,
-    TemporaryJapanese,
 };
 
 struct LocalModeOptions
@@ -84,7 +83,6 @@ struct LocalModeOptions
     bool kaomoji = true;
     bool super_jianpin = true;
     bool temporary_english = true;
-    bool temporary_japanese = true;
 };
 
 struct EnglishInputOptions

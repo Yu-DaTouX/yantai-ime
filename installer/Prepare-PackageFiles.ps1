@@ -83,8 +83,6 @@ $thirdPartyNotices = Join-Path $RepoRoot (Join-Path $NoticesDirectory 'THIRD_PAR
 $license = Join-Path $RepoRoot 'LICENSE'
 $dictionaryDb = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\msime.db')
 $dictionaryManifest = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\dictionary-manifest.json')
-$japaneseModel = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\dict_japanese.dat')
-$japaneseModelLicense = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'source\mozc_dictionary_oss\README.txt')
 $englishDb = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\english.db')
 $othersDb = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\others.db')
 $neuralModelKeyboard = Join-Path $RepoRoot (Join-Path $NeuralModelDirectory 'sentence-model.safetensors')
@@ -127,8 +125,6 @@ if (-not $Light) {
     Assert-PathExists -LiteralPath $helpcodeSource -Description '辅助码目录'
     Assert-PathExists -LiteralPath $radicalTable -Description 'U 模式部件拆字表 decomposition.txt'
     Assert-PathExists -LiteralPath $dictionaryDb -Description '词库数据库 msime.db'
-    Assert-PathExists -LiteralPath $japaneseModel -Description '日语整句模型 dict_japanese.dat'
-    Assert-PathExists -LiteralPath $japaneseModelLicense -Description 'Mozc 日语词典授权声明'
     Assert-PathExists -LiteralPath $englishDb -Description '英文词库数据库 english.db'
     python -c @"
 import sqlite3, sys
@@ -167,7 +163,7 @@ else {
     # 与它配对的 user_dict.dat 是 role=user 的可写文件，profiles 为空，故意不进包 ——
     # 引擎首次使用时由 UserDict::reset 在用户数据目录下自行建出来。
     Copy-Item -LiteralPath $pinyinModel -Destination (Join-Path $targetAppData 'dict_pinyin.dat') -Force
-    # msime.db、english.db、others.db、dict_japanese.dat 不进 app_data：SQLite 页和索引几乎压不动，
+    # msime.db、english.db、others.db 不进 app_data：SQLite 页和索引几乎压不动，
     # 导出成文本源后安装包小约 40 MB。安装程序在 ssPostInstall 里调 MetasequoiaImeDictionaryBuild.exe
     # 把它们还原到数据目录（行数逐表核对，日文模型核对 SHA-256），见 msime_setup.iss 的 BuildDictionaries。
     python $dictionarySourceExporter --out (Split-Path -Parent $dictionaryDb) --target $targetDictionarySource
@@ -178,7 +174,6 @@ else {
     if (Test-Path -LiteralPath $dictionaryManifest) {
         Copy-Item -LiteralPath $dictionaryManifest -Destination (Join-Path $targetAppData 'dictionary-manifest.json') -Force
     }
-    Copy-Item -LiteralPath $japaneseModelLicense -Destination (Join-Path $targetAppData 'MOZC_DICTIONARY_LICENSE.txt') -Force
     # 神经整句速度档模型落在资源目录根下，文件名由 engine/contracts/assets 清单声明。
     # 缺文件时引擎静默不出神经整句候选（shared_sentence_model 返回 nullptr），不影响其它候选。
     Copy-Item -LiteralPath $neuralModelKeyboard -Destination (Join-Path $targetAppData 'sentence-model.safetensors') -Force

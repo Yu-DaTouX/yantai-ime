@@ -585,8 +585,7 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         }
         if (wParam == TIMER_ID_CONFIG_SYNC)
         {
-            const SchemeType previous_input_scheme = GetConfiguredActiveInputScheme();
-            const bool previous_trilingual_cycle = GetConfiguredTrilingualCycleEnabled();
+            const SchemeType previous_input_scheme = GetConfiguredInputScheme();
             const std::string previous_shuangpin_schema = GetConfiguredShuangpinSchema();
             const std::string previous_character_set = GetConfiguredCharacterSet();
             const bool previous_translation_show_pos = GetConfiguredCandidateTranslationShowPos();
@@ -637,7 +636,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const int previous_font_size = GetConfiguredCandidateFontSize();
             const int previous_preedit_font_size = GetConfiguredCandidateWindowPreeditFontSize();
             const std::string previous_cand_text_color = GetConfiguredCandidateTextColor();
-            const auto previous_temporary_japanese_policy = FanyNamedPipe::TemporaryJapanesePolicy();
             const VoiceInputConfig previous_voice_input = GetConfiguredVoiceInput();
             if (ReloadImeConfigIfChanged())
             {
@@ -647,17 +645,10 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                     ChineseConverter::PreloadInBackground();
                 FanyNamedPipe::EnqueueApplyCandidatePageSizeTask();
                 // ApplyConfiguredInputScheme broadcasts the policy with the rest of the mode state.
-                if (previous_input_scheme != GetConfiguredActiveInputScheme())
+                if (previous_input_scheme != GetConfiguredInputScheme())
                     ApplyConfiguredInputScheme();
                 else if (previous_shuangpin_schema != GetConfiguredShuangpinSchema())
                     ApplyConfiguredShuangpinSchema();
-                if (previous_input_scheme == GetConfiguredActiveInputScheme() &&
-                    previous_temporary_japanese_policy != FanyNamedPipe::TemporaryJapanesePolicy())
-                    BroadcastToTsfWorkerThreadViaNamedpipe(FanyImeWorkerReplyType::TemporaryJapanesePolicyChanged,
-                                                           FanyNamedPipe::TemporaryJapanesePolicyPayload());
-                if (previous_input_scheme == GetConfiguredActiveInputScheme() &&
-                    previous_trilingual_cycle != GetConfiguredTrilingualCycleEnabled())
-                    BroadcastTrilingualCycleState();
                 if (previous_character_set != GetConfiguredCharacterSet())
                 {
                     UpdateFtbCharacterSetState();

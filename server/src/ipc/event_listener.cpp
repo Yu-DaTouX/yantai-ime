@@ -1,5 +1,4 @@
 #include "event_listener.h"
-#include "engine/contracts/temporary_japanese_input.h"
 #include <Windows.h>
 #include <debugapi.h>
 #include <ioapiset.h>
@@ -54,9 +53,6 @@ bool g_kaomoji_mode_triggered = false;
 bool g_symbol_mode_triggered = false;
 bool g_jianpin_mode_triggered = false;
 bool g_y_mode_triggered = false;
-bool g_r_mode_triggered = false;
-std::shared_ptr<IInputSession> g_r_mode_original_session;
-std::shared_ptr<IInputSession> g_language_cycle_parked_session;
 bool g_english_input_mode = false;
 } // namespace event_listener_detail
 
@@ -325,7 +321,6 @@ void ClearSpecialModeTriggers()
     g_symbol_mode_triggered = false;
     g_jianpin_mode_triggered = false;
     g_y_mode_triggered = false;
-    g_r_mode_triggered = false;
 }
 
 // True whenever a K/U/T/E/M/S/J/Y special-mode composition is in progress, even when the
@@ -457,8 +452,6 @@ void SetEnglishInputMode(bool enabled)
     }
     g_english_input_mode = enabled;
     PublishEnglishInputModeValue(enabled);
-    BroadcastToTsfWorkerThreadViaNamedpipe(FanyImeWorkerReplyType::TemporaryJapanesePolicyChanged,
-                                           FanyNamedPipe::TemporaryJapanesePolicyPayload());
 }
 
 void RememberClientStatusSnapshot(uint64_t client_id, int packed_state)
@@ -501,8 +494,7 @@ void UpdateCloudInput(const std::string &input, uint64_t client_id, uint64_t act
 {
     std::lock_guard lock(g_async_request_mutex);
     const std::string effective_input = GetConfiguredCloudCandidatesEnabled() ? input : std::string{};
-    const bool japanese = g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-    CloudIme::OnInputChanged(effective_input, japanese);
+    CloudIme::OnInputChanged(effective_input, false);
     ++g_cloud_generation;
     g_cloud_request_origin = effective_input.empty()
                                  ? AsyncRequestOrigin{}
@@ -619,9 +611,7 @@ namespace
 {
 bool ShouldConvertCandidateTextIn(const std::string &character_set, bool radical_candidate_list)
 {
-    const bool japanese_scheme = g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-    return FanyImeIpc::ShouldConvertCandidateTextToTraditional(character_set == "traditional", japanese_scheme,
-                                                               radical_candidate_list);
+    return FanyImeIpc::ShouldConvertCandidateTextToTraditional(character_set == "traditional", radical_candidate_list);
 }
 
 bool ShouldConvertCandidateText(bool radical_candidate_list)
@@ -754,10 +744,10 @@ void SyncShuangpinPreeditForms()
     composition.shuangpin_raw_segmentation.clear();
     composition.shuangpin_quanpin_segmentation.clear();
     composition.shuangpin_forms_source.clear();
-    // 只有 segmented_pinyin 就是双拼会话自己的切分时才换成全拼：特殊模式、英文模式和 R 模式都会把它
+    // 只有 segmented_pinyin 就是双拼会话自己的切分时才换成全拼：特殊模式和英文模式都会把它
     // 改写成按键原串，那些组合里的字母不是双拼编码。
     if (!g_inputSession || g_inputSession->current_scheme_type() != SchemeType::Shuangpin || g_english_input_mode ||
-        g_r_mode_triggered || IsSpecialModeCompositionActive(composition.raw_input_with_cases) ||
+        IsSpecialModeCompositionActive(composition.raw_input_with_cases) ||
         composition.segmented_pinyin != g_inputSession->get_pinyin_segmentation_with_cases())
     {
         return;
@@ -793,22 +783,7 @@ void NoteCandidateUiInteraction(uint64_t page_generation)
         g_candidate_ui_interaction_generation.store(page_generation, std::memory_order_release);
 }
 
-FanyImeTemporaryJapanese::Policy TemporaryJapanesePolicy()
-{
-    // Keep the underlying Chinese scheme available to TSF's queued language-cycle projection.
-    const auto scheme = GetConfiguredInputScheme();
-    const bool allowed =
-        GetConfiguredRModeEnabled() && (scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin);
-    std::lock_guard lock(g_status_snapshot_mutex);
-    return static_cast<FanyImeTemporaryJapanese::Policy>(
-        (allowed ? FanyImeTemporaryJapanese::Allowed : 0) |
-        (g_latest_english_input_mode ? FanyImeTemporaryJapanese::EnglishCandidates : 0));
-}
 
-std::wstring TemporaryJapanesePolicyPayload()
-{
-    return std::wstring(1, FanyImeTemporaryJapanese::ToPayload(TemporaryJapanesePolicy()));
-}
 
 void CancelCloudCandidateRequest()
 {
@@ -899,7 +874,6 @@ void PushUiLessCandidatesToOwner()
 
 void ClearState()
 {
-    const auto r_mode_original_session = g_r_mode_original_session;
     ClearSpecialModeTriggers();
     ClearCandidateUiOwner();
     UpdateCloudInput("");
@@ -921,11 +895,6 @@ void ClearState()
     UpdateAiInput("");
     /* Clear dict engine state */
     g_inputSession->reset_state();
-    if (r_mode_original_session)
-    {
-        g_inputSession = r_mode_original_session;
-        g_r_mode_original_session.reset();
-    }
     /* 造词的状态也要清理 */
     GlobalIme::composition.clear();
     HideCandidateWindowAndDropItems();

@@ -90,7 +90,6 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_custom_shuangpin.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_quanpin_scheme.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_wubi.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_japanese_romaji.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_shuangpin_query.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_engine_shuangpin_session.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_caret_prefix_input_session.cpp"

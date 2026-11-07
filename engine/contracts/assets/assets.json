@@ -31,24 +31,6 @@
       ]
     },
     {
-      "id": "japanese_model",
-      "path": "dict_japanese.dat",
-      "role": "resource",
-      "source": "dictionary",
-      "profiles": [
-        "desktop"
-      ]
-    },
-    {
-      "id": "japanese_notice",
-      "path": "mozc_dictionary_oss_README.txt",
-      "role": "notice",
-      "source": "dictionary",
-      "profiles": [
-        "desktop"
-      ]
-    },
-    {
       "id": "dictionary_manifest",
       "path": "dictionary-manifest.json",
       "role": "metadata",

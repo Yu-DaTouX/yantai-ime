@@ -113,20 +113,19 @@ inline bool IsRadicalCandidateList(bool radical_mode_triggered, bool translation
  * 日语方案的候选是假名与日文汉字，原样输出；U 模式拆字结果（见 IsRadicalCandidateList）是字表里
  * 确定的字形，同样原样输出，否则「干」「台」这类简繁同形字会被换成用户没有选的字。
  */
-inline bool ShouldConvertCandidateTextToTraditional(bool traditional_character_set, bool japanese_scheme,
-                                                    bool radical_candidate_list)
+inline bool ShouldConvertCandidateTextToTraditional(bool traditional_character_set, bool radical_candidate_list)
 {
-    return traditional_character_set && !japanese_scheme && !radical_candidate_list;
+    return traditional_character_set && !radical_candidate_list;
 }
 
 /**
  * 当前候选列表的内容会不会随简繁字形变：英文状态（english_input_mode）、日语方案、U 模式拆字列表下不变，
  * 切换字形后不必换写法。
  */
-inline bool CandidateListFollowsCharacterSet(bool japanese_scheme, bool radical_candidate_list, bool english_input_mode)
+inline bool CandidateListFollowsCharacterSet(bool radical_candidate_list, bool english_input_mode)
 {
-    return !english_input_mode && ShouldConvertCandidateTextToTraditional(/*traditional_character_set=*/true,
-                                                                          japanese_scheme, radical_candidate_list);
+    return !english_input_mode &&
+           ShouldConvertCandidateTextToTraditional(/*traditional_character_set=*/true, radical_candidate_list);
 }
 
 /**

@@ -1042,7 +1042,6 @@ VisualPtr BuildShortcutPage(PageContext &context)
                                   L"依次切换；有输入时先上屏原始字母，中文和日文分别保留各自的输入方案");
         cycle->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
         column->Add(cycle);
-        column->Add(Options({BindCheck(context, L"允许中日英循环切换", "keybindings.trilingual_cycle")}));
         auto guide = std::make_shared<TopRule>(std::make_shared<SystemGuide>());
         guide->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
         column->Add(guide);

@@ -799,8 +799,7 @@ bool NegotiateMainPipeClient(const FanyImeNamedpipeData &hello, uint64_t registr
     const auto protocol = FanyImeProtocol::Negotiate(
         hello, FanyImeProtocol::Capabilities | FanyImeProtocol::CharacterSetShortcut |
                    FanyImeProtocol::CompositionRestore | FanyImeProtocol::CaretStateIndicator |
-                   FanyImeProtocol::TrilingualCycle | FanyImeProtocol::InputStateShortcuts |
-                   FanyImeProtocol::TemporaryJapaneseLongVowel);
+                   FanyImeProtocol::InputStateShortcuts);
     std::lock_guard lock(g_pipe_clients_mutex);
     auto it = g_pipe_clients.find(hello.client_id);
     if (it == g_pipe_clients.end() || registration_id == 0 || it->second.main_registration_id != registration_id)
@@ -843,13 +842,6 @@ bool ClientNegotiatedCaretStateIndicator(uint64_t client_id)
            (it->second.protocol.capabilities & FanyImeProtocol::CaretStateIndicator) != 0;
 }
 
-bool ClientNegotiatedTrilingualCycle(uint64_t client_id)
-{
-    std::lock_guard lock(g_pipe_clients_mutex);
-    const auto it = g_pipe_clients.find(client_id);
-    return it != g_pipe_clients.end() && !it->second.protocol.legacy &&
-           (it->second.protocol.capabilities & FanyImeProtocol::TrilingualCycle) != 0;
-}
 
 bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
 {
@@ -859,13 +851,6 @@ bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
            (it->second.protocol.capabilities & FanyImeProtocol::InputStateShortcuts) != 0;
 }
 
-bool ClientNegotiatedTemporaryJapanese(uint64_t client_id)
-{
-    std::lock_guard lock(g_pipe_clients_mutex);
-    const auto it = g_pipe_clients.find(client_id);
-    return it != g_pipe_clients.end() && !it->second.protocol.legacy &&
-           (it->second.protocol.capabilities & FanyImeProtocol::TemporaryJapaneseLongVowel) != 0;
-}
 
 uint64_t RegisterToTsfPipeClient(uint64_t client_id, HANDLE pipe)
 {
@@ -1672,9 +1657,6 @@ bool SendWorkerPackets(uint64_t client_id, uint64_t activation_epoch, bool requi
 bool SendWorkerPacket(uint64_t client_id, uint64_t activation_epoch, bool require_active, UINT msg_type,
                       const std::wstring &pipe_data)
 {
-    if (msg_type == FanyImeWorkerReplyType::TemporaryJapanesePolicyChanged &&
-        !ClientNegotiatedTemporaryJapanese(client_id))
-        return true;
     FanyImeNamedpipeDataToTsfWorkerThread packet = {};
     packet.msg_type = msg_type;
     if (!CopyPipeText(packet.data, pipe_data))
@@ -1811,11 +1793,8 @@ void SendToTsfWorkerThreadViaNamedpipe(UINT msg_type, const std::wstring &pipeDa
     SendWorkerPacket(active.client_id, active.epoch, true, msg_type, pipeData);
 }
 
-void BroadcastConfiguredInputModeState(uint64_t excluded_input_mode_client_id)
+void BroadcastConfiguredKeyPolicies()
 {
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::InputModeChanged,
-                                           GetActiveInputMode() == "japanese" ? L"1" : L"0",
-                                           excluded_input_mode_client_id);
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged,
                                            FormatMidSentenceHelpcodeWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(
@@ -1831,8 +1810,6 @@ void BroadcastConfiguredInputModeState(uint64_t excluded_input_mode_client_id)
         FormatMidSentenceHelpcodeUppercaseWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged,
                                            FormatEndHelpcodeTriggersWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(FanyImeWorkerReplyType::TemporaryJapanesePolicyChanged,
-                                           FanyNamedPipe::TemporaryJapanesePolicyPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged,
                                            FormatVModeWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged,
@@ -1857,44 +1834,5 @@ void BroadcastToTsfWorkerThreadViaNamedpipe(UINT msg_type, const std::wstring &p
     for (const uint64_t client_id : client_ids)
     {
         SendToTsfWorkerThreadClientViaNamedpipe(client_id, msg_type, pipeData);
-    }
-}
-
-bool SendTrilingualCycleState(uint64_t client_id, uint64_t activation_epoch)
-{
-    // During an upgrade a host can keep an older DLL loaded. It ignores this
-    // opcode anyway, and a client that has not negotiated yet gets the
-    // setting again on activation.
-    if (!ClientNegotiatedTrilingualCycle(client_id))
-    {
-        return false;
-    }
-    const std::wstring payload = GetConfiguredTrilingualCycleEnabled() ? L"1" : L"0";
-    return activation_epoch != 0
-               ? SendToTsfWorkerThreadClientViaNamedpipe(
-                     client_id, activation_epoch,
-                     Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged, payload)
-               : SendToTsfWorkerThreadClientViaNamedpipe(
-                     client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged, payload);
-}
-
-void BroadcastTrilingualCycleState()
-{
-    std::vector<uint64_t> client_ids;
-    {
-        std::lock_guard lock(g_pipe_clients_mutex);
-        client_ids.reserve(g_pipe_clients.size());
-        for (const auto &[client_id, session] : g_pipe_clients)
-        {
-            if (client_id != 0 && session.to_tsf_worker_thread_pipe &&
-                session.to_tsf_worker_thread_registration_id != 0 && session.to_tsf_worker_thread_ready)
-            {
-                client_ids.push_back(client_id);
-            }
-        }
-    }
-    for (const uint64_t client_id : client_ids)
-    {
-        SendTrilingualCycleState(client_id);
     }
 }

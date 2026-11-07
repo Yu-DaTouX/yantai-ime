@@ -195,8 +195,7 @@ void ShowHostWindowCloaked(HWND hwnd)
 void ApplyConfiguredInputScheme()
 {
     FanyNamedPipe::EnqueueReloadInputSessionTask();
-    UpdateFtbInputModeState(GetActiveInputMode() == "japanese" ? 1 : 0);
-    BroadcastConfiguredInputModeState();
+    BroadcastConfiguredKeyPolicies();
 }
 
 void ApplyConfiguredShuangpinSchema()

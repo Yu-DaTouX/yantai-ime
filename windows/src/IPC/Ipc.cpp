@@ -45,7 +45,6 @@ static thread_local std::atomic<UINT> *boundLocalSessionResetToken = nullptr;
 static thread_local std::atomic<bool> *boundWorkerCommitReady = nullptr;
 static thread_local std::atomic<uint64_t> *boundAcknowledgedWorkerFocusToken = nullptr;
 static thread_local std::atomic<HANDLE> *boundWorkerPipeHandle = nullptr;
-static thread_local std::atomic<FanyImeTemporaryJapanese::Policy> *boundTemporaryJapanesePolicy = nullptr;
 static thread_local std::atomic<UINT> *boundWorkerPipeGeneration = nullptr;
 static thread_local HANDLE boundWorkerAckEvent = nullptr;
 static thread_local HANDLE boundWorkerPipePublishedEvent = nullptr;
@@ -476,9 +475,6 @@ bool WaitForWorkerPipeReady(HANDLE hPipeHandle)
 bool WaitForProtocolReady(uint64_t requestId)
 {
     negotiatedServerCapabilities = 0;
-    // Do not clear the temporary R-mode policy here: the worker pipe registers
-    // before Main and may already hold this connection's policy. CloseNamedpipe
-    // and the worker's disconnect path clear it for a replaced Server.
     const ULONGLONG deadline = GetTickCount64() + 250;
     while (GetTickCount64() < deadline)
     {
@@ -512,8 +508,7 @@ bool WritePipeHello(HANDLE hPipeHandle, UINT pipeRole)
             FanyImeProtocol::Hello(GetPipeClientId(), NextProtocolId(nextRequestId),
                                    FanyImeProtocol::Capabilities | FanyImeProtocol::CharacterSetShortcut |
                                        FanyImeProtocol::CompositionRestore | FanyImeProtocol::CaretStateIndicator |
-                                       FanyImeProtocol::TrilingualCycle | FanyImeProtocol::InputStateShortcuts |
-                                       FanyImeProtocol::TemporaryJapaneseLongVowel);
+                                       FanyImeProtocol::InputStateShortcuts);
         BOOL ret = WriteFile(hPipeHandle, &hello, sizeof(hello), &bytesWritten, NULL);
         // Never authorize keys from merely writing a hello. An old Server
         // without negotiation times out into the existing raw-input fallback.
@@ -640,8 +635,7 @@ void BindNamedpipeFocusState(CMetasequoiaIME *owner, bool *focusResetPending, bo
                              std::atomic<uint64_t> *expectedWorkerFocusToken,
                              std::atomic<bool> *localSessionResetPending, std::atomic<UINT> *localSessionResetToken,
                              std::atomic<bool> *workerCommitReady, std::atomic<uint64_t> *acknowledgedWorkerFocusToken,
-                             std::atomic<HANDLE> *workerPipeHandle, std::atomic<UINT> *workerPipeGeneration,
-                             std::atomic<FanyImeTemporaryJapanese::Policy> *temporaryJapanesePolicy)
+                             std::atomic<HANDLE> *workerPipeHandle, std::atomic<UINT> *workerPipeGeneration)
 {
     boundFocusStateOwner = owner;
     boundFocusResetPending = focusResetPending;
@@ -653,13 +647,8 @@ void BindNamedpipeFocusState(CMetasequoiaIME *owner, bool *focusResetPending, bo
     boundAcknowledgedWorkerFocusToken = acknowledgedWorkerFocusToken;
     boundWorkerPipeHandle = workerPipeHandle;
     boundWorkerPipeGeneration = workerPipeGeneration;
-    boundTemporaryJapanesePolicy = temporaryJapanesePolicy;
 }
 
-FanyImeTemporaryJapanese::Policy GetTemporaryJapanesePolicy()
-{
-    return boundTemporaryJapanesePolicy ? boundTemporaryJapanesePolicy->load(std::memory_order_relaxed) : 0;
-}
 
 void BindNamedpipeWakeEvents(const void *owner, HANDLE workerAckEvent, HANDLE workerPipePublishedEvent)
 {
@@ -687,7 +676,6 @@ void UnbindNamedpipeFocusState(const void *owner)
     boundAcknowledgedWorkerFocusToken = nullptr;
     boundWorkerPipeHandle = nullptr;
     boundWorkerPipeGeneration = nullptr;
-    boundTemporaryJapanesePolicy = nullptr;
     boundWorkerAckEvent = nullptr;
     boundWorkerPipePublishedEvent = nullptr;
 }
@@ -999,8 +987,6 @@ int CloseIpc()
 int CloseNamedpipe()
 {
     negotiatedServerCapabilities = 0;
-    if (boundTemporaryJapanesePolicy)
-        boundTemporaryJapanesePolicy->store(0, std::memory_order_relaxed);
     ClosePipeHandleIfValid(hPipe);
     ClosePipeHandleIfValid(hFromServerPipe);
     ClosePipeHandleIfValid(hToTsfWorkerThreadPipe);
@@ -1044,11 +1030,6 @@ bool SupportsCaretStateIndicator()
            (negotiatedServerCapabilities & FanyImeProtocol::CaretStateIndicator) != 0;
 }
 
-bool SupportsTrilingualCycle()
-{
-    return hPipe && hPipe != INVALID_HANDLE_VALUE &&
-           (negotiatedServerCapabilities & FanyImeProtocol::TrilingualCycle) != 0;
-}
 
 bool SupportsInputStateShortcuts()
 {

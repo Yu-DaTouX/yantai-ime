@@ -117,7 +117,7 @@ class CMetasequoiaIME
     int cancels = 0;
     int commits = 0;
     HRESULT _AddComposingAndChar(TfEditCookie, TestContext *, CStringRange *, bool = false);
-    HRESULT _AddCharAndFinalize(TfEditCookie, TestContext *, CStringRange *, bool = false);
+    HRESULT _AddCharAndFinalize(TfEditCookie, TestContext *, CStringRange *);
     HRESULT _InsertTextToComposition(TfEditCookie, TestContext *, CStringRange *);
     HRESULT _SetCompositionTextAndSelection(TfEditCookie, TestContext *, CStringRange *);
     HRESULT _HandleUpdateVoiceComposition(TfEditCookie, TestContext *, const std::wstring &);

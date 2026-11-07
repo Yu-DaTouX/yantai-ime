@@ -221,8 +221,8 @@
     "message": {
       "type": "configUpdate",
       "data": {
-        "path": "input.mode",
-        "value": "cn"
+        "path": "input.schema",
+        "value": "quanpin"
       }
     },
     "valid": true,
@@ -234,7 +234,7 @@
     "message": {
       "type": "configUpdate",
       "data": {
-        "path": "input.mode"
+        "path": "input.schema"
       }
     },
     "valid": false,

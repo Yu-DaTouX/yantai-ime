@@ -153,16 +153,6 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
         local_candidates_.clear();
         return {true, std::nullopt, std::nullopt};
     }
-    if (shift_only && character == 'R' && local_mode_options_.temporary_japanese && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
-    {
-        temporary_original_scheme_ = scheme();
-        engine_.switch_scheme(SchemeType::JapaneseRomaji);
-        local_input_mode_ = LocalInputMode::TemporaryJapanese;
-        local_preedit_ = "R";
-        local_candidates_.clear();
-        return {true, std::nullopt, std::nullopt};
-    }
 
     const bool lowercase_letter = character >= 'a' && character <= 'z';
     const bool semicolon_final =
@@ -268,12 +258,6 @@ KeyResult InputSession::handle_command(Command command)
             {
                 reset_composition();
             }
-            else if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-            {
-                engine_.handle_key(ImeKey::Backspace);
-                local_preedit_ = "R" + engine_.get_preedit();
-                local_candidates_ = engine_.get_candidates();
-            }
             else
             {
                 local_preedit_.pop_back();
@@ -290,9 +274,7 @@ KeyResult InputSession::handle_command(Command command)
         return commit(0);
     case Command::CommitRaw: {
         std::string raw = preedit();
-        if ((local_input_mode_ == LocalInputMode::TemporaryEnglish ||
-             local_input_mode_ == LocalInputMode::TemporaryJapanese) &&
-            !raw.empty())
+        if ((local_input_mode_ == LocalInputMode::TemporaryEnglish) && !raw.empty())
         {
             raw.erase(raw.begin());
         }
@@ -607,8 +589,7 @@ void InputSession::set_local_mode_options(LocalModeOptions options)
         (local_input_mode_ == LocalInputMode::Emoji && !local_mode_options_.emoji) ||
         (local_input_mode_ == LocalInputMode::Kaomoji && !local_mode_options_.kaomoji) ||
         (local_input_mode_ == LocalInputMode::SuperJianpin && !local_mode_options_.super_jianpin) ||
-        (local_input_mode_ == LocalInputMode::TemporaryEnglish && !local_mode_options_.temporary_english) ||
-        (local_input_mode_ == LocalInputMode::TemporaryJapanese && !local_mode_options_.temporary_japanese))
+        (local_input_mode_ == LocalInputMode::TemporaryEnglish && !local_mode_options_.temporary_english))
     {
         reset_composition();
     }
@@ -714,11 +695,6 @@ std::optional<OnlineQuery> InputSession::online_query() const
         return std::nullopt;
     query.query_text = state.query_text;
     query.cache_key = state.cache_key;
-    if (request.scheme == SchemeType::JapaneseRomaji)
-    {
-        query.cloud_eligible = true;
-        return query;
-    }
 
     if (query.query_text.empty())
     {
@@ -767,7 +743,7 @@ void InputSession::switch_scheme(SchemeType scheme_type)
 
 SchemeType InputSession::scheme() const
 {
-    return temporary_original_scheme_.value_or(engine_.current_scheme_type());
+    return engine_.current_scheme_type();
 }
 
 bool InputSession::has_composition() const
@@ -883,21 +859,12 @@ KeyResult InputSession::commit(std::size_t index)
         selected = candidates()[index];
         text = selected->word;
     }
-    else if (!((local_input_mode_ == LocalInputMode::TemporaryEnglish ||
-                local_input_mode_ == LocalInputMode::TemporaryJapanese) &&
-               local_preedit_.size() == 1))
+    else if (!((local_input_mode_ == LocalInputMode::TemporaryEnglish) && local_preedit_.size() == 1))
     {
         text = preedit();
     }
     std::optional<std::string> diagnostic = learn_candidate(index);
-    if (selected && is_japanese())
-    {
-        const auto transition = advance_composition_after_selection(selected->pinyin, selected->word,
-                                                                    selected->canonical_pinyin, selected->scheme);
-        if (transition.continues_composition)
-            return {true, std::move(text), std::move(diagnostic)};
-    }
-    if (selected && local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_ && !is_japanese() &&
+    if (selected && local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_ &&
         !is_wubi_native_candidate(*selected) &&
         (selected->source == CandidateSource::Database || selected->source == CandidateSource::UserDatabase))
     {
@@ -936,20 +903,6 @@ KeyResult InputSession::handle_local_character(char character)
         }
         local_preedit_.push_back(character);
         return {true, std::nullopt, update_local_candidates()};
-    }
-    if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-    {
-        const auto unsigned_character = static_cast<unsigned char>(character);
-        if (!std::isalpha(unsigned_character) && character != '\'')
-        {
-            return {};
-        }
-        const ImeKeyCode key_code =
-            character == '\'' ? ImeKey::Apostrophe : static_cast<ImeKeyCode>(std::toupper(unsigned_character));
-        engine_.handle_key(key_code, 0, static_cast<ImeCharacter>(unsigned_character));
-        local_preedit_ = "R" + engine_.get_preedit();
-        local_candidates_ = engine_.get_candidates();
-        return {true, std::nullopt, std::nullopt};
     }
     if (local_input_mode_ == LocalInputMode::SuperJianpin)
     {
@@ -1001,8 +954,7 @@ KeyResult InputSession::handle_local_character(char character)
 
 std::optional<std::string> InputSession::update_local_candidates()
 {
-    auto result = candidate_queries_.local(local_input_mode_, local_preedit_, scheme(), local_date_time_provider_,
-                                           engine_.get_candidates());
+    auto result = candidate_queries_.local(local_input_mode_, local_preedit_, scheme(), local_date_time_provider_);
     local_candidates_ = std::move(result.candidates);
     apply_candidate_positions(local_candidates_);
     return std::move(result.diagnostic);
@@ -1141,7 +1093,7 @@ std::size_t InputSession::quantized_prefix_end() const
     // Segmentation contract (engine spec #187): the caret prefix may only be quantized against
     // segment_raw_boundaries(), never against a re-derived segmentation.
     const std::vector<std::size_t> boundaries = segment_raw_boundaries();
-    // No unit model (wubi, japanese, local modes, dedicated English): do not quantize.
+    // No unit model (wubi, local modes, dedicated English): do not quantize.
     if (boundaries.empty())
     {
         return raw.size();
@@ -1239,19 +1191,13 @@ void InputSession::reset_composition()
     immediate_phrase_progress_ = {};
     clear_pending_sequence();
     online_requests_.invalidate();
-    const std::optional<SchemeType> original_scheme = temporary_original_scheme_;
     local_input_mode_ = LocalInputMode::None;
-    temporary_original_scheme_.reset();
     local_preedit_.clear();
     local_candidates_.clear();
     dedicated_english_preedit_.clear();
     dedicated_english_candidates_.clear();
     mixed_candidates_.clear();
     engine_.reset();
-    if (original_scheme.has_value() && engine_.current_scheme_type() != *original_scheme)
-    {
-        engine_.switch_scheme(*original_scheme);
-    }
 }
 
 // The phrase assembled across segmented selections only means anything while its composition stays alive. Every path
@@ -1331,8 +1277,7 @@ std::optional<std::string> InputSession::learn_candidate(std::size_t index)
     {
         return std::nullopt;
     }
-    if ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase) ||
-        engine_.current_scheme_type() == SchemeType::JapaneseRomaji)
+    if ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase))
     {
         return std::nullopt;
     }
@@ -1349,8 +1294,7 @@ KeyResult InputSession::pin_candidate(std::size_t index)
     if (candidates()[index].latin_word || candidates()[index].prefix_completion)
         return {};
     if (source != CandidateSource::EnglishDictionary &&
-        ((source != CandidateSource::Database && source != CandidateSource::UserDatabase) ||
-         scheme() == SchemeType::JapaneseRomaji))
+        ((source != CandidateSource::Database && source != CandidateSource::UserDatabase)))
         return {};
 
     // Manual pinning is independent of automatic learning preferences and never selects text.

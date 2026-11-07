@@ -300,7 +300,8 @@
         "type": "object",
         "properties": {
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Active configuration path; removed Japanese input mode, schema, R-mode and trilingual-cycle settings are ignored."
           },
           "value": {
             "anyOf": [
