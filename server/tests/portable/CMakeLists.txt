@@ -24,6 +24,7 @@ add_executable(portable_tests
     "${SERVER_ROOT}/src/ipc/event_listener_task_class.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_view_model.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_text_policy.cpp"
+    "${SERVER_ROOT}/tests/src/test_candidate_cache.cpp"
     "${SERVER_ROOT}/tests/src/test_settings_search.cpp"
     "${SERVER_ROOT}/src/settings/native/native_settings_search.cpp"
 )
