@@ -199,6 +199,13 @@ else {
     if ($defaultConfig -match '(?m)^diagnostic_log\s*=\s*true\s*$') {
         throw '出厂配置不应默认打开 diagnostic_log。'
     }
+    # 新装默认不把任何输入内容发出去：需要凭据以外的云候选也必须默认关，由安装向导或设置页主动打开。
+    if ($defaultConfig -notmatch '(?m)^cloud_candidates\s*=\s*false\s*$') {
+        throw '出厂配置的 general.cloud_candidates 必须默认关闭（联网功能由用户主动打开）。'
+    }
+    if ($defaultConfig -notmatch '(?m)^\[niutrans\]\r?\nenabled\s*=\s*false\s*$') {
+        throw '出厂配置的 niutrans.enabled 必须默认关闭（联网功能由用户主动打开）。'
+    }
     if ($defaultConfig -notmatch '(?m)^settings_window_linger\s*=\s*"off"\s*$') {
         throw '出厂配置的 appearance.settings_window_linger 必须是 off（关闭后立即退出）。'
     }

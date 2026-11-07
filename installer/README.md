@@ -133,8 +133,9 @@ pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion 1.2.3 -RepoRoot .. `
 
 | 场景 | 安装前配置 | 向导选择 | 安装后检查 |
 |---|---|---|---|
-| 首次安装 | 默认目录无配置 | 取消云候选 | 最终目录为 `false` |
-| 首次安装并改目录 | 默认目录无配置，新目录为空 | 改目录并取消云候选 | 新目录为 `false` |
+| 首次安装 | 默认目录无配置 | 保持默认（复选框默认不勾） | 最终目录为 `false` |
+| 首次安装并勾选云候选 | 默认目录无配置 | 勾选云候选 | 最终目录为 `true` |
+| 首次安装并改目录 | 默认目录无配置，新目录为空 | 改目录，不勾云候选 | 新目录为 `false` |
 | 目标目录已有配置 | 新目录有安装标记，`cloud_candidates = true` | 改到该目录 | 网络页跳过，配置保持 `true` |
 | 原目录已有配置 | 原目录的 `cloud_candidates = true`，新目录为空 | 升级时改目录 | 网络页跳过，新目录保持 `true` |
 | 原目录已有配置 | 原目录的 `cloud_candidates = false` | 原目录升级 | 网络页跳过，配置保持 `false` |
@@ -142,10 +143,11 @@ pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion 1.2.3 -RepoRoot .. `
 | 上次迁移只复制未删除 | 两处 `config.toml` 内容相同 | 重试升级 | 视为同一份，删掉原目录副本后继续 |
 | 配置搬不动 | 原目录 `config.toml` 被占用 | 升级时改目录 | 安装停止，原配置保持原样，不会装上出厂配置 |
 
-写回「不启用云候选」失败时不中止安装（此时文件已落盘，中止只会留下半成品），而是在其他安装后步骤完成后提示用户到设置页手动关闭。
+向导的云候选复选框默认不勾选，出厂配置也是 `cloud_candidates = false`；只有用户首次安装时主动勾选，安装器才会写入 `true`。
+写回云候选选择失败时不中止安装（此时文件已落盘，中止只会留下半成品），而是在其他安装后步骤完成后提示用户到设置页确认。
 
 运行 `python installer/tests/test_cloud_choice.py` 检查生产安装器的时序：先查冲突再停进程，数据目录页也查冲突，写回选择排在必需的安装后步骤之后。
-Windows CI 运行 `installer/tests/cloud-choice.ps1`，用 Inno Setup 跑八个隔离场景。探针复用 `cloud_choice.iss` 里的判断、冲突、去重和失败函数，并按生产顺序用同样的 `robocopy /MOVE` 搬 `config.toml`；`MigrateUserDataDir` 里搬词库、皮肤和清理旧目录的部分不在探针里，完整安装包仍按上表在测试机检查。
+Windows CI 运行 `installer/tests/cloud-choice.ps1`，用 Inno Setup 跑九个隔离场景。探针复用 `cloud_choice.iss` 里的判断、冲突、去重和失败函数，并按生产顺序用同样的 `robocopy /MOVE` 搬 `config.toml`；`MigrateUserDataDir` 里搬词库、皮肤和清理旧目录的部分不在探针里，完整安装包仍按上表在测试机检查。
 
 ## 运行时依赖检查
 

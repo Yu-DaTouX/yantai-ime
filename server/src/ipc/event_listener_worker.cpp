@@ -483,8 +483,8 @@ void WorkerThread()
             }
             // 顶字后第 4 码丢失的定位探针：DLL 侧 keydown-sent 已确认发出，若这里没打出来，
             // 说明任务根本没进队列（reader 未收到/未入队）；打出来了但组合没变，才是 HandleImeKey 内部问题。
-            CAND_DIAG_LOGF(L"task ImeKeyEvent dispatch request={} keycode=0x{:X} wch=U+{:04X} epoch={}",
-                           task.pipe_data.request_id, task.pipe_data.keycode, static_cast<unsigned>(task.pipe_data.wch),
+            CAND_DIAG_LOGF(L"task ImeKeyEvent dispatch request={} keycode=0x{:X} has_char={} epoch={}",
+                           task.pipe_data.request_id, task.pipe_data.keycode, task.pipe_data.wch != 0 ? 1 : 0,
                            task.activation_epoch);
             HandleImeKey(task.client_id, task.activation_epoch, task.pipe_data.request_id);
             break;

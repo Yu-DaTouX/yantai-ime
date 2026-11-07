@@ -406,6 +406,9 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     REQUIRE_EQ(fresh["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("horizontal"));
     REQUIRE(!fresh["helpcode"]["shuangpin_helpcode"].value_or(true));
     REQUIRE(!fresh["association"]["sentence_wordlattice"].value_or(true));
+    // 新装不把任何输入内容发出去：云候选和旧版翻译门禁都必须是关。
+    REQUIRE(!fresh["general"]["cloud_candidates"].value_or(true));
+    REQUIRE(!fresh["niutrans"]["enabled"].value_or(true));
 }
 
 TEST_CASE(config_merge_drops_keys_and_sections_absent_from_template)

@@ -107,8 +107,8 @@ void LogPipeDisconnect(const wchar_t *pipe_name)
 
 void LogPipeEvent(const wchar_t *pipe_name, UINT event_type, UINT keycode, WCHAR wch, UINT modifiers_down)
 {
-    FANY_IPC_LOGF(L"[msime]: [ipc] {} event: type={}, keycode={}, wch={}, modifiers={}", pipe_name, event_type, keycode,
-                  static_cast<unsigned int>(wch), modifiers_down);
+    FANY_IPC_LOGF(L"[msime]: [ipc] {} event: type={}, keycode={}, has_char={}, modifiers={}", pipe_name, event_type,
+                  keycode, wch != 0 ? 1 : 0, modifiers_down);
 }
 
 void LogClientLifecycle(const wchar_t *phase, uint64_t client_id, UINT event_type)
@@ -571,8 +571,8 @@ void MainPipeClientThread(HANDLE clientPipe, uint64_t handlerId)
             // 与 worker 侧的 dispatch 探针配对：reader 收到键包即记，两边对照可把丢键
             // 精确到「reader 未收到」还是「worker 未派发」。request_id 是 DLL 侧分配的，
             // 可直接与 [msime][issue47] 的 keydown-sent request 对齐。
-            CAND_DIAG_LOGF(L"main-pipe KeyEvent received request={} keycode=0x{:X} wch=U+{:04X}", pipeData.request_id,
-                           pipeData.keycode, static_cast<unsigned>(pipeData.wch));
+            CAND_DIAG_LOGF(L"main-pipe KeyEvent received request={} keycode=0x{:X} has_char={}", pipeData.request_id,
+                           pipeData.keycode, pipeData.wch != 0 ? 1 : 0);
             EnqueueTask(TaskType::ImeKeyEvent, pipeData, activation.epoch);
             break;
         }

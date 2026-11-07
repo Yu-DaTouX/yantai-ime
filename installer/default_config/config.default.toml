@@ -70,8 +70,8 @@ emoji_mixed_input = false
 kaomoji_mixed_input = false
 # 中文输入状态下输入恰好等于符号编码（alpha、infinity、szq、xl，数字读音 yi → ① ⑴ ⒈，标点读音 dian → · 、、shuminghao → 《》 〈〉）时显示符号候选，首个紧跟首选，其余排在颜文字之后
 symbol_mixed_input = false
-# 云候选
-cloud_candidates = true
+# 云候选（默认关闭：开启后每次输入都会把当前拼音发给 Google 的 input-tools 服务）
+cloud_candidates = false
 # TODO: 极简模式。极简模式下，候选窗口使用 d2d 绘制，界面只作展示候选项，无其他功能。
 clean_mode = false
 
@@ -160,9 +160,10 @@ api_key = ""
 #
 # 小牛翻译（NiuTrans）机器翻译。app_id 与 apikey 在“控制台->API应用”中查看。
 # enabled 布尔仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
+# 默认关闭：联网功能都要用户自己在设置页打开。
 #
 [niutrans]
-enabled = true
+enabled = false
 app_id = ""
 apikey = ""
 
