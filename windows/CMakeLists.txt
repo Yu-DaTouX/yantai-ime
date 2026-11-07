@@ -140,7 +140,6 @@ add_library(${PROJECT_NAME} SHARED
     "./src/IME/MetasequoiaIMEBaseStructure.cpp"
     "./src/IME/MetasequoiaIMEBaseStructure.h"
     "./src/IME/MetasequoiaIMEInternal.h"
-    "./src/IME/MetasequoiaIMEStructureArray.h"
     # IPC
     "./src/IPC/Ipc.cpp"
     "./src/IPC/Ipc.h"
