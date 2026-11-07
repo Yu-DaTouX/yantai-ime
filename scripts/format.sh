@@ -37,8 +37,7 @@ cd "$project_root"
 # yet is still formatted. Without it the script reports a clean tree while
 # skipping exactly the file being worked on.
 #
-# vendor/ and experiments/ are excluded: the first is third-party, the second is
-# a scratch project that is not part of the shipped product.
+# vendor/ is excluded: it is third-party source with its own formatting rules.
 #
 # engine/ is covered here rather than by a script of its own. It used to be a
 # separate repository with its own formatting gate; now that it is a directory
