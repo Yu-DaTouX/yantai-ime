@@ -26,6 +26,7 @@ add_executable(portable_tests
     "${SERVER_ROOT}/tests/src/test_candidate_text_policy.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_cache.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_text_boundary.cpp"
+    "${SERVER_ROOT}/tests/src/test_thread_start.cpp"
     "${SERVER_ROOT}/tests/src/test_settings_search.cpp"
     "${SERVER_ROOT}/src/settings/native/native_settings_search.cpp"
 )

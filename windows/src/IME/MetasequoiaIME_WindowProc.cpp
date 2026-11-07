@@ -24,6 +24,7 @@
 #include "Global/FanyDefines.h"
 #include "Utils/FanyUtils.h"
 #include "../Utils/PerfTimer.h"
+#include "../Utils/ThreadStart.h"
 #include "MetasequoiaIMEInternal.h"
 
 using namespace metasequoia_ime_detail;
@@ -150,7 +151,7 @@ void CMetasequoiaIME::_StartThemeRegistryWatcher()
     }
 
     _stopThemeWatcher.store(false);
-    _pThemeWatcherThread = new (std::nothrow) std::thread([this]() {
+    _pThemeWatcherThread = FanyThread::TryCreate([this]() {
         while (!_stopThemeWatcher.load(std::memory_order_acquire))
         {
             const DWORD wait = WaitForSingleObject(_themeRegEvent, INFINITE);
@@ -160,15 +161,21 @@ void CMetasequoiaIME::_StartThemeRegistryWatcher()
             }
             if (wait != WAIT_OBJECT_0)
             {
-                continue;
+                // A failed wait cannot recover by immediately waiting on the
+                // same handle again; leave cleanup/join to the owner.
+                break;
             }
             if (_stopThemeWatcher.load(std::memory_order_acquire))
             {
                 break;
             }
 
-            ResetEvent(_themeRegEvent);
-            RegNotifyChangeKeyValue(_themeRegKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, _themeRegEvent, TRUE);
+            if (!ResetEvent(_themeRegEvent) ||
+                RegNotifyChangeKeyValue(_themeRegKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, _themeRegEvent, TRUE) !=
+                    ERROR_SUCCESS)
+            {
+                break;
+            }
 
             const HWND ownerWindow = _msgWndHandle;
             if (ownerWindow && IsWindow(ownerWindow))

@@ -22,6 +22,7 @@
 #include "Global/GameCompat.h"
 #include "Utils/FanyUtils.h"
 #include "../Utils/PerfTimer.h"
+#include "../Utils/ThreadStart.h"
 #include "MetasequoiaIMEInternal.h"
 
 #pragma comment(lib, "Shell32.lib")
@@ -334,6 +335,9 @@ thread_local CMetasequoiaIME *CMetasequoiaIME::_bareShiftHookOwner = nullptr;
 
 CMetasequoiaIME::~CMetasequoiaIME()
 {
+    // Also cover a host releasing a partially activated service: the watcher
+    // captures this and must finish before its owner or DLL can disappear.
+    _StopThemeRegistryWatcher();
     _UninitBareShiftKeyboardHook();
     _ClearDeferredKeyDowns();
     // Deactivate normally owns the unbind.  Keep this owner-aware fallback for
@@ -867,7 +871,11 @@ STDAPI CMetasequoiaIME::ActivateEx(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     _workerPipePublishedEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     BindNamedpipeWakeEvents(this, _workerAckEvent, _workerPipePublishedEvent);
     _shouldStopIpcThread.store(false);
-    _pIpcThread = new std::thread(IpcWorkerThread, this);
+    _pIpcThread = FanyThread::TryCreate(IpcWorkerThread, this);
+    if (!_pIpcThread)
+    {
+        goto ExitError;
+    }
 
     if (Global::g_connected)
     {

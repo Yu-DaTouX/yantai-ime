@@ -137,6 +137,7 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_render_sync.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_selection_replay_guard.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_serial_task_runner.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_thread_start.cpp"
     "${CMAKE_SOURCE_DIR}/src/utils/serial_task_runner.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_task_classes.cpp"
     "${CMAKE_SOURCE_DIR}/src/ipc/event_listener_task_class.cpp"
