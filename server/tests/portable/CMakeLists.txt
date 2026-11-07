@@ -25,11 +25,13 @@ add_executable(portable_tests
     "${SERVER_ROOT}/tests/src/test_candidate_view_model.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_text_policy.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_cache.cpp"
+    "${SERVER_ROOT}/tests/src/test_candidate_text_boundary.cpp"
     "${SERVER_ROOT}/tests/src/test_settings_search.cpp"
     "${SERVER_ROOT}/src/settings/native/native_settings_search.cpp"
 )
 
-target_include_directories(portable_tests PRIVATE "${SERVER_ROOT}" "${SERVER_ROOT}/src" "${SERVER_ROOT}/..")
+target_include_directories(portable_tests PRIVATE "${SERVER_ROOT}" "${SERVER_ROOT}/src" "${SERVER_ROOT}/.."
+    "${SERVER_ROOT}/../engine/utfcpp/source")
 target_link_libraries(portable_tests PRIVATE Threads::Threads)
 
 if(MSIME_PORTABLE_TESTS_SANITIZE AND NOT MSVC)

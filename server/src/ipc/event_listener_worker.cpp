@@ -10,6 +10,7 @@
 #include "ipc/selection_replay_guard.h"
 #include "ipc/async_request_origin.h"
 #include "ipc/candidate_ui_owner.h"
+#include "ipc/candidate_text_boundary.h"
 #include "ipc/input_key_policy.h"
 #include "defines/defines.h"
 #include "defines/globals.h"
@@ -787,6 +788,17 @@ void WorkerThread()
             {
                 break;
             }
+            const auto text_length = FanyImeIpc::CandidateTextLength(item.word, [] {
+                // Do not log exception.what() or candidate bytes. Keep the
+                // composition intact so the next key can rebuild a fresh page.
+                DiagnosticLog::Write(L"[candidate] invalid UTF-8; discarded page and cache");
+                HideCandidateWindowAndDropItems();
+                g_inputSession->reset_cache();
+            });
+            if (!text_length)
+            {
+                break;
+            }
             if (metasequoia::local_modes::is_date_time_menu_item(item))
             {
                 break;
@@ -851,7 +863,7 @@ void WorkerThread()
                     (void)user_dictionary::delete_english_candidate(CommonUtils::get_ime_data_path() + "\\english.db",
                                                                     user_dictionary::default_user_db_path(), entry_key,
                                                                     item.word);
-                else if (utf8::distance(item.word.begin(), item.word.end()) == 1)
+                else if (*text_length == 1)
                 {
                     break;
                 }
