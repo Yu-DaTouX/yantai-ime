@@ -4,7 +4,6 @@
 #include <string>
 #include "clipboard/clipboard_history.h"
 #include "engine/contracts/v_mode_input.h"
-#include "statistics/stats_store.h"
 
 using namespace ime_config_detail;
 
@@ -31,36 +30,6 @@ bool SetConfiguredTsfDiagnosticLogEnabled(bool enabled)
     if (!WriteConfiguredValue("general", "tsf_diagnostic_log", enabled ? "true" : "false"))
         return false;
     g_tsf_diagnostic_log_enabled.store(enabled, std::memory_order_relaxed);
-    return true;
-}
-
-bool GetConfiguredStatisticsEnabled()
-{
-    return g_statistics_enabled.load(std::memory_order_relaxed);
-}
-
-bool SetConfiguredStatisticsEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("statistics", "enabled", enabled ? "true" : "false"))
-        return false;
-    g_statistics_enabled.store(enabled, std::memory_order_relaxed);
-    return true;
-}
-
-const std::string &GetConfiguredStatisticsRetention()
-{
-    return g_statistics_retention;
-}
-
-bool SetConfiguredStatisticsRetention(const std::string &retention)
-{
-    // 先校验后落盘：非法枚举不写文件也不动内存值，设置页的请求会被静默拒绝。
-    MsimeStats::Retention parsed = MsimeStats::Retention::Forever;
-    if (!MsimeStats::ParseRetention(retention, parsed))
-        return false;
-    if (!WriteConfiguredValue("statistics", "retention", EscapeTomlBasicString(retention)))
-        return false;
-    g_statistics_retention = retention;
     return true;
 }
 

@@ -77,7 +77,6 @@ include_directories("./src/IPC")
 include_directories("./src/Key")
 include_directories("./src/LanguageBar")
 include_directories("./src/Register")
-include_directories("./src/Statistics")
 include_directories("./src/Tf")
 include_directories("./src/Thread")
 include_directories("./src/UI")
@@ -164,12 +163,6 @@ add_library(${PROJECT_NAME} SHARED
     "./src/Register/Register.cpp"
     "./src/Register/RegKey.cpp"
     "./src/Register/RegKey.h"
-    # Statistics
-    "./src/Statistics/char_classify.cpp"
-    "./src/Statistics/char_classify.h"
-    "./src/Statistics/stats_collector.cpp"
-    "./src/Statistics/stats_collector.h"
-    "./src/Statistics/stats_passthrough.h"
     # Tf
     "./src/Tf/TfInputProcessorProfile.cpp"
     "./src/Tf/TfInputProcessorProfile.h"

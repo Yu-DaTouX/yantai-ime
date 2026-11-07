@@ -17,8 +17,6 @@
 
 #include "msimeui/DeviceResources.h"
 #include "settings/serial_task_queue.h"
-#include "statistics/stats_overview.h"
-#include "statistics/stats_store.h"
 #include <atomic>
 #include <chrono>
 #include <future>
@@ -639,8 +637,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"autocorrect_deletion", GetConfiguredQuanpinAutocorrectDeletion()},
             {"autocorrect_insertion", GetConfiguredQuanpinAutocorrectInsertion()},
             {"autocorrect_marker", GetConfiguredQuanpinAutocorrectMarker()}}},
-          {"statistics",
-           {{"enabled", GetConfiguredStatisticsEnabled()}, {"retention", GetConfiguredStatisticsRetention()}}}}}};
+          }}};
     payload["data"]["voice_input"]["polish_presets"] = std::move(polish_presets);
     payload["data"]["helpcode"]["custom_schemas"] = CustomHelpcodeSchemasJson();
     payload["data"]["helpcode"]["custom_directory"] = GetCustomHelpcodeDirectory();
@@ -817,10 +814,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredDiagnosticLogEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.tsf_diagnostic_log")
         return SetConfiguredTsfDiagnosticLogEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "statistics.enabled")
-        return SetConfiguredStatisticsEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "statistics.retention")
-        return SetConfiguredStatisticsRetention(json::value_to<std::string>(data.at("value")));
     if (path == "general.floating_toolbar_scale")
     {
         const json::value &value = data.at("value");
@@ -1121,191 +1114,6 @@ bool CopyTextToClipboard(HWND hwnd, const std::wstring &text)
 
     CloseClipboard();
     return true;
-}
-
-std::filesystem::path StatisticsDatabasePath()
-{
-    return std::filesystem::path(CommonUtils::get_ime_data_path_w()) / L"stats.db";
-}
-
-// The local calendar day "today" is bucketed into. GetLocalTime resolves the
-// current timezone and DST, matching the Server-side aggregator's resolver.
-int LocalTodayDayKey()
-{
-    SYSTEMTIME now{};
-    GetLocalTime(&now);
-    return MsimeStats::DayKeyOf(now.wYear, now.wMonth, now.wDay);
-}
-
-json::object OverviewToJson(const MsimeStats::Overview &overview)
-{
-    json::object categories;
-    categories["cjk"] = overview.categories.cjk;
-    categories["latin"] = overview.categories.latin;
-    categories["digit"] = overview.categories.digit;
-    categories["punct"] = overview.categories.punct;
-    categories["other"] = overview.categories.other;
-
-    json::array hourly;
-    hourly.reserve(overview.today_hourly.size());
-    for (const int64_t chars : overview.today_hourly)
-        hourly.push_back(json::value(chars));
-
-    json::array daily;
-    daily.reserve(overview.daily.size());
-    for (const MsimeStats::DailyRow &row : overview.daily)
-    {
-        json::object entry;
-        entry["dayKey"] = row.day_key;
-        entry["cjk"] = row.cjk;
-        entry["latin"] = row.latin;
-        entry["digit"] = row.digit;
-        entry["punct"] = row.punct;
-        entry["other"] = row.other;
-        entry["activeMs"] = row.active_ms;
-        entry["firstWordHits"] = row.first_word_hits;
-        entry["firstWordTotal"] = row.first_word_total;
-        daily.push_back(std::move(entry));
-    }
-
-    json::object result;
-    result["hasData"] = overview.has_data;
-    result["firstDayKey"] = overview.first_day_key;
-    result["lastDayKey"] = overview.last_day_key;
-    result["days"] = overview.days;
-    result["totalChars"] = overview.total_chars;
-    result["totalActiveMs"] = overview.total_active_ms;
-    result["todayDayKey"] = overview.today_day_key;
-    result["todayChars"] = overview.today_chars;
-    result["todayActiveMs"] = overview.today_active_ms;
-    result["averagePerDay"] = overview.average_per_day;
-    result["currentStreak"] = overview.current_streak;
-    result["longestStreak"] = overview.longest_streak;
-    result["bestDayKey"] = overview.best_day_key;
-    result["bestDayChars"] = overview.best_day_chars;
-    result["todaySpeed"] = overview.today_speed;
-    result["averageSpeed"] = overview.average_speed;
-    result["fastestSpeed"] = overview.fastest_speed;
-    result["fastestDayKey"] = overview.fastest_day_key;
-    // optional 留空时写 JSON null：设置页按「无测量」渲染，绝不读成 0%。boost::json
-    // 不认识 std::optional，须显式落成数值或 null。
-    if (overview.today_first_word_ratio)
-    {
-        result["todayFirstWordRatio"] = *overview.today_first_word_ratio;
-    }
-    else
-    {
-        result["todayFirstWordRatio"] = json::value(nullptr);
-    }
-    if (overview.total_first_word_ratio)
-    {
-        result["totalFirstWordRatio"] = *overview.total_first_word_ratio;
-    }
-    else
-    {
-        result["totalFirstWordRatio"] = json::value(nullptr);
-    }
-    result["todayFirstWordTotal"] = overview.today_first_word_total;
-    result["categories"] = std::move(categories);
-    result["todayHourly"] = std::move(hourly);
-    result["daily"] = std::move(daily);
-    return result;
-}
-
-// Handles one statistics request on the worker thread. Each request opens the
-// store, uses it and closes it: the settings process can exit at any time, the
-// store carries no cross-request state, and all requests are serialised by the
-// single serial task queue, so no in-process lock is needed. WAL plus the
-// store's busy timeout arbitrate with the Server process that writes the same
-// file.
-json::object HandleStatsRequest(const json::object &data, HWND hwnd)
-{
-    const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-    const std::string action = json::value_to<std::string>(data.at("action"));
-    json::object response;
-    response["requestId"] = request_id;
-    response["action"] = action;
-    response["ok"] = true;
-    response["message"] = "成功";
-
-    if (action == "openDirectory")
-    {
-        const std::filesystem::path directory = StatisticsDatabasePath().parent_path();
-        std::error_code error_code;
-        std::filesystem::create_directories(directory, error_code);
-        ShellExecuteW(hwnd, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-        response["message"] = "已打开数据目录";
-        return response;
-    }
-    if (action != "overview" && action != "clearAll")
-    {
-        response["ok"] = false;
-        response["message"] = "未知的统计操作。";
-        return response;
-    }
-
-    // The missing-file check is the observable half of "recording is off by
-    // default": Store::Open always opens with SQLITE_OPEN_CREATE, so merely
-    // browsing statistics must not create stats.db.
-    std::error_code exists_error;
-    const std::filesystem::path database_path = StatisticsDatabasePath();
-    const bool database_exists = std::filesystem::exists(database_path, exists_error) && !exists_error;
-    std::unique_ptr<MsimeStats::Store> store;
-    if (database_exists)
-    {
-        std::string error;
-        store = MsimeStats::Store::Open(database_path, error);
-        if (!store)
-        {
-            response["ok"] = false;
-            response["message"] = "无法打开统计数据库：" + error;
-            return response;
-        }
-    }
-
-    const int today = LocalTodayDayKey();
-    if (action == "clearAll")
-    {
-        int64_t removed_days = 0;
-        if (store)
-        {
-            std::string error;
-            if (!store->ClearAll(removed_days, error))
-            {
-                response["ok"] = false;
-                response["message"] = "清空统计数据失败：" + error;
-                return response;
-            }
-        }
-        response["removedDays"] = removed_days;
-        response["message"] =
-            removed_days > 0 ? "已清空 " + std::to_string(removed_days) + " 天数据" : "没有需要清空的数据";
-    }
-
-    MsimeStats::Overview overview;
-    if (store)
-    {
-        std::vector<MsimeStats::DailyRow> daily;
-        std::vector<MsimeStats::HourlyRow> hourly;
-        std::string error;
-        if (!store->DailyRows(daily, error) || !store->HourlyRows(today, hourly, error))
-        {
-            response["ok"] = false;
-            response["message"] = "读取统计数据失败：" + error;
-            return response;
-        }
-        overview = MsimeStats::ComputeOverview(daily, hourly, today);
-    }
-    else
-    {
-        // Derive the empty overview through the same path so the JSON shape is
-        // identical (24 zeroed hour buckets, zeroed categories).
-        overview = MsimeStats::ComputeOverview({}, {}, today);
-    }
-    response["overview"] = OverviewToJson(overview);
-    if (action == "overview")
-        response["message"] = "已加载统计数据";
-    return response;
 }
 
 // The settings window posts its requests as webview-contract client messages, validated here
@@ -1755,30 +1563,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
                     throw std::runtime_error("Invalid game compat response");
                 auto serialized = string_to_wstring(json::serialize(response));
                 return [serialized = std::move(serialized)] { PostToPage(serialized); };
-            });
-        }
-        else if (type == "statsRequest")
-        {
-            const auto data = value.at("data").as_object();
-            g_worker->Submit([data, hwnd]() -> SerialTaskQueue::Completion {
-                json::object response;
-                try
-                {
-                    response = HandleStatsRequest(data, hwnd);
-                }
-                catch (...)
-                {
-                    response["ok"] = false;
-                    response["message"] = "统计操作失败，请重试";
-                }
-                response["requestId"] = data.at("requestId");
-                response["action"] = data.at("action");
-                response["type"] = "statsResponse";
-                response["protocolVersion"] = metasequoia::webview::Version;
-                if (!metasequoia::webview::Validate(response, "server"))
-                    throw std::runtime_error("Invalid statistics response");
-                auto message = string_to_wstring(json::serialize(response));
-                return [message = std::move(message)] { PostToPage(message); };
             });
         }
     }

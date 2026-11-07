@@ -8,8 +8,6 @@
 #include "KeyRepeatGuard.h"
 #include "CapsLockInputPolicy.h"
 #include "PinyinCommitShortcutPolicy.h"
-#include "stats_collector.h"
-#include "stats_passthrough.h"
 #include "CaretAnchorPolicy.h"
 #include "Compartment.h"
 #include "MetasequoiaIMEBaseStructure.h"
@@ -787,76 +785,6 @@ STDAPI CMetasequoiaIME::OnSetFocus(BOOL fForeground)
 
 //+---------------------------------------------------------------------------
 //
-// _NotePassthroughStatistics
-//
-// Counts one printable character that this tip hands back to the application.
-// The three composition commit exits never see these keys -- the host inserts
-// them -- so this is the only capture point for half-width digits, the symbols
-// outside the punctuation table and English-mode letters (stats_passthrough.h).
-// Observation only: the eaten result, the deferred queue and the edit path stay
-// untouched, and every failure mode is a dropped count.
-//----------------------------------------------------------------------------
-
-void CMetasequoiaIME::_NotePassthroughStatistics(UINT virtualKey, WCHAR wch, bool keyboardKnownEnabled)
-{
-    if (!Global::StatisticsEnabled.load(std::memory_order_relaxed))
-    {
-        // With the switch off nothing is classified and no frame is written;
-        // the de-duplication marker is left alone because nothing was counted.
-        return;
-    }
-
-    const LONG messageTime = GetMessageTime();
-    if (virtualKey != 0 && virtualKey == _passthroughStatsVirtualKey && messageTime == _passthroughStatsMessageTime)
-    {
-        // The system can query the same key event more than once (a host may
-        // also call the keystroke manager directly); only the first pass counts.
-        // The marker is consumed here: the probes for one event arrive back to
-        // back, so anything later is a genuine second press that GetMessageTime
-        // cannot separate from the first one inside the same tick.
-        _passthroughStatsVirtualKey = 0;
-        return;
-    }
-
-    if (wch == L'\0')
-    {
-        // The keyboard-closed early return in _IsKeyEaten leaves its out-char
-        // blank even though the key reaches the application; widen it from the
-        // layout here. Keys that genuinely produce no character keep the zero
-        // and are dropped by the printable check below.
-        wch = ConvertVKey(virtualKey);
-    }
-
-    // The same physical-state read _IsKeyEaten uses for application-owned
-    // combinations. Shift deliberately does not participate: it is what makes
-    // uppercase letters and the shifted symbol row their own characters.
-    const UINT modifiers = CaptureIpcModifiers();
-    const bool ctrlDown = (modifiers & 0b00000010u) != 0;
-    const bool altDown = (modifiers & 0b00000100u) != 0;
-    const bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-
-    // A non-zero out-char from _IsKeyEaten passed that function's own
-    // keyboard-disabled check, so the compartment query is only needed when the
-    // caller could not prove the keyboard was live. _ClassifyDeferredKeyDown
-    // fills its out-char before that check, so its two callers never set
-    // keyboardKnownEnabled. Self-generated SendInput never reaches here:
-    // OnTestKeyDown rejects it up front, and eaten is false by construction
-    // because this only runs on the uneaten exits.
-    const bool keyboardDisabled = !keyboardKnownEnabled && _IsKeyboardDisabled() != FALSE;
-    const bool counted = MsimeStats::ShouldCountPassthroughChar(wch, /*eaten=*/false, /*selfGenerated=*/false,
-                                                                keyboardDisabled, ctrlDown, altDown, winDown);
-    if (!counted)
-    {
-        return;
-    }
-
-    _passthroughStatsVirtualKey = virtualKey;
-    _passthroughStatsMessageTime = messageTime;
-    MsimeStats::QueueStatisticsEvent(MsimeStats::ClassifyText(&wch, 1));
-}
-
-//+---------------------------------------------------------------------------
-//
 // ITfKeyEventSink::OnTestKeyDown
 //
 // Called by the system to query this service wants a potential keystroke.
@@ -934,9 +862,6 @@ STDAPI CMetasequoiaIME::OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPARA
             deferredWch = ConvertVKey(static_cast<UINT>(wParam));
             deferredCode = VKeyFromVKPacketAndWchar(static_cast<UINT>(wParam), deferredWch);
             _NoteKeyForSmartPunctuation(deferredCode, deferredWch, false, FUNCTION_NONE);
-            // _ClassifyDeferredKeyDown is not reached on this exit and ConvertVKey
-            // fills the char without checking the keyboard state.
-            _NotePassthroughStatistics(static_cast<UINT>(wParam), deferredWch, false);
             *pIsEaten = FALSE;
             return S_OK;
         }
@@ -968,13 +893,6 @@ STDAPI CMetasequoiaIME::OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPARA
         // Classify always fills code/wch before failing. Track rejection even
         // when the key is handed back to the app (typical for VK_BACK).
         _NoteKeyForSmartPunctuation(deferredCode, deferredWch, *pIsEaten ? true : false, deferredState.Function);
-        if (!*pIsEaten)
-        {
-            // The deferred classifier fills its out-char before its own
-            // keyboard-disabled check, and not every exit runs that check, so
-            // the char proves nothing about the keyboard state.
-            _NotePassthroughStatistics(static_cast<UINT>(wParam), deferredWch, false);
-        }
         return S_OK;
     }
 
@@ -994,13 +912,6 @@ STDAPI CMetasequoiaIME::OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPARA
     // application (backspace with no composition), so the smart-punctuation
     // rejection state is tracked here rather than in the eaten-key path.
     _NoteKeyForSmartPunctuation(code, wch, *pIsEaten ? true : false, KeystrokeState.Function);
-
-    if (!*pIsEaten)
-    {
-        // A half-width digit or a symbol outside the tables lands here: the tip
-        // let it through, so the host will insert it outside every commit exit.
-        _NotePassthroughStatistics(static_cast<UINT>(wParam), wch, wch != L'\0');
-    }
 
     DebugTsfIssue47(L"test-keydown-classified", FANY_IME_NO_REQUEST_ID, code, wch, KeystrokeState.Category,
                     KeystrokeState.Function, *pIsEaten ? 1 : 0, _IsComposing(),

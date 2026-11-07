@@ -98,7 +98,7 @@ x_dip = 120.5
 y_dip = 7
 image = "assets/gear.apng"
 
-[toolbar.buttons.emoji]
+[toolbar.buttons.punctuation]
 visible = false
 )");
     std::string error;
@@ -125,7 +125,7 @@ visible = false
     REQUIRE(!settings.iconSizeDip.has_value());
     REQUIRE_EQ(settings.image, std::string("assets/gear.apng"));
 
-    REQUIRE(!*package->toolbarButtons.at("emoji").visible);
+    REQUIRE(!*package->toolbarButtons.at("punctuation").visible);
     REQUIRE(package->notices.empty());
     RemoveSkin(root);
 }
@@ -260,7 +260,7 @@ TEST_CASE(candidate_skin_catalog_rejects_invalid_toolbar_button_defaults_and_flo
     REQUIRE(LoadFails(L"defaults-missing-background",
                       std::string(kImageToolbar) + "[toolbar.button_defaults]\nbackground = \"assets/none.png\"\n"));
     REQUIRE(LoadFails(L"button-missing-background",
-                      std::string(kImageToolbar) + "[toolbar.buttons.emoji]\nbackground = \"assets/none.png\"\n"));
+                      std::string(kImageToolbar) + "[toolbar.buttons.punctuation]\nbackground = \"assets/none.png\"\n"));
 }
 
 TEST_CASE(candidate_skin_catalog_reads_decoration_candidate_overlay)

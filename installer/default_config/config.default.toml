@@ -679,19 +679,3 @@ prompt = """你是一个中文全拼输入法联想引擎。输入为已经切�
 prompt_custom_1 = ""
 prompt_custom_2 = ""
 prompt_custom_3 = ""
-
-#
-# Input Statistics
-# 输入统计
-#
-[statistics]
-# Local only, off by default: character counts and active typing time are
-# recorded in a local database, no text and no network.
-# 仅本机记录、默认关闭；只记字数与活跃时长，不记录文本、不联网。
-enabled = false
-# Retention policy for the local statistics database: forever | 30d | 90d |
-# 180d | 365d. The Server deletes records older than the window on the first
-# write of each day; "forever" keeps everything and never deletes anything.
-# 统计保留策略：forever | 30d | 90d | 180d | 365d；Server 每天首次写入时删除
-# 超出保留窗口的记录，forever 表示永久保留、不自动删除。非法值按 forever 处理。
-retention = "forever"

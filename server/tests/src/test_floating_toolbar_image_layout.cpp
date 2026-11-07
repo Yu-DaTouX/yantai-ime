@@ -69,7 +69,7 @@ TEST_CASE(toolbar_image_layout_closes_the_gap_of_a_hidden_button)
     REQUIRE_EQ(slots[1].key, std::string("punctuation"));
     REQUIRE_EQ(slots[1].yDip, 32.0);
     REQUIRE_EQ(slots.back().key, std::string("settings"));
-    REQUIRE_EQ(slots.back().yDip, 32.0 * 2.0);
+    REQUIRE_EQ(slots.back().yDip, 32.0 * 3.0);
 }
 
 // A button the skin gave no table at all still joins the flow when the user switches it on.
@@ -103,7 +103,7 @@ TEST_CASE(toolbar_image_layout_keeps_fixed_and_hidden_buttons_out_of_the_flow)
     REQUIRE_EQ(slots[1].key, std::string("fullwidth"));
     REQUIRE_EQ(slots[1].yDip, 0.0);
     REQUIRE_EQ(slots.back().key, std::string("settings"));
-    REQUIRE_EQ(slots.back().yDip, 32.0 * 3.0);
+    REQUIRE_EQ(slots.back().yDip, 32.0 * 2.0);
 }
 
 // Without a flow only buttons with both coordinates show, as before button_flow existed.

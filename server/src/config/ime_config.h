@@ -257,13 +257,8 @@ bool GetConfiguredDiagnosticLogEnabled();
 bool SetConfiguredDiagnosticLogEnabled(bool enabled);
 bool GetConfiguredTsfDiagnosticLogEnabled();
 bool SetConfiguredTsfDiagnosticLogEnabled(bool enabled);
-// 本机输入统计总开关，默认关闭：关闭时 Server 不创建也不写 stats.db。
-bool GetConfiguredStatisticsEnabled();
-bool SetConfiguredStatisticsEnabled(bool enabled);
 // 统计保留策略：forever|30d|90d|180d|365d，默认 forever。缺键或非法值一律回落
 // forever——坏配置绝不能导致自动清理误删数据；setter 校验枚举才落盘。
-const std::string &GetConfiguredStatisticsRetention();
-bool SetConfiguredStatisticsRetention(const std::string &retention);
 const std::string &GetConfiguredCandidateTextColor();
 bool SetConfiguredCandidateTextColor(const std::string &color);
 // Installed font family names for settings dropdowns (cached after first call).

@@ -33,7 +33,6 @@ You need the **Microsoft Visual C++ 2015–2022 Redistributable (x64)**. The ser
 - Optional cloud candidates, and AI suggestions via DeepSeek / OpenAI / SiliconFlow / Groq
 - English-Chinese glosses in the vertical candidate window
 - Mixed Chinese-English input, emoji and kaomoji, a dedicated English candidate mode
-- Local input statistics (off by default): character counts and active time stay on this machine; view and clean them under Settings → Statistics
 - Voice input with streaming recognition and optional cleanup
 - Handwriting, on-screen keyboard, floating toolbar, clipboard history
 - User dictionary management, candidate frequency tuning, skins with light and dark variants

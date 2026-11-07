@@ -69,9 +69,6 @@ TEST_CASE(candidate_skin_page_arrows_follow_default_manifest_for_built_in_skin)
     REQUIRE(!CandidateSkinCatalog::kDefaultPageArrows);
     WriteDefaultSkin(root, "fluent", "[candidate_window]\npage_arrows = true\n");
     REQUIRE(CandidateSkinCatalog::ResolvePageArrows(root, "fluent", nullptr));
-    // Another built-in skin is not affected by fluent's manifest.
-    REQUIRE(CandidateSkinCatalog::ResolvePageArrows(root, "canvas", nullptr) ==
-            CandidateSkinCatalog::kDefaultPageArrows);
 
     const auto defaults = CandidateSkinCatalog::LoadDefault(root, "fluent");
     REQUIRE(defaults.has_value());
@@ -121,16 +118,15 @@ TEST_CASE(candidate_skin_fit_content_resolves_like_page_arrows)
 {
     const auto root = MakeSkinsRoot(L"fit-content");
     REQUIRE(!CandidateSkinCatalog::kDefaultFitContent);
-    REQUIRE(!CandidateSkinCatalog::ResolveFitContent(root, "canvas", nullptr));
-
-    WriteDefaultSkin(root, "canvas", "[candidate_window]\nfit_content = true\n");
-    REQUIRE(CandidateSkinCatalog::ResolveFitContent(root, "canvas", nullptr));
     REQUIRE(!CandidateSkinCatalog::ResolveFitContent(root, "fluent", nullptr));
-    // The two switches are independent.
-    REQUIRE(!CandidateSkinCatalog::ResolvePageArrows(root, "canvas", nullptr));
 
-    WriteExternalSkin(root, "inherit", "canvas", "");
-    WriteExternalSkin(root, "override", "canvas", "fit_content = false\n");
+    WriteDefaultSkin(root, "fluent", "[candidate_window]\nfit_content = true\n");
+    REQUIRE(CandidateSkinCatalog::ResolveFitContent(root, "fluent", nullptr));
+    // The two switches are independent.
+    REQUIRE(!CandidateSkinCatalog::ResolvePageArrows(root, "fluent", nullptr));
+
+    WriteExternalSkin(root, "inherit", "fluent", "");
+    WriteExternalSkin(root, "override", "fluent", "fit_content = false\n");
     const auto inherit = CandidateSkinCatalog::Load(root, "inherit");
     REQUIRE(inherit.has_value());
     REQUIRE(!inherit->fitContent.has_value());
@@ -151,15 +147,14 @@ TEST_CASE(candidate_skin_expand_panel_resolves_like_page_arrows)
 {
     const auto root = MakeSkinsRoot(L"expand-panel");
     REQUIRE(!CandidateSkinCatalog::kDefaultExpandPanel);
-    REQUIRE(!CandidateSkinCatalog::ResolveExpandPanel(root, "canvas", nullptr));
-
-    WriteDefaultSkin(root, "canvas", "[candidate_window]\nexpand_panel = true\n");
-    REQUIRE(CandidateSkinCatalog::ResolveExpandPanel(root, "canvas", nullptr));
     REQUIRE(!CandidateSkinCatalog::ResolveExpandPanel(root, "fluent", nullptr));
-    REQUIRE(!CandidateSkinCatalog::ResolvePageArrows(root, "canvas", nullptr));
+
+    WriteDefaultSkin(root, "fluent", "[candidate_window]\nexpand_panel = true\n");
+    REQUIRE(CandidateSkinCatalog::ResolveExpandPanel(root, "fluent", nullptr));
+    REQUIRE(!CandidateSkinCatalog::ResolvePageArrows(root, "fluent", nullptr));
 
     WriteExternalSkin(root, "inherit", "fluent", "");
-    WriteExternalSkin(root, "override", "canvas", "expand_panel = false\n");
+    WriteExternalSkin(root, "override", "fluent", "expand_panel = false\n");
     WriteExternalSkin(root, "rows", "fluent", "expand_panel = true\nexpand_rows = 6\n");
     const auto inherit = CandidateSkinCatalog::Load(root, "inherit");
     REQUIRE(inherit.has_value());

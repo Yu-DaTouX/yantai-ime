@@ -119,7 +119,6 @@ VisualPtr BuildVoicePage(PageContext &context);
 VisualPtr BuildToolsPage(PageContext &context);
 VisualPtr BuildAiPage(PageContext &context);
 VisualPtr BuildFloatingToolbarPage(PageContext &context);
-VisualPtr BuildStatsPage(PageContext &context);
 VisualPtr BuildHelpPage(PageContext &context);
 VisualPtr BuildAboutPage(PageContext &context);
 VisualPtr BuildFeedbackPage(PageContext &context);

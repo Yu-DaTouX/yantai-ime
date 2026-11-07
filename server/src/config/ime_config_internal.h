@@ -138,8 +138,6 @@ extern int g_candidate_font_size;
 extern int g_candidate_window_preedit_font_size;
 extern std::atomic_bool g_diagnostic_log_enabled;
 extern std::atomic_bool g_tsf_diagnostic_log_enabled;
-extern std::atomic_bool g_statistics_enabled;
-extern std::string g_statistics_retention;
 extern std::string g_candidate_text_color;
 extern std::string g_shuangpin_schema;
 extern std::string g_wubi_schema;

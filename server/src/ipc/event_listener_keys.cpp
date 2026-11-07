@@ -27,7 +27,6 @@
 #include "session/session_factory.h"
 #include "mixed/date_time_candidates.h"
 #include "log/candidate_diag_log.h"
-#include "statistics/stats_candidate_capture.h"
 
 using namespace event_listener_detail;
 
@@ -1431,16 +1430,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
                     }
                 }
             }
-            if (committed_index_in_page >= 0 && !g_english_input_mode &&
-                committed_item.scheme != SchemeType::JapaneseRomaji &&
-                MsimeStats::CountsTowardFirstWordSelection(committed_item))
-            {
-                // 造词途中按标点收尾时，前面各段也要都是首位才算命中（同 ProcessSelectionKey）。
-                const auto &creating_word = GlobalIme::composition.creating_word;
-                const bool prior_segments_first = !creating_word.active || creating_word.all_segments_first;
-                MsimeStats::RecordCandidateSelection(prior_segments_first && ui.page_index == 0 &&
-                                                     committed_index_in_page == 0);
-            }
             SendCurrentDataToClient(client_id, activation_epoch, request_id);
         }
         else
@@ -1574,8 +1563,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         prepare_auto_commit.Stop();
         Global::candidate_ui.select_first_on_page();
         ScopedKeyStage select_auto_commit{client_id, activation_epoch, request_id, L"handle-selection"};
-        ProcessSelectionKey(VK_SPACE, client_id, activation_epoch, /*forced_index_in_page=*/0,
-                            /*count_first_word=*/false);
+        ProcessSelectionKey(VK_SPACE, client_id, activation_epoch, /*forced_index_in_page=*/0);
         select_auto_commit.Stop();
         ScopedKeyStage push_auto_commit{client_id, activation_epoch, request_id, L"handle-worker-push"};
         if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)

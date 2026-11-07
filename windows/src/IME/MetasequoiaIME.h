@@ -4,7 +4,6 @@
 #include "MetasequoiaIMEBaseStructure.h"
 #include "Ipc.h"
 #include "DeferredKeyFailurePolicy.h"
-#include "char_classify.h"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -277,8 +276,6 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     // the first observer captures, and any failure is silent. With deferredCounts
     // the event is not queued: the caller queues it once the end succeeded, and
     // the return value says whether anything was captured.
-    bool _CaptureCompositionStats(TfEditCookie ec, _In_ ITfComposition *pComposition,
-                                  _Out_opt_ MsimeStats::CharClassCounts *deferredCounts = nullptr);
 
     // key event handlers for composition/candidate/phrase common objects.
     HRESULT _HandleComplete(TfEditCookie ec, _In_ ITfContext *pContext);
@@ -645,7 +642,6 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     // (Statistics/stats_passthrough.h). keyboardKnownEnabled is true when the
     // caller already proved the keyboard is live through a non-zero
     // _IsKeyEaten out-char; otherwise the disabled compartment is queried here.
-    void _NotePassthroughStatistics(UINT virtualKey, WCHAR wch, bool keyboardKnownEnabled);
     // scheduleDrain is false only when the caller drains synchronously right
     // after queueing and schedules a drain itself if the key stays queued.
     bool _QueueDeferredKeyDown(_In_ ITfContext *pContext, WPARAM wParam, LPARAM lParam, WCHAR translatedWch,
@@ -933,7 +929,6 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     // De-duplicates the two composition exits that can observe the same commit
     // (_TerminateComposition can re-enter OnCompositionTerminated). Reset when
     // the next composition is created; see _CaptureCompositionStats.
-    std::atomic<bool> _compositionStatsCaptured{false};
     std::wstring _voiceCompositionAssemble;
     UINT _voiceCompositionAssembleMsg = 0;
     wchar_t _voiceCompositionAssembleGeneration = 0;
@@ -999,8 +994,6 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     // granularity, so two genuine presses of one key can share a time; the
     // marker is therefore consumed by the first suppression (virtual key 0 is
     // not a key) and the probe pair always arrives adjacently.
-    UINT _passthroughStatsVirtualKey;
-    LONG _passthroughStatsMessageTime;
 
     // Bare Shift/Ctrl toggle arming (Weasel-style: release within timeout).
     bool _shiftHotkeyArmed;

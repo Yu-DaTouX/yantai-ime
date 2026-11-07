@@ -194,7 +194,7 @@ TEST_CASE(candidate_skin_tokens_corner_radius_override_keeps_following_the_card)
     CandidateSkinCatalog::Package package;
     package.cornerRadiusDip = 12.0;
     const CandSkinTokens rounded =
-        ResolveCandidateSkinTokens(CandidateSkinCatalog::FactoryLook("fluent"), &package, false, false, 16.0f);
+        ResolveCandidateSkinTokens(CandidateSkinCatalog::FactoryLook("fluent"), &package, false, true, 16.0f);
     REQUIRE_EQ(rounded.radius, 12.0f);
     REQUIRE_EQ(rounded.outerItemRadius, 12.0f);
     package.cornerRadiusDip = 0.0;
