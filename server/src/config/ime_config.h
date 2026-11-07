@@ -508,8 +508,6 @@ struct FloatingToolbarItemsConfig
     bool fullwidth = true;
     bool punctuation = true;
     bool character_set = true;
-    bool emoji = true;
-    bool screen_keyboard = false;
     bool settings = true;
 };
 const FloatingToolbarItemsConfig &GetConfiguredFloatingToolbarItems();
@@ -739,12 +737,6 @@ const std::string &GetConfiguredThemeFtb();
 bool SetConfiguredThemeFtb(const std::string &theme);
 const std::string &GetConfiguredThemeMenu();
 bool SetConfiguredThemeMenu(const std::string &theme);
-const std::string &GetConfiguredThemeEmoji();
-bool SetConfiguredThemeEmoji(const std::string &theme);
-const std::string &GetConfiguredThemeScreenKeyboard();
-bool SetConfiguredThemeScreenKeyboard(const std::string &theme);
-const std::string &GetConfiguredThemeHandwriting();
-bool SetConfiguredThemeHandwriting(const std::string &theme);
 const std::string &GetConfiguredThemeVoice();
 bool SetConfiguredThemeVoice(const std::string &theme);
 // Resolve effective "dark" / "light" for a surface override ("follow" | "dark" | "light").

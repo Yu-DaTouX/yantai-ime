@@ -231,8 +231,6 @@ const std::vector<PageInfo> &Pages()
         {"dict", L"词库", L"sidebar/dictionary.svg", &BuildDictionaryPage},
         {"skin", L"皮肤", L"sidebar/skin.svg", &BuildSkinPage},
         {"voice", L"语音输入", L"sidebar/voice_input.svg", &BuildVoicePage},
-        {"screenkb-settings", L"屏幕键盘", L"sidebar/screen_keyboard.svg", &BuildScreenKeyboardPage},
-        {"handwriting-settings", L"手写识别板", L"sidebar/handwriting.svg", &BuildHandwritingPage},
         {"tools-settings", L"实用功能", L"sidebar/utilities.svg", &BuildToolsPage},
         {"ai-settings", L"AI 与云联想", L"sidebar/ai.svg", &BuildAiPage},
         {"floating-toolbar", L"悬浮工具栏", L"sidebar/floating_toolbar.svg", &BuildFloatingToolbarPage},

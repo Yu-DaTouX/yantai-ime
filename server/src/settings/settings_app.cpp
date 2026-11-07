@@ -397,8 +397,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"floating_toolbar_fullwidth", toolbar.fullwidth},
             {"floating_toolbar_punctuation", toolbar.punctuation},
             {"floating_toolbar_character_set", toolbar.character_set},
-            {"floating_toolbar_emoji", toolbar.emoji},
-            {"floating_toolbar_screen_keyboard", toolbar.screen_keyboard},
             {"floating_toolbar_settings", toolbar.settings},
             {"floating_toolbar_scale", GetConfiguredFloatingToolbarScale()},
             {"floating_toolbar_font_size", GetConfiguredFloatingToolbarFontSize()},
@@ -526,9 +524,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"theme_cand", GetConfiguredThemeCand()},
             {"theme_ftb", GetConfiguredThemeFtb()},
             {"theme_menu", GetConfiguredThemeMenu()},
-            {"theme_emoji", GetConfiguredThemeEmoji()},
-            {"theme_screen_keyboard", GetConfiguredThemeScreenKeyboard()},
-            {"theme_handwriting", GetConfiguredThemeHandwriting()},
             {"theme_voice", GetConfiguredThemeVoice()},
             {"page_size", GetConfiguredCandidatePageSize()},
             {"font", GetConfiguredCandidateFont()},
@@ -808,12 +803,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredThemeFtb(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.theme_menu")
         return SetConfiguredThemeMenu(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.theme_emoji")
-        return SetConfiguredThemeEmoji(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.theme_screen_keyboard")
-        return SetConfiguredThemeScreenKeyboard(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.theme_handwriting")
-        return SetConfiguredThemeHandwriting(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.theme_voice")
         return SetConfiguredThemeVoice(json::value_to<std::string>(data.at("value")));
     if (path == "general.floating_toolbar")
@@ -1568,14 +1557,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
             g_worker->Submit([message = std::move(message)]() -> SerialTaskQueue::Completion {
                 return [message] { PostToPage(message); };
             });
-        }
-        else if (type == "openKeyboardPanel")
-        {
-            OpenKeyboardPanelApplication();
-        }
-        else if (type == "openHandwritingPanel")
-        {
-            OpenHandwritingPanelApplication();
         }
         else if (type == "restartServer")
         {

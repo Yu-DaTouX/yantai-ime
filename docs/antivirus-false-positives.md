@@ -70,7 +70,7 @@ Get-ChildItem $projectPaths -Recurse -File `
 只想看某个被告警的文件：
 
 ```powershell
-Get-AuthenticodeSignature 'C:\Program Files\metasequoiaime\server\MetasequoiaImeEmojiPanel.exe' |
+Get-AuthenticodeSignature 'C:\Program Files\metasequoiaime\server\MetasequoiaImeSettings.exe' |
     Format-List Status, StatusMessage, @{ Name = 'Signer'; Expression = { $_.SignerCertificate.Subject } },
         @{ Name = 'Thumbprint'; Expression = { $_.SignerCertificate.Thumbprint } },
         @{ Name = 'NotAfter'; Expression = { $_.SignerCertificate.NotAfter } }
@@ -79,12 +79,12 @@ Get-AuthenticodeSignature 'C:\Program Files\metasequoiaime\server\MetasequoiaIme
 ### 2. 看版本资源
 
 ```powershell
-(Get-Item 'C:\Program Files\metasequoiaime\server\MetasequoiaImeEmojiPanel.exe').VersionInfo |
+(Get-Item 'C:\Program Files\metasequoiaime\server\MetasequoiaImeSettings.exe').VersionInfo |
     Format-List CompanyName, FileDescription, FileVersion, ProductVersion,
         InternalName, OriginalFilename, LegalCopyright
 ```
 
-8 个自研 EXE（Server、Watchdog、DictionaryReplay、DictionaryBuild、EmojiPanel、KeyboardPanel、HandwritingPanel、Settings）的预期字段：
+5 个自研 EXE（Server、Watchdog、DictionaryReplay、DictionaryBuild、Settings）的预期字段：
 
 | 字段 | 预期值 |
 |---|---|
@@ -96,12 +96,12 @@ Get-AuthenticodeSignature 'C:\Program Files\metasequoiaime\server\MetasequoiaIme
 | `FileVersion` | 四位数字，如 `0.7.1.0`；dev / nightly 的末位是构建日期的 `YYMMDD`，如 `0.7.1.261104` |
 | `ProductVersion` | 展示版本，如 `0.7.1`、`0.7.1-nightly.20261104.abcdef12` |
 
-`FileVersion` 的四个数字与 TSF DLL 的 `FILEVERSION` 同源（`version.txt` / `MSIME_PRODUCT_VERSION_OVERRIDE`），所以同一次构建里 8 个 EXE 与 `MetasequoiaImeTsf.dll` 的主体版本一致。`ProductVersion` 保留 `-dev` / `-nightly` 后缀，用来区分通道。
+`FileVersion` 的四个数字与 TSF DLL 的 `FILEVERSION` 同源（`version.txt` / `MSIME_PRODUCT_VERSION_OVERRIDE`），所以同一次构建里 5 个 EXE 与 `MetasequoiaImeTsf.dll` 的主体版本一致。`ProductVersion` 保留 `-dev` / `-nightly` 后缀，用来区分通道。
 
 ### 3. 核对 SHA256
 
 ```powershell
-Get-FileHash 'C:\Program Files\metasequoiaime\server\MetasequoiaImeEmojiPanel.exe' -Algorithm SHA256 |
+Get-FileHash 'C:\Program Files\metasequoiaime\server\MetasequoiaImeSettings.exe' -Algorithm SHA256 |
     Format-List Algorithm, Hash, Path
 ```
 

@@ -1181,7 +1181,6 @@ VisualPtr BuildShortcutPage(PageContext &context)
             bool danger;
         };
         const std::vector<Entry> entries = {
-            {L"打开屏幕键盘", Keys({L"Ctrl", L"|+", L"Shift", L"|+", L"Win", L"|+", L"K"}), false},
             {L"删除当前候选窗口中的第 1–8 项", Keys({L"Ctrl", L"|+", L"Shift", L"|+", L"Alt", L"|+", L"1–8"}), false},
             {L"清除输入法引擎缓存", Keys({L"Ctrl", L"|+", L"Shift", L"|+", L"Alt", L"|+", L"C"}), false},
             {L"重启输入法服务", Keys({L"Ctrl", L"|+", L"Shift", L"|+", L"Alt", L"|+", L"R"}), false},

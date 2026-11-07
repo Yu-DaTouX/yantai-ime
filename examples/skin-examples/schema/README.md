@@ -260,8 +260,6 @@ gap_dip = 2
 | `fullwidth` | 全 / 半角 | `full`、`half` |
 | `punctuation` | 中 / 英标点 | `cn`、`en` |
 | `character_set` | 简 / 繁 | `simplified`、`traditional` |
-| `emoji` | 表情面板 | 无 |
-| `screen_keyboard` | 屏幕键盘 | 无 |
 | `settings` | 设置 | 无 |
 
 - 设置页「悬浮工具栏」里的缩放会同时放大背景图、按钮位置和尺寸。

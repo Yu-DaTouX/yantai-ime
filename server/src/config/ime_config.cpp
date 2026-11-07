@@ -238,9 +238,6 @@ std::string g_theme_settings = "follow";
 std::string g_theme_cand = "follow";
 std::string g_theme_ftb = "follow";
 std::string g_theme_menu = "follow";
-std::string g_theme_emoji = "follow";
-std::string g_theme_screen_keyboard = "follow";
-std::string g_theme_handwriting = "follow";
 std::string g_theme_voice = "follow";
 // LoadImeConfig rewrites g_voice_input from the IPC worker thread while the voice control thread and the low-level
 // keyboard hook read it, so every access goes through this process-local lock. Unlike ConfigFileLock it is never held
@@ -623,8 +620,6 @@ bool LoadImeConfig()
         g_floating_toolbar_items.fullwidth = tbl["general"]["floating_toolbar_fullwidth"].value_or(true);
         g_floating_toolbar_items.punctuation = tbl["general"]["floating_toolbar_punctuation"].value_or(true);
         g_floating_toolbar_items.character_set = tbl["general"]["floating_toolbar_character_set"].value_or(true);
-        g_floating_toolbar_items.emoji = tbl["general"]["floating_toolbar_emoji"].value_or(true);
-        g_floating_toolbar_items.screen_keyboard = tbl["general"]["floating_toolbar_screen_keyboard"].value_or(false);
         g_floating_toolbar_items.settings = tbl["general"]["floating_toolbar_settings"].value_or(true);
         {
             const double scale = tbl["general"]["floating_toolbar_scale"].value_or(1.0);
@@ -865,10 +860,6 @@ bool LoadImeConfig()
         g_theme_cand = normalize_surface(tbl["appearance"]["theme_cand"].value_or(std::string("follow")));
         g_theme_ftb = normalize_surface(tbl["appearance"]["theme_ftb"].value_or(std::string("follow")));
         g_theme_menu = normalize_surface(tbl["appearance"]["theme_menu"].value_or(std::string("follow")));
-        g_theme_emoji = normalize_surface(tbl["appearance"]["theme_emoji"].value_or(std::string("follow")));
-        g_theme_screen_keyboard =
-            normalize_surface(tbl["appearance"]["theme_screen_keyboard"].value_or(std::string("follow")));
-        g_theme_handwriting = normalize_surface(tbl["appearance"]["theme_handwriting"].value_or(std::string("follow")));
         g_theme_voice = normalize_surface(tbl["appearance"]["theme_voice"].value_or(std::string("follow")));
         {
             const std::string tsf_preedit_style = tbl["appearance"]["tsf_preedit_style"].value_or(

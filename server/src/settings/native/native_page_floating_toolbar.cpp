@@ -13,8 +13,7 @@ namespace
 using skinpreview::Band;
 using skinpreview::FlushCard;
 
-const char *const kToolbarItems[6] = {"fullwidth", "punctuation",     "character_set",
-                                      "emoji",     "screen_keyboard", "settings"};
+const char *const kToolbarItems[4] = {"fullwidth", "punctuation", "character_set", "settings"};
 
 D2D1_COLOR_F DividerColor()
 {
@@ -231,8 +230,8 @@ VisualPtr BuildFloatingToolbarPage(PageContext &context)
     components->Add(MakeRow(L"工具栏组件", L"勾选要显示在悬浮工具栏中的功能", nullptr));
     auto list = std::make_shared<Column>(0.0f);
     list->Add(std::make_shared<RequiredOption>());
-    const wchar_t *labels[6] = {L"全角 / 半角", L"中英文标点", L"简繁切换", L"表情与符号", L"屏幕键盘", L"设置"};
-    for (int i = 0; i < 6; ++i)
+    const wchar_t *labels[4] = {L"全角 / 半角", L"中英文标点", L"简繁切换", L"设置"};
+    for (int i = 0; i < 4; ++i)
     {
         list->Add(std::make_shared<Divider>(Divider::Kind::Option));
         list->Add(BindCheck(context, labels[i], std::string("general.floating_toolbar_") + kToolbarItems[i]));

@@ -487,93 +487,17 @@ if(MSVC)
 endif()
 add_dependencies(${PROJECT_NAME} ${DICTIONARY_BUILD_EXECUTABLE_NAME})
 
-# msimeui stays a separately built GUI framework component at ../ui. The product-owned emoji panel
-# lives under src/emoji-panel so it can evolve separately from the framework's example applications.
-# msimeui's standalone layout tests belong to its own CI job. Its EXCLUDE_FROM_ALL
-# targets are not built here, so registering those tests would break Server CTest.
+# msimeui stays a separately built GUI framework component at ../ui, linked statically into the
+# Server and the settings window. msimeui's standalone layout tests belong to its own CI job; its
+# EXCLUDE_FROM_ALL targets are not built here, so registering those tests would break Server CTest.
 set(_metasequoia_saved_build_testing "${BUILD_TESTING}")
 set(BUILD_TESTING OFF)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../ui" "${CMAKE_BINARY_DIR}/msimeui" EXCLUDE_FROM_ALL)
 set(BUILD_TESTING "${_metasequoia_saved_build_testing}")
 unset(_metasequoia_saved_build_testing)
-set(EMOJI_EXECUTABLE_NAME "MetasequoiaImeEmojiPanel")
-add_executable(${EMOJI_EXECUTABLE_NAME} WIN32
-    "./src/emoji-panel/EmojiPanel.cpp"
-    "./src/emoji-panel/EmojiPanel.h"
-    "./src/emoji-panel/emoji_panel_icons.cpp"
-    "./src/emoji-panel/emoji_panel_icons.h"
-    "./src/emoji-panel/emoji_panel_splash.cpp"
-    "./src/emoji-panel/emoji_panel_splash.h"
-    "./src/emoji-panel/svg_path_geometry.cpp"
-    "./src/emoji-panel/svg_path_geometry.h"
-    "./src/emoji-panel/main.cpp"
-    "./src/emoji-panel/emoji_panel.rc"
-    "./src/emoji-panel/resource.h"
-    "./src/clipboard/clipboard_history.cpp"
-    "./src/clipboard/clipboard_history.h"
-    "./src/utils/ime_paths.cpp"
-    "./src/utils/surface_theme_config.cpp"
-    "./src/utils/surface_theme_config.h"
-)
 add_dependencies(${MY_EXECUTABLE_NAME} ${WATCHDOG_EXECUTABLE_NAME})
 target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX=1)
 target_link_libraries(${PROJECT_NAME} PRIVATE msimeui d3d11 dxgi dcomp)
-target_link_libraries(${EMOJI_EXECUTABLE_NAME} PRIVATE msimeui unofficial::sqlite3::sqlite3 shell32 advapi32 ole32)
-target_compile_definitions(${EMOJI_EXECUTABLE_NAME} PRIVATE
-    NOMINMAX=1
-    WIN32_LEAN_AND_MEAN=1
-)
-if(MSVC)
-    target_compile_options(${EMOJI_EXECUTABLE_NAME} PRIVATE /W4 /permissive-)
-endif()
-add_dependencies(${PROJECT_NAME} ${EMOJI_EXECUTABLE_NAME})
-add_custom_command(TARGET ${EMOJI_EXECUTABLE_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/$<$<CONFIG:Debug>:debug/>bin/sqlite3.dll"
-        $<TARGET_FILE_DIR:${EMOJI_EXECUTABLE_NAME}>
-)
-
-set(KEYBOARD_EXECUTABLE_NAME "MetasequoiaImeKeyboardPanel")
-add_executable(${KEYBOARD_EXECUTABLE_NAME} WIN32
-    "./src/keyboard-panel/KeyboardPanel.cpp"
-    "./src/keyboard-panel/KeyboardPanel.h"
-    "./src/keyboard-panel/main.cpp"
-    "./src/keyboard-panel/keyboard_panel.rc"
-    "./src/keyboard-panel/resource.h"
-    "./src/utils/ime_paths.cpp"
-    "./src/utils/surface_theme_config.cpp"
-    "./src/utils/surface_theme_config.h"
-)
-target_link_libraries(${KEYBOARD_EXECUTABLE_NAME} PRIVATE msimeui shell32 advapi32 ole32)
-target_compile_definitions(${KEYBOARD_EXECUTABLE_NAME} PRIVATE
-    NOMINMAX=1
-    WIN32_LEAN_AND_MEAN=1
-)
-if(MSVC)
-    target_compile_options(${KEYBOARD_EXECUTABLE_NAME} PRIVATE /W4 /permissive-)
-endif()
-add_dependencies(${PROJECT_NAME} ${KEYBOARD_EXECUTABLE_NAME})
-
-set(HANDWRITING_EXECUTABLE_NAME "MetasequoiaImeHandwritingPanel")
-add_executable(${HANDWRITING_EXECUTABLE_NAME} WIN32
-    "./src/handwriting-panel/HandwritingPanel.cpp"
-    "./src/handwriting-panel/HandwritingPanel.h"
-    "./src/handwriting-panel/main.cpp"
-    "./src/handwriting-panel/handwriting_panel.rc"
-    "./src/handwriting-panel/resource.h"
-    "./src/utils/ime_paths.cpp"
-    "./src/utils/surface_theme_config.cpp"
-    "./src/utils/surface_theme_config.h"
-)
-target_link_libraries(${HANDWRITING_EXECUTABLE_NAME} PRIVATE msimeui windowsapp.lib shell32 advapi32 ole32)
-target_compile_definitions(${HANDWRITING_EXECUTABLE_NAME} PRIVATE
-    NOMINMAX=1
-    WIN32_LEAN_AND_MEAN=1
-)
-if(MSVC)
-    target_compile_options(${HANDWRITING_EXECUTABLE_NAME} PRIVATE /W4 /permissive-)
-endif()
-add_dependencies(${PROJECT_NAME} ${HANDWRITING_EXECUTABLE_NAME})
 
 set(SETTINGS_EXECUTABLE_NAME "MetasequoiaImeSettings")
 add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
@@ -638,8 +562,6 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/native/native_page_voice.cpp"
     "./src/settings/native/native_page_voice_fields.cpp"
     "./src/settings/native/native_page_voice_fields.h"
-    "./src/settings/native/native_page_screenkb.cpp"
-    "./src/settings/native/native_page_handwriting.cpp"
     "./src/settings/native/native_page_tools.cpp"
     "./src/settings/native/native_page_ai.cpp"
     "./src/settings/native/native_page_floating_toolbar.cpp"
@@ -805,9 +727,6 @@ msime_add_version_resource(${MY_EXECUTABLE_NAME} "Metasequoia IME background ser
 msime_add_version_resource(${WATCHDOG_EXECUTABLE_NAME} "Metasequoia IME watchdog" "${WATCHDOG_EXECUTABLE_NAME}.exe")
 msime_add_version_resource(${DICTIONARY_REPLAY_EXECUTABLE_NAME} "Metasequoia IME user dictionary replay tool" "${DICTIONARY_REPLAY_EXECUTABLE_NAME}.exe")
 msime_add_version_resource(${DICTIONARY_BUILD_EXECUTABLE_NAME} "Metasequoia IME dictionary build tool" "${DICTIONARY_BUILD_EXECUTABLE_NAME}.exe")
-msime_add_version_resource(${EMOJI_EXECUTABLE_NAME} "Metasequoia IME emoji panel" "${EMOJI_EXECUTABLE_NAME}.exe")
-msime_add_version_resource(${KEYBOARD_EXECUTABLE_NAME} "Metasequoia IME on-screen keyboard panel" "${KEYBOARD_EXECUTABLE_NAME}.exe")
-msime_add_version_resource(${HANDWRITING_EXECUTABLE_NAME} "Metasequoia IME handwriting panel" "${HANDWRITING_EXECUTABLE_NAME}.exe")
 msime_add_version_resource(${SETTINGS_EXECUTABLE_NAME} "Metasequoia IME settings" "${SETTINGS_EXECUTABLE_NAME}.exe")
 
 if(BUILD_TESTING)

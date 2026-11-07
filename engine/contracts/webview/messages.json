@@ -127,11 +127,6 @@
         "settings"
       ]
     },
-    "openHandwritingPanel": {
-      "surfaces": [
-        "settings"
-      ]
-    },
     "restartServer": {
       "surfaces": [
         "settings"
@@ -589,12 +584,6 @@
         "additionalProperties": false
       }
     },
-    "openKeyboardPanel": {
-      "surfaces": [
-        "settings",
-        "toolbar"
-      ]
-    },
     "candidate": {
       "surfaces": [
         "candidate"
@@ -858,21 +847,6 @@
         "menu"
       ]
     },
-    "emojiSymbols": {
-      "surfaces": [
-        "menu"
-      ]
-    },
-    "keyboardPanel": {
-      "surfaces": [
-        "menu"
-      ]
-    },
-    "handwritingPanel": {
-      "surfaces": [
-        "menu"
-      ]
-    },
     "voiceInput": {
       "surfaces": [
         "menu"
@@ -929,11 +903,6 @@
       ]
     },
     "openSettings": {
-      "surfaces": [
-        "toolbar"
-      ]
-    },
-    "openEmojiPanel": {
       "surfaces": [
         "toolbar"
       ]

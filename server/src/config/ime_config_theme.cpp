@@ -120,36 +120,6 @@ bool SetConfiguredThemeMenu(const std::string &theme)
     return SetSurfaceThemeValue("theme_menu", theme, g_theme_menu);
 }
 
-const std::string &GetConfiguredThemeEmoji()
-{
-    return g_theme_emoji;
-}
-
-bool SetConfiguredThemeEmoji(const std::string &theme)
-{
-    return SetSurfaceThemeValue("theme_emoji", theme, g_theme_emoji);
-}
-
-const std::string &GetConfiguredThemeScreenKeyboard()
-{
-    return g_theme_screen_keyboard;
-}
-
-bool SetConfiguredThemeScreenKeyboard(const std::string &theme)
-{
-    return SetSurfaceThemeValue("theme_screen_keyboard", theme, g_theme_screen_keyboard);
-}
-
-const std::string &GetConfiguredThemeHandwriting()
-{
-    return g_theme_handwriting;
-}
-
-bool SetConfiguredThemeHandwriting(const std::string &theme)
-{
-    return SetSurfaceThemeValue("theme_handwriting", theme, g_theme_handwriting);
-}
-
 const std::string &GetConfiguredThemeVoice()
 {
     return g_theme_voice;
