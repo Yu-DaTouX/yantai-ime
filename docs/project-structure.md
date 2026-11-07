@@ -9,7 +9,6 @@ Windows 端的全部一方源码都在本仓，一次 clone 就能拿到完整�
 | [`engine/`](../engine/) | 输入引擎：输入会话、候选查询、辅助码、跨进程契约、语音模块 |
 | [`ui/`](../ui/) | 自研原生 GUI 框架（`msimeui`）：Win32 宿主窗口，Direct2D / DirectWrite 渲染 |
 | [`installer/`](../installer/) | 收集各组件产物、自签名、Inno Setup 打包 |
-| [`log/`](../log/) | 各模块共用的日志采集库 |
 | [`vendor/`](../vendor/) | submodule：opencc 与 cpp-pinyin 两个第三方依赖 |
 | `scripts/`、`tests/`、`docs/`、`product-lock.json` | 产品级构建脚本、组合验证、文档与外部输入清单 |
 

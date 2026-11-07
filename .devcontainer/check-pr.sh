@@ -81,7 +81,7 @@ python3 - "$tmp/files" <<'PY'
 import sys
 
 groups = {
-    'Windows-only, cannot compile here': ('windows/', 'server/', 'ui/', 'log/'),
+    'Windows-only, cannot compile here': ('windows/', 'server/', 'ui/'),
     'engine/ (mostly portable, but built by the Server)': ('engine/',),
     'docs and config': ('docs/', '.github/', 'scripts/', 'installer/', 'skins/', 'examples/'),
 }
@@ -124,7 +124,7 @@ else
     # file would blame this PR for a mistake it did not make.
     changed=$(python3 - "$tmp/files" <<'PY'
 import sys
-covered = ('server/', 'windows/', 'ui/', 'log/', 'engine/')
+covered = ('server/', 'windows/', 'ui/', 'engine/')
 excluded = ('engine/googlepinyinime-rev/', 'engine/ngram/kenlm/', 'engine/utfcpp/', '/third_party/', '/vendor/')
 generated = {
     'engine/contracts/assets/assets.h',

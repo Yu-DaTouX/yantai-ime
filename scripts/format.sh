@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Ported from MSIME-Linux, which has run this in CI since before the
 # consolidation. Each component keeps its own .clang-format; --style=file picks
-# up the nearest one, so server/, windows/, ui/, log/ and engine/ stay
+# up the nearest one, so server/, windows/, ui/ and engine/ stay
 # independent -- engine/voice/.clang-format widens the column limit for that
 # subtree alone, and the nearest-file rule is what keeps it that way.
 clang_format_version=18.1.8
@@ -60,7 +60,6 @@ git ls-files --cached --others --exclude-standard \
         'server/*.cpp' 'server/*.h' \
         'windows/*.cpp' 'windows/*.h' \
         'ui/*.cpp' 'ui/*.h' \
-        'log/*.cpp' 'log/*.h' \
         'engine/*.cpp' 'engine/*.h' 'engine/*.hpp' \
     | grep -v '/vendor/' \
     | grep -vE '^engine/(googlepinyinime-rev|ngram/kenlm|utfcpp)/' \
