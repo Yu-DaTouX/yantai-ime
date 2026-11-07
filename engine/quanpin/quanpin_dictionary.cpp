@@ -4,6 +4,7 @@
 
 #include "../common/helpcode_utils.h"
 #include "quanpin_query.h"
+#include "query_status.h"
 #include "quanpin_utils.h"
 #include "../shuangpin/shuangpin_utils.h"
 #include <algorithm>
@@ -2583,11 +2584,16 @@ void QuanpinDictionary::reset_cache_if_database_changed()
     sqlite3_stmt *statement = nullptr;
     if (sqlite3_prepare_v2(db_, "PRAGMA data_version", -1, &statement, nullptr) != SQLITE_OK)
     {
+        quanpin::note_query_failure();
+        sqlite3_finalize(statement);
+        reset_cache();
         return;
     }
     if (sqlite3_step(statement) != SQLITE_ROW)
     {
+        quanpin::note_query_failure();
         sqlite3_finalize(statement);
+        reset_cache();
         return;
     }
     const sqlite3_int64 current_version = sqlite3_column_int64(statement, 0);
@@ -2850,6 +2856,7 @@ std::vector<WordItem> QuanpinDictionary::fuzzy_candidates(const std::string &seg
     std::vector<WordItem> result;
     if (!options.rules || !db_)
         return result;
+    const quanpin::QueryCheckpoint checkpoint;
     reset_cache_if_database_changed();
     const auto cache_key = "fuzzy:" + std::to_string(options.rules) + ":" + segmentation;
     if (const auto *cached = series_cache_.find(cache_key))
@@ -2871,6 +2878,11 @@ std::vector<WordItem> QuanpinDictionary::fuzzy_candidates(const std::string &seg
             result.push_back(std::move(item));
         }
     }
+    if (checkpoint.failed())
+    {
+        reset_cache();
+        return {};
+    }
     series_cache_.insert(cache_key, result);
     return result;
 }
@@ -2878,6 +2890,7 @@ std::vector<WordItem> QuanpinDictionary::fuzzy_candidates(const std::string &seg
 std::vector<WordItem> QuanpinDictionary::query(const std::string &raw_input, const std::string &segmentation,
                                                unsigned autocorrect, metasequoia::FuzzyPinyinOptions fuzzy)
 {
+    const quanpin::QueryCheckpoint checkpoint;
     // 词格要按同一套规则收模糊读音，先于 query_exact 下发。
     set_fuzzy_pinyin(fuzzy);
     // 写回路径随后按这次查询的切分重切（cut_for_write），状态要和查询一致。
@@ -2918,6 +2931,14 @@ std::vector<WordItem> QuanpinDictionary::query(const std::string &raw_input, con
         if (prefix_completion_.enabled)
             quanpin::insert_prefix_completion(result, code, prefix_completion_, db_, statement_cache_,
                                               prefix_completion_cache_, prefix_completion_scorers());
+    }
+    if (checkpoint.failed())
+    {
+        // A failed nested read may already have populated a prefix/miss or
+        // lattice cache. None of this query is authoritative; retry next time.
+        reset_cache();
+        char_reading_totals_.reset();
+        result.clear();
     }
     current_candidate_list_ = result;
     return result;

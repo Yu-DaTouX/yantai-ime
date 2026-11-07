@@ -1,5 +1,6 @@
 #include "latin_words.h"
 #include "quanpin_query.h"
+#include "query_status.h"
 
 #include <utf8.h>
 
@@ -29,12 +30,16 @@ sqlite3_int64 data_version(sqlite3 *db, std::unordered_map<std::string, sqlite3_
     {
         if (sqlite3_prepare_v2(db, kSql.c_str(), -1, &statement, nullptr) != SQLITE_OK)
         {
+            note_query_failure();
             sqlite3_finalize(statement);
             return -1;
         }
         statement_cache.emplace(kSql, statement);
     }
-    const sqlite3_int64 version = sqlite3_step(statement) == SQLITE_ROW ? sqlite3_column_int64(statement, 0) : -1;
+    const int status = sqlite3_step(statement);
+    const sqlite3_int64 version = status == SQLITE_ROW ? sqlite3_column_int64(statement, 0) : -1;
+    if (status != SQLITE_ROW)
+        note_query_failure();
     sqlite3_reset(statement);
     return version;
 }
@@ -46,13 +51,19 @@ std::shared_ptr<const LatinWords> refresh_latin_words(std::shared_ptr<const Lati
 {
     // 词典自己的缓存只在命中时才查 data_version，没命中的那次查询不会清缓存；字母词常驻内存，
     // 自己再看一眼，不管走哪条查询路径，设置页加完词的下一次按键都能用上。
+    const QueryCheckpoint checkpoint;
     const sqlite3_int64 version = data_version(db, statement_cache);
     if (current && !stale && version >= 0 && version == loaded_version)
         return current;
-    stale = false;
-    loaded_version = version;
     auto fresh = std::make_shared<LatinWords>();
     fresh->load(db);
+    if (checkpoint.failed())
+    {
+        stale = true;
+        return current ? current : std::make_shared<LatinWords>();
+    }
+    stale = false;
+    loaded_version = version;
     if (current && current->all() == fresh->all())
         return current;
     return fresh;
@@ -77,11 +88,13 @@ void LatinWords::load(sqlite3 *db)
         if (sqlite3_prepare_v2(db, "SELECT \"key\", \"value\", \"weight\" FROM latin_words", -1, &statement, nullptr) !=
             SQLITE_OK)
         {
+            note_query_prepare_failure(db, sqlite3_errcode(db));
             sqlite3_finalize(statement);
             return;
         }
     }
-    while (sqlite3_step(statement) == SQLITE_ROW)
+    int status;
+    while ((status = sqlite3_step(statement)) == SQLITE_ROW)
     {
         const auto *key = reinterpret_cast<const char *>(sqlite3_column_text(statement, 0));
         const auto *value = reinterpret_cast<const char *>(sqlite3_column_text(statement, 1));
@@ -103,6 +116,13 @@ void LatinWords::load(sqlite3 *db)
         words_.push_back(std::move(word));
     }
     sqlite3_finalize(statement);
+    if (status != SQLITE_DONE)
+    {
+        note_query_failure();
+        words_.clear();
+        max_code_length_ = 0;
+        return;
+    }
     std::sort(words_.begin(), words_.end(), [](const LatinWord &left, const LatinWord &right) {
         return left.code != right.code ? left.code < right.code : left.weight > right.weight;
     });
