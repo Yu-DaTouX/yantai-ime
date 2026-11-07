@@ -395,8 +395,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     REQUIRE(upgraded["helpcode"]["quanpin_helpcode"].value_or(false));
     REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));
     REQUIRE(upgraded["utility"]["kaomoji_mode"].value_or(false));
-    REQUIRE(upgraded["voice_input"]["voice_input"].value_or(false));
-    REQUIRE(upgraded["voice_input"]["doubao_enable_ddc"].value_or(false));
+    REQUIRE(!upgraded.contains("voice_input"));
     REQUIRE(upgraded["ai_assistant"]["enabled"].value_or(false));
     REQUIRE(upgraded["tencent_tmt"]["enabled"].value_or(false));
     REQUIRE(!upgraded["niutrans"]["enabled"].value_or(true));
@@ -471,17 +470,15 @@ TEST_CASE(config_merge_ignores_commented_out_keys)
                "[input]\n# schema = \"wubi\"\nschema = \"wubi\"\n");
 }
 
-TEST_CASE(configured_voice_input_is_handed_out_as_a_snapshot)
+TEST_CASE(retired_voice_config_is_ignored_during_template_upgrade)
 {
-    // LoadImeConfig rewrites the whole voice config on the IPC worker thread (asr_tokens / polish_tokens are cleared
-    // and refilled) while the voice control thread and the low-level keyboard hook read it on every keystroke. Handing
-    // out a reference lets those readers walk strings and maps that are being rewritten, so this accessor must return a
-    // snapshot by value.
-    REQUIRE(!std::is_reference_v<decltype(GetConfiguredVoiceInput())>);
-    REQUIRE((std::is_same_v<decltype(GetConfiguredVoiceInput()), VoiceInputConfig>));
-
-    const VoiceInputConfig snapshot = GetConfiguredVoiceInput();
-    REQUIRE_EQ(snapshot.commit_mode, VoiceInputConfig().commit_mode);
+    std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
+    REQUIRE(static_cast<bool>(input));
+    const std::string installed((std::istreambuf_iterator<char>(input)), {});
+    const auto merged = toml::parse(MergeConfigIntoTemplate(
+        installed, "[voice_input]\nvoice_input = true\nasr_token = \"old-token\"\n", std::string()));
+    REQUIRE(!merged.contains("voice_input"));
+    REQUIRE(merged.contains("input"));
 }
 
 // 读取安装器真正分发的模板，防止开发配置齐全、安装模板漏项导致升级后丢失设置。
@@ -576,9 +573,7 @@ TEST_CASE(shipped_credentials_survive_template_upgrade)
         REQUIRE_EQ(merged["custom_translation"]["api_key"].value_or(std::string()), std::string("real-api-key"));
         REQUIRE_EQ(merged["niutrans"]["app_id"].value_or(std::string()), std::string("real-app-id"));
         REQUIRE_EQ(merged["niutrans"]["apikey"].value_or(std::string()), std::string("real-apikey"));
-        REQUIRE_EQ(merged["voice_input"]["asr_token"].value_or(std::string()), std::string("real-asr"));
-        REQUIRE_EQ(merged["voice_input"]["asr_token_doubao"].value_or(std::string()), std::string("real-doubao"));
-        REQUIRE_EQ(merged["voice_input"]["polish_token_deepseek"].value_or(std::string()), std::string("real-polish"));
+        REQUIRE(!merged.contains("voice_input"));
         REQUIRE_EQ(merged["ai_assistant"]["token"].value_or(std::string()), std::string("real-ai"));
         REQUIRE_EQ(merged["ai_assistant"]["token_openai"].value_or(std::string()), std::string("real-ai-openai"));
     }

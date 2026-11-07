@@ -42,8 +42,7 @@ class PrepareEnvironmentTests(unittest.TestCase):
             clangd = (target / '.clangd').read_text().replace('\\', '/')
             self.assertIn('engine/utfcpp/source', clangd)
             if component == 'server':
-                self.assertIn('engine/voice/include', clangd)
-                self.assertIn('engine/voice/third_party/miniaudio', clangd)
+                self.assertNotIn('engine/voice', clangd)
                 self.assertIn('/ui/include', clangd)
                 self.assertFalse((target / 'tests/CMakePresets.json').exists())
 

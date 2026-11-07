@@ -1,4 +1,4 @@
-#include "settings/native/native_page_voice_fields.h"
+#include "settings/native/native_service_fields.h"
 
 #include "ai/ai_provider_store.h"
 #include "config/ai_provider.h"
@@ -12,11 +12,11 @@
 #include <iterator>
 #include <map>
 
-namespace native_settings::voice_fields
+namespace native_settings::service_fields
 {
 namespace
 {
-// .voice-secret-icon-show / -hide, drawn with the page's stroke settings.
+// Secret reveal icons, drawn with the page's stroke settings.
 constexpr char kEyeShowSvg[] =
     R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" )"
     R"(stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">)"
@@ -1342,4 +1342,4 @@ ActiveAiConfig ReadActiveAiConfig(const SettingsModel &model)
     config.usable = config.provider != "jev" && tokenOk && !config.model.empty() && scheme;
     return config;
 }
-} // namespace native_settings::voice_fields
+} // namespace native_settings::service_fields

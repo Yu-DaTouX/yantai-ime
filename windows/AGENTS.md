@@ -194,7 +194,7 @@ Release：
 .\scripts\lcompile-release.ps1 32
 ```
 
-本目录的 `windows_ipc_contract` 在 x64/x86 上验证协议布局、版本握手与语音分帧；CI 还构建 Server 和 GUI 框架，并在锁定词库上运行 Server 测试。这些检查不能替代真实 TSF 宿主行为回归。按改动范围做手工回归：
+本目录的 `windows_ipc_contract` 在 x64/x86 上验证协议布局与版本握手；CI 还构建 Server 和 GUI 框架，并在锁定词库上运行 Server 测试。这些检查不能替代真实 TSF 宿主行为回归。按改动范围做手工回归：
 
 - 至少验证 x64 宿主；协议、注册、资源或发布改动同时验证 x86 DLL；
 - 输入首键、连续输入、空格/数字键盘选词、翻页、退格、光标移动和标点提交；

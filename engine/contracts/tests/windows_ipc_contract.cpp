@@ -7,7 +7,6 @@
 #include "../temporary_japanese_input.h"
 #include "../uiless_page.h"
 #include "../v_mode_input.h"
-#include "../voice_composition_pipe.h"
 
 #include <algorithm>
 #include <array>
@@ -457,29 +456,7 @@ int main()
     CHECK(FanyImeDateTimeInput::MatchComplete("12/", 3).shape == FanyImeDateTimeInput::Shape::None);
     CHECK(FanyImeDateTimeInput::MatchComplete("9:5", 3).shape == FanyImeDateTimeInput::Shape::None);
     static_assert(FanyImeDateTimeInput::AcceptsAt("T2024", 5, 5, '/'), "the date shape must be usable at compile time");
-    const std::wstring voice(1000, L'x');
-    const auto frames = FanyImeVoiceCompositionPipe::EncodeSnapshot(voice, 7);
-    CHECK(FanyImeVoiceCompositionPipe::AssembleFrames(frames) == voice);
-    auto incomplete = frames;
-    incomplete.erase(incomplete.begin());
-    CHECK(FanyImeVoiceCompositionPipe::AssembleFrames(incomplete).empty());
-    // A middle frame legally carries flags 0, so an unterminated packet must be rejected on the chunk, not accepted
-    // because data[0] happens to be a NUL.
-    std::array<wchar_t, FanyImeVoiceCompositionPipe::kPacketChars> packet{};
-    packet.fill(L'x');
-    packet[0] = 0; // middle frame
-    packet[1] = 7; // generation
-    CHECK(!FanyImeVoiceCompositionPipe::ParseFrame(packet.data()).valid);
-    packet[FanyImeVoiceCompositionPipe::kPacketChars - 1] = 0;
-    const auto middle = FanyImeVoiceCompositionPipe::ParseFrame(packet.data());
-    CHECK(middle.valid && !middle.first && !middle.last && middle.generation == 7);
-    CHECK(middle.chunk == std::wstring(FanyImeVoiceCompositionPipe::kMaxChunkChars, L'x'));
-    const auto blank = FanyImeVoiceCompositionPipe::EncodeSnapshot(std::wstring(), 7);
-    CHECK(blank.size() == 1);
-    std::array<wchar_t, FanyImeVoiceCompositionPipe::kPacketChars> header{};
-    std::copy(blank[0].begin(), blank[0].end(), header.begin());
-    const auto empty = FanyImeVoiceCompositionPipe::ParseFrame(header.data());
-    CHECK(empty.valid && empty.first && empty.last && empty.chunk.empty());
+    CHECK((FanyImeProtocol::Capabilities & FanyImeProtocol::FramedVoice) == 0);
 
     // Statistics frames: fixed 28-byte header plus 24-byte events; the Go stats
     // tool mirrors these numbers in internal/frames, so both sides must change
@@ -491,5 +468,5 @@ int main()
     CHECK(offsetof(FanyImeStatsEvent, timestamp_utc_ft) == 0);
     CHECK(offsetof(FanyImeStatsEvent, cjk) == 8);
     CHECK(sizeof(FanyImeStatsBatchHeader) + 256 * sizeof(FanyImeStatsEvent) <= FANY_IME_STATS_MAX_FRAME_BYTES);
-    std::cout << "Windows IPC layout, negotiation, upgrade, voice and stats contracts passed\n";
+    std::cout << "Windows IPC layout, negotiation, upgrade and stats contracts passed\n";
 }

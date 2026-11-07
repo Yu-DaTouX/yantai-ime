@@ -1,6 +1,6 @@
 #pragma once
 
-#include "voice-input/voice_providers.h"
+#include "ai/provider_utils.h"
 
 #include <nlohmann/json.hpp>
 #include <string>
@@ -10,7 +10,7 @@ namespace ChatCompletions
 {
 inline bool IsOpenAiProvider(std::string_view provider)
 {
-    return VoiceInput::NormalizeProviderId(provider) == "openai";
+    return ProviderUtils::NormalizeProviderId(provider) == "openai";
 }
 
 inline bool IsOpenAiReasoningModel(std::string_view model)
@@ -145,7 +145,7 @@ inline bool UsesJsonResponseFormat(std::string_view mode, std::string_view endpo
         return true;
     if (normalized == "off" || IsLocalChatEndpoint(endpoint))
         return false;
-    const VoiceInput::ChatVendor vendor = VoiceInput::VendorFromChatEndpoint(endpoint);
-    return vendor == VoiceInput::ChatVendor::OpenAI || vendor == VoiceInput::ChatVendor::DeepSeek;
+    const ProviderUtils::ChatVendor vendor = ProviderUtils::VendorFromChatEndpoint(endpoint);
+    return vendor == ProviderUtils::ChatVendor::OpenAI || vendor == ProviderUtils::ChatVendor::DeepSeek;
 }
 } // namespace ChatCompletions

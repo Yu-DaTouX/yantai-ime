@@ -1,4 +1,4 @@
-#include "settings/native/native_page_voice_fields.h"
+#include "settings/native/native_service_fields.h"
 #include "settings/native/native_settings_pages.h"
 
 #include "config/ai_provider.h"
@@ -1339,9 +1339,9 @@ struct InputPage
 
     // 与「AI 与云联想」页共用同一份解析：分槽优先、单值键只在它就是当前服务商时作数，
     // 可用性判定与后端 AiTranslation::IsUsableConfig 同一口径。
-    voice_fields::ActiveAiConfig AiState() const
+    service_fields::ActiveAiConfig AiState() const
     {
-        return voice_fields::ReadActiveAiConfig(context->model);
+        return service_fields::ReadActiveAiConfig(context->model);
     }
 
     std::string Field(const char *key) const
@@ -1374,7 +1374,7 @@ struct InputPage
         bool ok = false;
         if (provider == "ai")
         {
-            const voice_fields::ActiveAiConfig state = AiState();
+            const service_fields::ActiveAiConfig state = AiState();
             // 选择器模式下这里的 provider 已经解析成「生成式上次用的那家」，所以不再是 jev。
             // AI 联想总开关与这里无关，只要凭据齐就能用。
             text = L"请先在「AI 与云联想」页面填写当前服务商的接口地址、模型和 Token（Ollama 不需要）";
@@ -1409,12 +1409,12 @@ struct InputPage
     {
         for (auto &[name, box] : providerFields)
             box->SetVisible(name == provider);
-        const voice_fields::ActiveAiConfig state = AiState();
+        const service_fields::ActiveAiConfig state = AiState();
         // 摘要用显示名而不是内部 id。
         if (state.usable)
             aiSummary->SetText(
-                voice_fields::AiProviderLabel(state.provider, context->model.Find("ai_assistant.providers")) + L" · " +
-                Widen(state.model));
+                service_fields::AiProviderLabel(state.provider, context->model.Find("ai_assistant.providers")) +
+                L" · " + Widen(state.model));
         else
             aiSummary->SetText(std::wstring());
         SyncWarning();
@@ -1862,7 +1862,7 @@ VisualPtr BuildInputPage(PageContext &context)
                     return s->TestConfig();
                 // 把当前生效的服务商配置摊平成页面字段，凭据测试据此判断「测试期间配置是否改过」，
                 // 宿主再用同一份字段去发请求。
-                const voice_fields::ActiveAiConfig state = s->AiState();
+                const service_fields::ActiveAiConfig state = s->AiState();
                 return Json{{"provider", state.provider},
                             {"endpoint", state.endpoint},
                             {"token", state.token},

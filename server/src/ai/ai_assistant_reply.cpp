@@ -8,7 +8,7 @@ namespace
 {
 // 和引擎里 strip_reasoning 同一套规则：剥掉 <think>…</think>，没有闭合标签时从 <think> 起
 // 全部丢弃（max_tokens 截断的半截思考比错误答案更危险），最后清掉开头的空白。
-// 这里不直接引用引擎的 provider_protocol.h：设置进程不应该为了剥标签去链 Voice 库。
+// 设置进程与 Server 共用这里的推理标签清理。
 std::string StripReasoning(std::string_view text)
 {
     std::string result(text);

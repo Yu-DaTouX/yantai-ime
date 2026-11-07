@@ -11,6 +11,7 @@ constexpr std::uint16_t Major = 1;
 constexpr std::uint16_t Minor = 0;
 constexpr std::uint32_t RequestIds = 1u << 0;
 constexpr std::uint32_t FocusEpochs = 1u << 1;
+// Reserved bit from removed voice framing; never advertise or reuse.
 constexpr std::uint32_t FramedVoice = 1u << 2;
 // Optional: Ctrl+Shift+F KeyEvent toggles the configured character set without
 // changing composition. A consumer must opt in only after implementing it.
@@ -31,7 +32,7 @@ constexpr std::uint32_t CaretStateIndicator = 1u << 5;
 constexpr std::uint32_t TrilingualCycle = 1u << 6;
 constexpr std::uint32_t InputStateShortcuts = 1u << 7;
 constexpr std::uint32_t TemporaryJapaneseLongVowel = 1u << 8;
-constexpr std::uint32_t Capabilities = RequestIds | FocusEpochs | FramedVoice;
+constexpr std::uint32_t Capabilities = RequestIds | FocusEpochs;
 constexpr std::uint32_t RequiredCapabilities = RequestIds | FocusEpochs;
 
 struct Negotiation

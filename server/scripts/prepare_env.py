@@ -61,8 +61,6 @@ clangd_substitutions = {
     "@VCPKG_INCLUDE@": vcpkg_include_path,
     "@ENGINE_ROOT@": engine_path,
     "@UTFCPP@": utfcpp_path,
-    "@VOICE_INCLUDE@": engine_path + "/voice/include",
-    "@MINIAUDIO@": engine_path + "/voice/third_party/miniaudio",
     "@GUI_INCLUDE@": monorepo_root_path + "/ui/include",
     "@WIL@": wil_path,
     "@BOOST@": boost_path,

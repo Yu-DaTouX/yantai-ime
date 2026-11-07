@@ -4,7 +4,7 @@
 #include "settings/native/native_page_model_combo.h"
 #include "settings/native/native_settings_model.h"
 #include "settings/native/native_settings_pages.h"
-#include "settings/native/native_page_voice_fields.h"
+#include "settings/native/native_service_fields.h"
 
 #include <algorithm>
 #include <cmath>
@@ -134,9 +134,9 @@ class AiPageScene
         return found;
     }
 
-    native_settings::voice_fields::PlainButton *Button(const std::wstring &text)
+    native_settings::service_fields::PlainButton *Button(const std::wstring &text)
     {
-        for (auto *button : Visible<native_settings::voice_fields::PlainButton>())
+        for (auto *button : Visible<native_settings::service_fields::PlainButton>())
             if (button->Text() == text)
                 return button;
         throw std::runtime_error("Expected action button");
@@ -171,7 +171,7 @@ class AiPageScene
         std::vector<std::pair<float, std::wstring>> lines;
         for (auto *label : Visible<native_settings::Label>())
             for (auto *parent = label->GetParentVisual(); parent; parent = parent->GetParentVisual())
-                if (dynamic_cast<native_settings::voice_fields::StatusText *>(parent))
+                if (dynamic_cast<native_settings::service_fields::StatusText *>(parent))
                 {
                     lines.emplace_back(label->GetBounds().y, label->GetText());
                     break;
@@ -465,7 +465,7 @@ TEST_CASE(settings_ai_feedback_timeout_stays_separate_and_is_cancelled_by_edit)
 
 TEST_CASE(settings_shared_credential_test_keeps_default_feedback_without_ai_observer)
 {
-    using namespace native_settings::voice_fields;
+    using namespace native_settings::service_fields;
     auto &scene = AiPageScene::Feedback();
     auto button = std::make_shared<PlainButton>(L"测试连接", CredentialButtonStyle());
     auto status = std::make_shared<StatusText>();
@@ -504,7 +504,7 @@ TEST_CASE(settings_ai_model_query_reply_keeps_select_mode_button_disabled)
     auto &scene = AiPageScene::Feedback();
     scene.Snapshot("jev");
     REQUIRE(scene.Button(L"查询模型")->IsDisabled());
-    const auto boxes = scene.Visible<native_settings::voice_fields::ModelCombo>();
+    const auto boxes = scene.Visible<native_settings::service_fields::ModelCombo>();
     REQUIRE(boxes.size() == 1);
     const auto bounds = (*boxes.begin())->GetBounds();
     scene.harness.Click(bounds.x + bounds.width - 16.0f, bounds.y + bounds.height * 0.5f);
@@ -517,7 +517,7 @@ TEST_CASE(settings_ai_model_query_reply_keeps_select_mode_button_disabled)
 
 TEST_CASE(settings_status_text_only_notifies_when_text_or_kind_changes)
 {
-    native_settings::voice_fields::StatusText status;
+    native_settings::service_fields::StatusText status;
     int changes = 0;
     status.SetOnChanged([&]() { ++changes; });
     status.Clear();

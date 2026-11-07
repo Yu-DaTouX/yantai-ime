@@ -1,9 +1,6 @@
 #include "ai/ai_assistant_request.h"
 #include "settings/api_credential_test_request.h"
 #include "tests/includes/test_framework.h"
-#include "voice-input/voice_providers.h"
-
-#include <msime/voice/provider_protocol.h>
 
 namespace
 {
@@ -210,52 +207,3 @@ TEST_CASE(credential_test_probe_input_is_fixed)
 
 // 润色探测的形状必须与引擎的 make_polish_request 一致。设置进程不链 Voice 库，
 // 所以形状是复刻的；这条用例对着引擎实现比对，改一边忘了另一边会红。
-TEST_CASE(credential_test_polish_probe_matches_engine_contract)
-{
-    const std::string prompt = "把口语整理成书面语。";
-    const std::string user_text = ApiCredentialTest::detail::kPolishProbeText;
-    const auto engine_body = nlohmann::json::parse(
-        metasequoia::voice::make_polish_request("some-model", prompt, VoiceInput::WrapAsrUserMessage(user_text)));
-    const VoiceInputConfig config;
-    const auto probe_body = ApiCredentialTest::detail::BuildPolishProbeRequestBody(
-        "some-model", prompt, "custom", "https://relay.example.com/v1/chat/completions", config);
-    // 复刻的部分必须逐字段相等；探测在引擎形状之外只额外带 vendor 字段，且这里用的 custom
-    // 地址不属于任何已知厂商，所以两者应当完全一样。
-    REQUIRE_EQ(probe_body, engine_body);
-
-    // 润色回复按纯文本解析，与引擎 parse_polished_text 同口径。
-    const std::string reply = R"({"choices":[{"message":{"content":"整理后的句子。"}}]})";
-    REQUIRE_EQ(ApiCredentialTest::detail::ParsePolishedText("整理后的句子。"),
-               metasequoia::voice::parse_polished_text(reply));
-}
-
-TEST_CASE(credential_test_polish_probe_is_plain_text)
-{
-    const std::string prompt = "把口语整理成书面语，不要改变原意。";
-    const VoiceInputConfig config;
-    const auto body = ApiCredentialTest::detail::BuildPolishProbeRequestBody(
-        "some-model", prompt, "custom", "https://relay.example.com/v1/chat/completions", config);
-    REQUIRE_EQ(body["messages"][0]["role"].get<std::string>(), "system");
-    REQUIRE_EQ(body["messages"][0]["content"].get<std::string>(), prompt);
-    REQUIRE_EQ(body["messages"].size(), 2u);
-    // 真实润色把转录文本包在 <asr_text> 里，探测也要一样，否则内置提示词对不上输入形态。
-    REQUIRE_EQ(body["messages"][1]["content"].get<std::string>(),
-               VoiceInput::WrapAsrUserMessage(ApiCredentialTest::detail::kPolishProbeText));
-    // 润色的真实请求不带 response_format，探测也不能带。
-    REQUIRE(!body.contains("response_format"));
-    REQUIRE(!body.contains("max_tokens"));
-    REQUIRE(!body.contains("max_completion_tokens"));
-
-    // 入参与 FetchContent 的返回值一致，是 choices[0].message.content 的文本本身。
-    REQUIRE_EQ(ApiCredentialTest::detail::ParsePolishedText("整理后的句子。"), std::string("整理后的句子。"));
-    REQUIRE_EQ(ApiCredentialTest::detail::ParsePolishedText("  \n整理后的句子。"), std::string("整理后的句子。"));
-    REQUIRE_EQ(ApiCredentialTest::detail::ParsePolishedText("<think>想一下</think>整理后的句子。"),
-               std::string("整理后的句子。"));
-    REQUIRE(ApiCredentialTest::detail::ParsePolishedText("<think>没闭合的思考").empty());
-    REQUIRE(ApiCredentialTest::detail::ParsePolishedText("   ").empty());
-    // 润色的验收只看「剥掉思考段后是不是有文本」，与引擎 parse_polished_text 同口径。
-    // 引擎也不会因为模型把 JSON 当纯文本回出来就判失败，探测不在这里多造一条规则，
-    // 否则又变成探测与正式使用标准不一致。这条断言钉的正是「两边同口径」。
-    REQUIRE_EQ(ApiCredentialTest::detail::ParsePolishedText(R"({"candidates":[{"text":"实施"}]})"),
-               std::string(R"({"candidates":[{"text":"实施"}]})"));
-}

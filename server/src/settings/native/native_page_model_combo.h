@@ -1,6 +1,6 @@
 #pragma once
 
-#include "settings/native/native_page_voice_fields.h"
+#include "settings/native/native_service_fields.h"
 
 #include "msimeui/Controls.h"
 #include "msimeui/DeviceResources.h"
@@ -15,9 +15,9 @@
 #include <vector>
 
 // 模型下拉：`.dropdown-toggle.font-combobox` 加一个可滚动的候选列表，「查询模型」把它填满。
-// AI 联想页与语音润色页共用这一个控件：模型清单端点只依赖 Token 与接口地址
+// AI 联想页使用的模型列表控件：模型清单端点只依赖 Token 与接口地址
 // （见 ApiCredentialTest::FetchModels），两页的差别只在回调里写哪个配置键。
-namespace native_settings::voice_fields
+namespace native_settings::service_fields
 {
 class ModelCombo;
 
@@ -126,4 +126,4 @@ class ModelCombo : public msimeui::Visual
     bool pressed_ = false;
     bool open_ = false;
 };
-} // namespace native_settings::voice_fields
+} // namespace native_settings::service_fields

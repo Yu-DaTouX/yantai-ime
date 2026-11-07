@@ -22,7 +22,6 @@
 #include "ipc/event_listener.h"
 #include "utils/ime_utils.h"
 #include "log/candidate_diag_log.h"
-#include "voice-input/voice_input_service.h"
 
 using namespace ime_windows_detail;
 
@@ -638,7 +637,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const int previous_preedit_font_size = GetConfiguredCandidateWindowPreeditFontSize();
             const std::string previous_cand_text_color = GetConfiguredCandidateTextColor();
             const auto previous_temporary_japanese_policy = FanyNamedPipe::TemporaryJapanesePolicy();
-            const VoiceInputConfig previous_voice_input = GetConfiguredVoiceInput();
             if (ReloadImeConfigIfChanged())
             {
                 // 下面入队的任务会按新字形换写法，切到繁体时先在后台载入转换字典。
@@ -847,15 +845,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                     BroadcastToTsfWorkerThreadViaNamedpipe(
                         Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged,
                         FormatEndHelpcodeTriggersWorkerPayload());
-                }
-                const VoiceInputConfig &voice_input = GetConfiguredVoiceInput();
-                if (previous_voice_input.enabled != voice_input.enabled ||
-                    previous_voice_input.hotkey_ralt != voice_input.hotkey_ralt ||
-                    previous_voice_input.hotkey_ctrl_f9 != voice_input.hotkey_ctrl_f9 ||
-                    previous_voice_input.hotkey_ctrl_win != voice_input.hotkey_ctrl_win ||
-                    previous_voice_input.hotkey_rctrl_ralt != voice_input.hotkey_rctrl_ralt)
-                {
-                    VoiceInput::RefreshKeyboardHook();
                 }
             }
             FanyNamedPipe::EnqueueEnsureInputSessionMatchesConfigTask();

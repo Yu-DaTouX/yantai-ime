@@ -1,4 +1,4 @@
-// 在线服务配置：语音输入（识别与润色的提供商、凭证槽位、热键）、AI 助手、翻译服务（腾讯 TMT、自定义翻译、小牛翻译）
+// 在线服务配置：AI 助手、翻译服务（腾讯 TMT、自定义翻译、小牛翻译）
 // 和这些服务共用的网络代理。
 #include "config/ime_config_internal.h"
 #include <algorithm>
@@ -8,213 +8,9 @@
 #include <string>
 #include "config/ai_provider.h"
 #include "ai/chat_request_params.h"
-#include "voice-input/voice_providers.h"
+#include "ai/provider_utils.h"
 
 using namespace ime_config_detail;
-
-VoiceInputConfig GetConfiguredVoiceInput()
-{
-    return SnapshotVoiceInput();
-}
-
-bool SetConfiguredVoiceInputString(const std::string &key, const std::string &value)
-{
-    if (key == "language" && value != "zh-cn" && value != "en" && value != "auto")
-        return false;
-    if (key == "commit_mode" && value != "tsf" && value != "sendinput" && value != "ctrl_v")
-        return false;
-    if (key == "polish_prompt_id" && value != "cleanup" && value != "faithful" && value != "zh2en" &&
-        value != "casual" && value != "custom_1" && value != "custom_2" && value != "custom_3")
-        return false;
-
-    // Fields are addressed by pointer-to-member rather than by a bare reference because the store has to happen under
-    // the writer lock, while WriteConfiguredValue does file I/O and a cross-process wait that must never run with that
-    // lock held.
-    const auto persist = [](const std::string &toml_key, const std::string &toml_value,
-                            std::string VoiceInputConfig::*field) {
-        if (!WriteConfiguredValue("voice_input", toml_key, EscapeTomlBasicString(toml_value)))
-            return false;
-        std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-        g_voice_input.*field = toml_value;
-        return true;
-    };
-
-    if (key.rfind("asr_token_", 0) == 0)
-    {
-        const std::string provider = key.substr(std::string("asr_token_").size());
-        if (VoiceInput::AsrTokenSlotKey(provider) != key)
-            return false;
-        const std::string id = VoiceInput::NormalizeProviderId(provider);
-        if (!WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(value)))
-            return false;
-        std::string asr_provider;
-        {
-            std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-            g_voice_input.asr_tokens[id] = value;
-            asr_provider = g_voice_input.asr_provider;
-        }
-        if (VoiceInput::NormalizeProviderId(asr_provider) == id)
-            persist("asr_token", value, &VoiceInputConfig::asr_token);
-        return true;
-    }
-    if (key.rfind("polish_token_", 0) == 0)
-    {
-        const std::string provider = key.substr(std::string("polish_token_").size());
-        if (VoiceInput::PolishTokenSlotKey(provider) != key)
-            return false;
-        const std::string id = VoiceInput::NormalizeProviderId(provider);
-        if (!WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(value)))
-            return false;
-        std::string polish_provider;
-        {
-            std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-            g_voice_input.polish_tokens[id] = value;
-            polish_provider = g_voice_input.polish_provider;
-        }
-        if (VoiceInput::NormalizeProviderId(polish_provider) == id)
-            persist("polish_token", value, &VoiceInputConfig::polish_token);
-        return true;
-    }
-
-    std::string VoiceInputConfig::*target = nullptr;
-    if (key == "asr_provider")
-        target = &VoiceInputConfig::asr_provider;
-    else if (key == "asr_app_key")
-        target = &VoiceInputConfig::asr_app_key;
-    else if (key == "doubao_auth_mode")
-        target = &VoiceInputConfig::doubao_auth_mode;
-    else if (key == "asr_token")
-        target = &VoiceInputConfig::asr_token;
-    else if (key == "asr_endpoint")
-        target = &VoiceInputConfig::asr_endpoint;
-    else if (key == "asr_resource_id")
-        target = &VoiceInputConfig::asr_resource_id;
-    else if (key == "doubao_boosting_table_id")
-        target = &VoiceInputConfig::doubao_boosting_table_id;
-    else if (key == "asr_model")
-        target = &VoiceInputConfig::asr_model;
-    else if (key == "polish_provider")
-        target = &VoiceInputConfig::polish_provider;
-    else if (key == "polish_token")
-        target = &VoiceInputConfig::polish_token;
-    else if (key == "polish_endpoint")
-        target = &VoiceInputConfig::polish_endpoint;
-    else if (key == "polish_model")
-        target = &VoiceInputConfig::polish_model;
-    else if (key == "polish_thinking" && VoiceInput::IsValidThinkingLevel(value))
-        target = &VoiceInputConfig::polish_thinking;
-    else if (key == "polish_prompt_id")
-        target = &VoiceInputConfig::polish_prompt_id;
-    else if (key == "polish_prompt")
-        target = &VoiceInputConfig::polish_prompt;
-    else if (key == "polish_prompt_custom_1")
-        target = &VoiceInputConfig::polish_prompt_custom_1;
-    else if (key == "polish_prompt_custom_2")
-        target = &VoiceInputConfig::polish_prompt_custom_2;
-    else if (key == "polish_prompt_custom_3")
-        target = &VoiceInputConfig::polish_prompt_custom_3;
-    else if (key == "language")
-        target = &VoiceInputConfig::language;
-    else if (key == "commit_mode")
-        target = &VoiceInputConfig::commit_mode;
-    if (!target || !WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(value)))
-        return false;
-    {
-        std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-        g_voice_input.*target = value;
-    }
-    if (key == "polish_prompt_custom_1")
-    {
-        WriteConfiguredValue("voice_input", "polish_prompt", EscapeTomlBasicString(""));
-        std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-        g_voice_input.polish_prompt.clear();
-    }
-    if (key == "asr_token")
-    {
-        const std::string asr_provider = SnapshotVoiceInput().asr_provider;
-        const std::string slot = VoiceInput::AsrTokenSlotKey(asr_provider);
-        if (!slot.empty())
-        {
-            const std::string id = VoiceInput::NormalizeProviderId(asr_provider);
-            {
-                std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-                g_voice_input.asr_tokens[id] = value;
-            }
-            WriteConfiguredValue("voice_input", slot, EscapeTomlBasicString(value));
-        }
-    }
-    else if (key == "polish_token")
-    {
-        const std::string polish_provider = SnapshotVoiceInput().polish_provider;
-        const std::string slot = VoiceInput::PolishTokenSlotKey(polish_provider);
-        if (!slot.empty())
-        {
-            const std::string id = VoiceInput::NormalizeProviderId(polish_provider);
-            {
-                std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-                g_voice_input.polish_tokens[id] = value;
-            }
-            WriteConfiguredValue("voice_input", slot, EscapeTomlBasicString(value));
-        }
-    }
-    else if (key == "asr_provider")
-    {
-        persist("asr_token", VoiceInput::ResolveAsrToken(SnapshotVoiceInput()), &VoiceInputConfig::asr_token);
-    }
-    else if (key == "polish_provider")
-    {
-        persist("polish_token", VoiceInput::ResolvePolishToken(SnapshotVoiceInput()), &VoiceInputConfig::polish_token);
-    }
-    return true;
-}
-
-bool SetConfiguredVoiceInputBool(const std::string &key, bool value)
-{
-    bool VoiceInputConfig::*target = nullptr;
-    if (key == "voice_input")
-        target = &VoiceInputConfig::enabled;
-    else if (key == "hotkey_ralt")
-        target = &VoiceInputConfig::hotkey_ralt;
-    else if (key == "hotkey_ctrl_f9")
-        target = &VoiceInputConfig::hotkey_ctrl_f9;
-    else if (key == "hotkey_ctrl_win")
-        target = &VoiceInputConfig::hotkey_ctrl_win;
-    else if (key == "hotkey_rctrl_ralt")
-        target = &VoiceInputConfig::hotkey_rctrl_ralt;
-    else if (key == "hotkey_hold_space_lock")
-        target = &VoiceInputConfig::hotkey_hold_space_lock;
-    else if (key == "start_sound")
-        target = &VoiceInputConfig::start_sound;
-    else if (key == "end_sound")
-        target = &VoiceInputConfig::end_sound;
-    else if (key == "mute_system_audio")
-        target = &VoiceInputConfig::mute_system_audio;
-    else if (key == "doubao_enable_itn")
-        target = &VoiceInputConfig::doubao_enable_itn;
-    else if (key == "doubao_enable_punc")
-        target = &VoiceInputConfig::doubao_enable_punc;
-    else if (key == "doubao_enable_ddc")
-        target = &VoiceInputConfig::doubao_enable_ddc;
-    else if (key == "notification_sound")
-    {
-        // Accept settings pages from older installations during a rolling update.
-        if (!WriteConfiguredValue("voice_input", key, value ? "true" : "false"))
-            return false;
-        std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-        g_voice_input.start_sound = value;
-        g_voice_input.end_sound = value;
-        return true;
-    }
-    else if (key == "polish_text")
-        target = &VoiceInputConfig::polish_text;
-    else if (key == "stream_inline_preedit")
-        target = &VoiceInputConfig::stream_inline_preedit;
-    if (!target || !WriteConfiguredValue("voice_input", key, value ? "true" : "false"))
-        return false;
-    std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-    g_voice_input.*target = value;
-    return true;
-}
 
 const AiAssistantConfig &GetConfiguredAiAssistant()
 {
@@ -544,7 +340,7 @@ static bool ApplyAiAssistantString(const std::string &key, const std::string &va
     // 否则 provider 被 jev 覆盖，用户每次切回生成式都得重新挑一遍。
     if (key == "generate_provider")
     {
-        const std::string provider = VoiceInput::NormalizeProviderId(value);
+        const std::string provider = ProviderUtils::NormalizeProviderId(value);
         const auto registered =
             std::find_if(g_ai_assistant.providers.begin(), g_ai_assistant.providers.end(),
                          [&provider](const AiAssistant::AiProvider &entry) { return entry.id == provider; });
@@ -556,13 +352,13 @@ static bool ApplyAiAssistantString(const std::string &key, const std::string &va
         g_ai_assistant.generate_provider = provider;
         return true;
     }
-    if (key == "thinking" && !VoiceInput::IsValidThinkingLevel(value))
+    if (key == "thinking" && !ProviderUtils::IsValidThinkingLevel(value))
         return false;
     if (key == "json_mode" && !ChatCompletions::IsValidJsonMode(value))
         return false;
     if (key == "provider")
     {
-        const std::string provider = VoiceInput::NormalizeProviderId(value);
+        const std::string provider = ProviderUtils::NormalizeProviderId(value);
         const auto registered =
             std::find_if(g_ai_assistant.providers.begin(), g_ai_assistant.providers.end(),
                          [&provider](const AiAssistant::AiProvider &entry) { return entry.id == provider; });
@@ -640,7 +436,7 @@ static bool ApplyAiAssistantString(const std::string &key, const std::string &va
     if (key.rfind("token_", 0) == 0)
     {
         const std::string provider = key.substr(std::string("token_").size());
-        const std::string id = VoiceInput::NormalizeProviderId(provider);
+        const std::string id = ProviderUtils::NormalizeProviderId(provider);
         // 不用 Token 的服务商（Ollama 的本机服务）没有槽位：拒绝写入，免得 config.toml 里多一个谁都不读的空值。
         if (!AiAssistant::ProviderUsesToken(id))
             return false;
@@ -709,7 +505,7 @@ bool SetConfiguredAiAssistantString(const std::string &key, const std::string &v
 
 bool SetConfiguredAiAssistantProviderValue(std::string_view provider, std::string_view field, const std::string &value)
 {
-    const std::string id = VoiceInput::NormalizeProviderId(provider);
+    const std::string id = ProviderUtils::NormalizeProviderId(provider);
     if (field != "endpoint" && field != "model")
         return false;
     const bool builtin = !AiAssistantTokenSlotKey(id).empty();

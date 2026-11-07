@@ -14,58 +14,6 @@
 #include <string_view>
 #include <vector>
 
-struct VoiceInputConfig
-{
-    bool enabled = false;
-    bool hotkey_ralt = true;
-    bool hotkey_ctrl_f9 = true;
-    bool hotkey_ctrl_win = false;
-    bool hotkey_rctrl_ralt = false;
-    bool hotkey_hold_space_lock = true;
-    // doubao | openai | siliconflow | groq
-    std::string asr_provider = "doubao";
-    // Doubao console generation: api_key (new console, single API Key) | legacy (App ID + Access Token).
-    // Empty means "infer from asr_app_key", which keeps configs written before this setting working.
-    std::string doubao_auth_mode = "api_key";
-    std::string asr_app_key;
-    std::string asr_token;
-    // Per-provider tokens so switching ASR/polish providers restores the matching key.
-    std::map<std::string, std::string> asr_tokens;
-    std::string asr_endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
-    std::string asr_resource_id = "volc.seedasr.sauc.duration";
-    bool doubao_enable_itn = true;
-    bool doubao_enable_punc = true;
-    bool doubao_enable_ddc = false;
-    std::string doubao_boosting_table_id;
-    // OpenAI-compatible transcriptions model. Unused for doubao streaming.
-    std::string asr_model;
-    // siliconflow | openai | deepseek | groq
-    std::string polish_provider = "siliconflow";
-    std::string polish_token;
-    std::map<std::string, std::string> polish_tokens;
-    std::string polish_endpoint = "https://api.siliconflow.cn/v1/chat/completions";
-    std::string polish_model;
-    // DeepSeek reasoning effort: disabled | low | high | max. Other providers ignore it.
-    std::string polish_thinking = "disabled";
-    // cleanup | faithful | zh2en | casual | custom_1 | custom_2 | custom_3
-    std::string polish_prompt_id = "cleanup";
-    // Legacy single custom prompt. Retained for config compatibility.
-    std::string polish_prompt;
-    std::string polish_prompt_custom_1;
-    std::string polish_prompt_custom_2;
-    std::string polish_prompt_custom_3;
-    std::string language = "zh-cn";
-    bool start_sound = true;
-    bool end_sound = true;
-    // Temporarily mute other apps' playback while the microphone is recording.
-    bool mute_system_audio = false;
-    bool polish_text = false;
-    // When true, Doubao streaming partials are shown as TSF inline preedit.
-    bool stream_inline_preedit = false;
-    // tsf | sendinput | ctrl_v
-    std::string commit_mode = "tsf";
-};
-
 struct AiAssistantConfig
 {
     bool enabled = false;
@@ -208,7 +156,7 @@ struct TranslationConfig
     } ai;
 };
 
-// [network] 段：云输入、模型下载、AI、翻译、语音等所有出站请求共用的代理设置。
+// [network] 段：云输入、模型下载、AI、翻译等所有出站请求共用的代理设置。
 struct NetworkProxyConfig
 {
     std::string mode = "system"; // system（跟随系统）| none（直连）| custom（自定义 HTTP 代理）
@@ -732,16 +680,9 @@ const std::string &GetConfiguredThemeFtb();
 bool SetConfiguredThemeFtb(const std::string &theme);
 const std::string &GetConfiguredThemeMenu();
 bool SetConfiguredThemeMenu(const std::string &theme);
-const std::string &GetConfiguredThemeVoice();
-bool SetConfiguredThemeVoice(const std::string &theme);
 // Resolve effective "dark" / "light" for a surface override ("follow" | "dark" | "light").
 std::string ResolveConfiguredTheme(const std::string &surface_theme);
 bool IsSystemAppsLightTheme();
-// Returns a snapshot by value: the backing config is rewritten by the IPC worker thread while the voice control thread
-// and the low-level keyboard hook read it, so callers must never hold a reference into it.
-VoiceInputConfig GetConfiguredVoiceInput();
-bool SetConfiguredVoiceInputString(const std::string &key, const std::string &value);
-bool SetConfiguredVoiceInputBool(const std::string &key, bool value);
 const AiAssistantConfig &GetConfiguredAiAssistant();
 // Replaces the whole provider registry (settings page "save providers"). Persists the store,
 // keeps the active provider valid (falls back to the first entry when it disappeared) and

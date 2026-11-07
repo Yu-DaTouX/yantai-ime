@@ -28,7 +28,6 @@
 #include "window/candidate_skin_layers.h"
 #include "utils/common_utils.h"
 #include "utils/single_instance.h"
-#include "voice-input/voice_providers.h"
 
 #include <boost/json.hpp>
 #include <dwmapi.h>
@@ -286,7 +285,6 @@ nlohmann::json BuildInputStateShortcutMetadata()
 std::wstring BuildConfigMessage(bool refresh_skin_catalog)
 {
 
-    const VoiceInputConfig &voice = GetConfiguredVoiceInput();
     const AiAssistantConfig &ai = GetConfiguredAiAssistant();
     const TencentTmtConfig &tencent_tmt = GetConfiguredTencentTmt();
     const CustomTranslationConfig &custom_translation = GetConfiguredCustomTranslation();
@@ -330,13 +328,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             skin_issues.push_back({{"folder", issue.folder},
                                    {"reason", issue.reason},
                                    {"noticed", issue.kind == CandidateSkinCatalog::Issue::Kind::Noticed}});
-    }
-    nlohmann::json polish_presets = nlohmann::json::array();
-    for (const auto &preset : VoiceInput::BuiltinPolishPromptPresets())
-    {
-        polish_presets.push_back({{"id", std::string(preset.id)},
-                                  {"name", std::string(preset.name)},
-                                  {"prompt", std::string(preset.prompt)}});
     }
     // 规则位取不门控视图：总开关关闭时复选框仍要展示用户已存的勾选；
     // 总开关本身单独下发。
@@ -520,7 +511,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"theme_cand", GetConfiguredThemeCand()},
             {"theme_ftb", GetConfiguredThemeFtb()},
             {"theme_menu", GetConfiguredThemeMenu()},
-            {"theme_voice", GetConfiguredThemeVoice()},
             {"page_size", GetConfiguredCandidatePageSize()},
             {"font", GetConfiguredCandidateFont()},
             {"font_css_family", ResolveSystemFontFamilyForCss(GetConfiguredCandidateFont())},
@@ -539,44 +529,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_skin_catalog_scanned", g_candidate_skin_catalog.has_value()},
             {"candidate_skin_catalog_revision", g_candidate_skin_catalog_revision},
             {"candidate_skin_directory", skins_root.u8string()}}},
-          {"voice_input",
-           {{"enabled", voice.enabled},
-            {"hotkey_ralt", voice.hotkey_ralt},
-            {"hotkey_ctrl_f9", voice.hotkey_ctrl_f9},
-            {"hotkey_ctrl_win", voice.hotkey_ctrl_win},
-            {"hotkey_rctrl_ralt", voice.hotkey_rctrl_ralt},
-            {"hotkey_hold_space_lock", voice.hotkey_hold_space_lock},
-            {"asr_provider", voice.asr_provider},
-            {"doubao_auth_mode", voice.doubao_auth_mode},
-            {"asr_app_key", voice.asr_app_key},
-            {"asr_token", voice.asr_token},
-            {"asr_tokens", voice.asr_tokens},
-            {"asr_endpoint", voice.asr_endpoint},
-            {"asr_resource_id", voice.asr_resource_id},
-            {"doubao_enable_itn", voice.doubao_enable_itn},
-            {"doubao_enable_punc", voice.doubao_enable_punc},
-            {"doubao_enable_ddc", voice.doubao_enable_ddc},
-            {"doubao_boosting_table_id", voice.doubao_boosting_table_id},
-            {"asr_model", voice.asr_model},
-            {"polish_provider", voice.polish_provider},
-            {"polish_token", voice.polish_token},
-            {"polish_tokens", voice.polish_tokens},
-            {"polish_endpoint", voice.polish_endpoint},
-            {"polish_model", voice.polish_model},
-            {"polish_thinking", voice.polish_thinking},
-            {"polish_prompt_id", voice.polish_prompt_id},
-            {"polish_prompt", voice.polish_prompt},
-            {"polish_prompt_custom_1", voice.polish_prompt_custom_1},
-            {"polish_prompt_custom_2", voice.polish_prompt_custom_2},
-            {"polish_prompt_custom_3", voice.polish_prompt_custom_3},
-            {"language", voice.language},
-            {"start_sound", voice.start_sound},
-            {"end_sound", voice.end_sound},
-            {"mute_system_audio", voice.mute_system_audio},
-            {"notification_sound", voice.start_sound && voice.end_sound},
-            {"polish_text", voice.polish_text},
-            {"stream_inline_preedit", voice.stream_inline_preedit},
-            {"commit_mode", voice.commit_mode}}},
           {"ai_assistant",
            {{"enabled", ai.enabled},
             {"provider", ai.provider},
@@ -636,7 +588,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"autocorrect_insertion", GetConfiguredQuanpinAutocorrectInsertion()},
             {"autocorrect_marker", GetConfiguredQuanpinAutocorrectMarker()}}},
           }}};
-    payload["data"]["voice_input"]["polish_presets"] = std::move(polish_presets);
     payload["data"]["helpcode"]["custom_schemas"] = CustomHelpcodeSchemasJson();
     payload["data"]["helpcode"]["custom_directory"] = GetCustomHelpcodeDirectory();
     payload["data"]["input"]["custom_shuangpin_schemas"] = CustomShuangpinSchemasJson();
@@ -798,8 +749,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredThemeFtb(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.theme_menu")
         return SetConfiguredThemeMenu(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.theme_voice")
-        return SetConfiguredThemeVoice(json::value_to<std::string>(data.at("value")));
     if (path == "general.floating_toolbar")
         return SetConfiguredFloatingToolbarEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.caret_state_indicator")
@@ -950,18 +899,6 @@ bool ApplyConfigUpdate(const json::object &data)
             return SetConfiguredFrequencyAdjustmentString(key, json::value_to<std::string>(value));
         if (value.is_int64())
             return SetConfiguredFrequencyAdjustmentInt(key, static_cast<int>(value.as_int64()));
-        return false;
-    }
-    if (path.rfind("voice_input.", 0) == 0)
-    {
-        const std::string key = path.substr(12);
-        const json::value &value = data.at("value");
-        if (value.is_bool())
-        {
-            return SetConfiguredVoiceInputBool(key, json::value_to<bool>(value));
-        }
-        if (value.is_string())
-            return SetConfiguredVoiceInputString(key, json::value_to<std::string>(value));
         return false;
     }
     if (path.rfind("ai_assistant.", 0) == 0)

@@ -100,11 +100,8 @@ STDAPI CMetasequoiaIME::OnSetFocus(_In_ ITfDocumentMgr *pDocMgrFocus, _In_ ITfDo
 
     const bool windowsTextInputHostTransition =
         _focusLostToWindowsTextInputHost || _CaptureWindowsTextInputHostFocusLoss();
-    // Voice previews must also be cancelled on their old context when focus
-    // leaves for a desktop/button with no document. Preserve transient-NULL
-    // behavior for ordinary IME compositions and the existing Win+. exception.
-    if ((pDocMgrFocus || (_voiceCompositionActive && !windowsTextInputHostTransition)) && _pContext && _IsComposing() &&
-        !_localSessionResetPending.load(std::memory_order_acquire))
+    // Preserve transient-NULL behavior for ordinary IME compositions.
+    if (pDocMgrFocus && _pContext && _IsComposing() && !_localSessionResetPending.load(std::memory_order_acquire))
     {
         ITfDocumentMgr *compositionDocumentMgr = nullptr;
         const HRESULT ownerHr = _pContext->GetDocumentMgr(&compositionDocumentMgr);

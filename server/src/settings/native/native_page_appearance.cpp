@@ -657,7 +657,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
         details->Add(SurfaceRow(context, L"候选窗口主题", "appearance.theme_cand"));
         details->Add(SurfaceRow(context, L"悬浮工具栏主题", "appearance.theme_ftb"));
         details->Add(SurfaceRow(context, L"菜单主题", "appearance.theme_menu"));
-        details->Add(SurfaceRow(context, L"语音输入弹出条主题", "appearance.theme_voice"));
         // .theme-surface-details { margin: 4px 0 0 18px }
         details->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
         auto hideable = std::make_shared<Hideable>(details, false);
