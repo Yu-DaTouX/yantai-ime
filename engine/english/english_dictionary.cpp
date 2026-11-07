@@ -276,7 +276,13 @@ bool EnglishDictionary::ensure_schema(const std::string &db_path)
                            sqlite3_exec(database, "DROP TABLE english_words", nullptr, nullptr, nullptr) == SQLITE_OK &&
                            sqlite3_exec(database, "ALTER TABLE english_words_new RENAME TO english_words", nullptr,
                                         nullptr, nullptr) == SQLITE_OK;
-        sqlite3_exec(database, english_words_ok ? "COMMIT" : "ROLLBACK", nullptr, nullptr, nullptr);
+        // A reader can let BEGIN IMMEDIATE and all migration statements succeed
+        // but prevent COMMIT from acquiring its exclusive lock. Never report
+        // success for changes that sqlite3_close would silently roll back.
+        if (english_words_ok)
+            english_words_ok = sqlite3_exec(database, "COMMIT", nullptr, nullptr, nullptr) == SQLITE_OK;
+        if (!english_words_ok)
+            sqlite3_exec(database, "ROLLBACK", nullptr, nullptr, nullptr);
     }
 
     const bool gloss_tables_ok =

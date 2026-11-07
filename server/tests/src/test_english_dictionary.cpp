@@ -6,6 +6,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sqlite3.h>
 #include <stdexcept>
 #include <string>
@@ -129,6 +130,28 @@ TEST_CASE(EnglishDictionaryMigratesLegacySchemaAndSupportsMultipleDisplaysPerKey
     REQUIRE_EQ(candidates[0].pinyin, std::string("hello"));
     REQUIRE_EQ(candidates[0].word, std::string("Hello"));
     REQUIRE_EQ(candidates[1].word, std::string("hello"));
+}
+
+TEST_CASE(EnglishDictionaryMigrationReportsCommitFailureAndCanRetry)
+{
+    TemporaryEnglishDatabase database;
+    database.execute("PRAGMA journal_mode=DELETE;");
+    sqlite3 *raw = nullptr;
+    const int opened = sqlite3_open(test::Utf8(database.path()).c_str(), &raw);
+    std::unique_ptr<sqlite3, decltype(&sqlite3_close)> reader(raw, sqlite3_close);
+    REQUIRE_EQ(opened, SQLITE_OK);
+    REQUIRE_EQ(sqlite3_exec(reader.get(), "BEGIN; SELECT count(*) FROM english_words;", nullptr, nullptr, nullptr),
+               SQLITE_OK);
+
+    // The shared read lock permits the migration's reserved write lock, but
+    // prevents its final COMMIT. A successful return here would be a lie:
+    // closing the migration connection rolls all its schema changes back.
+    REQUIRE(!EnglishDictionary::ensure_schema(test::Utf8(database.path())));
+    REQUIRE_EQ(sqlite3_exec(reader.get(), "ROLLBACK", nullptr, nullptr, nullptr), SQLITE_OK);
+    reader.reset();
+    REQUIRE(EnglishDictionary::ensure_schema(test::Utf8(database.path())));
+    EnglishDictionary dictionary(test::Utf8(database.path()), false);
+    REQUIRE_EQ(dictionary.query_prefix("hel", 10).size(), size_t{5});
 }
 
 TEST_CASE(EnglishDictionaryMixedPrefixBudgetsDistinctWordsAndKeepsAttestedForms)

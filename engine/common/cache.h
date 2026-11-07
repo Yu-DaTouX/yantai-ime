@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <iterator>
 #include <list>
 #include <optional>
 #include <unordered_map>
@@ -13,11 +15,17 @@ template <typename Key, typename Value> class CircularBuffer
 
     void insert(const Key &key, const Value &value)
     {
+        if (_capacity == 0)
+        {
+            return;
+        }
+
         auto it = _map.find(key);
 
         if (it != _map.end())
         {
             it->second.first = value;
+            _list.splice(_list.end(), _list, it->second.second);
             return;
         }
 

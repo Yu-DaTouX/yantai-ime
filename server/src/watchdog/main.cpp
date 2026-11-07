@@ -91,6 +91,10 @@ std::wstring GetExecutableDirectory()
 
 HANDLE FindRunningServer(const std::wstring &expected_path)
 {
+    DWORD current_session_id = 0;
+    if (!ProcessIdToSessionId(GetCurrentProcessId(), &current_session_id))
+        return nullptr;
+
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE)
         return nullptr;
@@ -102,6 +106,14 @@ HANDLE FindRunningServer(const std::wstring &expected_path)
         do
         {
             if (_wcsicmp(entry.szExeFile, kServerFileName) != 0)
+                continue;
+
+            // The same installation can run in several interactive logon sessions.
+            // Waiting on another session's Server leaves this user's crashed Server
+            // unrestarted until that unrelated process exits.
+            DWORD process_session_id = 0;
+            if (!ProcessIdToSessionId(entry.th32ProcessID, &process_session_id) ||
+                process_session_id != current_session_id)
                 continue;
 
             HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
