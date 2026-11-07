@@ -36,7 +36,6 @@ export type ClientMessage =
   | { "type": "apiModelList"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "ai.assistant" | "voice.asr" | "voice.polish"; "config": { [key: string]: unknown } } }
   | { "type": "aiProviderSync"; "protocolVersion"?: 1; "data": { "requestId": string; "entries": Array<{ "id": string; "name": string; "endpoint": string; "token": string; "model": string }> } }
   | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
-  | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
   | { "type": "candidate"; "protocolVersion"?: 1; "data": number }
@@ -113,7 +112,6 @@ export type SettingsMessage =
   | { "type": "apiModelList"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "ai.assistant" | "voice.asr" | "voice.polish"; "config": { [key: string]: unknown } } }
   | { "type": "aiProviderSync"; "protocolVersion"?: 1; "data": { "requestId": string; "entries": Array<{ "id": string; "name": string; "endpoint": string; "token": string; "model": string }> } }
   | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
-  | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } };
 declare global {

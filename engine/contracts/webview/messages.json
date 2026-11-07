@@ -518,32 +518,6 @@
         "additionalProperties": false
       }
     },
-    "statsRequest": {
-      "surfaces": [
-        "settings"
-      ],
-      "data": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "overview",
-              "clearAll",
-              "openDirectory"
-            ]
-          }
-        },
-        "required": [
-          "requestId",
-          "action"
-        ],
-        "additionalProperties": false
-      }
-    },
     "defaultImeRequest": {
       "surfaces": [
         "settings"
