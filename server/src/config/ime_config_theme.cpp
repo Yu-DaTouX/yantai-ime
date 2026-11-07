@@ -119,13 +119,3 @@ bool SetConfiguredThemeMenu(const std::string &theme)
 {
     return SetSurfaceThemeValue("theme_menu", theme, g_theme_menu);
 }
-
-const std::string &GetConfiguredThemeVoice()
-{
-    return g_theme_voice;
-}
-
-bool SetConfiguredThemeVoice(const std::string &theme)
-{
-    return SetSurfaceThemeValue("theme_voice", theme, g_theme_voice);
-}

@@ -230,7 +230,6 @@ const std::vector<PageInfo> &Pages()
         {"shortcut", L"快捷键", L"sidebar/shortcut.svg", &BuildShortcutPage},
         {"dict", L"词库", L"sidebar/dictionary.svg", &BuildDictionaryPage},
         {"skin", L"皮肤", L"sidebar/skin.svg", &BuildSkinPage},
-        {"voice", L"语音输入", L"sidebar/voice_input.svg", &BuildVoicePage},
         {"tools-settings", L"实用功能", L"sidebar/utilities.svg", &BuildToolsPage},
         {"ai-settings", L"AI 与云联想", L"sidebar/ai.svg", &BuildAiPage},
         {"floating-toolbar", L"悬浮工具栏", L"sidebar/floating_toolbar.svg", &BuildFloatingToolbarPage},

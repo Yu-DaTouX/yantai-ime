@@ -148,8 +148,6 @@ find_package(ZLIB REQUIRED)
 # still register.
 set(_metasequoia_saved_build_testing "${BUILD_TESTING}")
 set(BUILD_TESTING OFF)
-set(METASEQUOIA_IME_BUILD_VOICE ON CACHE BOOL "" FORCE)
-set(MSIME_VOICE_CAPTURE ON CACHE BOOL "" FORCE)
 add_subdirectory("${MSIME_ENGINE_DIR}" "${CMAKE_BINARY_DIR}/engine" EXCLUDE_FROM_ALL)
 set(BUILD_TESTING "${_metasequoia_saved_build_testing}")
 unset(_metasequoia_saved_build_testing)
@@ -303,9 +301,6 @@ set(SRC_FILES
     "./src/ipc/event_listener_worker.cpp"
     "./src/ipc/ipc.cpp"
     "./src/ipc/ipc.h"
-    "./src/ipc/voice_composition_pipe.h"
-    "./src/ipc/voice_control_dispatch.cpp"
-    "./src/ipc/voice_control_dispatch.h"
     "./src/mixed/date_time_candidates.h"
     "./src/mixed/mixed_candidates.cpp"
     "./src/mixed/mixed_candidates.h"
@@ -396,28 +391,8 @@ set(SRC_FILES
     "./src/window/small_windows.h"
     "./src/window/window_hook.cpp"
     "./src/window/window_hook.h"
-    "./src/voice-input/voice_input_service.cpp"
-    "./src/voice-input/voice_input_service.h"
-    "./src/voice-input/system_audio_muter.cpp"
-    "./src/voice-input/system_audio_muter.h"
-    "./src/voice-input/doubao_asr_client.cpp"
-    "./src/voice-input/doubao_asr_client.h"
-    "./src/voice-input/voice_batch_protocol.cpp"
-    "./src/voice-input/voice_providers.cpp"
-    "./src/voice-input/voice_providers.h"
-    "./src/voice-input/wave_overlay.cpp"
-    "./src/voice-input/wave_overlay.h"
-    "./src/voice-input/cue_player.cpp"
-    "./src/voice-input/cue_player.h"
-    "./src/voice-input/mvi_utils.h"
-    "./src/voice-input/voice_input_overlay_utils.cpp"
-    "./src/voice-input/voice_target.cpp"
-    "./src/voice-input/voice_target.h"
-    "./src/voice-input/voice_result_card.cpp"
-    "./src/voice-input/voice_result_card.h"
-    "./src/voice-input/voice_result_card_model.h"
-    "./src/voice-input/voice_overlay_layout.h"
-    "./src/voice-input/voice_commit_policy.h"
+    "./src/ai/provider_utils.cpp"
+    "./src/ai/provider_utils.h"
     "./src/main.cpp"
 )
 
@@ -429,11 +404,9 @@ add_executable(${MY_EXECUTABLE_NAME} WIN32
 target_include_directories(${PROJECT_NAME}
     PRIVATE
     "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include"
-    "${CMAKE_SOURCE_DIR}/src/voice-input"
-    "${MSIME_ENGINE_DIR}/voice/third_party/miniaudio"
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE MetasequoiaIme::Engine MetasequoiaIme::Voice MetasequoiaIme::VoiceCapture)
+target_link_libraries(${PROJECT_NAME} PRIVATE MetasequoiaIme::Engine)
 target_link_libraries(${PROJECT_NAME} PRIVATE unofficial::sqlite3::sqlite3 fmt::fmt spdlog::spdlog Boost::locale Boost::json nlohmann_json::nlohmann_json)
 # U 模式候选的注音（utils/hanzi_pinyin）与设置页的导入注音共用 cpp-pinyin。
 target_link_libraries(${PROJECT_NAME} PRIVATE cpp-pinyin::cpp-pinyin)
@@ -548,9 +521,8 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/native/native_page_skin_common.cpp"
     "./src/settings/native/native_page_skin_common.h"
     "./src/settings/native/native_page_skin_widgets.cpp"
-    "./src/settings/native/native_page_voice.cpp"
-    "./src/settings/native/native_page_voice_fields.cpp"
-    "./src/settings/native/native_page_voice_fields.h"
+    "./src/settings/native/native_service_fields.cpp"
+    "./src/settings/native/native_service_fields.h"
     "./src/settings/native/native_page_tools.cpp"
     "./src/settings/native/native_page_ai.cpp"
     "./src/settings/native/native_page_floating_toolbar.cpp"
@@ -619,10 +591,8 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/cloud/tencent_tmt.h"
     "./src/cloud/translation_gloss.cpp"
     "./src/cloud/translation_gloss.h"
-    "./src/voice-input/doubao_asr_client.cpp"
-    "./src/voice-input/doubao_asr_client.h"
-    "./src/voice-input/voice_providers.cpp"
-    "./src/voice-input/voice_providers.h"
+    "./src/ai/provider_utils.cpp"
+    "./src/ai/provider_utils.h"
     "./src/clipboard/clipboard_history.cpp"
     "./src/clipboard/clipboard_history.h"
     "./src/utils/common_utils.cpp"
@@ -692,12 +662,6 @@ set(MSIME_OPENCC_RUNTIME_FILES
 
 # Runtime assets next to the executable
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/audios
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/assets/audios/start.mp3
-        ${CMAKE_SOURCE_DIR}/assets/audios/end.mp3
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/audios
     COMMAND ${CMAKE_COMMAND} -E make_directory
         $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/opencc
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

@@ -8,10 +8,10 @@
 #include <string>
 #include <vector>
 
-// Pieces shared by the voice input and AI assistant pages: the `.voice-grid` /
+// Service settings controls: the
 // `.ai-grid` form (labelled fields in two columns), the sunken inputs with their reveal
 // toggle, the small secondary buttons and the credential test row.
-namespace native_settings::voice_fields
+namespace native_settings::service_fields
 {
 // Font of a grid field: `font: inherit` from the 12px / 500 field label.
 TextStyle FieldTextStyle(float size = 12.0f, bool medium = true);
@@ -23,7 +23,7 @@ inline float MonospaceTokenSpacing(float size = 12.0f)
     return -0.1f * 0.55f * size;
 }
 
-// Sunken input (`.voice-grid input`, `.ai-grid input`, `.voice-prompt`, `.ai-prompt`):
+// Sunken input (`.ai-grid input`, `.ai-prompt`):
 // --surface-sunken fill, --control-border, 6px radius; focused it turns --control-bg with
 // an accent border and a 2px accent ring. Wraps msimeui's TSF text box.
 class InputBox : public msimeui::Visual
@@ -36,7 +36,7 @@ class InputBox : public msimeui::Visual
         float height = 0.0f;
         bool multiline = false;
         bool password = false;
-        // `.voice-secret-toggle` eye button on the right.
+        // Secret reveal eye button on the right.
         bool reveal = false;
         float paddingX = 12.0f;
         float paddingY = 10.0f;
@@ -111,7 +111,7 @@ class Field : public Column
     std::shared_ptr<Label> label_;
 };
 
-// `.voice-grid` / `.ai-grid`: two equal columns, 16px gaps, auto placement; wide items
+// `.ai-grid`: two equal columns, 16px gaps, auto placement; wide items
 // span both columns and hidden (Hideable) items leave the flow.
 class FormGrid : public msimeui::Panel
 {
@@ -195,7 +195,7 @@ class PlainButton : public msimeui::Visual
 PlainButton::Style CredentialButtonStyle();
 // `.ai-model-fetch-button`.
 PlainButton::Style ModelFetchButtonStyle();
-// `.voice-prompt-reset`.
+// Prompt reset.
 PlainButton::Style PromptResetButtonStyle();
 
 // `.credential-test-status` / `.ai-model-fetch-status`: 12px / 1.45, muted, green on
@@ -255,7 +255,7 @@ class CredentialTest
     UINT_PTR timer_ = 0;
 };
 
-// Text + rotating chevron toggle without the section-title style (`.voice-sound-expand`).
+// Text + rotating chevron toggle without the section-title style (plain section toggle).
 class PlainExpander : public msimeui::Visual
 {
   public:
@@ -329,4 +329,4 @@ struct ActiveAiConfig
 };
 ActiveAiConfig ReadActiveAiConfig(const SettingsModel &model);
 bool AiProviderIsJev(const std::string &provider);
-} // namespace native_settings::voice_fields
+} // namespace native_settings::service_fields

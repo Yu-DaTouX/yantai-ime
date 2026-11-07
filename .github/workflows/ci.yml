@@ -31,12 +31,6 @@ jobs:
         run: python3 scripts/check-dictionary-contract.py
       - name: Check product-lock contract
         run: python3 scripts/check-product-lock-contract.py
-      # The voice activity detector is committed rather than downloaded, and it is executed inside
-      # the IME process. The engine's own voice.yml used to re-check its digest; that workflow left
-      # with the submodule, so the check moves here rather than disappearing.
-      - name: Check the committed voice model against its recorded digest
-        run: |
-          echo '1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3  engine/voice/assets/models/silero_vad.onnx' | sha256sum --check --strict
       - name: Test rejection of changed or mismatched inputs
         run: python3 -m unittest discover -s tests -p 'test_product_lock.py'
       - name: Test local environment setup in a moved checkout

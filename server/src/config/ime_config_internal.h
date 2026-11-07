@@ -272,9 +272,6 @@ extern std::string g_theme_settings;
 extern std::string g_theme_cand;
 extern std::string g_theme_ftb;
 extern std::string g_theme_menu;
-extern std::string g_theme_voice;
-extern std::shared_mutex g_voice_input_mutex;
-extern VoiceInputConfig g_voice_input;
 extern AiAssistantConfig g_ai_assistant;
 extern TencentTmtConfig g_tencent_tmt;
 extern AliyunMtConfig g_aliyun_mt;
@@ -293,7 +290,6 @@ void RefreshEffectiveTsfPreeditStyle();
 // ime_config_shuangpin.cpp：内置方案直接返回 true；自定义方案重新读文件、解析并登记给引擎，
 // 文件缺失或写错时返回 false，调用方据此回落到小鹤。
 bool LoadShuangpinSchema(const std::string &schema);
-VoiceInputConfig SnapshotVoiceInput();
 bool IsValidCandidateSkinId(const std::string &skin);
 bool IsValidCandidateFixedBadgeStyle(const std::string &style);
 bool IsValidCandidateAiBadgeStyle(const std::string &style);

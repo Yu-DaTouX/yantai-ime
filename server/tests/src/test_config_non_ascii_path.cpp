@@ -1591,7 +1591,6 @@ TEST_CASE(deepseek_thinking_levels_default_disabled_and_round_trip)
         const std::string installed((std::istreambuf_iterator<char>(input)), {});
         const auto parsed = toml::parse(installed);
         REQUIRE_EQ(parsed["ai_assistant"]["thinking"].value_or(std::string()), std::string("disabled"));
-        REQUIRE_EQ(parsed["voice_input"]["polish_thinking"].value_or(std::string()), std::string("disabled"));
     }
 
     namespace fs = std::filesystem;
@@ -1608,28 +1607,22 @@ TEST_CASE(deepseek_thinking_levels_default_disabled_and_round_trip)
 
         InitImeConfig();
         REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
-        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
 
         WriteText(data_dir / L"config.toml",
                   "[ai_assistant]\nthinking = \"medium\"\n[voice_input]\npolish_thinking = \"ultra\"\n");
         InitImeConfig();
         REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
-        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
 
         const std::string before_invalid_set = ReadText(data_dir / L"config.toml");
         REQUIRE(!SetConfiguredAiAssistantString("thinking", "medium"));
-        REQUIRE(!SetConfiguredVoiceInputString("polish_thinking", "ultra"));
         REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
-        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
         REQUIRE_EQ(ReadText(data_dir / L"config.toml"), before_invalid_set);
 
         for (const char *value : {"low", "high", "max", "disabled"})
         {
             REQUIRE(SetConfiguredAiAssistantString("thinking", value));
-            REQUIRE(SetConfiguredVoiceInputString("polish_thinking", value));
             InitImeConfig();
             REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string(value));
-            REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string(value));
         }
     }
 

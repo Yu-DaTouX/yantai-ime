@@ -1,7 +1,7 @@
 #pragma once
 
 // 出站请求的代理接入点。Server 侧所有联网路径（云输入、octagram 模型下载、AI 联想、翻译、
-// 语音识别与润色、设置页的凭证测试）都经这里按 [network] 配置挑代理，不要在调用点各自
+// 设置页的凭证测试）都经这里按 [network] 配置挑代理，不要在调用点各自
 // WinHttpOpen / 依赖 libcurl 的默认值：
 //
 // - system：WinHTTP 用 AUTOMATIC_PROXY（读用户的系统代理与 PAC，旧代码的 DEFAULT_PROXY

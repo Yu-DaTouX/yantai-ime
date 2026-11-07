@@ -274,11 +274,6 @@ CMetasequoiaIME::CMetasequoiaIME()
     _expectedWorkerFocusToken.store(0);
     _acknowledgedWorkerFocusToken.store(0);
     _compositionEpoch.store(1);
-    _voiceCompositionAssemble.clear();
-    _voiceCompositionAssembleMsg = 0;
-    _voiceCompositionAssembleGeneration = 0;
-    _voiceCompositionAssembleActive = false;
-    _voiceCompositionActive = false;
     _localSessionResetPending.store(false);
     _localSessionResetToken.store(0);
     _localResetEditSessionQueued = false;

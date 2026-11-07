@@ -25,7 +25,6 @@ inline const wchar_t *FANY_IME_AUX_NAMED_PIPE = L"\\\\.\\pipe\\FanyImeAuxNamedPi
 inline const wchar_t *FANY_IME_TSF_DIAGNOSTIC_NAMED_PIPE = L"\\\\.\\pipe\\FanyImeTsfDiagnosticNamedPipe";
 // Dedicated Tauri-to-Server voice lifecycle channel. It never carries TSF
 // frames and cannot be confused with the legacy Aux endpoint.
-inline const wchar_t *FANY_IME_VOICE_CONTROL_NAMED_PIPE = L"\\\\.\\pipe\\FanyImeVoiceControlNamedPipe";
 inline constexpr uint32_t FANY_IME_TSF_DIAGNOSTIC_MAGIC = 0x474F4C54; // "TLOG"
 inline constexpr uint32_t FANY_IME_TSF_DIAGNOSTIC_VERSION = 1;
 inline constexpr size_t FANY_IME_TSF_DIAGNOSTIC_MAX_FRAME_BYTES = 16 * 1024;
@@ -202,17 +201,6 @@ constexpr std::uint32_t ToTsf = 1;
 constexpr std::uint32_t ToTsfWorkerThread = 2;
 } // namespace FanyImePipeRole
 
-// Tauri-to-Server voice lifecycle commands. Consumers must authenticate the
-// client_id and activation epoch with the registered pipe lease; generation
-// is a non-zero session value used to reject stale cancellation requests.
-namespace FanyImeVoiceControl
-{
-constexpr std::uint32_t Start = 1;
-constexpr std::uint32_t Stop = 2;
-constexpr std::uint32_t Cancel = 3;
-constexpr std::size_t MaxMessageChars = 96;
-} // namespace FanyImeVoiceControl
-
 struct alignas(8) FanyImePipeHello
 {
     uint64_t client_id = 0;
@@ -382,7 +370,7 @@ constexpr std::uint32_t FocusSessionReady = 8;
 // Worker-endpoint registration acknowledgement. It is consumed before the
 // handle is published to IpcWorkerThread and before Main can be opened.
 constexpr std::uint32_t PipeReady = 9;
-// Unsolicited text insert (voice ASR, etc.). Does not finalize candidates.
+// Reserved opcode from removed voice text insertion. Never send or reuse.
 constexpr std::uint32_t InsertText = 10;
 // Master switch for the reversible Chinese/ASCII punctuation conversion:
 // space after a committed Chinese punctuation converts it. Payload "0"/"1".
@@ -395,11 +383,9 @@ constexpr std::uint32_t MicrosoftShuangpinChanged = 13;
 // Revert a converted ASCII punctuation back to Chinese when the same
 // punctuation key is pressed within the revert window. Payload "0"/"1".
 constexpr std::uint32_t SmartPunctuationRepeatToChineseChanged = 14;
-// Streaming ASR: replace the inline composition with this full snapshot.
+// Reserved opcodes from removed streaming ASR. Never send or reuse these values.
 constexpr std::uint32_t UpdateVoiceComposition = 15;
-// Streaming ASR: abort the voice composition without committing.
 constexpr std::uint32_t CancelVoiceComposition = 16;
-// Streaming ASR: replace the inline composition with this snapshot and commit.
 constexpr std::uint32_t CommitVoiceComposition = 17;
 // Payload "1" when the active CJK input mode is Japanese, otherwise "0".
 constexpr std::uint32_t InputModeChanged = 18;

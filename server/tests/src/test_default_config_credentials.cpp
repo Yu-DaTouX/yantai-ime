@@ -3,7 +3,7 @@
 #endif
 #include "cloud/translation_gloss.h"
 #include "tests/includes/test_framework.h"
-#include "voice-input/voice_providers.h"
+#include "ai/provider_utils.h"
 
 #include <cctype>
 #include <fstream>
@@ -85,7 +85,7 @@ TEST_CASE(default_config_ships_no_usable_credentials)
 
     for (const ConfigEntry &entry : entries)
     {
-        const bool usable_as_token = !VoiceInput::UsableToken(entry.value).empty();
+        const bool usable_as_token = !ProviderUtils::UsableToken(entry.value).empty();
         const bool usable_as_secret = CloudTranslation::IsUsableSecret(entry.value);
         if (usable_as_token || usable_as_secret)
         {
@@ -98,12 +98,12 @@ TEST_CASE(default_config_ships_no_usable_credentials)
 
 TEST_CASE(placeholder_credentials_are_rejected_in_every_shipped_spelling)
 {
-    REQUIRE(VoiceInput::IsPlaceholderToken(""));
-    REQUIRE(VoiceInput::IsPlaceholderToken("<YOUR_OWN_DOUBAO_ACCESS_TOKEN>"));
-    REQUIRE(VoiceInput::IsPlaceholderToken("<YOUR_AI_TOKEN_DEEPSEEK>"));
-    REQUIRE(VoiceInput::IsPlaceholderToken("<YOUR_ASR_APP_KEY>"));
-    REQUIRE(VoiceInput::IsPlaceholderToken("FAKESECRET_e1f2g3h4i5j6k7l8m9n0"));
-    REQUIRE(!VoiceInput::IsPlaceholderToken("sk-a-real-looking-token"));
+    REQUIRE(ProviderUtils::IsPlaceholderToken(""));
+    REQUIRE(ProviderUtils::IsPlaceholderToken("<YOUR_OWN_DOUBAO_ACCESS_TOKEN>"));
+    REQUIRE(ProviderUtils::IsPlaceholderToken("<YOUR_AI_TOKEN_DEEPSEEK>"));
+    REQUIRE(ProviderUtils::IsPlaceholderToken("<YOUR_ASR_APP_KEY>"));
+    REQUIRE(ProviderUtils::IsPlaceholderToken("FAKESECRET_e1f2g3h4i5j6k7l8m9n0"));
+    REQUIRE(!ProviderUtils::IsPlaceholderToken("sk-a-real-looking-token"));
 
     REQUIRE(!CloudTranslation::IsUsableSecret(""));
     REQUIRE(!CloudTranslation::IsUsableSecret("<YOUR_OWN_TENCENT_SECRET_ID>"));

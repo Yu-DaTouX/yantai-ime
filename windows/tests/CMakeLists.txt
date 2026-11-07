@@ -126,20 +126,6 @@ add_test(NAME caret_extent COMMAND test_caret_extent)
 
 # Link the same inline key classifier used by normal and queued TSF paths.
 if(WIN32)
-    # Compile actual preview write/cancel bodies; the text store is in memory, with no host UI.
-    set(voice_composition_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Composition/Composition.cpp")
-    set(voice_key_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Key/KeyHandler.cpp")
-    set(voice_fixture_generator "${CMAKE_CURRENT_SOURCE_DIR}/generate_voice_ownership_fixture.py")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${voice_composition_source}" "${voice_key_source}" "${voice_fixture_generator}")
-    execute_process(COMMAND "${Python3_EXECUTABLE}" "${voice_fixture_generator}"
-        "${voice_composition_source}" "${voice_key_source}"
-        "${CMAKE_CURRENT_BINARY_DIR}/voice_ownership_source.h" COMMAND_ERROR_IS_FATAL ANY)
-    add_executable(test_voice_composition_ownership voice_composition_ownership.cpp)
-    target_include_directories(test_voice_composition_ownership PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-    target_compile_features(test_voice_composition_ownership PRIVATE cxx_std_17)
-    add_test(NAME voice_composition_ownership COMMAND test_voice_composition_ownership)
-
     add_executable(test_temporary_japanese_input temporary_japanese_input.cpp)
     target_include_directories(test_temporary_japanese_input PRIVATE ../src/Header)
     target_compile_features(test_temporary_japanese_input PRIVATE cxx_std_17)

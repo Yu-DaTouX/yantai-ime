@@ -341,8 +341,6 @@
               "translation.niutrans",
               "translation.custom",
               "translation.ai",
-              "voice.asr",
-              "voice.polish",
               "ai.assistant"
             ]
           },
@@ -374,9 +372,7 @@
           "service": {
             "type": "string",
             "enum": [
-              "ai.assistant",
-              "voice.asr",
-              "voice.polish"
+              "ai.assistant"
             ]
           },
           "config": {
@@ -860,11 +856,6 @@
       ]
     },
     "about": {
-      "surfaces": [
-        "menu"
-      ]
-    },
-    "voiceInput": {
       "surfaces": [
         "menu"
       ]

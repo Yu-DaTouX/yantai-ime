@@ -3,7 +3,7 @@
 #include "ai/chat_completions.h"
 #include "ai/chat_request_params.h"
 #include "config/ai_provider.h"
-#include "voice-input/voice_providers.h"
+#include "ai/provider_utils.h"
 #include "translation_gloss.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -207,7 +207,7 @@ nlohmann::json BuildRequestBody(const Config &config, const std::vector<std::str
         body["temperature"] = 0.0;
     // 标签写着 deepseek、地址却是别家时也会走到这里，所以按接口地址判断，理由同 AI 联想侧：
     // 把 thinking.type 发给不认识它的服务会让整次请求被拒。
-    if (VoiceInput::VendorForRequest(config.provider, config.endpoint) == VoiceInput::ChatVendor::DeepSeek)
+    if (ProviderUtils::VendorForRequest(config.provider, config.endpoint) == ProviderUtils::ChatVendor::DeepSeek)
     {
         // 与 AI 辅助保持一致，避免推理模型的思考内容拖慢候选翻译。
         body["thinking"] = {{"type", "disabled"}};

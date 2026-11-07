@@ -1,10 +1,10 @@
-#include "settings/native/native_page_voice_fields.h"
+#include "settings/native/native_service_fields.h"
 #include "settings/native/native_page_model_combo.h"
 #include "settings/native/native_settings_pill.h"
 
 #include "ai/jev_client.h"
 #include "config/ai_provider.h"
-#include "voice-input/voice_providers.h"
+#include "ai/provider_utils.h"
 
 #include "msimeui/DeviceResources.h"
 #include "msimeui/Scene.h"
@@ -18,7 +18,7 @@
 // 状态、联想模式与提供商、提示词。
 namespace native_settings
 {
-using namespace voice_fields;
+using namespace service_fields;
 
 namespace
 {
@@ -226,7 +226,7 @@ struct AiPage : std::enable_shared_from_this<AiPage>
         if (!endpoint)
             return false;
         const std::string current = Trimmed(Narrow(endpoint->GetText()));
-        return VoiceInput::VendorForRequest(provider, current) == VoiceInput::ChatVendor::DeepSeek;
+        return ProviderUtils::VendorForRequest(provider, current) == ProviderUtils::ChatVendor::DeepSeek;
     }
 
     // 页首摘要与各字段的可用状态都从这里推，避免两处各写一遍条件。

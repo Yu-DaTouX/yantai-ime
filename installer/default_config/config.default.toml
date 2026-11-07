@@ -175,7 +175,7 @@ apikey = ""
 provider = ""
 
 #
-# 网络代理：云输入、模型下载、AI 联想、翻译、语音识别等需要联网的功能共用。
+# 网络代理：云输入、模型下载、AI 联想、翻译等需要联网的功能共用。
 # proxy_mode：system 跟随系统代理设置 / none 不使用代理（直连）/ custom 使用下面的 HTTP 代理。
 # proxy_server：custom 模式的 HTTP 代理地址，形如 127.0.0.1:7890；留空时按 system 处理。
 #
@@ -210,7 +210,6 @@ theme_settings = "follow"
 theme_cand = "follow"
 theme_ftb = "follow"
 theme_menu = "follow"
-theme_voice = "follow"
 # 字体（中文）
 font = "Noto Sans SC"
 # 英文字体（拉丁字母优先使用；汉字仍回落到 font）
@@ -476,94 +475,6 @@ dictionary_path = "./assets/dictionaries/msime.db"
 [skin]
 # 皮肤名称
 skin_name = "default"
-
-#
-# Voice Input
-# 语音输入
-#
-[voice_input]
-# 语音输入（默认关闭：未填 Token 时按快捷键只会弹出提示，右 Alt 还会占用 AltGr）
-voice_input = false
-# 全局语音快捷键（可分别启用或关闭）
-hotkey_ralt = true
-hotkey_ctrl_f9 = true
-hotkey_ctrl_win = false
-hotkey_rctrl_ralt = false
-hotkey_hold_space_lock = true
-# ASR 服务: doubao | openai | siliconflow | groq
-# openai / siliconflow / groq 均走 OpenAI 兼容的 /v1/audio/transcriptions。
-asr_provider = "doubao"
-# 豆包鉴权方式: api_key | legacy
-#   api_key：新版控制台，只需一个 API Key，填入 asr_token 即可，asr_app_key 不使用。
-#   legacy：旧版控制台，App ID + Access Token（Secret Key 不使用），两项都要填。
-# 留空表示自动判断：asr_app_key 填了真实值就按 legacy，否则按 api_key。
-# 请自行填写各提供商的密钥，不要把真实密钥写进仓库。
-doubao_auth_mode = "api_key"
-asr_app_key = "<YOUR_ASR_APP_KEY>"
-asr_token = "FAKESECRET_k4l5m6n7o8p9q0r1s2t3"
-# 每个 ASR 提供商单独保存 Token，切换提供商只改当前使用哪一份，不会互相覆盖。
-asr_token_doubao = "<YOUR_ASR_TOKEN_DOUBAO>"
-asr_token_openai = "<YOUR_ASR_TOKEN_OPENAI>"
-asr_token_siliconflow = "<YOUR_ASR_TOKEN_SILICONFLOW>"
-asr_token_groq = "<YOUR_ASR_TOKEN_GROQ>"
-asr_token_zhipu = "<YOUR_ASR_TOKEN_ZHIPU>"
-asr_token_minimax = "<YOUR_ASR_TOKEN_MINIMAX>"
-asr_token_custom = "<YOUR_ASR_TOKEN_CUSTOM>"
-# 豆包流式接口二选一：
-#   .../sauc/bigmodel_nostream 边录边传、返回整句结果，准确率更高，官方推荐用于输入法
-#   .../sauc/bigmodel_async    双向流式，增量结果更密集，实时上屏刷新更频繁
-asr_endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
-# 默认使用豆包流式语音识别模型 2.0 小时版
-asr_resource_id = "volc.seedasr.sauc.duration"
-# 豆包识别选项：数字格式化（ITN）、标点预测默认开启，语义顺滑（DDC）默认关闭。
-doubao_enable_itn = true
-doubao_enable_punc = true
-doubao_enable_ddc = false
-# 在豆包语音控制台“自学习平台 -> 热词管理”创建词表后，将热词 ID 填在这里；留空则不使用。
-doubao_boosting_table_id = ""
-# OpenAI 兼容识别模型。豆包流式不使用此项；留空则按提供商填默认值。
-# SiliconFlow 当前默认使用 FunAudioLLM/SenseVoiceSmall，也可在这里填写其他模型名。
-asr_model = ""
-# 文本润色: siliconflow | openai | deepseek | groq
-# 均走 OpenAI 兼容的 /v1/chat/completions。
-polish_provider = "deepseek"
-# 请自行填写各提供商的 API Token，不要把真实密钥写进仓库。
-polish_token = "FAKESECRET_q2r3s4t5u6v7w8x9y0z1"
-polish_token_siliconflow = "<YOUR_POLISH_TOKEN_SILICONFLOW>"
-polish_token_openai = "<YOUR_POLISH_TOKEN_OPENAI>"
-polish_token_deepseek = "<YOUR_POLISH_TOKEN_DEEPSEEK>"
-polish_token_groq = "<YOUR_POLISH_TOKEN_GROQ>"
-polish_token_minimax = "<YOUR_POLISH_TOKEN_MINIMAX>"
-polish_token_moonshot = "<YOUR_POLISH_TOKEN_MOONSHOT>"
-polish_token_zhipu = "<YOUR_POLISH_TOKEN_ZHIPU>"
-polish_token_dashscope = "<YOUR_POLISH_TOKEN_DASHSCOPE>"
-polish_token_volcengine = "<YOUR_POLISH_TOKEN_VOLCENGINE>"
-polish_token_openrouter = "<YOUR_POLISH_TOKEN_OPENROUTER>"
-polish_token_custom = "<YOUR_POLISH_TOKEN_CUSTOM>"
-polish_endpoint = "https://api.deepseek.com/chat/completions"
-# 留空则按提供商填默认值，例如 Qwen/Qwen3-8B、gpt-4o-mini。
-polish_model = "deepseek-v4-flash"
-# DeepSeek 思考强度: disabled | low | high | max，仅 DeepSeek 生效。开启后润色明显变慢。
-polish_thinking = "disabled"
-# 润色提示词: cleanup | faithful | zh2en | casual | custom_1 | custom_2 | custom_3
-polish_prompt_id = "cleanup"
-# 旧版单槽位提示词，升级时作为“自定义一”的回退值。
-polish_prompt = ""
-polish_prompt_custom_1 = ""
-polish_prompt_custom_2 = ""
-polish_prompt_custom_3 = ""
-language = "zh-cn"
-# 开始和结束录音提示音可分别关闭
-start_sound = true
-end_sound = true
-# 录音时暂时静音其他应用的播放声音，结束后自动恢复
-mute_system_audio = true
-polish_text = true
-# 豆包流式识别时，将已识别文本显示在输入框 inline preedit 中，松开录音键后上屏。
-# 仅在豆包流式识别且 commit_mode = "tsf" 时生效。
-stream_inline_preedit = true
-# 上屏方式: tsf | sendinput | ctrl_v
-commit_mode = "tsf"
 
 #
 # Utility

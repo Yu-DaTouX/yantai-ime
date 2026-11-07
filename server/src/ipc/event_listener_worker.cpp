@@ -31,7 +31,6 @@
 #include "session/session_factory.h"
 #include "log/candidate_diag_log.h"
 #include "log/ftb_diag_log.h"
-#include "voice-input/voice_input_service.h"
 
 using namespace event_listener_detail;
 
@@ -580,7 +579,6 @@ void WorkerThread()
         case TaskType::ClientActivated: {
             CAND_DIAG_LOGF(L"client activated client={} epoch={} hwnd_present={}", task.client_id,
                            task.activation_epoch, ::global_hwnd != nullptr);
-            VoiceInput::SetImeActive(true);
             PostHideCaretState();
             // Activation replaces all composition/candidate state from the
             // previous focus session. A terminal TIP activation also makes
@@ -619,7 +617,6 @@ void WorkerThread()
 
         case TaskType::ClientDeactivated: {
             CAND_DIAG_LOGF(L"client deactivated client={} epoch={}", task.client_id, task.activation_epoch);
-            VoiceInput::SetImeActive(false);
             PostHideCaretState();
             // Unlike a route-only suspension, terminal TIP deactivation means
             // the user switched to another input method. Forget the previous

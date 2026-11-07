@@ -202,7 +202,7 @@ VisualPtr BuildHelpPage(PageContext &context)
                  L"文件夹导入。可以在设置的辅助码分区进行辅助码的开关和切换。打字过程中，全拼使用辅助码需要用大写的字母"
                  L"唤起单码和双码辅助。双拼在开启辅助码的状态下默认使用单码辅助，第二个码是大写字母的情况下，则会使用完"
                  L"整双码进行筛选。",
-                 L"语音识别和 AI 联想需要自行填入 API 和 token。内测期间，将默认使用开发者个人的 api 和 "
+                 L"AI 联想需要自行填入 API 和 token。内测期间，将默认使用开发者个人的 api 和 "
                  L"token，仅供测试使用。云联想目前支持谷歌的云接口，请用户注意网络问题，需要时可在下方设置网络代理。",
                  L"更多功能欢迎自由探索~"});
         auto card = std::make_shared<PaddedSection>(doc, Thickness{28.0f, 24.0f, 28.0f, 26.0f});
@@ -384,8 +384,7 @@ VisualPtr BuildHelpPage(PageContext &context)
     {
         auto column = std::make_shared<Column>(0.0f);
         column->Add(MakeTitle(L"网络代理"));
-        column->Add(
-            Description(L"云输入、语法模型下载、AI 联想、翻译和语音识别等联网功能共用这里的设置，修改后立即生效"));
+        column->Add(Description(L"云输入、语法模型下载、AI 联想和翻译等联网功能共用这里的设置，修改后立即生效"));
         auto options = std::make_shared<Column>(0.0f);
         options->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         const std::pair<const char *, const wchar_t *> modes[] = {

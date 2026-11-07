@@ -7,7 +7,7 @@
 // 移植自旧网页设置页 `.dropdown-toggle.font-combobox.ai-model-combobox` 与
 // `#aiModelMenu.font-dropdown-menu.compact-scroll-menu`。控件本身不知道当前是哪一页，
 // 也不读配置：列表由调用方通过 SetModels 灌入，选中时通过 OnPicked 回调出去。
-namespace native_settings::voice_fields
+namespace native_settings::service_fields
 {
 ModelList::ModelList(ModelCombo *owner) : owner_(owner)
 {
@@ -376,4 +376,4 @@ RectF ModelCombo::ArrowRect() const
     return {bounds_.x + bounds_.width - CssBorder() - 6.0f - 18.0f, bounds_.y + (bounds_.height - 18.0f) * 0.5f, 18.0f,
             18.0f};
 }
-} // namespace native_settings::voice_fields
+} // namespace native_settings::service_fields

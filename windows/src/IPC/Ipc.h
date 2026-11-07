@@ -2,7 +2,6 @@
 
 #include "KeyEventSendResult.h"
 #include "CapsLockPunctuationPolicy.h"
-#include "VoiceCompositionPipe.h"
 #include <Windows.h>
 #include <atomic>
 #include <cstddef>

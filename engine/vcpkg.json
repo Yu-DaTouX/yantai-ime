@@ -6,14 +6,5 @@
     "fmt",
     "spdlog",
     "sqlite3"
-  ],
-  "features": {
-    "voice": {
-      "description": "Optional shared VoiceInput",
-      "dependencies": [
-        "curl",
-        "nlohmann-json"
-      ]
-    }
-  }
+  ]
 }

@@ -62,12 +62,11 @@ enum KEYSTROKE_FUNCTION
     // Raw candidate navigation key; Server decides its configured behavior.
     FUNCTION_SERVER_CANDIDATE_KEY,
 
-    // Unsolicited insert (voice ASR via worker pipe). Append-only so existing
-    // ordinals stay stable across builds.
-    FUNCTION_INSERT_TEXT,
-    FUNCTION_UPDATE_VOICE_COMPOSITION,
-    FUNCTION_COMMIT_VOICE_COMPOSITION,
-    FUNCTION_CANCEL_VOICE_COMPOSITION,
+    // Keep removed voice ordinals reserved.
+    FUNCTION_RESERVED_VOICE_INSERT,
+    FUNCTION_RESERVED_VOICE_UPDATE,
+    FUNCTION_RESERVED_VOICE_COMMIT,
+    FUNCTION_RESERVED_VOICE_CANCEL,
     FUNCTION_TOGGLE_CHARACTER_SET,
 
     // Reversible smart punctuation: both are local document rewrites handled

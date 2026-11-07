@@ -109,7 +109,7 @@ bool IsUsableSecret(const std::string &value)
     const std::string trimmed = TrimSecret(value);
     if (trimmed.empty())
         return false;
-    // Same rule as VoiceInput::IsPlaceholderToken, and same reason: config.default.toml ships
+    // Same rule as ProviderUtils::IsPlaceholderToken, and same reason: config.default.toml ships
     // "<YOUR_TENCENT_SECRET_ID>", which the old "<YOUR_OWN_" prefix test accepted as a real secret. With
     // tencent_tmt.enabled defaulting to true that made a fresh install send candidate text to
     // tmt.tencentcloudapi.com signed with the placeholder.
