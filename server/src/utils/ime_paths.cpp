@@ -129,9 +129,41 @@ bool GrantsFullAccess(ACCESS_MASK mask)
     return (mask & GENERIC_ALL) != 0 || (mask & FILE_ALL_ACCESS) == FILE_ALL_ACCESS;
 }
 
-// SetNamedSecurityInfoW 写入可继承 ACE 时会把它传播到整棵子树，目录下文件一多，每次启动都重写一遍
-// 就要花上百毫秒。已经授过权（安装器或上次启动）就不再写。
-bool HasUsersFullAccessAce(PACL dacl, PSID users_sid)
+// The SID of the user this process runs as. Caller frees with LocalFree. A data directory created by
+// the elevated installer is owned by Administrators, so "owner rights" is not enough here: the ACL has
+// to name the user itself, or a medium-integrity Server/TSF could lose access after the first start.
+PSID QueryCurrentUserSid()
+{
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+    {
+        return nullptr;
+    }
+    DWORD size = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+    PSID result = nullptr;
+    if (size != 0)
+    {
+        std::vector<BYTE> buffer(size);
+        if (GetTokenInformation(token, TokenUser, buffer.data(), size, &size))
+        {
+            const auto *user = reinterpret_cast<const TOKEN_USER *>(buffer.data());
+            const DWORD sid_size = GetLengthSid(user->User.Sid);
+            result = LocalAlloc(LPTR, sid_size);
+            if (result && !CopySid(sid_size, result, user->User.Sid))
+            {
+                LocalFree(result);
+                result = nullptr;
+            }
+        }
+    }
+    CloseHandle(token);
+    return result;
+}
+
+// Whether the DACL already gives this SID full access. For a directory the ACE must also inherit, so
+// files created later inherit the same restricted access.
+bool HasFullAccessAce(PACL dacl, PSID sid, bool require_inheritable)
 {
     ACL_SIZE_INFORMATION info{};
     if (!dacl || !GetAclInformation(dacl, &info, sizeof(info), AclSizeInformation))
@@ -153,7 +185,7 @@ bool HasUsersFullAccessAce(PACL dacl, PSID users_sid)
             continue;
         }
         const auto *ace = static_cast<const ACCESS_ALLOWED_ACE *>(raw);
-        if (!EqualSid(const_cast<DWORD *>(&ace->SidStart), users_sid) || !GrantsFullAccess(ace->Mask))
+        if (!EqualSid(const_cast<DWORD *>(&ace->SidStart), sid) || !GrantsFullAccess(ace->Mask))
         {
             continue;
         }
@@ -167,7 +199,35 @@ bool HasUsersFullAccessAce(PACL dacl, PSID users_sid)
             inheritable = true;
         }
     }
-    return effective && inheritable;
+    return effective && (inheritable || !require_inheritable);
+}
+
+bool HasAceForSid(PACL dacl, PSID sid)
+{
+    ACL_SIZE_INFORMATION info{};
+    if (!dacl || !GetAclInformation(dacl, &info, sizeof(info), AclSizeInformation))
+    {
+        return false;
+    }
+    for (DWORD index = 0; index < info.AceCount; ++index)
+    {
+        void *raw = nullptr;
+        if (!GetAce(dacl, index, &raw))
+        {
+            continue;
+        }
+        const auto *header = static_cast<const ACE_HEADER *>(raw);
+        if (header->AceType != ACCESS_ALLOWED_ACE_TYPE && header->AceType != ACCESS_DENIED_ACE_TYPE)
+        {
+            continue;
+        }
+        const auto *ace = static_cast<const ACCESS_ALLOWED_ACE *>(raw);
+        if (EqualSid(const_cast<DWORD *>(&ace->SidStart), sid))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool HasMediumNoWriteUpLabel(const std::wstring &path, PSID medium_sid)
@@ -200,36 +260,91 @@ bool HasMediumNoWriteUpLabel(const std::wstring &path, PSID medium_sid)
     return found;
 }
 
-void ApplyUsersModifyAndMediumIntegrity(const std::wstring &path)
+// Restrict a data directory or one of its files to this user plus SYSTEM/Administrators. The DACL is
+// protected, so the inherited BUILTIN\Users grant the elevated installer puts on the data directory no
+// longer applies: another local account cannot read the user dictionary, statistics, clipboard history
+// or config.toml containing tokens. The STILL-inheritable ACEs let dictionaries and later files under
+// the directory keep working for this user's medium-integrity Server, TSF and engine processes.
+bool SetOwnerOnlyDacl(const std::wstring &path)
 {
-    PSID users_sid = nullptr;
-    if (ConvertStringSidToSidW(L"S-1-5-32-545", &users_sid))
+    const bool directory = std::filesystem::is_directory(path);
+    PSID user_sid = QueryCurrentUserSid();
+    if (!user_sid)
     {
-        EXPLICIT_ACCESSW access{};
-        access.grfAccessPermissions = GENERIC_ALL;
-        access.grfAccessMode = GRANT_ACCESS;
-        access.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
-        access.Trustee.TrusteeForm = TRUSTEE_IS_SID;
-        access.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-        access.Trustee.ptstrName = static_cast<LPWSTR>(users_sid);
-
-        PACL old_dacl = nullptr;
-        PSECURITY_DESCRIPTOR descriptor = nullptr;
-        PACL new_dacl = nullptr;
-        if (GetNamedSecurityInfoW(path.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl,
-                                  nullptr, &descriptor) == ERROR_SUCCESS)
-        {
-            if (!HasUsersFullAccessAce(old_dacl, users_sid) &&
-                SetEntriesInAclW(1, &access, old_dacl, &new_dacl) == ERROR_SUCCESS)
-            {
-                SetNamedSecurityInfoW(const_cast<wchar_t *>(path.c_str()), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
-                                      nullptr, nullptr, new_dacl, nullptr);
-                LocalFree(new_dacl);
-            }
-            LocalFree(descriptor);
-        }
-        LocalFree(users_sid);
+        return false;
     }
+
+    PSID users_group = nullptr;
+    ConvertStringSidToSidW(L"S-1-5-32-545", &users_group);
+
+    bool already_private = false;
+    PACL old_dacl = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    if (GetNamedSecurityInfoW(path.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl,
+                              nullptr, &descriptor) == ERROR_SUCCESS)
+    {
+        already_private = HasFullAccessAce(old_dacl, user_sid, directory) &&
+                          !(users_group && HasAceForSid(old_dacl, users_group));
+        LocalFree(descriptor);
+    }
+
+    bool changed = false;
+    if (!already_private)
+    {
+        PSID system_sid = nullptr;
+        PSID admins_sid = nullptr;
+        ConvertStringSidToSidW(L"S-1-5-18", &system_sid);
+        ConvertStringSidToSidW(L"S-1-5-32-544", &admins_sid);
+
+        const DWORD inheritance = directory ? SUB_CONTAINERS_AND_OBJECTS_INHERIT : NO_INHERITANCE;
+        EXPLICIT_ACCESSW entries[3]{};
+        DWORD count = 0;
+        const auto add = [&](PSID sid, TRUSTEE_TYPE type) {
+            if (!sid)
+            {
+                return;
+            }
+            EXPLICIT_ACCESSW &access = entries[count++];
+            access.grfAccessPermissions = GENERIC_ALL;
+            access.grfAccessMode = GRANT_ACCESS;
+            access.grfInheritance = inheritance;
+            access.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+            access.Trustee.TrusteeType = type;
+            access.Trustee.ptstrName = static_cast<LPWSTR>(sid);
+        };
+        add(user_sid, TRUSTEE_IS_USER);
+        add(system_sid, TRUSTEE_IS_WELL_KNOWN_GROUP);
+        add(admins_sid, TRUSTEE_IS_WELL_KNOWN_GROUP);
+
+        PACL new_dacl = nullptr;
+        if (count > 0 && SetEntriesInAclW(count, entries, nullptr, &new_dacl) == ERROR_SUCCESS)
+        {
+            changed = SetNamedSecurityInfoW(const_cast<wchar_t *>(path.c_str()), SE_FILE_OBJECT,
+                                            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr,
+                                            nullptr, new_dacl, nullptr) == ERROR_SUCCESS;
+            LocalFree(new_dacl);
+        }
+        if (system_sid)
+        {
+            LocalFree(system_sid);
+        }
+        if (admins_sid)
+        {
+            LocalFree(admins_sid);
+        }
+    }
+
+    if (users_group)
+    {
+        LocalFree(users_group);
+    }
+    LocalFree(user_sid);
+    return changed || already_private;
+}
+
+void ApplyOwnerModifyAndMediumIntegrity(const std::wstring &path)
+{
+    SetOwnerOnlyDacl(path);
 
     PSID medium_sid = nullptr;
     if (!ConvertStringSidToSidW(L"S-1-16-8192", &medium_sid))
@@ -258,7 +373,7 @@ void EnsureMediumIntegrityWritableDirectory(const std::wstring &path)
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
     ClearReadOnlyAttribute(path);
-    ApplyUsersModifyAndMediumIntegrity(path);
+    ApplyOwnerModifyAndMediumIntegrity(path);
 }
 
 void EnsureMediumIntegrityWritableExistingPath(const std::wstring &path)
@@ -268,7 +383,7 @@ void EnsureMediumIntegrityWritableExistingPath(const std::wstring &path)
         return;
     }
     ClearReadOnlyAttribute(path);
-    ApplyUsersModifyAndMediumIntegrity(path);
+    ApplyOwnerModifyAndMediumIntegrity(path);
 }
 } // namespace
 
@@ -327,17 +442,44 @@ std::wstring get_ime_config_dir_w()
 
 void ensure_ime_data_writable()
 {
+    // 个人词库、统计、剪贴板历史和带 Token 的 config.toml 只属于当前用户。安装器以提升权限运行，
+    // 给数据目录授过 BUILTIN\Users 的可写权限；这里换成「当前用户 + SYSTEM + Administrators」的
+    // 保护型 DACL，并让子目录/文件继承，其他本地账户就不能再读到这些数据。
+    static const wchar_t *const kPrivateFiles[] = {
+        L"msime_user.db",    L"msime_user.db-wal",       L"msime_user.db-shm",  L"user_dict.dat",
+        L"english.db",       L"english.db-wal",          L"english.db-shm",     L"stats.db",
+        L"stats.db-wal",     L"stats.db-shm",            L"clipboard_history.json", L"config.toml",
+        L"config.base.toml", L"config.default.toml",     L"config.toml.tmp"};
+
     const std::wstring dir = get_ime_config_dir_w();
-    if (!IsUsableAbsolutePath(dir))
+    if (IsUsableAbsolutePath(dir))
+    {
+        EnsureMediumIntegrityWritableDirectory(dir);
+        for (const wchar_t *name : kPrivateFiles)
+        {
+            EnsureMediumIntegrityWritableExistingPath((std::filesystem::path(dir) / name).wstring());
+        }
+    }
+
+    const std::wstring data_dir = get_ime_data_path_w();
+    if (IsUsableAbsolutePath(data_dir) && data_dir != dir)
+    {
+        EnsureMediumIntegrityWritableDirectory(data_dir);
+        for (const wchar_t *name : kPrivateFiles)
+        {
+            EnsureMediumIntegrityWritableExistingPath((std::filesystem::path(data_dir) / name).wstring());
+        }
+    }
+}
+
+void protect_user_data_file(const std::wstring &path)
+{
+    if (!IsUsableAbsolutePath(path))
     {
         return;
     }
-    EnsureMediumIntegrityWritableDirectory(dir);
-    static const wchar_t *const kFiles[] = {L"config.toml", L"config.base.toml", L"config.default.toml",
-                                            L"config.toml.tmp"};
-    for (const wchar_t *name : kFiles)
-    {
-        EnsureMediumIntegrityWritableExistingPath((std::filesystem::path(dir) / name).wstring());
-    }
+    // 新建的文件先继承目录 ACL；这里再补一道显式保护，目录 ACL 被改写或文件在旧版本目录里创建时
+    // 也不会留下 Users 可读的窗口。调用方在写完个人数据后调用，例如剪贴板历史。
+    SetOwnerOnlyDacl(path);
 }
 } // namespace CommonUtils

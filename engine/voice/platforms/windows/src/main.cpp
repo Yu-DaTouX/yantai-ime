@@ -284,7 +284,8 @@ int main()
                     std::cout << "[STT] Time: " << std::chrono::duration<double>(end - start).count() << "s\n";
                     if (!text.empty())
                     {
-                        printf("[STT] Recognized: %s\n", text.c_str());
+                        // 日志里不能出现识别出的文字：只记长度。
+                        printf("[STT] Recognized text: %zu bytes\n", text.size());
                         std::string final_text = text;
                         if (text_polisher != nullptr)
                         {
@@ -292,7 +293,7 @@ int main()
                             final_text = text_polisher->polish(text);
                             auto polish_end = std::chrono::steady_clock::now();
                             std::cout << "[POLISH] Time: " << std::chrono::duration<double>(polish_end - polish_start).count() << "s\n";
-                            printf("[POLISH] Output: %s\n", final_text.c_str());
+                            printf("[POLISH] Output text: %zu bytes\n", final_text.size());
                         }
                         fflush(stdout);
                         send_text(mvi_utils::utf8_to_wstring(final_text));

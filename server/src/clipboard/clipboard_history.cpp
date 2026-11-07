@@ -283,13 +283,25 @@ bool WriteStoreUnlocked(const std::vector<std::wstring> &items)
     if (path.empty())
         return false;
     std::error_code error;
+    if (items.empty())
+    {
+        // 关闭历史或删到空时不留空壳文件：磁盘上不留下“这里曾存过剪贴板”的痕迹。
+        std::filesystem::remove(path, error);
+        return true;
+    }
     std::filesystem::create_directories(path.parent_path(), error);
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
     if (!output)
         return false;
     const std::string payload = SerializeJsonArray(items);
     output.write(payload.data(), static_cast<std::streamsize>(payload.size()));
-    return static_cast<bool>(output);
+    output.close();
+    if (!output)
+        return false;
+    // 剪贴板内容属于最敏感的个人数据：即使数据目录还是旧版本/安装器留下的宽松 ACL，文件本身
+    // 也只允许当前用户（外加 SYSTEM/Administrators）读取。
+    CommonUtils::protect_user_data_file(path.wstring());
+    return true;
 }
 
 std::wstring NormalizeClipboardText(std::wstring text)
@@ -395,7 +407,11 @@ bool WriteEnabledFlag(bool enabled)
     if (!output)
         return false;
     output.write(text.data(), static_cast<std::streamsize>(text.size()));
-    return static_cast<bool>(output);
+    output.close();
+    if (!output)
+        return false;
+    CommonUtils::protect_user_data_file(path.wstring());
+    return true;
 }
 
 struct MonitorState
@@ -610,9 +626,8 @@ void ClipboardHistory::Clear()
     if (path.empty())
         return;
     std::error_code error;
-    if (!std::filesystem::exists(path, error))
-        return;
-    WriteStoreUnlocked({});
+    // 直接删除存储文件，而不是写一个空数组：关闭功能后磁盘上不留下任何剪贴板历史痕迹。
+    std::filesystem::remove(path, error);
 }
 
 bool ClipboardHistory::IsEnabled()
