@@ -1,6 +1,7 @@
 #include "../contracts/assets/assets.h"
 #include "../contracts/dictionary/format.h"
 #include "quanpin_query.h"
+#include "query_status.h"
 
 #include "fuzzy_pinyin.h"
 #include "quanpin_utils.h"
@@ -9,6 +10,9 @@
 #include <climits>
 #include <cmath>
 #include <map>
+#include <initializer_list>
+#include <memory>
+#include <string_view>
 #include <sqlite3.h>
 #include <stdexcept>
 #include <string>
@@ -464,321 +468,160 @@ class SqliteDb
     sqlite3 *db_ = nullptr;
 };
 
+template <typename Row> Row read_query_row(sqlite3_stmt *stmt);
+
+template <> QueryItem read_query_row<QueryItem>(sqlite3_stmt *stmt)
+{
+    const auto *value = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+    return {value ? value : "", sqlite3_column_int64(stmt, 1)};
+}
+
+template <> KeyedQueryItem read_query_row<KeyedQueryItem>(sqlite3_stmt *stmt)
+{
+    const auto *key = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+    const auto *value = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+    return {key ? key : "", value ? value : "", sqlite3_column_int64(stmt, 2)};
+}
+
+// Owns an uncached statement or borrows a cached one. All exits (including an
+// allocation exception while collecting rows) release its read lock/bindings.
+struct QueryStatementUse
+{
+    sqlite3_stmt *statement;
+    bool cached;
+
+    ~QueryStatementUse()
+    {
+        if (cached)
+        {
+            sqlite3_reset(statement);
+            sqlite3_clear_bindings(statement);
+        }
+        else
+            sqlite3_finalize(statement);
+    }
+};
+
+template <typename Row, typename Texts>
+std::vector<Row> read_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> *cache,
+                           const std::string &sql, const Texts &texts, int limit)
+{
+    sqlite3_stmt *stmt = nullptr;
+    if (cache)
+    {
+        const auto found = cache->find(sql);
+        if (found != cache->end())
+            stmt = found->second;
+    }
+    if (!stmt)
+    {
+        const int status = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+        if (status != SQLITE_OK)
+        {
+            note_query_prepare_failure(db, status);
+            sqlite3_finalize(stmt);
+            return {};
+        }
+        // Keep ownership until insertion succeeds.
+        std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> pending(stmt, sqlite3_finalize);
+        if (cache)
+            cache->emplace(sql, stmt);
+        pending.release();
+    }
+    QueryStatementUse use{stmt, cache != nullptr};
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+    int index = 1;
+    for (const auto &text : texts)
+    {
+        if (sqlite3_bind_text(stmt, index++, text.data(), static_cast<int>(text.size()), SQLITE_TRANSIENT) != SQLITE_OK)
+        {
+            note_query_failure();
+            return {};
+        }
+    }
+    if (sqlite3_bind_int(stmt, index, limit) != SQLITE_OK)
+    {
+        note_query_failure();
+        return {};
+    }
+
+    std::vector<Row> rows;
+    int status;
+    while ((status = sqlite3_step(stmt)) == SQLITE_ROW)
+        rows.push_back(read_query_row<Row>(stmt));
+    if (status != SQLITE_DONE)
+    {
+        note_query_failure();
+        return {};
+    }
+    return rows;
+}
+
 std::vector<QueryItem> run_query(sqlite3 *db, const std::string &sql, const std::string &value, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-    {
-        return {};
-    }
-
-    sqlite3_bind_text(stmt, 1, value.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 2, limit);
-
-    std::vector<QueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-        const std::int64_t weight = sqlite3_column_int64(stmt, 1);
-        rows.emplace_back(text == nullptr ? "" : reinterpret_cast<const char *>(text), weight);
-    }
-    sqlite3_finalize(stmt);
-    return rows;
+    return read_query<QueryItem>(db, nullptr, sql, std::initializer_list<std::string_view>{value}, limit);
 }
 
-std::vector<QueryItem> run_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &statement_cache,
+std::vector<QueryItem> run_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &cache,
                                  const std::string &sql, const std::string &value, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    const auto found = statement_cache.find(sql);
-    if (found != statement_cache.end())
-    {
-        stmt = found->second;
-        sqlite3_reset(stmt);
-        sqlite3_clear_bindings(stmt);
-    }
-    else
-    {
-        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            return {};
-        }
-        statement_cache.emplace(sql, stmt);
-    }
-
-    sqlite3_bind_text(stmt, 1, value.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 2, limit);
-
-    std::vector<QueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-        const std::int64_t weight = sqlite3_column_int64(stmt, 1);
-        rows.emplace_back(text == nullptr ? "" : reinterpret_cast<const char *>(text), weight);
-    }
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-    return rows;
+    return read_query<QueryItem>(db, &cache, sql, std::initializer_list<std::string_view>{value}, limit);
 }
 
-std::vector<QueryItem> run_query(sqlite3 *db, const std::string &sql, const std::string &lower_bound,
-                                 const std::string &upper_bound, int limit)
+std::vector<QueryItem> run_query(sqlite3 *db, const std::string &sql, const std::string &lower,
+                                 const std::string &upper, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-    {
-        return {};
-    }
-
-    sqlite3_bind_text(stmt, 1, lower_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, upper_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, limit);
-
-    std::vector<QueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-        const std::int64_t weight = sqlite3_column_int64(stmt, 1);
-        rows.emplace_back(text == nullptr ? "" : reinterpret_cast<const char *>(text), weight);
-    }
-    sqlite3_finalize(stmt);
-    return rows;
+    return read_query<QueryItem>(db, nullptr, sql, std::initializer_list<std::string_view>{lower, upper}, limit);
 }
 
-std::vector<QueryItem> run_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &statement_cache,
-                                 const std::string &sql, const std::string &lower_bound, const std::string &upper_bound,
-                                 int limit)
+std::vector<QueryItem> run_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &cache,
+                                 const std::string &sql, const std::string &lower, const std::string &upper, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    const auto found = statement_cache.find(sql);
-    if (found != statement_cache.end())
-    {
-        stmt = found->second;
-        sqlite3_reset(stmt);
-        sqlite3_clear_bindings(stmt);
-    }
-    else
-    {
-        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            return {};
-        }
-        statement_cache.emplace(sql, stmt);
-    }
-
-    sqlite3_bind_text(stmt, 1, lower_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, upper_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, limit);
-
-    std::vector<QueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *text = sqlite3_column_text(stmt, 0);
-        const std::int64_t weight = sqlite3_column_int64(stmt, 1);
-        rows.emplace_back(text == nullptr ? "" : reinterpret_cast<const char *>(text), weight);
-    }
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-    return rows;
+    return read_query<QueryItem>(db, &cache, sql, std::initializer_list<std::string_view>{lower, upper}, limit);
 }
 
 std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, const std::string &sql, const std::string &value, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-    {
-        return {};
-    }
-
-    sqlite3_bind_text(stmt, 1, value.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 2, limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt, 0);
-        const unsigned char *value_text = sqlite3_column_text(stmt, 1);
-        const std::int64_t weight = sqlite3_column_int64(stmt, 2);
-        rows.push_back(KeyedQueryItem{
-            key == nullptr ? "" : reinterpret_cast<const char *>(key),
-            value_text == nullptr ? "" : reinterpret_cast<const char *>(value_text),
-            weight,
-        });
-    }
-    sqlite3_finalize(stmt);
-    return rows;
+    return read_query<KeyedQueryItem>(db, nullptr, sql, std::initializer_list<std::string_view>{value}, limit);
 }
 
-std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db,
-                                            std::unordered_map<std::string, sqlite3_stmt *> &statement_cache,
+std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &cache,
                                             const std::string &sql, const std::string &value, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    const auto found = statement_cache.find(sql);
-    if (found != statement_cache.end())
-    {
-        stmt = found->second;
-        sqlite3_reset(stmt);
-        sqlite3_clear_bindings(stmt);
-    }
-    else
-    {
-        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            return {};
-        }
-        statement_cache.emplace(sql, stmt);
-    }
-
-    sqlite3_bind_text(stmt, 1, value.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 2, limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt, 0);
-        const unsigned char *value_text = sqlite3_column_text(stmt, 1);
-        const std::int64_t weight = sqlite3_column_int64(stmt, 2);
-        rows.push_back(KeyedQueryItem{
-            key == nullptr ? "" : reinterpret_cast<const char *>(key),
-            value_text == nullptr ? "" : reinterpret_cast<const char *>(value_text),
-            weight,
-        });
-    }
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-    return rows;
+    return read_query<KeyedQueryItem>(db, &cache, sql, std::initializer_list<std::string_view>{value}, limit);
 }
 
-std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, const std::string &sql, const std::string &lower_bound,
-                                            const std::string &upper_bound, int limit)
+std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, const std::string &sql, const std::string &lower,
+                                            const std::string &upper, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-    {
-        return {};
-    }
-
-    sqlite3_bind_text(stmt, 1, lower_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, upper_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt, 0);
-        const unsigned char *value_text = sqlite3_column_text(stmt, 1);
-        rows.push_back(KeyedQueryItem{
-            key == nullptr ? "" : reinterpret_cast<const char *>(key),
-            value_text == nullptr ? "" : reinterpret_cast<const char *>(value_text),
-            sqlite3_column_int64(stmt, 2),
-        });
-    }
-    sqlite3_finalize(stmt);
-    return rows;
+    return read_query<KeyedQueryItem>(db, nullptr, sql, std::initializer_list<std::string_view>{lower, upper}, limit);
 }
 
-std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db,
-                                            std::unordered_map<std::string, sqlite3_stmt *> &statement_cache,
-                                            const std::string &sql, const std::string &lower_bound,
-                                            const std::string &upper_bound, int limit)
+std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &cache,
+                                            const std::string &sql, const std::string &lower,
+                                            const std::string &upper, int limit)
 {
-    sqlite3_stmt *stmt = nullptr;
-    const auto found = statement_cache.find(sql);
-    if (found != statement_cache.end())
-    {
-        stmt = found->second;
-        sqlite3_reset(stmt);
-        sqlite3_clear_bindings(stmt);
-    }
-    else
-    {
-        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            return {};
-        }
-        statement_cache.emplace(sql, stmt);
-    }
-
-    sqlite3_bind_text(stmt, 1, lower_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, upper_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt, 0);
-        const unsigned char *value_text = sqlite3_column_text(stmt, 1);
-        rows.push_back(KeyedQueryItem{
-            key == nullptr ? "" : reinterpret_cast<const char *>(key),
-            value_text == nullptr ? "" : reinterpret_cast<const char *>(value_text),
-            sqlite3_column_int64(stmt, 2),
-        });
-    }
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-    return rows;
+    return read_query<KeyedQueryItem>(db, &cache, sql, std::initializer_list<std::string_view>{lower, upper}, limit);
 }
 
 std::vector<KeyedQueryItem> run_keyed_batch_query(sqlite3 *db,
-                                                  std::unordered_map<std::string, sqlite3_stmt *> &statement_cache,
+                                                  std::unordered_map<std::string, sqlite3_stmt *> &cache,
                                                   const std::string &table, const std::vector<std::string> &keys,
                                                   int limit)
 {
     if (db == nullptr || table.empty() || keys.empty() || limit <= 0)
-    {
         return {};
-    }
-
     std::string placeholders;
     for (size_t index = 0; index < keys.size(); ++index)
     {
         if (index > 0)
-        {
             placeholders += ',';
-        }
         placeholders += '?';
     }
     const std::string sql = "SELECT \"key\", \"value\", \"weight\" FROM \"" + table + "\" WHERE \"key\" IN (" +
                             placeholders + ") ORDER BY \"weight\" DESC LIMIT ?";
-
-    sqlite3_stmt *stmt = nullptr;
-    const auto found = statement_cache.find(sql);
-    if (found != statement_cache.end())
-    {
-        stmt = found->second;
-        sqlite3_reset(stmt);
-        sqlite3_clear_bindings(stmt);
-    }
-    else
-    {
-        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            return {};
-        }
-        statement_cache.emplace(sql, stmt);
-    }
-
-    for (size_t index = 0; index < keys.size(); ++index)
-    {
-        sqlite3_bind_text(stmt, static_cast<int>(index + 1), keys[index].c_str(), -1, SQLITE_TRANSIENT);
-    }
-    sqlite3_bind_int(stmt, static_cast<int>(keys.size() + 1), limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt, 0);
-        const unsigned char *value_text = sqlite3_column_text(stmt, 1);
-        rows.push_back(KeyedQueryItem{
-            key == nullptr ? "" : reinterpret_cast<const char *>(key),
-            value_text == nullptr ? "" : reinterpret_cast<const char *>(value_text),
-            sqlite3_column_int64(stmt, 2),
-        });
-    }
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-    return rows;
+    return read_query<KeyedQueryItem>(db, &cache, sql, keys, limit);
 }
 
 std::vector<KeyedQueryItem> filter_mixed_jianpin_rows(const std::vector<KeyedQueryItem> &rows, const Segments &segments,
@@ -1145,27 +988,8 @@ std::vector<KeyedQueryItem> query_initial(sqlite3 *db, const std::string &prefix
     const std::string table = "tbl_1_" + std::string(1, prefix.front());
     const std::string sql = "SELECT \"key\", \"value\", \"weight\" FROM \"" + table +
                             "\" WHERE \"key\" >= ?1 AND \"key\" < ?2 ORDER BY \"weight\" DESC LIMIT ?3";
-    sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-    {
-        return {};
-    }
-
     const std::string upper_bound = prefix + "{";
-    sqlite3_bind_text(stmt, 1, prefix.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, upper_bound.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const auto *key = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-        const auto *value = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-        rows.push_back(
-            KeyedQueryItem{key == nullptr ? "" : key, value == nullptr ? "" : value, sqlite3_column_int64(stmt, 2)});
-    }
-    sqlite3_finalize(stmt);
-    return rows;
+    return run_keyed_query(db, sql, prefix, upper_bound, limit);
 }
 
 QueryResult query_words(const std::string &pinyin, const std::string &db_path, const std::string &mode, int limit)
@@ -1385,40 +1209,7 @@ std::vector<KeyedQueryItem> query_key_range_keyed(sqlite3 *db,
     }
     const std::string sql = "SELECT \"key\", \"value\", \"weight\" FROM \"" + table +
                             "\" WHERE \"key\" >= ?1 AND \"key\" < ?2 ORDER BY \"weight\" DESC LIMIT ?3";
-    sqlite3_stmt *stmt = nullptr;
-    const auto found = statement_cache.find(sql);
-    if (found != statement_cache.end())
-    {
-        stmt = found->second;
-        sqlite3_reset(stmt);
-        sqlite3_clear_bindings(stmt);
-    }
-    else
-    {
-        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            return {};
-        }
-        statement_cache.emplace(sql, stmt);
-    }
-    sqlite3_bind_text(stmt, 1, lower.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, upper.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 3, limit);
-
-    std::vector<KeyedQueryItem> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt, 0);
-        const unsigned char *value_text = sqlite3_column_text(stmt, 1);
-        rows.push_back(KeyedQueryItem{
-            key == nullptr ? "" : reinterpret_cast<const char *>(key),
-            value_text == nullptr ? "" : reinterpret_cast<const char *>(value_text),
-            sqlite3_column_int64(stmt, 2),
-        });
-    }
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
-    return rows;
+    return run_keyed_query(db, statement_cache, sql, lower, upper, limit);
 }
 
 std::shared_ptr<const CharReadingTotals> load_char_reading_totals(sqlite3 *db)
@@ -1429,26 +1220,45 @@ std::shared_ptr<const CharReadingTotals> load_char_reading_totals(sqlite3 *db)
 
     std::vector<std::string> tables;
     sqlite3_stmt *statement = nullptr;
-    if (sqlite3_prepare_v2(
-            db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'tbl\\_1\\_%' ESCAPE '\\'", -1,
-            &statement, nullptr) != SQLITE_OK)
-        return totals;
-    while (sqlite3_step(statement) == SQLITE_ROW)
+    const int prepared = sqlite3_prepare_v2(
+        db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'tbl\\_1\\_%' ESCAPE '\\'", -1,
+        &statement, nullptr);
+    if (prepared != SQLITE_OK)
     {
-        const auto *name = reinterpret_cast<const char *>(sqlite3_column_text(statement, 0));
-        if (name != nullptr)
-            tables.emplace_back(name);
+        note_query_failure();
+        sqlite3_finalize(statement);
+        return nullptr;
     }
-    sqlite3_finalize(statement);
+    {
+        QueryStatementUse use{statement, false};
+        int status;
+        while ((status = sqlite3_step(statement)) == SQLITE_ROW)
+        {
+            const auto *name = reinterpret_cast<const char *>(sqlite3_column_text(statement, 0));
+            if (name != nullptr)
+                tables.emplace_back(name);
+        }
+        if (status != SQLITE_DONE)
+        {
+            note_query_failure();
+            return nullptr;
+        }
+    }
 
-    // 先按字累计权重和读音数，再只留多音字：单读音的字占比恒为 1，存着只占内存。
     std::unordered_map<std::string, std::pair<std::int64_t, int>> sums;
     for (const auto &table : tables)
     {
         const std::string sql = "SELECT value, weight FROM " + table;
+        statement = nullptr;
         if (sqlite3_prepare_v2(db, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK)
-            continue;
-        while (sqlite3_step(statement) == SQLITE_ROW)
+        {
+            note_query_failure();
+            sqlite3_finalize(statement);
+            return nullptr;
+        }
+        QueryStatementUse use{statement, false};
+        int status;
+        while ((status = sqlite3_step(statement)) == SQLITE_ROW)
         {
             const auto *value = reinterpret_cast<const char *>(sqlite3_column_text(statement, 0));
             if (value == nullptr)
@@ -1457,7 +1267,11 @@ std::shared_ptr<const CharReadingTotals> load_char_reading_totals(sqlite3 *db)
             sum += (std::max)(sqlite3_column_int64(statement, 1), sqlite3_int64{0});
             ++readings;
         }
-        sqlite3_finalize(statement);
+        if (status != SQLITE_DONE)
+        {
+            note_query_failure();
+            return nullptr;
+        }
     }
     for (const auto &[value, sum] : sums)
     {

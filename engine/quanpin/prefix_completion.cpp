@@ -3,6 +3,7 @@
 #include "../contracts/dictionary/format.h"
 #include "../neural/sentence_model.h"
 #include "quanpin_query.h"
+#include "query_status.h"
 #include "quanpin_utils.h"
 
 #include <utf8.h>
@@ -395,8 +396,11 @@ void insert_prefix_completion(std::vector<WordItem> &result, const std::string &
     {
         // 首选是词库词时按它的字补；是整句猜的时只按读音补：猜出来的字常常不对（chuangqianmingyue 猜成
         // 「窗前明月」），按字补就补不出「床前明月光」。
+        const QueryCheckpoint checkpoint;
         auto queried =
             query_prefix_completion_rows(db, statement_cache, prefix_key, prefix_is_word ? head.word : std::string());
+        if (checkpoint.failed())
+            return;
         score_prefix_completions(queried, syllable_count(prefix_key), prefix_is_word, scorers);
         cache.insert(cache_key, std::move(queried));
         rows = cache.find(cache_key);
