@@ -21,7 +21,6 @@ export type ClientMessage =
   | { "type": "latticeModelImport"; "protocolVersion"?: 1 }
   | { "type": "latticeModelDelete"; "protocolVersion"?: 1 }
   | { "type": "latticeModelStatusRequest"; "protocolVersion"?: 1 }
-  | { "type": "openHandwritingPanel"; "protocolVersion"?: 1 }
   | { "type": "restartServer"; "protocolVersion"?: 1 }
   | { "type": "userDataBackupRequest"; "protocolVersion"?: 1; "data": { "action": "export" | "import"; "path": string; "includeModels"?: boolean } }
   | { "type": "copyText"; "protocolVersion"?: 1; "data": string }
@@ -40,7 +39,6 @@ export type ClientMessage =
   | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
-  | { "type": "openKeyboardPanel"; "protocolVersion"?: 1 }
   | { "type": "candidate"; "protocolVersion"?: 1; "data": number }
   | { "type": "delete"; "protocolVersion"?: 1; "data": number }
   | { "type": "pin"; "protocolVersion"?: 1; "data": number }
@@ -58,9 +56,6 @@ export type ClientMessage =
   | { "type": "floatingToggle"; "protocolVersion"?: 1; "data": boolean }
   | { "type": "settings"; "protocolVersion"?: 1 }
   | { "type": "about"; "protocolVersion"?: 1 }
-  | { "type": "emojiSymbols"; "protocolVersion"?: 1 }
-  | { "type": "keyboardPanel"; "protocolVersion"?: 1 }
-  | { "type": "handwritingPanel"; "protocolVersion"?: 1 }
   | { "type": "voiceInput"; "protocolVersion"?: 1 }
   | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" | "shuangpin" | "wubi" }
   | { "type": "inputSchemeSubmenu"; "protocolVersion"?: 1; "data": { "open": boolean; "width": number } }
@@ -68,7 +63,6 @@ export type ClientMessage =
   | { "type": "exitEnglishInputMode"; "protocolVersion"?: 1 }
   | { "type": "changeCharacterSet"; "protocolVersion"?: 1 }
   | { "type": "openSettings"; "protocolVersion"?: 1 }
-  | { "type": "openEmojiPanel"; "protocolVersion"?: 1 }
   | { "type": "changeIMEMode"; "protocolVersion"?: 1; "data": "cn" | "en" }
   | { "type": "changeCharMode"; "protocolVersion"?: 1; "data": "fullwidth" | "halfwidth" }
   | { "type": "changePuncMode"; "protocolVersion"?: 1; "data": "puncEn" | "puncCn" };
@@ -83,8 +77,7 @@ export type ServerMessage =
   | { "type": "aiProviderSyncResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string }
   | { "type": "restartServerDone"; "protocolVersion"?: 1; "ok": boolean }
   | { "type": "userDataBackupDone"; "protocolVersion"?: 1; "action": "export" | "import"; "ok": boolean; "message": string }
-  | { "type": "dictionaryResponse"; "protocolVersion"?: 1; "requestId": string; "action"?: string; "dictionary"?: string; "ok": boolean; "message": string; "rows": Array<{ "word": string; "code"?: string; "display"?: string; "weight"?: number }>; "content"?: string; "filename"?: string; "offset"?: number; "hasMore"?: boolean; [key: string]: unknown }
-  | { "type": "statsResponse"; "protocolVersion"?: 1; "requestId": string; "action": string; "ok": boolean; "message": string; "overview"?: { "hasData": boolean; "firstDayKey": number; "lastDayKey": number; "days": number; "totalChars": number; "totalActiveMs": number; "todayDayKey": number; "todayChars": number; "todayActiveMs": number; "averagePerDay": number; "currentStreak": number; "longestStreak": number; "bestDayKey": number; "bestDayChars": number; "todaySpeed": number; "averageSpeed": number; "fastestSpeed": number; "fastestDayKey": number; "todayFirstWordRatio": number | null; "totalFirstWordRatio": number | null; "todayFirstWordTotal": number; "categories": { "cjk": number; "latin": number; "digit": number; "punct": number; "other": number }; "todayHourly": Array<number>; "daily": Array<{ "dayKey": number; "cjk": number; "latin": number; "digit": number; "punct": number; "other": number; "activeMs": number; "firstWordHits": number; "firstWordTotal": number }> }; "removedDays"?: number; [key: string]: unknown };
+  | { "type": "dictionaryResponse"; "protocolVersion"?: 1; "requestId": string; "action"?: string; "dictionary"?: string; "ok": boolean; "message": string; "rows": Array<{ "word": string; "code"?: string; "display"?: string; "weight"?: number }>; "content"?: string; "filename"?: string; "offset"?: number; "hasMore"?: boolean; [key: string]: unknown };
 export type SettingsMessage =
   | { "type": "configRequest"; "protocolVersion"?: 1 }
   | { "type": "skinCatalogRequest"; "protocolVersion"?: 1 }
@@ -105,7 +98,6 @@ export type SettingsMessage =
   | { "type": "latticeModelImport"; "protocolVersion"?: 1 }
   | { "type": "latticeModelDelete"; "protocolVersion"?: 1 }
   | { "type": "latticeModelStatusRequest"; "protocolVersion"?: 1 }
-  | { "type": "openHandwritingPanel"; "protocolVersion"?: 1 }
   | { "type": "restartServer"; "protocolVersion"?: 1 }
   | { "type": "userDataBackupRequest"; "protocolVersion"?: 1; "data": { "action": "export" | "import"; "path": string; "includeModels"?: boolean } }
   | { "type": "copyText"; "protocolVersion"?: 1; "data": string }
@@ -123,8 +115,7 @@ export type SettingsMessage =
   | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
-  | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
-  | { "type": "openKeyboardPanel"; "protocolVersion"?: 1 };
+  | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } };
 declare global {
   var MsimeProtocol: {
     validate(message: unknown, direction: 'client' | 'server', surface?: string): boolean;

@@ -68,7 +68,6 @@ struct CreatingWordState
     std::string prefix_text;
     bool active = false;
     // 已选的每一段都是第 1 页第 1 位。首词命中率按整次上屏记账，任一段没选首位就不算命中。
-    bool all_segments_first = true;
 
     void clear()
     {
@@ -80,7 +79,6 @@ struct CreatingWordState
         first_segment_character_set.clear();
         prefix_text.clear();
         active = false;
-        all_segments_first = true;
     }
 };
 

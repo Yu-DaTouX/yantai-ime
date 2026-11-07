@@ -6,7 +6,7 @@
 
 ## 顶层字段
 
-- 必填：`schema_version`（`1` 或 `2`）、`id`、`name`、`version`、`base`（继承的内置皮肤：`fluent`、`wechat`、`graphite`、`willow_green`、`autumn_osmanthus`、`microsoft`；或与 msime 共享的基底：`system`、`shuishan`、`light`、`paper`、`night`、`ink`，按 `fluent` 的结构绘制并补上基底配色，固定明暗的基底只在对应的 `themes` 下生效；或全贴图基底 `canvas`，只用于 v2）
+- 必填：`schema_version`（`1` 或 `2`）、`id`、`name`、`version`、`base`（继承的内置皮肤：`fluent`；或与 msime 共享的基底：`system`、`shuishan`、`light`、`paper`、`night`、`ink`，按 `fluent` 的结构绘制并补上基底配色，固定明暗的基底只在对应的 `themes` 下生效；或全贴图基底 `canvas`，只用于 v2）
 - `schema_version` 与 `base` 的搭配：
   - 下面标「v2」的表和键只在 `schema_version = 2` 且 `base = "canvas"` 时生效。写了 2 而 `base` 是别的基底时，皮肤仍可使用，按 `schema_version = 1` 加载，这些表和键全部忽略（连同其中的错误）；清单里确实写了它们时，设置页的诊断信息会列出被忽略的键。
   - `schema_version = 2` 也是 msime 各平台共用的清单版本，`[animation]` 和装饰图的 `motion`、`motion_period_ms` 对任何基底都合法。Windows 目前不播放它们，按静态显示，不算错误，也不提示。
@@ -260,8 +260,6 @@ gap_dip = 2
 | `fullwidth` | 全 / 半角 | `full`、`half` |
 | `punctuation` | 中 / 英标点 | `cn`、`en` |
 | `character_set` | 简 / 繁 | `simplified`、`traditional` |
-| `emoji` | 表情面板 | 无 |
-| `screen_keyboard` | 屏幕键盘 | 无 |
 | `settings` | 设置 | 无 |
 
 - 设置页「悬浮工具栏」里的缩放会同时放大背景图、按钮位置和尺寸。

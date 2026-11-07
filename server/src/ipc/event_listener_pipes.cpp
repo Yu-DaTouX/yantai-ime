@@ -19,7 +19,6 @@
 #include "window/window_hook.h"
 #include "watchdog/watchdog_protocol.h"
 #include "log/candidate_diag_log.h"
-#include "statistics/stats_pipe.h"
 #include <cwchar>
 
 using namespace event_listener_detail;
@@ -312,11 +311,6 @@ void WakeNamedPipeListenersForShutdown()
     WakePipeListener(FANY_IME_AUX_NAMED_PIPE);
     WakePipeListener(FANY_IME_TSF_DIAGNOSTIC_NAMED_PIPE);
     WakePipeListener(FANY_IME_VOICE_CONTROL_NAMED_PIPE);
-    // The statistics listener blocks in ConnectNamedPipe on a PIPE_WAIT
-    // instance just like the others, but its name carries the session id.
-    // Without this wake a Server that never saw a statistics client would hang
-    // in stats_pipe_listener.join() forever.
-    WakePipeListener(MsimeStats::BuildStatsPipeName(MsimeStats::CurrentStatsSessionId()).c_str());
 }
 } // namespace event_listener_detail
 
@@ -892,9 +886,6 @@ void RegisteredPipeMonitorThread(HANDLE clientPipe, UINT pipeRole, uint64_t hand
             SendToTsfWorkerThreadClientViaNamedpipe(
                 hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::PunctuationLockChanged,
                 FormatPunctuationLockWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::StatisticsEnabledChanged,
-                GetConfiguredStatisticsEnabled() ? L"1" : L"0");
             SendToTsfWorkerThreadClientViaNamedpipe(
                 hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged,
                 GetConfiguredAiAssistant().enabled ? L"1" : L"0");

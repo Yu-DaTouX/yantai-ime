@@ -1,6 +1,5 @@
 #include "TextStore.h"
 #include "TextEditor.h"
-#include "TextInputCtrl.h"
 #include "InputScope.h"
 #include "tsattrs.h"
 #include "../DebugLog.h"

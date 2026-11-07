@@ -63,15 +63,17 @@ struct ToolbarIcon
 
 // ftb/default.html after the preview strips #en, #fullwidth and #puncEn.
 const ToolbarIcon kToolbarIcons[] = {
-    {0xE982, L"中", -1}, {0xEC46, L"半", 0}, {0xF111, L"。", 1}, {0xE88D, L"简", 2},
-    {0xE76E, L"表", 3},  {0xE765, L"键", 4}, {0xE713, L"设", 5},
+    {0xE982, L"中", -1}, {0xEC46, L"半", 0}, {0xF111, L"。", 1}, {0xE88D, L"简", 2}, {0xE713, L"设", 3},
 };
 
 // The skin's button keys for kToolbarIcons, in the same order, with the state each icon shows:
 // Chinese input, half width, Chinese punctuation, simplified.
 const ToolbarImageButtonRequest kToolbarButtons[] = {
-    {"status", "cn"}, {"fullwidth", "half"},   {"punctuation", "cn"}, {"character_set", "simplified"},
-    {"emoji", ""},    {"screen_keyboard", ""}, {"settings", ""},
+    {"status", "cn"},
+    {"fullwidth", "half"},
+    {"punctuation", "cn"},
+    {"character_set", "simplified"},
+    {"settings", ""},
 };
 static_assert(std::size(kToolbarButtons) == std::size(kToolbarIcons));
 
@@ -621,212 +623,5 @@ HCURSOR PillButton::GetCursor() const
 }
 
 // ---------------------------------------------------------------------------------
-// AccentButton
-// ---------------------------------------------------------------------------------
-namespace
-{
-TextStyle AccentStyle()
-{
-    TextStyle style;
-    style.size = 13.0f;
-    return style;
-}
-
-D2D1_COLOR_F Brightness(D2D1_COLOR_F color, float factor)
-{
-    color.r = std::min(color.r * factor, 1.0f);
-    color.g = std::min(color.g * factor, 1.0f);
-    color.b = std::min(color.b * factor, 1.0f);
-    return color;
-}
-} // namespace
-
-AccentButton::AccentButton(std::wstring text) : text_(std::move(text))
-{
-}
-
-void AccentButton::SetOnClick(std::function<void()> handler)
-{
-    onClick_ = std::move(handler);
-}
-
-SizeF AccentButton::Measure(const SizeF &availableSize)
-{
-    const float width = std::max(68.0f, MeasureTextWidth(text_, AccentStyle()) + 36.0f);
-    return {std::min(width, availableSize.width), LineHeight(AccentStyle()) + 14.0f};
-}
-
-void AccentButton::Arrange(const RectF &finalRect)
-{
-    bounds_ = finalRect;
-}
-
-void AccentButton::Render(msimeui::DeviceResources &dr)
-{
-    const Palette &p = CurrentPalette();
-    RectF box = bounds_;
-    D2D1_COLOR_F fill = p.accent;
-    if (pressed_ && hovered_)
-    {
-        box.y += 1.0f;
-        fill = Brightness(fill, 0.94f);
-    }
-    else if (hovered_)
-    {
-        fill = Brightness(fill, 1.1f);
-    }
-    FillRounded(dr, box, 6.0f, fill);
-    DrawCentered(dr, text_, AccentStyle(), box, Hex(0xFFFFFF));
-}
-
-bool AccentButton::OnMouseDown(const POINT &point, WPARAM)
-{
-    pressed_ = HitSelf(window_, *this, point);
-    InvalidateVisual();
-    return pressed_;
-}
-
-bool AccentButton::OnMouseUp(const POINT &point, WPARAM)
-{
-    if (!pressed_)
-        return false;
-    pressed_ = false;
-    InvalidateVisual();
-    if (HitSelf(window_, *this, point) && onClick_)
-    {
-        // A handler may tear down the visual that owns onClick_ while it runs.
-        const auto handler = onClick_;
-        handler();
-    }
-    return true;
-}
-
-void AccentButton::OnMouseEnter()
-{
-    hovered_ = true;
-    InvalidateVisual();
-}
-
-void AccentButton::OnMouseLeave()
-{
-    hovered_ = false;
-    pressed_ = false;
-    InvalidateVisual();
-}
-
-HCURSOR AccentButton::GetCursor() const
-{
-    return LoadCursor(nullptr, IDC_HAND);
-}
-
-// ---------------------------------------------------------------------------------
-// PreviewImage
-// ---------------------------------------------------------------------------------
-PreviewImage::PreviewImage(float maxWidth, float radius) : maxWidth_(maxWidth), radius_(radius)
-{
-}
-
-void PreviewImage::SetPath(std::wstring path)
-{
-    if (path == path_)
-        return;
-    path_ = std::move(path);
-    natural_ = ImageFileSize(path_);
-    InvalidateMeasure();
-    InvalidateVisual();
-}
-
-void PreviewImage::SetShadowAlpha(float alpha)
-{
-    shadowAlpha_ = alpha;
-    InvalidateVisual();
-}
-
-SizeF PreviewImage::Measure(const SizeF &availableSize)
-{
-    const float width = std::min(availableSize.width, maxWidth_);
-    const float height = natural_.width > 0.0f ? width * natural_.height / natural_.width : 0.0f;
-    return {availableSize.width, height};
-}
-
-void PreviewImage::Arrange(const RectF &finalRect)
-{
-    bounds_ = finalRect;
-}
-
-void PreviewImage::Render(msimeui::DeviceResources &dr)
-{
-    if (natural_.width <= 0.0f)
-        return;
-    const float width = std::min(bounds_.width, maxWidth_);
-    const float height = width * natural_.height / natural_.width;
-    const RectF box = {std::round(bounds_.x + (bounds_.width - width) * 0.5f), bounds_.y, width, height};
-    // box-shadow: 0 10px 28px
-    const msimeui::ShadowPass pass = {14.0f, shadowAlpha_, 0.0f, 10.0f};
-    shadow_.Render(dr.GetRenderTarget(), box, radius_, &pass, 1);
-    ID2D1Bitmap *bitmap = CachedBitmap(dr, path_);
-    if (!bitmap)
-        return;
-    const bool clipped = PushRoundedClipLayer(dr, box, radius_);
-    ComPtr<ID2D1DeviceContext> context;
-    if (SUCCEEDED(dr.GetRenderTarget()->QueryInterface(IID_PPV_ARGS(context.GetAddressOf()))))
-        context->DrawBitmap(bitmap, ToD2D(box), 1.0f, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
-    else
-        dr.GetRenderTarget()->DrawBitmap(bitmap, ToD2D(box));
-    if (clipped)
-        dr.GetRenderTarget()->PopLayer();
-}
-
-// ---------------------------------------------------------------------------------
-// Screen keyboard / handwriting page
-// ---------------------------------------------------------------------------------
-VisualPtr BuildPanelPage(PageContext &context, const wchar_t *pageTitle, const wchar_t *rowTitle,
-                         const wchar_t *description, const char *openMessage, const char *themePath,
-                         const wchar_t *darkImage, const wchar_t *lightImage)
-{
-    PageBuilder page(pageTitle);
-    auto card = std::make_shared<FlushCard>();
-
-    auto open = std::make_shared<AccentButton>(L"打开");
-    SettingsModel *model = &context.model;
-    const std::string message = openMessage;
-    open->SetOnClick([model, message]() { model->Post(message); });
-    card->Add(std::make_shared<Band>(std::make_shared<SettingRow>(MakeTitleBlock(rowTitle, description), open),
-                                     Thickness{24.0f, 20.0f, 24.0f, 20.0f}));
-
-    auto previewColumn = std::make_shared<Column>(0.0f);
-    TextStyle labelStyle;
-    labelStyle.size = kFontCaption;
-    auto label = std::make_shared<Label>(L"预览", labelStyle, TextRole::Muted);
-    label->SetMargin({0.0f, 0.0f, 0.0f, 24.0f});
-    previewColumn->Add(label);
-    auto image = std::make_shared<PreviewImage>(760.0f, 4.0f);
-    previewColumn->Add(image);
-    auto preview = std::make_shared<Band>(previewColumn, Thickness{24.0f, 20.0f, 24.0f, 30.0f});
-    auto light = std::make_shared<bool>(false);
-    preview->SetBackground([light]() { return *light ? Hex(0xE7E7E9) : Rgba(18, 18, 18, 0.28f); });
-    preview->SetTopRule([]() { return CurrentPalette().border; });
-    card->Add(preview);
-
-    const std::string theme = themePath;
-    const std::wstring dark = darkImage;
-    const std::wstring lightPath = lightImage;
-    std::weak_ptr<PreviewImage> weakImage = image;
-    std::weak_ptr<Band> weakPreview = preview;
-    auto sync = [model, theme, dark, lightPath, light, weakImage, weakPreview]() {
-        *light = ResolveSurfaceLight(*model, theme.c_str());
-        if (auto img = weakImage.lock())
-        {
-            img->SetPath(AssetPath(*light ? lightPath : dark));
-            img->SetShadowAlpha(*light ? 0.18f : 0.32f);
-        }
-        if (auto band = weakPreview.lock())
-            band->InvalidateVisual();
-    };
-    sync();
-    context.OnConfig(sync);
-    page.AddRaw(card);
-    return page.Build();
-}
 } // namespace skinpreview
 } // namespace native_settings

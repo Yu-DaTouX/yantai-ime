@@ -23,7 +23,6 @@
 #include "ipc/outbound_session_state.h"
 #include "ipc/pipe_write_policy.h"
 #include "ipc/terminal_deactivation_policy.h"
-#include "statistics/stats_pipe.h"
 #include "utils/common_utils.h"
 #include "config/ime_config.h"
 #include "fmt/xchar.h"
@@ -435,14 +434,6 @@ HANDLE CreateTsfDiagnosticNamedPipeInstance()
 {
     return CreateNamedPipeInstance(FANY_IME_TSF_DIAGNOSTIC_NAMED_PIPE, 128,
                                    static_cast<DWORD>(FANY_IME_TSF_DIAGNOSTIC_MAX_FRAME_BYTES));
-}
-
-HANDLE CreateStatsNamedPipeInstance()
-{
-    // The name carries the session id, so fast user switching and RDP sessions
-    // get separate listeners instead of racing for one machine-global name.
-    const std::wstring pipe_name = MsimeStats::BuildStatsPipeName(MsimeStats::CurrentStatsSessionId());
-    return CreateNamedPipeInstance(pipe_name.c_str(), 128, static_cast<DWORD>(FANY_IME_STATS_MAX_FRAME_BYTES));
 }
 
 HANDLE CreateVoiceControlNamedPipeInstance()

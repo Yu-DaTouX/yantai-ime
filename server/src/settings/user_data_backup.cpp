@@ -432,125 +432,6 @@ bool ImportDictionaryViaSettings(const std::string &dictionary, const std::strin
     }
 }
 
-bool SnapshotSqlite(const std::filesystem::path &source, const std::filesystem::path &destination, std::string &message)
-{
-    {
-        std::ifstream header(source, std::ios::binary);
-        std::array<char, 16> magic{};
-        header.read(magic.data(), static_cast<std::streamsize>(magic.size()));
-        if (header.gcount() != static_cast<std::streamsize>(magic.size()) ||
-            std::memcmp(magic.data(), "SQLite format 3\0", magic.size()) != 0)
-        {
-            message = "统计数据库不是有效的 SQLite 文件，未导出备份。";
-            return false;
-        }
-    }
-
-    sqlite3 *raw_source = nullptr;
-    sqlite3 *raw_destination = nullptr;
-    const std::string source_path = PathToUtf8(source);
-    const std::string destination_path = PathToUtf8(destination);
-    if (!EnsureDirectory(destination.parent_path(), message))
-        return false;
-    std::error_code ec;
-    std::filesystem::remove(destination, ec);
-
-    if (sqlite3_open_v2(source_path.c_str(), &raw_source, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr) !=
-        SQLITE_OK)
-    {
-        const std::string error = raw_source ? sqlite3_errmsg(raw_source) : "无法打开统计数据库";
-        if (raw_source)
-            sqlite3_close(raw_source);
-        message = "打开统计数据库失败：" + error;
-        return false;
-    }
-    const std::unique_ptr<sqlite3, decltype(&sqlite3_close)> database(raw_source, &sqlite3_close);
-    if (sqlite3_open_v2(destination_path.c_str(), &raw_destination,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK)
-    {
-        const std::string error = raw_destination ? sqlite3_errmsg(raw_destination) : "无法创建统计快照";
-        if (raw_destination)
-            sqlite3_close(raw_destination);
-        message = "创建统计快照失败：" + error;
-        return false;
-    }
-    const std::unique_ptr<sqlite3, decltype(&sqlite3_close)> snapshot(raw_destination, &sqlite3_close);
-    sqlite3_busy_timeout(raw_source, 5000);
-
-    sqlite3_backup *backup = sqlite3_backup_init(raw_destination, "main", raw_source, "main");
-    if (!backup)
-    {
-        message = std::string("统计快照初始化失败：") + sqlite3_errmsg(raw_destination);
-        return false;
-    }
-    int result = SQLITE_OK;
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    do
-    {
-        result = sqlite3_backup_step(backup, 256);
-        if (result == SQLITE_BUSY || result == SQLITE_LOCKED)
-        {
-            // The live stats writer may hold a short transaction. Retry briefly,
-            // but never spin forever on a database that stays locked.
-            if (std::chrono::steady_clock::now() >= deadline)
-                break;
-            Sleep(20);
-        }
-    } while (result == SQLITE_OK || result == SQLITE_BUSY || result == SQLITE_LOCKED);
-    const int finish_result = sqlite3_backup_finish(backup);
-    if (result != SQLITE_DONE || finish_result != SQLITE_OK)
-    {
-        message = std::string("统计快照失败：") + sqlite3_errmsg(raw_destination);
-        std::filesystem::remove(destination, ec);
-        return false;
-    }
-    return true;
-}
-
-// stats.db runs in WAL mode and the Server is stopped with ExitProcess, so a
-// stats.db-wal (and possibly a rollback journal) routinely survives the stop.
-// Replacing stats.db while that WAL is still on disk would let SQLite replay the
-// old pages into the imported database. Opening the live database once checkpoints
-// the WAL into the main file and removes the sidecars; the copy taken afterwards is
-// also complete, which the pre-import backup relies on.
-bool CheckpointStatisticsDatabase(const std::filesystem::path &path, std::string &message)
-{
-    std::error_code error;
-    if (!std::filesystem::is_regular_file(path, error))
-    {
-        // An orphaned WAL/journal without its database would attach itself to the
-        // imported file, so drop the sidecars before the import creates stats.db anew.
-        for (const wchar_t *suffix : {L"-wal", L"-shm", L"-journal"})
-        {
-            std::filesystem::path sidecar = path;
-            sidecar += suffix;
-            std::error_code remove_error;
-            std::filesystem::remove(sidecar, remove_error);
-        }
-        return true;
-    }
-    sqlite3 *raw = nullptr;
-    const std::string path_utf8 = PathToUtf8(path);
-    if (sqlite3_open_v2(path_utf8.c_str(), &raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK)
-    {
-        const std::string reason = raw ? sqlite3_errmsg(raw) : "无法打开统计数据库";
-        if (raw)
-            sqlite3_close(raw);
-        message = "无法整理现有统计数据库：" + reason;
-        return false;
-    }
-    const std::unique_ptr<sqlite3, decltype(&sqlite3_close)> database(raw, &sqlite3_close);
-    sqlite3_busy_timeout(raw, 5000);
-    char *error_text = nullptr;
-    const int result = sqlite3_exec(raw, "PRAGMA wal_checkpoint(TRUNCATE);", nullptr, nullptr, &error_text);
-    if (result != SQLITE_OK)
-    {
-        message = std::string("无法整理现有统计数据库：") + (error_text ? error_text : sqlite3_errmsg(raw));
-    }
-    sqlite3_free(error_text);
-    return result == SQLITE_OK;
-}
-
 bool ReadSmallFile(const std::filesystem::path &path, std::uint64_t max_size, std::string &content,
                    std::string &message)
 {
@@ -786,7 +667,7 @@ bool ValidateArchive(const std::filesystem::path &archive, std::vector<ManifestI
 
 bool IsDataPath(const std::string &path)
 {
-    return path == "config.toml" || path == "stats.db" || HasPrefix(path, "skins/") || HasPrefix(path, "models/");
+    return path == "config.toml" || HasPrefix(path, "skins/") || HasPrefix(path, "models/");
 }
 
 std::filesystem::path TargetPath(const Context &context, const std::string &path)
@@ -964,7 +845,7 @@ bool IsAllowedDataPath(const std::string &path)
 {
     if (!user_data_zip::IsSafeArchivePath(path))
         return false;
-    if (path == "config.toml" || path == "stats.db")
+    if (path == "config.toml")
         return true;
     if (HasPrefix(path, "skins/"))
     {
@@ -1039,12 +920,11 @@ bool Export(const Context &context, const std::filesystem::path &destination, bo
         message = "备份路径无效。";
         return false;
     }
-    // Never let a backup replace the live configuration or statistics database; the
-    // save dialog starts elsewhere, but the user can navigate anywhere.
-    if (SameNormalizedPath(destination, context.data_dir / L"stats.db") ||
-        SameNormalizedPath(destination, context.config_dir / L"config.toml"))
+    // Never let a backup replace the live configuration; the save dialog starts
+    // elsewhere, but the user can navigate anywhere.
+    if (SameNormalizedPath(destination, context.config_dir / L"config.toml"))
     {
-        message = "不能把备份写到正在使用的配置文件或统计数据库上。";
+        message = "不能把备份写到正在使用的配置文件上。";
         return false;
     }
     if (!EnsureDirectory(destination.parent_path(), message))
@@ -1069,18 +949,6 @@ bool Export(const Context &context, const std::filesystem::path &destination, bo
     if (std::filesystem::is_regular_file(config, error) && !error)
     {
         if (!writer.AddFile("config.toml", config, message, &added))
-            return false;
-        items.push_back({added.path, added.size, added.crc});
-    }
-    error.clear();
-
-    const std::filesystem::path stats = context.data_dir / L"stats.db";
-    if (std::filesystem::is_regular_file(stats, error) && !error)
-    {
-        const std::filesystem::path snapshot = staging.path / L"stats.db";
-        if (!SnapshotSqlite(stats, snapshot, message))
-            return false;
-        if (!writer.AddFile("stats.db", snapshot, message, &added))
             return false;
         items.push_back({added.path, added.size, added.crc});
     }
@@ -1207,21 +1075,6 @@ bool Import(const Context &context, const std::filesystem::path &source, const H
     }
     error.clear();
 
-    const std::filesystem::path staged_stats = staging.path / L"stats.db";
-    if (std::filesystem::is_regular_file(staged_stats, error) && !error)
-    {
-        std::ifstream header(staged_stats, std::ios::binary);
-        std::array<char, 16> magic{};
-        header.read(magic.data(), static_cast<std::streamsize>(magic.size()));
-        if (header.gcount() != static_cast<std::streamsize>(magic.size()) ||
-            std::memcmp(magic.data(), "SQLite format 3\0", magic.size()) != 0)
-        {
-            message = "stats.db 不是有效的 SQLite 文件，导入已取消。";
-            return false;
-        }
-    }
-    error.clear();
-
     bool stop_attempted = false;
     if (hooks.stop_server)
     {
@@ -1235,21 +1088,6 @@ bool Import(const Context &context, const std::filesystem::path &source, const H
                 (void)hooks.start_server(ignored);
             }
             message = stop_message.empty() ? "停止输入法失败，导入未开始。" : stop_message;
-            return false;
-        }
-    }
-
-    // Only touch the live statistics database when the archive replaces it. The
-    // checkpoint must run after the Server stopped and before the pre-import copy.
-    if (FindItem(items, "stats.db") != nullptr)
-    {
-        if (!CheckpointStatisticsDatabase(context.data_dir / L"stats.db", message))
-        {
-            if (stop_attempted && hooks.start_server)
-            {
-                std::string ignored;
-                (void)hooks.start_server(ignored);
-            }
             return false;
         }
     }

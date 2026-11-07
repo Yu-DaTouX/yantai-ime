@@ -257,13 +257,8 @@ bool GetConfiguredDiagnosticLogEnabled();
 bool SetConfiguredDiagnosticLogEnabled(bool enabled);
 bool GetConfiguredTsfDiagnosticLogEnabled();
 bool SetConfiguredTsfDiagnosticLogEnabled(bool enabled);
-// 本机输入统计总开关，默认关闭：关闭时 Server 不创建也不写 stats.db。
-bool GetConfiguredStatisticsEnabled();
-bool SetConfiguredStatisticsEnabled(bool enabled);
 // 统计保留策略：forever|30d|90d|180d|365d，默认 forever。缺键或非法值一律回落
 // forever——坏配置绝不能导致自动清理误删数据；setter 校验枚举才落盘。
-const std::string &GetConfiguredStatisticsRetention();
-bool SetConfiguredStatisticsRetention(const std::string &retention);
 const std::string &GetConfiguredCandidateTextColor();
 bool SetConfiguredCandidateTextColor(const std::string &color);
 // Installed font family names for settings dropdowns (cached after first call).
@@ -508,8 +503,6 @@ struct FloatingToolbarItemsConfig
     bool fullwidth = true;
     bool punctuation = true;
     bool character_set = true;
-    bool emoji = true;
-    bool screen_keyboard = false;
     bool settings = true;
 };
 const FloatingToolbarItemsConfig &GetConfiguredFloatingToolbarItems();
@@ -720,7 +713,7 @@ bool SetConfiguredSettingsLaunchAnimation(bool enabled);
 // 发现新版本时由后台自动下载安装包并校验 SHA256，出厂关闭。
 bool GetConfiguredAutoDownloadUpdate();
 bool SetConfiguredAutoDownloadUpdate(bool enabled);
-// "fluent" | "wechat" | "wechat_scroll" | "graphite" | "willow_green" | "autumn_osmanthus" | "microsoft"
+// "fluent" (built in) | "acrylic" (bundled package) | any external skin id
 // — candidate-window and floating-toolbar skin.
 const std::string &GetConfiguredCandidateSkin();
 bool SetConfiguredCandidateSkin(const std::string &skin);
@@ -739,12 +732,6 @@ const std::string &GetConfiguredThemeFtb();
 bool SetConfiguredThemeFtb(const std::string &theme);
 const std::string &GetConfiguredThemeMenu();
 bool SetConfiguredThemeMenu(const std::string &theme);
-const std::string &GetConfiguredThemeEmoji();
-bool SetConfiguredThemeEmoji(const std::string &theme);
-const std::string &GetConfiguredThemeScreenKeyboard();
-bool SetConfiguredThemeScreenKeyboard(const std::string &theme);
-const std::string &GetConfiguredThemeHandwriting();
-bool SetConfiguredThemeHandwriting(const std::string &theme);
 const std::string &GetConfiguredThemeVoice();
 bool SetConfiguredThemeVoice(const std::string &theme);
 // Resolve effective "dark" / "light" for a surface override ("follow" | "dark" | "light").

@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Ported from MSIME-Linux, which has run this in CI since before the
 # consolidation. Each component keeps its own .clang-format; --style=file picks
-# up the nearest one, so server/, windows/, ui/, log/ and engine/ stay
+# up the nearest one, so server/, windows/, ui/ and engine/ stay
 # independent -- engine/voice/.clang-format widens the column limit for that
 # subtree alone, and the nearest-file rule is what keeps it that way.
 clang_format_version=18.1.8
@@ -37,8 +37,7 @@ cd "$project_root"
 # yet is still formatted. Without it the script reports a clean tree while
 # skipping exactly the file being worked on.
 #
-# vendor/ and experiments/ are excluded: the first is third-party, the second is
-# a scratch project that is not part of the shipped product.
+# vendor/ is excluded: it is third-party source with its own formatting rules.
 #
 # engine/ is covered here rather than by a script of its own. It used to be a
 # separate repository with its own formatting gate; now that it is a directory
@@ -61,7 +60,6 @@ git ls-files --cached --others --exclude-standard \
         'server/*.cpp' 'server/*.h' \
         'windows/*.cpp' 'windows/*.h' \
         'ui/*.cpp' 'ui/*.h' \
-        'log/*.cpp' 'log/*.h' \
         'engine/*.cpp' 'engine/*.h' 'engine/*.hpp' \
     | grep -v '/vendor/' \
     | grep -vE '^engine/(googlepinyinime-rev|ngram/kenlm|utfcpp)/' \

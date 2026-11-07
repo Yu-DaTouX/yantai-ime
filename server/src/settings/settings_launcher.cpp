@@ -91,29 +91,14 @@ bool CloseSettingsApplication()
     return !application_window || PostMessageW(application_window, kQuitSettings, 0, 0) != FALSE;
 }
 
-bool OpenEmojiPanelApplication()
-{
-    return OpenSiblingApplication(L"MetasequoiaImeEmojiPanel.exe", kEmojiPanelWindowClass);
-}
-
 bool CloseEmojiPanelApplication()
 {
     return CloseApplication(kEmojiPanelWindowClass);
 }
 
-bool OpenKeyboardPanelApplication()
-{
-    return OpenSiblingApplication(L"MetasequoiaImeKeyboardPanel.exe", kKeyboardPanelWindowClass);
-}
-
 bool CloseKeyboardPanelApplication()
 {
     return CloseApplication(kKeyboardPanelWindowClass);
-}
-
-bool OpenHandwritingPanelApplication()
-{
-    return OpenSiblingApplication(L"MetasequoiaImeHandwritingPanel.exe", kHandwritingPanelWindowClass);
 }
 
 bool CloseHandwritingPanelApplication()

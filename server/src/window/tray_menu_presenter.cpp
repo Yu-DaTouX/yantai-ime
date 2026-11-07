@@ -76,32 +76,6 @@ const char kSvgToolbar[] =
             <path d="M11 12H13M16 12H18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
           </svg>)";
 
-const char kSvgEmoji[] =
-    R"(<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path fill-rule="evenodd" clip-rule="evenodd"
-              d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z"
-              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            <path
-              d="M15.6364 13.625C14.9091 14.8371 13.4546 15.625 12 15.625C10.5455 15.625 9.09092 14.8371 8.36365 13.625"
-              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M9.01 10H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M15.01 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>)";
-
-const char kSvgHandwriting[] =
-    R"(<svg viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M140 0q-24.54 0-42.27-17.54Q80-35.08 80-60q0-24.54 17.73-42.27Q115.46-120 140-120h680q24.54 0 42.27 17.54Q880-84.92 880-60q0 24.54-17.73 42.27Q844.54 0 820 0H140Zm100-303.46h49.46l332-331.39-25.15-25.53-24.92-24.54-331.39 332v49.46Zm-60 23.84v-83.76q0-7.23 2.42-13.77 2.43-6.54 8.04-12.16l437.93-436.92q8.69-8.69 19.73-13.15 11.03-4.46 22.8-4.46 12.16 0 23.12 4.46t20.27 13.77l48.07 48.69q9.31 8.69 13.46 19.84 4.16 11.16 4.16 23.31 0 11.16-4.16 22.19-4.15 11.04-13.46 20.35L325.46-254.31q-5.62 5.62-12.15 8.23-6.54 2.62-13.77 2.62h-83.38q-15.47 0-25.81-10.35Q180-264.15 180-279.62Zm540.38-454.76-49.46-49.46 49.46 49.46Zm-98.92 99.53-25.15-25.53-24.92-24.54 50.07 50.07Z"
-              fill="currentColor" />
-          </svg>)";
-
-const char kSvgKeyboard[] =
-    R"(<svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M3.25 10.25V9.5H5.625V8H2.15387C1.90129 8 1.6875 7.9125 1.5125 7.7375C1.3375 7.5625 1.25 7.34871 1.25 7.09613V2.65387C1.25 2.40129 1.3375 2.1875 1.5125 2.0125C1.6875 1.8375 1.90129 1.75 2.15387 1.75H9.84613C10.0987 1.75 10.3125 1.8375 10.4875 2.0125C10.6625 2.1875 10.75 2.40129 10.75 2.65387V7.09613C10.75 7.34871 10.6625 7.5625 10.4875 7.7375C10.3125 7.9125 10.0987 8 9.84613 8H6.375V9.5H8.75V10.25H3.25ZM2 7.09613C2 7.13463 2.01604 7.16992 2.04813 7.202C2.08013 7.234 2.11537 7.25 2.15387 7.25H9.84613C9.88463 7.25 9.91988 7.234 9.95188 7.202C9.98396 7.16992 10 7.13463 10 7.09613V2.65387C10 2.61537 9.98396 2.58012 9.95188 2.54812C9.91988 2.51604 9.88463 2.5 9.84613 2.5H2.15387C2.11537 2.5 2.08013 2.51604 2.04813 2.54812C2.01604 2.58012 2 2.61537 2 2.65387V7.09613Z"
-              fill="currentColor" />
-          </svg>)";
-
 const char kSvgVoice[] =
     R"(<svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
@@ -280,9 +254,6 @@ void TrayMenuPresenter::RebuildScene()
             fn();
         };
     };
-    addItem(L"表情/符号面板", kSvgEmoji, false)->SetOnClick(launch(OpenEmojiPanelApplication));
-    addItem(L"手写识别板", kSvgHandwriting, false)->SetOnClick(launch(OpenHandwritingPanelApplication));
-    addItem(L"屏幕键盘", kSvgKeyboard, false)->SetOnClick(launch(OpenKeyboardPanelApplication));
     addItem(L"语音输入", kSvgVoice, false)->SetOnClick([this]() {
         Hide();
         VoiceInput::ToggleRecording();

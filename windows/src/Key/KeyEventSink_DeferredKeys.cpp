@@ -10,8 +10,6 @@
 #include "KeyFocusRecovery.h"
 #include "KeyRepeatGuard.h"
 #include "CapsLockInputPolicy.h"
-#include "stats_collector.h"
-#include "stats_passthrough.h"
 #include "CaretAnchorPolicy.h"
 #include "Compartment.h"
 #include "MetasequoiaIMEBaseStructure.h"

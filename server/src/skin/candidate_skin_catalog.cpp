@@ -1202,14 +1202,13 @@ DefaultSkin ResolveBuiltInInfo(const std::filesystem::path &skinsRoot, const std
 
 const std::vector<std::string> &BuiltInIds()
 {
-    static const std::vector<std::string> ids = {"fluent",       "wechat",           "wechat_scroll", "graphite",
-                                                 "willow_green", "autumn_osmanthus", "microsoft"};
+    static const std::vector<std::string> ids = {"fluent"};
     return ids;
 }
 
 const std::vector<std::string> &OfficialPackageIds()
 {
-    static const std::vector<std::string> ids = {"green_leaf"};
+    static const std::vector<std::string> ids = {};
     return ids;
 }
 
@@ -1257,7 +1256,7 @@ const std::vector<std::string> *ToolbarButtonStates(const std::string &key)
         return &punctuation;
     if (key == "character_set")
         return &characterSet;
-    if (key == "emoji" || key == "screen_keyboard" || key == "settings")
+    if (key == "settings")
         return &stateless;
     return nullptr;
 }

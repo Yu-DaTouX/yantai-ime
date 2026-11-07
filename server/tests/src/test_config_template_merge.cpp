@@ -374,7 +374,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
                                           "[association]\nsentence_wordlattice = true\n"
                                           "[input]\ndefault_ime_mode = \"english\"\n"
                                           "[appearance]\ncandidate_window_layout = \"vertical\"\n"
-                                          "candidate_skin = \"willow_green\"\n"
+                                          "candidate_skin = \"acrylic\"\n"
                                           "[helpcode]\nshuangpin_helpcode = true\nquanpin_helpcode = true\n"
                                           "[utility]\nemoji_mode = true # Shift+E\nkaomoji_mode = true\n"
                                           "[voice_input]\nvoice_input = true\ndoubao_enable_ddc = true\n"
@@ -390,7 +390,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     REQUIRE(upgraded["association"]["sentence_wordlattice"].value_or(false));
     REQUIRE_EQ(upgraded["input"]["default_ime_mode"].value_or(std::string()), std::string("english"));
     REQUIRE_EQ(upgraded["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("vertical"));
-    REQUIRE_EQ(upgraded["appearance"]["candidate_skin"].value_or(std::string()), std::string("willow_green"));
+    REQUIRE_EQ(upgraded["appearance"]["candidate_skin"].value_or(std::string()), std::string("acrylic"));
     REQUIRE(upgraded["helpcode"]["shuangpin_helpcode"].value_or(false));
     REQUIRE(upgraded["helpcode"]["quanpin_helpcode"].value_or(false));
     REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));

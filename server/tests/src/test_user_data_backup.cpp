@@ -200,74 +200,6 @@ void FlipFirstDataByte(const fs::path &archive, const std::string &entry_path)
     REQUIRE(static_cast<bool>(file));
 }
 
-void CreateStatisticsDatabase(const fs::path &path, const int value)
-{
-    sqlite3 *database = nullptr;
-    const std::string utf8 = path.u8string();
-    REQUIRE(sqlite3_open_v2(utf8.c_str(), &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_exec(database, "CREATE TABLE stats(value INTEGER);", nullptr, nullptr, nullptr) == SQLITE_OK);
-    const std::string insert = "INSERT INTO stats VALUES(" + std::to_string(value) + ");";
-    REQUIRE(sqlite3_exec(database, insert.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_close(database) == SQLITE_OK);
-}
-
-int ReadStatisticsValue(const fs::path &path)
-{
-    sqlite3 *database = nullptr;
-    const std::string utf8 = path.u8string();
-    REQUIRE(sqlite3_open_v2(utf8.c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK);
-    sqlite3_stmt *statement = nullptr;
-    REQUIRE(sqlite3_prepare_v2(database, "SELECT value FROM stats;", -1, &statement, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_step(statement) == SQLITE_ROW);
-    const int value = sqlite3_column_int(statement, 0);
-    sqlite3_finalize(statement);
-    sqlite3_close(database);
-    return value;
-}
-
-int ReadStatisticsMaximum(const fs::path &path)
-{
-    sqlite3 *database = nullptr;
-    const std::string utf8 = path.u8string();
-    REQUIRE(sqlite3_open_v2(utf8.c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK);
-    sqlite3_stmt *statement = nullptr;
-    REQUIRE(sqlite3_prepare_v2(database, "SELECT MAX(value) FROM stats;", -1, &statement, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_step(statement) == SQLITE_ROW);
-    const int value = sqlite3_column_int(statement, 0);
-    sqlite3_finalize(statement);
-    sqlite3_close(database);
-    return value;
-}
-
-// Leaves <copy>/stats.db plus a non-empty stats.db-wal behind, the state an
-// ExitProcess-ed Server leaves: the copy is consistent, the WAL holds the newest rows.
-void CopyStatisticsDatabaseWithWal(const fs::path &path, const int checkpointed, const int in_wal, const fs::path &copy)
-{
-    sqlite3 *database = nullptr;
-    const std::string utf8 = path.u8string();
-    std::error_code directory_error;
-    fs::create_directories(path.parent_path(), directory_error);
-    REQUIRE(!directory_error);
-    REQUIRE(sqlite3_open_v2(utf8.c_str(), &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_exec(database, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_exec(database, "CREATE TABLE stats(value INTEGER);", nullptr, nullptr, nullptr) == SQLITE_OK);
-    const std::string checkpointed_insert = "INSERT INTO stats VALUES(" + std::to_string(checkpointed) + ");";
-    REQUIRE(sqlite3_exec(database, checkpointed_insert.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_exec(database, "PRAGMA wal_checkpoint(TRUNCATE);", nullptr, nullptr, nullptr) == SQLITE_OK);
-    REQUIRE(sqlite3_exec(database, "PRAGMA wal_autocheckpoint=0;", nullptr, nullptr, nullptr) == SQLITE_OK);
-    const std::string wal_insert = "INSERT INTO stats VALUES(" + std::to_string(in_wal) + ");";
-    REQUIRE(sqlite3_exec(database, wal_insert.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK);
-    fs::path wal = path;
-    wal += L"-wal";
-    REQUIRE(fs::file_size(wal) > 0);
-    std::error_code error;
-    fs::create_directories(copy, error);
-    REQUIRE(fs::copy_file(path, copy / path.filename(), fs::copy_options::overwrite_existing, error));
-    REQUIRE(
-        fs::copy_file(wal, copy / (path.filename().wstring() + L"-wal"), fs::copy_options::overwrite_existing, error));
-    REQUIRE(sqlite3_close(database) == SQLITE_OK);
-}
-
 // Builds an archive whose manifest is written by the caller so that mismatches can be
 // expressed without touching a valid export afterwards.
 user_data_zip::Entry AddEntry(user_data_zip::Writer &writer, const std::string &path, const std::string &content,
@@ -748,61 +680,6 @@ TEST_CASE(user_data_backup_export_fails_when_dictionary_export_fails)
     REQUIRE_EQ(state->start_calls, 0);
 }
 
-TEST_CASE(user_data_backup_import_restores_statistics_snapshot)
-{
-    Workspace workspace("statistics");
-    const SettingsUserDataBackup::Context source_context = MakeContext(workspace.root / "source");
-    PrepareSource(source_context);
-    CreateStatisticsDatabase(source_context.data_dir / "stats.db", 11);
-    const auto archive = workspace.root / "backup.zip";
-    std::string message;
-    auto source_state = std::make_shared<HookState>();
-    RequireOk(SettingsUserDataBackup::Export(source_context, archive, false, MakeHooks(source_state), message),
-              message);
-
-    user_data_zip::Reader reader(archive);
-    REQUIRE(reader.Open(message));
-    REQUIRE(reader.Find("stats.db") != nullptr);
-
-    const SettingsUserDataBackup::Context destination = MakeContext(workspace.root / "destination");
-    CreateStatisticsDatabase(destination.data_dir / "stats.db", 22);
-    auto state = std::make_shared<HookState>();
-    RequireOk(SettingsUserDataBackup::Import(destination, archive, MakeHooks(state), message), message);
-    REQUIRE_EQ(ReadStatisticsValue(destination.data_dir / "stats.db"), 11);
-    REQUIRE_EQ(ReadStatisticsValue(destination.data_dir / ".backup-before-import" / "stats.db"), 22);
-}
-
-TEST_CASE(user_data_backup_import_checkpoints_local_statistics_before_replace)
-{
-    Workspace workspace("statistics-wal");
-    const SettingsUserDataBackup::Context source_context = MakeContext(workspace.root / "source");
-    PrepareSource(source_context);
-    CreateStatisticsDatabase(source_context.data_dir / "stats.db", 11);
-    const auto archive = workspace.root / "backup.zip";
-    std::string message;
-    auto source_state = std::make_shared<HookState>();
-    RequireOk(SettingsUserDataBackup::Export(source_context, archive, false, MakeHooks(source_state), message),
-              message);
-
-    const SettingsUserDataBackup::Context destination = MakeContext(workspace.root / "destination");
-    const fs::path wal_source = workspace.root / "wal-source";
-    const fs::path wal_copy = workspace.root / "wal-copy";
-    CopyStatisticsDatabaseWithWal(wal_source / "stats.db", 22, 23, wal_copy);
-    std::error_code error;
-    REQUIRE(fs::copy_file(wal_copy / "stats.db", destination.data_dir / "stats.db",
-                          fs::copy_options::overwrite_existing, error));
-    REQUIRE(fs::copy_file(wal_copy / "stats.db-wal", destination.data_dir / "stats.db-wal",
-                          fs::copy_options::overwrite_existing, error));
-    REQUIRE(fs::file_size(destination.data_dir / "stats.db-wal") > 0);
-
-    auto state = std::make_shared<HookState>();
-    RequireOk(SettingsUserDataBackup::Import(destination, archive, MakeHooks(state), message), message);
-    // The imported snapshot wins, and no old WAL is left to be replayed over it.
-    REQUIRE_EQ(ReadStatisticsValue(destination.data_dir / "stats.db"), 11);
-    // The pre-import copy includes the rows that only existed in the WAL.
-    REQUIRE_EQ(ReadStatisticsMaximum(destination.data_dir / ".backup-before-import" / "stats.db"), 23);
-}
-
 TEST_CASE(user_data_backup_rejects_invalid_config_before_stop)
 {
     Workspace workspace("invalid-config");
@@ -812,27 +689,6 @@ TEST_CASE(user_data_backup_rejects_invalid_config_before_stop)
     const user_data_zip::Entry config = AddEntry(writer, "config.toml", "not = [valid toml\n", message);
     const user_data_zip::Entry skin = AddEntry(writer, "skins/custom/theme/skin.toml", "name = \"x\"\n", message);
     REQUIRE(writer.AddBytes("manifest.json", SerializeManifest({config, skin}), message));
-    REQUIRE(writer.Finish(message));
-
-    const SettingsUserDataBackup::Context destination = MakeContext(workspace.root / "destination");
-    WriteFile(destination.data_dir / "config.toml", "# keep\n");
-    auto state = std::make_shared<HookState>();
-    REQUIRE(!SettingsUserDataBackup::Import(destination, archive, MakeHooks(state), message));
-    REQUIRE_EQ(state->stop_calls, 0);
-    REQUIRE_EQ(state->start_calls, 0);
-    REQUIRE_EQ(ReadFile(destination.data_dir / "config.toml"), std::string("# keep\n"));
-    REQUIRE(!fs::exists(destination.data_dir / ".backup-before-import"));
-}
-
-TEST_CASE(user_data_backup_rejects_invalid_statistics_before_stop)
-{
-    Workspace workspace("invalid-stats");
-    const auto archive = workspace.root / "bad-stats.zip";
-    std::string message;
-    user_data_zip::Writer writer(archive);
-    const user_data_zip::Entry stats = AddEntry(writer, "stats.db", std::string(64, 'x'), message);
-    const user_data_zip::Entry skin = AddEntry(writer, "skins/custom/theme/skin.toml", "name = \"x\"\n", message);
-    REQUIRE(writer.AddBytes("manifest.json", SerializeManifest({stats, skin}), message));
     REQUIRE(writer.Finish(message));
 
     const SettingsUserDataBackup::Context destination = MakeContext(workspace.root / "destination");

@@ -210,9 +210,8 @@ pwsh -File .\package-simplysign.ps1 1.2.3
 安装程序。
 
 **为什么整包都要签。** `MetasequoiaImeServer.exe` 是唯一一个技术上必须签的——`uiAccess=true`
-没有可信 Authenticode 签名就会被 Windows 忽略。但其余辅助进程（设置页、表情面板、手写面板、
-键盘面板、看门狗、词库回放）和随包分发的 DLL 不签名会被 Microsoft Defender 按信誉拦下，
-用户看到的现象是输入法装完了、某个面板却打不开。所有文件在一次 `signtool sign` 调用里签完：
+没有可信 Authenticode 签名就会被 Windows 忽略。但其余辅助进程（设置页、看门狗、词库回放、
+词库生成）和随包分发的 DLL 不签名会被 Microsoft Defender 按信誉拦下。所有文件在一次 `signtool sign` 调用里签完：
 SimplySign 可能对每次调用弹一次 PIN，逐个文件调用会变成十几次手机确认；签名配额按文件计，
 合并调用不会多花配额。
 

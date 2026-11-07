@@ -30,7 +30,7 @@ Package ColumnSkin()
 
 const std::vector<ToolbarImageButtonRequest> kAllButtons = {
     {"status", "cn"}, {"fullwidth", "half"}, {"punctuation", "cn"}, {"character_set", "simplified"},
-    {"emoji", ""},    {"settings", ""},
+    {"settings", ""},
 };
 
 std::vector<ToolbarImageButtonRequest> Without(const std::string &key)
@@ -69,19 +69,16 @@ TEST_CASE(toolbar_image_layout_closes_the_gap_of_a_hidden_button)
     REQUIRE_EQ(slots[1].key, std::string("punctuation"));
     REQUIRE_EQ(slots[1].yDip, 32.0);
     REQUIRE_EQ(slots.back().key, std::string("settings"));
-    REQUIRE_EQ(slots.back().yDip, 32.0 * 4.0);
+    REQUIRE_EQ(slots.back().yDip, 32.0 * 3.0);
 }
 
 // A button the skin gave no table at all still joins the flow when the user switches it on.
 TEST_CASE(toolbar_image_layout_places_buttons_without_a_table)
 {
-    std::vector<ToolbarImageButtonRequest> shown = kAllButtons;
-    shown.insert(shown.begin() + 5, {"screen_keyboard", ""});
-    const auto slots = LayoutToolbarImageButtons(ColumnSkin(), shown);
-    REQUIRE_EQ(slots.size(), shown.size());
-    REQUIRE_EQ(slots[5].key, std::string("screen_keyboard"));
-    REQUIRE_EQ(slots[5].yDip, 32.0 * 5.0);
-    REQUIRE_EQ(slots[6].yDip, 32.0 * 6.0);
+    const auto slots = LayoutToolbarImageButtons(ColumnSkin(), kAllButtons);
+    REQUIRE_EQ(slots.size(), kAllButtons.size());
+    REQUIRE_EQ(slots.back().key, std::string("settings"));
+    REQUIRE_EQ(slots.back().yDip, 32.0 * 4.0);
 }
 
 // Fixed coordinates stay put and take no place in the flow; a skin-hidden button takes none either.
@@ -95,7 +92,7 @@ TEST_CASE(toolbar_image_layout_keeps_fixed_and_hidden_buttons_out_of_the_flow)
     package.toolbarButtons["status"] = fixed;
     ToolbarButton hidden;
     hidden.visible = false;
-    package.toolbarButtons["emoji"] = hidden;
+    package.toolbarButtons["character_set"] = hidden;
     const auto slots = LayoutToolbarImageButtons(package, kAllButtons);
     REQUIRE_EQ(slots.size(), kAllButtons.size() - 1);
     REQUIRE_EQ(slots[0].key, std::string("status"));
@@ -106,7 +103,7 @@ TEST_CASE(toolbar_image_layout_keeps_fixed_and_hidden_buttons_out_of_the_flow)
     REQUIRE_EQ(slots[1].key, std::string("fullwidth"));
     REQUIRE_EQ(slots[1].yDip, 0.0);
     REQUIRE_EQ(slots.back().key, std::string("settings"));
-    REQUIRE_EQ(slots.back().yDip, 32.0 * 3.0);
+    REQUIRE_EQ(slots.back().yDip, 32.0 * 2.0);
 }
 
 // Without a flow only buttons with both coordinates show, as before button_flow existed.

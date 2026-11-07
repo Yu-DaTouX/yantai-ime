@@ -27,8 +27,7 @@ int ConfiguredFloatingToolbarWidth()
 {
     const FloatingToolbarItemsConfig &items = GetConfiguredFloatingToolbarItems();
     const int optional_item_count = static_cast<int>(items.fullwidth) + static_cast<int>(items.punctuation) +
-                                    static_cast<int>(items.character_set) + static_cast<int>(items.emoji) +
-                                    static_cast<int>(items.screen_keyboard) + static_cast<int>(items.settings);
+                                    static_cast<int>(items.character_set) + static_cast<int>(items.settings);
     // 59 DIPs covers the drag handle, divider, borders, mandatory CN/EN button and
     // container padding. Each optional button adds 24 DIPs plus the 6-DIP gap.
     // User scale/font_size multiply the design size independently of system DPI.
@@ -47,8 +46,7 @@ int ConfiguredFloatingToolbarHeight()
 bool FloatingToolbarItemsEqual(const FloatingToolbarItemsConfig &left, const FloatingToolbarItemsConfig &right)
 {
     return left.fullwidth == right.fullwidth && left.punctuation == right.punctuation &&
-           left.character_set == right.character_set && left.emoji == right.emoji &&
-           left.screen_keyboard == right.screen_keyboard && left.settings == right.settings;
+           left.character_set == right.character_set && left.settings == right.settings;
 }
 } // namespace ime_windows_detail
 
@@ -417,8 +415,8 @@ void RevealAutoHiddenFloatingToolbar(const wchar_t *reason)
 namespace
 {
 // Windows' own auxiliary input surfaces (the emoji panel, the touch keyboard) are
-// hosted by the Windows text input host, and this product's own panels (tray menu,
-// emoji / keyboard / handwriting) either belong to this process or live beside the
+// hosted by the Windows text input host, and this product's own surfaces (the tray
+// menu, the settings window) either belong to this process or live beside the
 // Server in the same installation. The TIP treats focus moving to them as a
 // temporary suspension and deliberately keeps the toolbar up (see
 // floating_toolbar_visibility_policy.h and windows/src/Thread/ThreadFocusSink.cpp),

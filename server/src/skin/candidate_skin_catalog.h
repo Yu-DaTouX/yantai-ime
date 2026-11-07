@@ -370,7 +370,7 @@ bool IsCanvasBase(const std::string &base);
 // v2 图片（border_image.source、decorations.image）允许的扩展名：.png、.apng、.gif、.webp，不分大小写。
 bool IsAnimatableImagePath(const std::string &path);
 
-// 悬浮工具栏按钮键（status、fullwidth、punctuation、character_set、emoji、screen_keyboard、settings）的
+// 悬浮工具栏按钮键（status、fullwidth、punctuation、character_set、settings）的
 // 状态名，即 images 表的键；无状态的按钮是空表。不是按钮键时返回 nullptr。
 //   status: cn / en / ja / caps / en-candidate；fullwidth: full / half；punctuation: cn / en；
 //   character_set: simplified / traditional

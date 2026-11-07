@@ -4,7 +4,6 @@
 #include "ipc/ipc.h"
 #include "ipc/input_key_policy.h"
 #include "engine/contracts/ipc_negotiation.h"
-#include "statistics/stats_pipe.h"
 #include "tests/includes/test_framework.h"
 
 TEST_CASE(ipc_reverse_pipes_buffer_multiple_complete_frames)
@@ -211,13 +210,3 @@ TEST_CASE(ipc_pipe_security_descriptor_fails_closed_without_an_owner_sid)
     REQUIRE(FanyImeIpc::BuildPipeSecurityDescriptorSddl(L"").empty());
 }
 
-TEST_CASE(stats_pipe_name_carries_the_decimal_session_suffix)
-{
-    // Named pipes are machine-global; a missing or non-decimal suffix would let
-    // concurrent sessions fight over one listener, so the DLL and Server must
-    // build the exact same name.
-    REQUIRE_EQ(MsimeStats::BuildStatsPipeName(0), std::wstring(L"\\\\.\\pipe\\FanyImeStatsNamedPipe-0"));
-    REQUIRE_EQ(MsimeStats::BuildStatsPipeName(7), std::wstring(L"\\\\.\\pipe\\FanyImeStatsNamedPipe-7"));
-    REQUIRE_EQ(MsimeStats::BuildStatsPipeName(42), std::wstring(L"\\\\.\\pipe\\FanyImeStatsNamedPipe-42"));
-    REQUIRE_EQ(std::wstring(FANY_IME_STATS_PIPE_NAME_PREFIX) + L"12", MsimeStats::BuildStatsPipeName(12));
-}

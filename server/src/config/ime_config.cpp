@@ -21,7 +21,6 @@
 #include "engine/common/helpcode_utils.h"
 #include "engine/core/data_path.h"
 #include "engine/contracts/input_state_shortcuts.h"
-#include "statistics/stats_store.h"
 #include "voice-input/voice_providers.h"
 #include "ai/chat_request_params.h"
 
@@ -73,11 +72,6 @@ int g_candidate_font_size = 16;
 int g_candidate_window_preedit_font_size = 16;
 std::atomic_bool g_diagnostic_log_enabled{false};
 std::atomic_bool g_tsf_diagnostic_log_enabled{false};
-// 本机输入统计，默认关闭。关闭是整个统计链路的门控：线程收到帧也只丢弃，
-// 不会创建 stats.db，这是隐私契约里可观察的那一半。
-std::atomic_bool g_statistics_enabled{false};
-// 统计保留策略（forever|30d|90d|180d|365d），默认永久保留。
-std::string g_statistics_retention = "forever";
 std::string g_candidate_text_color = "auto";
 std::string g_shuangpin_schema = "xiaohe";
 std::string g_wubi_schema = "wubi86";
@@ -239,9 +233,6 @@ std::string g_theme_settings = "follow";
 std::string g_theme_cand = "follow";
 std::string g_theme_ftb = "follow";
 std::string g_theme_menu = "follow";
-std::string g_theme_emoji = "follow";
-std::string g_theme_screen_keyboard = "follow";
-std::string g_theme_handwriting = "follow";
 std::string g_theme_voice = "follow";
 // LoadImeConfig rewrites g_voice_input from the IPC worker thread while the voice control thread and the low-level
 // keyboard hook read it, so every access goes through this process-local lock. Unlike ConfigFileLock it is never held
@@ -614,18 +605,9 @@ bool LoadImeConfig()
                                        std::memory_order_relaxed);
         g_tsf_diagnostic_log_enabled.store(tbl["general"]["tsf_diagnostic_log"].value_or(false),
                                            std::memory_order_relaxed);
-        g_statistics_enabled.store(tbl["statistics"]["enabled"].value_or(false), std::memory_order_relaxed);
-        {
-            // 读侧对缺键与非法值一律回落 forever：一个手写坏值不能让自动清理误删数据。
-            const std::string retention = tbl["statistics"]["retention"].value_or(std::string("forever"));
-            MsimeStats::Retention parsed = MsimeStats::Retention::Forever;
-            g_statistics_retention = MsimeStats::ParseRetention(retention, parsed) ? retention : "forever";
-        }
         g_floating_toolbar_items.fullwidth = tbl["general"]["floating_toolbar_fullwidth"].value_or(true);
         g_floating_toolbar_items.punctuation = tbl["general"]["floating_toolbar_punctuation"].value_or(true);
         g_floating_toolbar_items.character_set = tbl["general"]["floating_toolbar_character_set"].value_or(true);
-        g_floating_toolbar_items.emoji = tbl["general"]["floating_toolbar_emoji"].value_or(true);
-        g_floating_toolbar_items.screen_keyboard = tbl["general"]["floating_toolbar_screen_keyboard"].value_or(false);
         g_floating_toolbar_items.settings = tbl["general"]["floating_toolbar_settings"].value_or(true);
         {
             const double scale = tbl["general"]["floating_toolbar_scale"].value_or(1.0);
@@ -867,10 +849,6 @@ bool LoadImeConfig()
         g_theme_cand = normalize_surface(tbl["appearance"]["theme_cand"].value_or(std::string("follow")));
         g_theme_ftb = normalize_surface(tbl["appearance"]["theme_ftb"].value_or(std::string("follow")));
         g_theme_menu = normalize_surface(tbl["appearance"]["theme_menu"].value_or(std::string("follow")));
-        g_theme_emoji = normalize_surface(tbl["appearance"]["theme_emoji"].value_or(std::string("follow")));
-        g_theme_screen_keyboard =
-            normalize_surface(tbl["appearance"]["theme_screen_keyboard"].value_or(std::string("follow")));
-        g_theme_handwriting = normalize_surface(tbl["appearance"]["theme_handwriting"].value_or(std::string("follow")));
         g_theme_voice = normalize_surface(tbl["appearance"]["theme_voice"].value_or(std::string("follow")));
         {
             const std::string tsf_preedit_style = tbl["appearance"]["tsf_preedit_style"].value_or(

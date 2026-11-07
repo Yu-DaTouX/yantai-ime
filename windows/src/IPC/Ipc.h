@@ -340,7 +340,6 @@ inline BOOL ResolveFollowedPunctuationOpen(BOOL imeOpen)
 inline std::atomic_bool TsfDiagnosticLogEnabled{false};
 // Default off, like the persisted setting: until the Server sends the switch on
 // connect, the capture paths classify nothing and never touch the stats pipe.
-inline std::atomic_bool StatisticsEnabled{false};
 // The Server uploads committed-text context to the AI assistant. Only while this
 // is on does the key path read the focused field's input scope; off, it costs
 // one relaxed atomic load.

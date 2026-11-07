@@ -144,11 +144,6 @@
         "settings"
       ]
     },
-    "openHandwritingPanel": {
-      "surfaces": [
-        "settings"
-      ]
-    },
     "restartServer": {
       "surfaces": [
         "settings"
@@ -606,12 +601,6 @@
         "additionalProperties": false
       }
     },
-    "openKeyboardPanel": {
-      "surfaces": [
-        "settings",
-        "toolbar"
-      ]
-    },
     "candidate": {
       "surfaces": [
         "candidate"
@@ -875,21 +864,6 @@
         "menu"
       ]
     },
-    "emojiSymbols": {
-      "surfaces": [
-        "menu"
-      ]
-    },
-    "keyboardPanel": {
-      "surfaces": [
-        "menu"
-      ]
-    },
-    "handwritingPanel": {
-      "surfaces": [
-        "menu"
-      ]
-    },
     "voiceInput": {
       "surfaces": [
         "menu"
@@ -946,11 +920,6 @@
       ]
     },
     "openSettings": {
-      "surfaces": [
-        "toolbar"
-      ]
-    },
-    "openEmojiPanel": {
       "surfaces": [
         "toolbar"
       ]
@@ -1257,222 +1226,6 @@
         "ok",
         "message",
         "rows"
-      ],
-      "additionalProperties": true
-    },
-    "statsResponse": {
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "action": {
-          "type": "string"
-        },
-        "ok": {
-          "type": "boolean"
-        },
-        "message": {
-          "type": "string"
-        },
-        "overview": {
-          "type": "object",
-          "properties": {
-            "hasData": {
-              "type": "boolean"
-            },
-            "firstDayKey": {
-              "type": "integer"
-            },
-            "lastDayKey": {
-              "type": "integer"
-            },
-            "days": {
-              "type": "integer"
-            },
-            "totalChars": {
-              "type": "integer"
-            },
-            "totalActiveMs": {
-              "type": "integer"
-            },
-            "todayDayKey": {
-              "type": "integer"
-            },
-            "todayChars": {
-              "type": "integer"
-            },
-            "todayActiveMs": {
-              "type": "integer"
-            },
-            "averagePerDay": {
-              "type": "number"
-            },
-            "currentStreak": {
-              "type": "integer"
-            },
-            "longestStreak": {
-              "type": "integer"
-            },
-            "bestDayKey": {
-              "type": "integer"
-            },
-            "bestDayChars": {
-              "type": "integer"
-            },
-            "todaySpeed": {
-              "type": "number"
-            },
-            "averageSpeed": {
-              "type": "number"
-            },
-            "fastestSpeed": {
-              "type": "number"
-            },
-            "fastestDayKey": {
-              "type": "integer"
-            },
-            "todayFirstWordRatio": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "totalFirstWordRatio": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "todayFirstWordTotal": {
-              "type": "integer"
-            },
-            "categories": {
-              "type": "object",
-              "properties": {
-                "cjk": {
-                  "type": "integer"
-                },
-                "latin": {
-                  "type": "integer"
-                },
-                "digit": {
-                  "type": "integer"
-                },
-                "punct": {
-                  "type": "integer"
-                },
-                "other": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "cjk",
-                "latin",
-                "digit",
-                "punct",
-                "other"
-              ],
-              "additionalProperties": false
-            },
-            "todayHourly": {
-              "type": "array",
-              "items": {
-                "type": "integer"
-              }
-            },
-            "daily": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "dayKey": {
-                    "type": "integer"
-                  },
-                  "cjk": {
-                    "type": "integer"
-                  },
-                  "latin": {
-                    "type": "integer"
-                  },
-                  "digit": {
-                    "type": "integer"
-                  },
-                  "punct": {
-                    "type": "integer"
-                  },
-                  "other": {
-                    "type": "integer"
-                  },
-                  "activeMs": {
-                    "type": "integer"
-                  },
-                  "firstWordHits": {
-                    "type": "integer"
-                  },
-                  "firstWordTotal": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "dayKey",
-                  "cjk",
-                  "latin",
-                  "digit",
-                  "punct",
-                  "other",
-                  "activeMs",
-                  "firstWordHits",
-                  "firstWordTotal"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": [
-            "hasData",
-            "firstDayKey",
-            "lastDayKey",
-            "days",
-            "totalChars",
-            "totalActiveMs",
-            "todayDayKey",
-            "todayChars",
-            "todayActiveMs",
-            "averagePerDay",
-            "currentStreak",
-            "longestStreak",
-            "bestDayKey",
-            "bestDayChars",
-            "todaySpeed",
-            "averageSpeed",
-            "fastestSpeed",
-            "fastestDayKey",
-            "todayFirstWordRatio",
-            "totalFirstWordRatio",
-            "todayFirstWordTotal",
-            "categories",
-            "todayHourly",
-            "daily"
-          ],
-          "additionalProperties": false
-        },
-        "removedDays": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "requestId",
-        "action",
-        "ok",
-        "message"
       ],
       "additionalProperties": true
     }

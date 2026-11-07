@@ -132,7 +132,7 @@ VisualPtr BuildToolsPage(PageContext &context)
     // 剪贴板管理
     page.AddSection(std::make_shared<TopAlignedRow>(
         QuickTitleBlock(L"剪贴板管理",
-                        L"开启后，复制过的文本会显示在表情面板的剪贴板分页中。关闭后立即清空已保存的记录，"
+                        L"开启后，复制过的文本会进入剪贴板历史。关闭后立即清空已保存的记录，"
                         L"且只记录文本类型。"),
         BindToggle(context, "utility.clipboard_history"), 2.0f));
 

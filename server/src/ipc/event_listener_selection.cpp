@@ -18,7 +18,6 @@
 #include "engine/local_modes/date_time_query.h"
 #include "engine/local_modes/quick_phrase_query.h"
 #include "log/candidate_diag_log.h"
-#include "statistics/stats_candidate_capture.h"
 
 using namespace event_listener_detail;
 
@@ -177,8 +176,7 @@ void WaitForCandidateRenderSync(UINT keycode)
     CAND_DIAG_LOGF(L"candidate-select-render-synced keycode={} waited_ms={}", keycode, waitedMs);
 }
 
-void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_epoch, int forced_index_in_page,
-                         bool count_first_word)
+void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_epoch, int forced_index_in_page)
 {
     /* 先清理一下状态 */
     Global::MsgTypeToTsf = Global::DataFromServerMsgType::Normal;
@@ -280,21 +278,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         {
             EnqueueBumpPinyinWeightTask(curWordItem.canonical_pinyin, curWordItem.word, client_id, activation_epoch);
         }
-        // 首词命中率（任务 10-14-stats-first-word-hit-rate）：所有真正上屏的中文候选提交在这里
-        // 计一次分母，首选（第 1 页第 1 位，即 is_first_page_first）同时 +1 分子。英文模式、
-        // 临时日语与合成候选（表情/颜文字/日期格式/U 模式/译文页）按 CountsTowardFirstWordSelection
-        // 的 source 门排除；普通路径的「造词中间段」这次键不上屏，在下面 isNeedCreateWord 判定后
-        // 才记账，避免多算未上屏的段。
-        // 五笔四码唯一自动上屏由调用方关掉 count_first_word：那一刻码表只有一个候选，用户没有做选择，
-        // 计进去只会把命中率抬向 100%。
-        const bool counts_toward_first_word = count_first_word && !g_english_input_mode && !japanese_candidate &&
-                                              MsimeStats::CountsTowardFirstWordSelection(curWordItem);
-        // 造词是分段选的：只要前面有一段没选首位，整次上屏就不算命中，否则最后一段（剩余部分
-        // 通常排第一）会把排序失败的提交记成命中。
-        const bool was_creating_word_before_selection = GlobalIme::composition.creating_word.active;
-        const bool prior_segments_first =
-            !was_creating_word_before_selection || GlobalIme::composition.creating_word.all_segments_first;
-        const bool first_word_hit = is_first_page_first && prior_segments_first;
         const size_t absolute_index =
             static_cast<size_t>(Global::candidate_ui.page_index) * static_cast<size_t>(Global::candidate_ui.page_size) +
             static_cast<size_t>(index);
@@ -361,10 +344,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             }
             GlobalIme::composition.clear();
             ClearSpecialModeTriggers();
-            if (counts_toward_first_word)
-            {
-                MsimeStats::RecordCandidateSelection(first_word_hit);
-            }
             return;
         }
         std::string cloudCommittedPinyin;
@@ -468,7 +447,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
                 selection_page_prefix, selection_transition.consumed_terminal_helpcode_with_cases);
             /* 打开造词开关 */
             GlobalIme::composition.creating_word.active = true;
-            GlobalIme::composition.creating_word.all_segments_first = first_word_hit;
             Global::MsgTypeToTsf = Global::DataFromServerMsgType::NeedToCreateWord;
             GlobalIme::composition.segmented_pinyin = selection_transition.current_segmentation_with_cases;
             SyncShuangpinPreeditForms();
@@ -574,12 +552,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // next one where they could restore an unrelated spelling.
             GlobalIme::composition.selection_history.clear();
             ClearSpecialModeTriggers();
-            // 这次键的结算真正上屏（普通段、造词完成段、四码自动上屏与顶字的推送提交都汇到这里），
-            // 按用户决策记首词命中的分子/分母；造词中间段走 else 分支，不计。
-            if (counts_toward_first_word)
-            {
-                MsimeStats::RecordCandidateSelection(first_word_hit);
-            }
         }
         else
         {

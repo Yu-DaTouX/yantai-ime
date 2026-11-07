@@ -113,7 +113,7 @@ icon = "#f6e4eb"
 
 ## 全贴图皮肤（schema_version 2）
 
-`sakura-night` 和随安装包分发的 [`绿叶`](../../skins/green_leaf/skin.toml)（原 `canvas-demo`）都是 v2 皮肤：`schema_version = 2`、`base = "canvas"`，候选框的外观全部来自贴图。下面的片段取自绿叶。
+`sakura-night` 就是一个 v2 皮肤：`schema_version = 2`、`base = "canvas"`，候选框的外观全部来自贴图。下面的片段取自它的清单。
 
 ```toml
 schema_version = 2
@@ -139,7 +139,7 @@ z_index = 2                      # z_index < 1 画在面板之下，其余画在
 - 面板四角画死的花纹要落在切片之内，否则会被拉伸。中心块可以用 `fill = false` 留空。
 - 文字离面板外缘的距离用 `content_insets_dip`，挂件伸出卡片时用 `outer_insets_dip` 给窗口留出空白。
 - 动图在系统关闭「动画效果」时只显示第一帧。动图解码后合计不超过 64 MB、最多 1024 帧，超出时只显示第一帧。
-- 绿叶和夜樱的图都是程序生成的几何图形，以 MIT 授权，可以直接改用；绿叶的浅色面板由 `tools/gen_green_leaf_panel.py` 生成。
+- 夜樱的图是程序生成的几何图形，以 MIT 授权，可以直接改用。
 
 `sakura-night`（夜樱）是一个更完整的实机演示，把 v2 的能力都用上了：
 

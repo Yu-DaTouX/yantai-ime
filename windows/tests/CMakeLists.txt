@@ -55,13 +55,6 @@ target_compile_features(test_input_state_shortcuts PRIVATE cxx_std_17)
 target_compile_definitions(test_input_state_shortcuts PRIVATE MSIME_SHORTCUT_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../engine/contracts/tests/input_state_shortcuts.json")
 add_test(NAME input_state_shortcuts COMMAND test_input_state_shortcuts)
 
-# The classifier and the event queue are compiled into this target directly:
-# they must stay free of TSF and DLL lifecycle dependencies.
-add_executable(test_statistics statistics.cpp ../src/Statistics/char_classify.cpp)
-target_include_directories(test_statistics PRIVATE ../src)
-target_compile_features(test_statistics PRIVATE cxx_std_17)
-add_test(NAME statistics COMMAND test_statistics)
-
 add_executable(test_key_focus_recovery key_focus_recovery.cpp)
 target_include_directories(test_key_focus_recovery PRIVATE ../src)
 target_compile_features(test_key_focus_recovery PRIVATE cxx_std_17)

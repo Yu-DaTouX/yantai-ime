@@ -8,7 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 # MSIME_SKINS_DIR points the same checks at another skin collection, e.g. the repository's skins/.
 SKINS_DIR = Path(os.environ.get("MSIME_SKINS_DIR", ROOT / "skins")).resolve()
-BUILTIN_SKINS = ("fluent", "wechat", "wechat_scroll", "graphite", "willow_green", "autumn_osmanthus", "microsoft")
+BUILTIN_SKINS = ("fluent",)
 # Mirrors the Server catalog: community bases shared with msime, adapted onto fluent at load time.
 SHARED_BASES = ("system", "shuishan", "light", "paper", "night", "ink")
 # The full-texture base: only a base for schema_version 2 skins, never a skin of its own.

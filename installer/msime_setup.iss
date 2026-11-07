@@ -30,9 +30,6 @@
 ; 与 settings_app.cpp / settings_launcher.cpp 的 kQuitSettings 保持一致：WM_APP + 5。
 #define MySettingsWindowClass "MetasequoiaImeSettingsWindow"
 #define MySettingsQuitMessage 32773
-#define MyEmojiPanelExeName "MetasequoiaImeEmojiPanel.exe"
-#define MyKeyboardPanelExeName "MetasequoiaImeKeyboardPanel.exe"
-#define MyHandwritingPanelExeName "MetasequoiaImeHandwritingPanel.exe"
 #define MyWatchdogName "MetasequoiaImeWatchdog.exe"
 #define MyWatchdogTaskName "Metasequoia IME Watchdog"
 #define MyReplayName   "MetasequoiaImeDictionaryReplay.exe"
@@ -1017,11 +1014,6 @@ begin
   StopProcess('{#MyWatchdogName}');
   StopProcess('{#MyAppExeName}');
   StopSettingsProcess;
-  { 面板通常是 Server 的子进程、随 /T 一起走；Server 若已崩溃它们会变成孤儿，
-    同样占着 server 目录里的 exe，所以显式再收一遍。}
-  StopProcess('{#MyEmojiPanelExeName}');
-  StopProcess('{#MyKeyboardPanelExeName}');
-  StopProcess('{#MyHandwritingPanelExeName}');
 end;
 
 procedure DeleteWatchdogLogonTask;

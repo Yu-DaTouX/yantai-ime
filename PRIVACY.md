@@ -22,15 +22,7 @@ Every claim below is checkable against this repository. Where a default matters,
 
 ## No telemetry
 
-There is no analytics, telemetry, crash reporting, or usage measurement that leaves this machine. The input method does not record, store or transmit what you type: the only records it can keep are the optional local counters described below, and those cover character classes, activity time and candidate-choice counts, never text. No third-party SDK for those purposes is linked, and there is no endpoint that receives usage data. This is verifiable: searching the `server/`, `windows/`, `ui/` and `installer/` trees for `telemetry`, `analytics`, `sentry`, `matomo`, `posthog`, `amplitude`, `mixpanel`, `crashpad` and `breakpad` returns nothing.
-
-## Local input statistics (built-in, off by default)
-
-The input method can show a local typing summary in 设置 → 统计. This is a built-in capability, not a separately distributed tool: `statistics.enabled` is `false` in the shipped `installer/default_config/config.default.toml`, so a fresh install records nothing, and 设置 → 统计 lets you turn recording on.
-
-While enabled, the input method records only counters in a local SQLite database: per-day and per-hour counts of five character classes (Chinese, Latin, digits, punctuation, other), the time counted as actively typed, and two further counters of candidate choices — how many commits were made from the Chinese candidate list and how many of those selected the first candidate of the first page. Those two counters power the "first-word hit rate" card and let you measure ranking quality locally; they carry no text and no way to reconstruct any wording. The counts come from text the input method commits to the document and from printable keystrokes it leaves for the application to insert; the second half is a keystroke-level approximation and can slightly over-count (for example an input field that rejects or truncates the character). No text, spelling, candidates, application name or window title is stored, and the counters are carried to the Server process over a session-scoped local named pipe only. The database is `<DataDir>\stats.db`, where `<DataDir>` is the data directory chosen at install time (default `%LOCALAPPDATA%\metasequoiaime`); it makes no network requests and uploads nothing.
-
-Turning the switch off stops new recordings; existing counters are kept until they are deleted. To remove them, use the controls in 设置 → 统计: the automatic retention policy (keep the last 30 / 90 / 180 / 365 days) deletes expired days on the next write after midnight, and the "clear all statistics" button immediately wipes every record, including today's. `statistics.retention` in `config.toml` stores the policy and defaults to `forever`, which never deletes automatically; an invalid value falls back to `forever` so a broken config cannot delete data. Deleting `stats.db` works too.
+There is no analytics, telemetry, crash reporting, or usage measurement that leaves this machine. No third-party SDK for those purposes is linked, and there is no endpoint that receives usage data. This is verifiable: searching the `server/`, `windows/`, `ui/` and `installer/` trees for `telemetry`, `analytics`, `sentry`, `matomo`, `posthog`, `amplitude`, `mixpanel`, `crashpad` and `breakpad` returns nothing.
 
 ## Local data
 
@@ -44,7 +36,7 @@ Settings live in `%LOCALAPPDATA%\metasequoiaime\config.toml`. Learned word frequ
 
 ## Uninstall
 
-Uninstalling deletes `%LOCALAPPDATA%\metasequoiaime` and `%PROGRAMDATA%\metasequoiaime` in full, including the user dictionary, settings and any installed skins. Back up `msime_user.db` first if you want to keep learned words. An in-place upgrade behaves differently: it preserves `msime_user.db`, `stats.db`, `config.toml`, `config.base.toml`, `custom_translations.txt`, and the `skins`, `shuangpin`, `models` and `helpcodes\custom` directories, and replaces everything else.
+Uninstalling deletes `%LOCALAPPDATA%\metasequoiaime` and `%PROGRAMDATA%\metasequoiaime` in full, including the user dictionary, settings and any installed skins. Back up `msime_user.db` first if you want to keep learned words. An in-place upgrade behaves differently: it preserves `msime_user.db`, `config.toml`, `config.base.toml`, `custom_translations.txt`, and the `skins`, `shuangpin`, `models` and `helpcodes\custom` directories, and replaces everything else.
 
 ## General
 

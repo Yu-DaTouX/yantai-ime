@@ -84,8 +84,6 @@ constexpr ToolbarIcon kIconPuncEn = {0xF110, L","};
 constexpr ToolbarIcon kIconPuncCn = {0xF111, L"。"};
 constexpr ToolbarIcon kIconSimplified = {0xE88D, L"简"};
 constexpr ToolbarIcon kIconTraditional = {0xE88C, L"繁"};
-constexpr ToolbarIcon kIconEmoji = {0xE76E, L"表"};
-constexpr ToolbarIcon kIconKeyboard = {0xE765, L"键"};
 constexpr ToolbarIcon kIconSettings = {0xE713, L"设"};
 
 float ToolbarUserScale()
@@ -653,14 +651,6 @@ void FloatingToolbarPresenter::RebuildScene()
                                       // 组字途中切换时，候选列表由任务线程按新字形换写法。
                                       FanyNamedPipe::EnqueueRefreshCandidatePageTask();
                                   }));
-    }
-    if (items.emoji)
-    {
-        specs.push_back(GlyphSpec("emoji", "", kIconEmoji, []() { OpenEmojiPanelApplication(); }));
-    }
-    if (items.screen_keyboard)
-    {
-        specs.push_back(GlyphSpec("screen_keyboard", "", kIconKeyboard, []() { OpenKeyboardPanelApplication(); }));
     }
     if (items.settings)
     {

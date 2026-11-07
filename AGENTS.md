@@ -15,10 +15,8 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 | `engine/` | 输入引擎：输入会话、候选查询、辅助码、跨进程契约、语音模块 | [engine/AGENTS.md](engine/AGENTS.md) |
 | `ui/` | 通用 Win32 / Direct2D / DirectWrite 控件库 `msimeui` | [ui/AGENTS.md](ui/AGENTS.md) |
 | `installer/` | 收集产物、自签名、Inno Setup 打包 | [installer/README.md](installer/README.md) |
-| `log/` | 日志采集库 | — |
 | `skins/` | 外部皮肤合集，每个子目录一个 `skin.toml` 皮肤包；除素材授权未核实的外随安装包装到数据目录，同名且改过的旧版改名 `.bak` 保留 | [skins/README.md](skins/README.md) |
 | `examples/skin-examples/` | 外部皮肤制作样例、字段说明、预览页与安装脚本；本目录单独采用 MIT 授权 | [examples/skin-examples/README.md](examples/skin-examples/README.md) |
-| `experiments/tsf-edit-control/` | TSF 编辑控件实验工程，不参与产品构建 | — |
 | `vendor/` | submodule：`opencc`、`cpp-pinyin` | 上游仓库 |
 | `scripts/`、`tests/`、`docs/` | 产品级构建与发布脚本、组合验证、产品文档 | 本文件 |
 
@@ -57,7 +55,7 @@ cmake -S ui      -B ui/build -A x64                # GUI 框架
 
 引擎头文件的引用方式两侧不同：**Server** 按 `engine/...` 前缀引用（`#include "engine/core/input_session.h"`），因为 `server/CMakeLists.txt` 把仓库根放进了 include path，不要用相对路径回跳，那会把调用方绑死在自己的目录深度上；**TSF DLL（windows/）没有仓库根**（include path 只有 `./src/*` 平铺项），契约头用相对路径 `../../../engine/contracts/...` 引用——在 windows/ 里写 `engine/...` 前缀编不过。
 
-`scripts/format.sh` 覆盖 `server/`、`windows/`、`ui/`、`log/` 和 `engine/`（排除引擎里的第三方副本和生成的头文件），CI 用 `--check` 卡格式。
+`scripts/format.sh` 覆盖 `server/`、`windows/`、`ui/` 和 `engine/`（排除引擎里的第三方副本和生成的头文件），CI 用 `--check` 卡格式。
 
 **格式化会卡 CI，提交前务必自查，注意两个坑：**
 

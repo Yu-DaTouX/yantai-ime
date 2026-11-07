@@ -432,7 +432,7 @@ width_dip = 40
 height_dip = 40
 z_index = "high"
 )toml";
-    for (const char *base : {"fluent", "wechat", "paper"})
+    for (const char *base : {"fluent", "paper"})
     {
         const auto root = WriteV2Skin(L"v2-fluent", base, window);
         std::string error;
@@ -591,12 +591,12 @@ handle = "#123456"
     REQUIRE_EQ(package->toolbarLight.handle, std::string("#123456"));
     RemoveSkin(root);
 
-    REQUIRE(CandidateSkinCatalog::IsOfficialPackage("green_leaf"));
+    REQUIRE(CandidateSkinCatalog::IsBuiltIn("fluent"));
     REQUIRE(!CandidateSkinCatalog::IsOfficialPackage("fluent"));
-    // 微信绿(卷轴) 是内置皮肤，有自己的出厂清单，不是官方皮肤包。
-    REQUIRE(CandidateSkinCatalog::IsBuiltIn("wechat_scroll"));
-    REQUIRE(!CandidateSkinCatalog::IsOfficialPackage("wechat_scroll"));
+    // 只有 fluent 是内置皮肤：原来的其它内置皮肤和绿叶官方皮肤包都已删除。
+    REQUIRE(!CandidateSkinCatalog::IsBuiltIn("wechat_scroll"));
     REQUIRE(!CandidateSkinCatalog::IsBuiltIn("green_leaf"));
+    REQUIRE(!CandidateSkinCatalog::IsOfficialPackage("green_leaf"));
 }
 
 TEST_CASE(candidate_skin_catalog_rejects_invalid_v2_values)

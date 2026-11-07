@@ -171,7 +171,7 @@ Set-Location ..\installer
 ```powershell
 ctest --test-dir server/build --output-on-failure       # Server 单元测试（引擎随 Server 一起构建）
 python -m unittest discover -s tests                    # 产品级组合验证
-bash scripts/format.sh --check                          # 格式，覆盖 server/windows/ui/log/engine
+bash scripts/format.sh --check                          # 格式，覆盖 server/windows/ui/engine
 bash scripts/ci/check-developer-paths.sh                # 构建输入里不许出现个人目录路径
 ```
 

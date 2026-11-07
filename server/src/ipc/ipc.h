@@ -96,8 +96,6 @@ int CloseNamedPipe();
 HANDLE CreateMainNamedPipeInstance();
 HANDLE CreateAuxNamedPipeInstance();
 HANDLE CreateTsfDiagnosticNamedPipeInstance();
-// Session-suffixed statistics channel; the TSF DLL is the only client.
-HANDLE CreateStatsNamedPipeInstance();
 HANDLE CreateVoiceControlNamedPipeInstance();
 HANDLE CreateToTsfNamedPipeInstance();
 HANDLE CreateToTsfWorkerThreadNamedPipeInstance();
