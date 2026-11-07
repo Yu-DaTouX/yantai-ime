@@ -239,7 +239,7 @@ candidate_window_follow_cursor = true
 candidate_window_layout = "horizontal"
 # 横向排列时强制单行：候选窗口最宽可到当前屏幕宽度，放不下才换行；关闭时最宽为屏幕一半
 candidate_window_single_line = false
-# 候选窗口与悬浮工具栏皮肤，可选："fluent", "wechat", "wechat_scroll", "graphite", "willow_green", "autumn_osmanthus", "microsoft"，或外部皮肤的 id
+# 候选窗口与悬浮工具栏皮肤，内置 "fluent"（原装），随包提供 "acrylic"（亚克力），也可以写外部皮肤的 id
 candidate_skin = "fluent"
 # 候选窗口顶部预编辑，可选："pinyin", "empty"
 #   pinyin -> 显示分词预编辑（与候选框当前行为一致）
