@@ -20,8 +20,7 @@
 #include <stdlib.h>
 #include "./utf16char.h"
 
-namespace ime_pinyin
-{
+namespace ime_pinyin {
 
 // Enable the following line when building the binary dictionary model.
 #define ___BUILD_MODEL___
@@ -67,7 +66,7 @@ const size_t kMaxPredictSize = (kMaxLemmaSize - 1);
 
 // LemmaIdType must always be size_t.
 typedef size_t LemmaIdType;
-const size_t kLemmaIdSize = 3; // Actually, a Id occupies 3 bytes in storage.
+const size_t kLemmaIdSize = 3;  // Actually, a Id occupies 3 bytes in storage.
 const size_t kLemmaIdComposing = 0xffffff;
 
 typedef uint16 LmaScoreType;
@@ -90,8 +89,7 @@ const LemmaIdType kUserDictIdStart = 500001;
 // The last lemma id (included) for the user dictionary.
 const LemmaIdType kUserDictIdEnd = 600000;
 
-typedef struct
-{
+typedef struct {
     uint16 half_splid : 5;
     uint16 full_splid : 11;
 } SpellingId, *PSpellingId;
@@ -112,8 +110,7 @@ typedef struct
  * LE = less and equal,
  * A node occupies 16 bytes. so, totallly less than 16 * 500 = 8K
  */
-struct LmaNodeLE0
-{
+struct LmaNodeLE0 {
     uint32 son_1st_off;
     uint32 homo_idx_buf_off;
     uint16 spl_idx;
@@ -125,27 +122,24 @@ struct LmaNodeLE0
  * GE = great and equal
  * A node occupies 8 bytes.
  */
-struct LmaNodeGE1
-{
-    uint16 son_1st_off_l;      // Low bits of the son_1st_off
-    uint16 homo_idx_buf_off_l; // Low bits of the homo_idx_buf_off_1
+struct LmaNodeGE1 {
+    uint16 son_1st_off_l;       // Low bits of the son_1st_off
+    uint16 homo_idx_buf_off_l;  // Low bits of the homo_idx_buf_off_1
     uint16 spl_idx;
-    unsigned char num_of_son;         // number of son nodes
-    unsigned char num_of_homo;        // number of homo words
-    unsigned char son_1st_off_h;      // high bits of the son_1st_off
-    unsigned char homo_idx_buf_off_h; // high bits of the homo_idx_buf_off
+    unsigned char num_of_son;          // number of son nodes
+    unsigned char num_of_homo;         // number of homo words
+    unsigned char son_1st_off_h;       // high bits of the son_1st_off
+    unsigned char homo_idx_buf_off_h;  // high bits of the homo_idx_buf_off
 };
 
 #ifdef ___BUILD_MODEL___
-struct SingleCharItem
-{
+struct SingleCharItem {
     float freq;
     char16 hz;
     SpellingId splid;
 };
 
-struct LemmaEntry
-{
+struct LemmaEntry {
     LemmaIdType idx_by_py;
     LemmaIdType idx_by_hz;
     char16 hanzi_str[kMaxLemmaSize + 1];
@@ -158,8 +152,8 @@ struct LemmaEntry
     unsigned char hz_str_len;
     float freq;
 };
-#endif // ___BUILD_MODEL___
+#endif  // ___BUILD_MODEL___
 
-} //  namespace ime_pinyin
+}  //  namespace ime_pinyin
 
-#endif // PINYINIME_INCLUDE_DICTDEF_H__
+#endif  // PINYINIME_INCLUDE_DICTDEF_H__
