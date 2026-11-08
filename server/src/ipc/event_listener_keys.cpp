@@ -1,4 +1,4 @@
-// 按键处理：按键分类、组合编辑（光标/退格/插入）、译文副候选页、五笔顶字，以及 HandleImeKey 主流程。
+// 按键处理：按键分类、组合编辑（光标/退格/插入）、译文副候选页，以及 HandleImeKey 主流程。
 #include "ipc/event_listener_internal.h"
 #include <Windows.h>
 #include <string>
@@ -102,7 +102,7 @@ bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT keycode, WC
 bool IsManualPinyinSeparatorKey(UINT keycode, WCHAR wch)
 {
     return keycode == VK_OEM_7 && wch == L'\'' && g_inputSession != nullptr &&
-           g_inputSession->current_scheme_type() != SchemeType::Wubi && !g_inputSession->get_pinyin_sequence().empty();
+           !g_inputSession->get_pinyin_sequence().empty();
 }
 
 bool IsMicrosoftShuangpinIngKeyAt(UINT keycode, WCHAR wch, const std::string &raw_input, size_t caret)
@@ -556,9 +556,6 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
 
     g_inputSession->set_pinyin_sequence(raw);
     g_inputSession->set_pinyin_sequence_with_cases(raw);
-    // 五笔会把普通码的原样串裁成四码；T/V 模式的串得原样留着，形状判定才读得到，
-    // 其中的字母也不能被当成码去查表、自动上屏或顶字（Tdate 归一出 tdat）。
-    g_inputSession->set_wubi_literal_input(IsWubiLiteralComposition(raw));
     if (caret_resegmentation && composition.caret_position < raw.size())
     {
         // apply_pending_sequence() 会复位引擎光标：先让新 raw 生效，再喂光标做前缀
@@ -594,8 +591,8 @@ bool AppendLiteralToComposition(WCHAR literal, uint64_t client_id, uint64_t acti
         return false;
     }
 
-    // Reuse the ordinary edit-key path so the engine sequence, the literal-input
-    // flag, wubi truncation and the caret rule all match a normal typed letter.
+    // Reuse the ordinary edit-key path so the engine sequence and the caret
+    // rule match a normal typed letter.
     const UINT keycode = literal == L'+' ? VK_OEM_PLUS : VK_OEM_MINUS;
     bool composition_restored = false;
     if (!ApplyCompositionEditKey(keycode, literal, Global::ModifiersDown, true, composition_restored))
@@ -823,15 +820,6 @@ void HandleTranslationCommitKey(uint64_t client_id, uint64_t activation_epoch, u
     SendCurrentDataToClient(client_id, activation_epoch, request_id);
 }
 
-// 真顶字与自动上屏的推送负载："<消费字符数>\t<上屏文本>"。TSF 拿这个数字裁自己的
-// 组合缓冲，所以服务端看到的是四码、用户已抢敲第五个字母时，第五个字母不会被旧快照覆盖。
-// 消费数就是五笔完整码的字母数（engine/schemes/wubi_scheme.h 的 kMaxCodeLength）。
-constexpr std::size_t kWubiCompleteCodeLength = 4;
-std::wstring BuildWubiCommitAndContinuePayload(const std::wstring &text)
-{
-    return std::to_wstring(kWubiCompleteCodeLength) + L"\t" + text;
-}
-
 // Bring the candidate page in step with the CompositionRestored frame just sent.
 // TSF applies that payload without touching its candidate presenter, so the page
 // on screen has to follow here -- and that covers every frame the reply branch
@@ -990,7 +978,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         return;
     }
 
-
     if (FanyImeProtocol::IsCharacterSetShortcut(Global::Keycode, Global::ModifiersDown))
     {
         if (g_authoritative_cn_mode != 0 && GetConfiguredCharacterSetShortcutEnabled())
@@ -1066,23 +1053,14 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         }
     }
 
-
     const std::string input_before_key =
         g_inputSession ? g_inputSession->get_pinyin_sequence_with_cases() : std::string{};
-    // 顶字要的是「插入之前」的原始串长度与光标位置：ApplyCompositionEditKey 会把第五个字母插进
-    // 本地 raw 并把光标推到 5，之后再问就分不清「用户又敲了一个字母」和「本来就停在别处」。引擎
-    // 随后会把 raw 裁回四码，这个快照是唯一能区分两者的地方（raw_length_before_key == 4 且光标
-    // 在末尾 = 用户正在往后打，不是回来改码）。
-    const std::size_t raw_length_before_key = input_before_key.size();
-    const std::size_t caret_before_key = GlobalIme::composition.caret_position;
     const bool shift_only = (Global::ModifiersDown & 0b00000111u) == 0b00000001u;
     const std::optional<SchemeType> scheme =
         g_inputSession ? std::optional<SchemeType>(g_inputSession->current_scheme_type()) : std::nullopt;
     const bool chinese_scheme = scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin;
     const bool shuangpin_scheme = scheme == SchemeType::Shuangpin;
-    // T 模式对五笔同样开放，但五笔不能并进 chinese_scheme：那个变量还给 K/U/E/M/S/J/Y 触发与
-    // ShouldLearnEnteredEnglishWord 用，并进去会让五笔连带打开其它本地模式（R7）。
-    const bool date_time_scheme = chinese_scheme || scheme == SchemeType::Wubi;
+    const bool date_time_scheme = chinese_scheme;
     const bool pinyin_commit =
         FanyImeIpc::IsPinyinCommitKey(Global::Keycode, Global::ModifiersDown) && !input_before_key.empty();
     const bool convert_shuangpin = pinyin_commit && g_inputSession->current_scheme_type() == SchemeType::Shuangpin &&
@@ -1340,134 +1318,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         GlobalIme::composition.segmented_pinyin = GlobalIme::composition.raw_input_with_cases;
     }
     SyncShuangpinPreeditForms();
-
-    // 五笔四码唯一自动上屏：敲满四码且码表只给一个候选时，直接走与空格完全相同的提交路径，
-    // 用户不必再按一次空格。判定只发生在字母键插入之后（上面的 ApplyCompositionEditKey）：
-    // 退格、方向键、composition_restored 等路径都不会到这里，所以「打满第四键就上屏」只有
-    // 这一个入口。开关默认开；关掉后组合停在四码上等用户选。两个开关作用在不同的按键上：
-    // 本分支只看第四键（落键前 raw 是 3 码），下面的顶字分支只看第五键，第四键上不会互相影响。
-    const bool letter_key = Global::Keycode >= 'A' && Global::Keycode <= 'Z';
-    if (!g_english_input_mode && letter_key &&
-        FanyImeIpc::ShouldAutoCommitCompleteWubiCode(GetConfiguredWubiFourCodeAutoCommit(),
-                                                     g_inputSession->wubi_unique_four_code(),
-                                                     GlobalIme::composition.creating_word.active))
-    {
-        // 候选页是异步发布的：此刻 ui.items / ui.page_words 可能还停在第 3 码那一拍，而提交
-        // 路径读的正是这两份数据。先按当前组合同步重建一次，否则会把上一拍的候选上屏。
-        // forced_index_in_page = 0 让结算不进入渲染等待（与鼠标点击同类），自动上屏的语义
-        // 是「这个码只有一个候选」，必须显式取 0 而不是跟随页内选择。
-        ScopedKeyStage prepare_auto_commit{client_id, activation_epoch, request_id, L"handle-candidates"};
-        PrepareCandidateList(client_id, activation_epoch);
-        prepare_auto_commit.Stop();
-        Global::candidate_ui.select_first_on_page();
-        ScopedKeyStage select_auto_commit{client_id, activation_epoch, request_id, L"handle-selection"};
-        ProcessSelectionKey(VK_SPACE, client_id, activation_epoch, /*forced_index_in_page=*/0);
-        select_auto_commit.Stop();
-        ScopedKeyStage push_auto_commit{client_id, activation_epoch, request_id, L"handle-worker-push"};
-        if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)
-        {
-            // 真上屏只能靠 worker 管道推送：字母键在默认 raw 预编辑样式下不读请求-回复管道，
-            // 回一帧 Normal 既不会上屏，还会被 TSF 当成「不属于本次请求」的帧缓存起来，
-            // 而本函数返回前 Server 已经清掉组合，两边就此分叉。推送携带消费的 4 个字符，
-            // TSF 裁自己的缓冲；快打时用户已多敲的字母因此不会被旧快照覆盖。
-            if (SendToTsfWorkerThreadClientViaNamedpipe(
-                    client_id, activation_epoch,
-                    Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidateAndContinue,
-                    BuildWubiCommitAndContinuePayload(Global::candidate_ui.selected_text)))
-            {
-                ClearState();
-                // 推送同样会引来 HideCandidateWnd；用户若已抢敲下一个字母，那时服务端组合
-                // 就是这个字母，不能被这次 Hide 清掉。
-                NoteTopCommitPushed(client_id, activation_epoch);
-            }
-        }
-        push_auto_commit.Stop();
-        // UILess 与 pinyin 预编辑样式会为字母键等一帧回复（上限 50ms）：给它们一帧免得空等；
-        // raw 样式不读回复，塞一帧反而变成死帧。
-        if (IsUiLessMode() || GlobalSettings::getTsfPreeditStyle() == GlobalSettings::TsfPreeditStyle::Pinyin)
-        {
-            SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        }
-        return;
-    }
-
-    // 真顶字：完整四码（不论是否唯一）之后再敲一个字母时，先上屏该码的首选候选，再把这个字母
-    // 留作下一次组合的开头——用户已经在打下一个字，字母绝不能丢。这条路径有自己的开关，
-    // 与上面的自动上屏开关互相独立。开关关闭只在混输开启时生效：字母并入混输串，两端一致。
-    // 混输关闭时引擎会把码裁回四位，Server 丢掉这个字母而 raw 预编辑样式的 TSF 已经显示了它，
-    // 两边就此分叉，所以这时仍走顶字。判定复用同一份引擎事实，
-    // 但不要求唯一；上屏取候选 0（首选），不进入 30ms 渲染等待。
-    if (!g_english_input_mode && letter_key && raw_length_before_key == kWubiCompleteCodeLength &&
-        caret_before_key == raw_length_before_key &&
-        FanyImeIpc::ShouldCommitCompleteWubiCodeOnNextKey(
-            GetConfiguredWubiFifthCodeTopCommit(), GetConfiguredWubiMixedPinyin(),
-            g_inputSession->wubi_four_code_is_complete(), /*key_is_letter=*/true, /*caret_at_end=*/true,
-            GlobalIme::composition.creating_word.active))
-    {
-        ScopedKeyStage prepare_top_commit{client_id, activation_epoch, request_id, L"handle-candidates"};
-        PrepareCandidateList(client_id, activation_epoch);
-        prepare_top_commit.Stop();
-        Global::candidate_ui.select_first_on_page();
-        ScopedKeyStage select_top_commit{client_id, activation_epoch, request_id, L"handle-selection"};
-        ProcessSelectionKey(VK_SPACE, client_id, activation_epoch, /*forced_index_in_page=*/0);
-        select_top_commit.Stop();
-        const std::wstring committed_text = Global::candidate_ui.selected_text;
-
-        // 用刚敲下的这个字母重建服务端组合。ProcessSelectionKey 已经把引擎与组合清空，这里
-        // 把字母写回去；引擎此刻的 raw 仍是被裁回的四码，所以必须显式设置而不是继续追加。
-        // 大小写照 ApplyCompositionEditKey 的同一套规则取，保持 preedit 与用户敲键一致。
-        const std::string next_raw(1, CompositionLetter(Global::Keycode, Global::Wch));
-        GlobalIme::composition.clear_creating_word();
-        GlobalIme::composition.selection_history.clear();
-        g_inputSession->set_pinyin_sequence(next_raw);
-        g_inputSession->set_pinyin_sequence_with_cases(next_raw);
-        ScopedKeyStage recompute_top_commit{client_id, activation_epoch, request_id, L"handle-engine"};
-        g_inputSession->recompute_candidates();
-        recompute_top_commit.Stop();
-        GlobalIme::composition.raw_input_with_cases = g_inputSession->get_pinyin_sequence_with_cases();
-        GlobalIme::composition.segmented_pinyin = g_inputSession->get_pinyin_segmentation_with_cases();
-        SyncShuangpinPreeditForms();
-        GlobalIme::composition.caret_position = GlobalIme::composition.raw_input_with_cases.size();
-        ScopedKeyStage prepare_rebuild_top_commit{client_id, activation_epoch, request_id, L"handle-candidates"};
-        PrepareCandidateList(client_id, activation_epoch);
-        prepare_rebuild_top_commit.Stop();
-        // 组合被提交时 TSF 会送 HideCandidateWnd 把候选窗藏起来；顶字重建的新组合必须
-        // 显式把窗口再请出来，否则后续整词的候选（xyyf 的统计）用户永远看不到。
-        RequestShowCandidateWindow();
-
-        // 推送与用户下一个按键是两条独立路径：TSF 裁的是它自己那一刻的缓冲，所以「服务端说
-        // 消费 4 个、TSF 手里已经有 5 个」时，第 5 个自然留下来继续组词。服务端的组合也正好
-        // 是同一批多出来的字母，两边都从同一条按键流派生，不会错位。不要 ClearState：重建的
-        // 组合正是下一次按键要用的状态。
-        ScopedKeyStage push_top_commit{client_id, activation_epoch, request_id, L"handle-worker-push"};
-        if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)
-        {
-            // 推送会让 DLL 结束旧组合，TSF 随之发来 HideCandidateWnd；标记本客户端的余码
-            // 组合仍然存活，HideCandidate 处理器据此跳过 ClearState。推送失败就不会有这次 Hide，
-            // 也就不记账。
-            if (SendToTsfWorkerThreadClientViaNamedpipe(
-                    client_id, activation_epoch,
-                    Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidateAndContinue,
-                    BuildWubiCommitAndContinuePayload(committed_text)))
-            {
-                NoteTopCommitPushed(client_id, activation_epoch);
-            }
-        }
-        push_top_commit.Stop();
-        // UILess 与 pinyin 预编辑样式会为字母键等一帧回复（上限 50ms）。这里绝不能回 Normal
-        // （SendCurrentDataToClient 会 ClearState，把刚重建的组合再清掉），只能回渲染帧。
-        if (IsUiLessMode())
-        {
-            SendUiLessCompositionToClient(client_id, activation_epoch, request_id);
-        }
-        else if (GlobalSettings::getTsfPreeditStyle() == GlobalSettings::TsfPreeditStyle::Pinyin)
-        {
-            Global::MsgTypeToTsf = Global::DataFromServerMsgType::Preedit;
-            Global::candidate_ui.selected_text = GetTsfPreedit();
-            SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        }
-        return;
-    }
 
     //
     // 先判断要不要触发云联想

@@ -57,7 +57,6 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     neural/rescore_worker.cpp
     providers/pinyin_candidate_provider.cpp
     providers/provider_registry.cpp
-    providers/wubi_candidate_provider.cpp
     quanpin/engine.cpp
     quanpin/latin_words.cpp
     quanpin/prefix_completion.cpp
@@ -68,7 +67,6 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     quanpin/word_lattice.cpp
     schemes/quanpin_scheme.cpp
     schemes/shuangpin_scheme.cpp
-    schemes/wubi_scheme.cpp
     shuangpin/engine.cpp
     shuangpin/shuangpin_custom_profile.cpp
     shuangpin/shuangpin_dictionary.cpp
@@ -278,9 +276,6 @@ if(BUILD_TESTING)
     target_link_libraries(test_mixed_expressive_input_session PRIVATE MetasequoiaIme::Engine)
     add_test(NAME mixed_expressive_input_session COMMAND test_mixed_expressive_input_session)
 
-    add_executable(test_wubi_mixed_input_session tests/src/test_wubi_mixed_input_session.cpp)
-    target_link_libraries(test_wubi_mixed_input_session PRIVATE MetasequoiaIme::Engine)
-    add_test(NAME wubi_mixed_input_session COMMAND test_wubi_mixed_input_session)
 
     add_executable(test_jianpin_input_session tests/src/test_jianpin_input_session.cpp)
     target_link_libraries(test_jianpin_input_session PRIVATE MetasequoiaIme::Engine)

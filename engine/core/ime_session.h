@@ -6,7 +6,6 @@
 #include "sentence_association_options.h"
 #include "../providers/provider_registry.h"
 #include "../schemes/input_scheme.h"
-#include "../schemes/wubi_scheme.h"
 #include "../contracts/mid_sentence_helpcode.h"
 #include "../shuangpin/shuangpin_profile.h"
 #include <memory>
@@ -78,16 +77,8 @@ class ImeSession
     {
         rescoring_context_ = std::move(context);
     }
-    void set_wubi_input_options(metasequoia::WubiInputOptions options);
-    const metasequoia::WubiInputOptions &wubi_input_options() const
-    {
-        return wubi_options_;
-    }
     void replace_shuangpin_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases);
     void replace_quanpin_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases);
-    // literal_input: see WubiScheme::set_literal_input.
-    void replace_wubi_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases,
-                                bool literal_input = false);
     // Writes back to whichever scheme is composing. Committing a pinyin answer out of a longer
     // mixed composition has to shorten the live composition, and the pinyin-shaped caller would
     // otherwise address a scheme that is not the active one and be ignored.
@@ -106,7 +97,6 @@ class ImeSession
     // 那样先冷算一遍、调用方再算一遍。
     void reset_sentence_cache();
     int create_word(std::string pinyin, std::string word);
-    // 混输组合里的候选分属五笔码表和拼音词典，写入权重必须显式指明目标方案。
     int update_weight_by_pinyin_and_word(SchemeType scheme, std::string pinyin, std::string word);
     int delete_by_pinyin_and_word(SchemeType scheme, std::string pinyin, std::string word);
     int cache_dynamic_candidate(const std::string &pinyin, const std::string &word, CandidateSource source);
@@ -117,12 +107,6 @@ class ImeSession
     SchemeType current_scheme_type() const;
     const std::string &get_preedit() const;
     const QueryRequest &get_request() const;
-    // Forwarded from the live wubi scheme so a session with no wubi scheme answers false. The
-    // composition knows whether its raw input is a full four-letter code; only the scheme holds it.
-    bool wubi_code_is_complete() const
-    {
-        return wubi_scheme_ != nullptr && wubi_scheme_->has_complete_code();
-    }
     const std::vector<WordItem> &get_candidates() const;
     // 只判断还能不能展开首字母候选，不查库也不改候选；候选窗据此决定满页末页的下一页箭头。
     bool can_expand_initial_candidates() const;
@@ -148,7 +132,6 @@ class ImeSession
     // 直接辅助码与末尾引导都开着、请求的原串里有末尾段：这时按引导键式末尾辅助码查，不再按直接辅助码解析。
     bool direct_helpcode_end_block_active(const QueryRequest &request) const;
     void refresh_candidates();
-    void bind_wubi_scheme();
     void bind_shuangpin_scheme();
     // 把会话的直接辅助码、大写触发设置下发给双拼方案（非双拼方案什么也不做）。
     void configure_shuangpin_scheme(IInputScheme *scheme) const;
@@ -179,7 +162,5 @@ class ImeSession
     metasequoia::PrefixCompletionOptions prefix_completion_;
     SentenceAssociationOptions sentence_association_;
     std::string rescoring_context_;
-    metasequoia::WubiInputOptions wubi_options_;
     // Resolved when the scheme changes rather than on every keystroke.
-    WubiScheme *wubi_scheme_ = nullptr;
 };

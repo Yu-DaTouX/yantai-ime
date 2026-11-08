@@ -95,36 +95,6 @@ constexpr bool ShouldResetCompositionForImeMode(bool chinese_mode)
     return !chinese_mode;
 }
 
-// A complete four-letter wubi code the table answered with exactly one candidate is committed as
-// soon as the fourth letter lands, so the user never has to press space. The switch defaults on
-// (industry wubi IMEs default this on), so leaving it alone keeps that behavior; turning it off is
-// the only exit a user who keeps hitting the wrong commit has. On top of the switch, the wubi
-// engine's own report that the code is complete, table-answered and unique is the only other gate.
-// A word being created keeps the composition open: the raw belongs to the prefix the user is still
-// assembling, and committing it would end that word early.
-constexpr bool ShouldAutoCommitCompleteWubiCode(bool auto_commit_enabled, bool unique_four_code,
-                                                bool creating_word_active)
-{
-    return auto_commit_enabled && unique_four_code && !creating_word_active;
-}
-
-// The user is typing past a complete four-letter wubi code (a letter key with the caret at the end
-// of a four-letter table-answered code). The first candidate is committed and the key that was just
-// typed starts the next composition instead of being dropped. Committing the first candidate matches
-// the user, who is already typing the next word and is not looking at the candidate window. Its own
-// switch defaults on and is independent of the auto-commit switch above. Turning it off only has
-// somewhere to put the letter when mixed input is on: the composition then grows into a mixed
-// spelling. With mixed input off the engine clips the code back to four letters, which drops the
-// key on the Server while a raw-preedit client already shows it, so the switch yields to the top
-// commit there: an extra key never loses input, whatever the setting says.
-constexpr bool ShouldCommitCompleteWubiCodeOnNextKey(bool top_commit_enabled, bool mixed_pinyin_enabled,
-                                                     bool four_code_is_complete, bool key_is_letter, bool caret_at_end,
-                                                     bool creating_word_active)
-{
-    return (top_commit_enabled || !mixed_pinyin_enabled) && four_code_is_complete && key_is_letter && caret_at_end &&
-           !creating_word_active;
-}
-
 // Enter commits the raw composition instead of choosing a special-mode
 // candidate. Therefore a Shift+letter wake key must not by itself prevent an
 // otherwise non-pinyin English word (for example "Metasequoia") from being
@@ -134,7 +104,6 @@ constexpr bool ShouldLearnEnteredEnglishWord(bool dedicated_english_mode, bool s
 {
     return dedicated_english_mode || shift_letter_special_mode || (chinese_scheme && !all_complete_pinyin);
 }
-
 
 // is_date_time_input_key：Shift+T 指定日期时间里进输入串的数字、/ 和 :。TSF 把它们当输入键，pinyin 预编辑
 // 样式和 UILess 下同样要等这一帧。

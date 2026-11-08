@@ -50,8 +50,6 @@ class EngineInputSession : public IInputSession
     std::string get_quanpin() const override;
     bool is_all_complete_pure_pinyin() const override;
     bool reads_as_pinyin() const override;
-    bool wubi_unique_four_code() const override;
-    bool wubi_four_code_is_complete() const override;
     bool has_active_helpcode() const override;
     bool accepts_mid_sentence_helpcode_marker(std::size_t caret) const override;
     bool accepts_end_helpcode_marker(std::size_t caret) const override;
@@ -63,7 +61,6 @@ class EngineInputSession : public IInputSession
     void set_rescoring_context(std::string context) override;
     void set_pinyin_sequence(const std::string &pinyin_sequence) override;
     void set_pinyin_sequence_with_cases(const std::string &pinyin_sequence) override;
-    void set_wubi_literal_input(bool literal) override;
 
     void set_caret(std::optional<std::size_t> caret) override;
     std::size_t prefix_end() const override;
@@ -75,8 +72,7 @@ class EngineInputSession : public IInputSession
     int cache_dynamic_candidate(const std::string &pinyin, const std::string &word, CandidateSource source) override;
     SelectionTransition advance_composition_after_selection(const std::string &selected_pinyin,
                                                             const std::string &selected_word,
-                                                            const std::string &selected_canonical_pinyin,
-                                                            SchemeType selected_scheme = SchemeType::Quanpin) override;
+                                                            const std::string &selected_canonical_pinyin) override;
     CloudQueryState get_cloud_query_state() const override;
     std::optional<metasequoia::OnlineQuery> online_query() const override;
     bool apply_online_candidate(const metasequoia::OnlineQuery &query, std::string candidate,

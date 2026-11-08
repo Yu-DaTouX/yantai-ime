@@ -43,7 +43,7 @@ constexpr DWORD kProcessExitTimeoutMs = 15000;
 // guaranteeing a failure.
 constexpr DWORD kServerStartTimeoutMs = 5000;
 constexpr std::uint64_t kMaxDictionaryBytes = 512ull * 1024 * 1024;
-const char *const kDictionaries[] = {"quanpin", "wubi", "english", "quick"};
+const char *const kDictionaries[] = {"quanpin", "english", "quick"};
 
 struct ManifestItem
 {

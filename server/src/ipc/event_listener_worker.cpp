@@ -843,9 +843,7 @@ void WorkerThread()
                     (void)user_dictionary::adjust_candidate_ranking(
                         CommonUtils::get_ime_data_path() + "\\msime.db", user_dictionary::default_user_db_path(),
                         context_key, FanyImeIpc::FirstVariantsOnly(Global::candidate_ui.items), entry_key, item.word,
-                        "pin", 1, 1, true, nullptr,
-                        item.scheme == SchemeType::Wubi ? user_dictionary::DictionaryKind::Wubi
-                                                        : user_dictionary::DictionaryKind::Pinyin);
+                        "pin", 1, 1, true, nullptr);
             }
             else if (task.type == TaskType::UiDeleteCandidate)
             {
@@ -1021,11 +1019,9 @@ void WorkerThread()
             // 守卫和 ApplyRescoredOrder 一致：造词/译文页占着、用户已开始选词、候选页已经
             // 不在了，都不该拿引擎结果去覆盖界面。英文输入等非拼音模式没有可重排的
             // 拼音整句，而且 PrepareCandidateList 在英文模式下会故意发出空页，直接跳过。
-            // 五笔本身没有拼音整句，但开了拼音混输时同一个混合查询会把全拼词典的整句一并
-            // 算出来（见 ImeSession::refresh_candidates 的混输分支），停手后同样要补这一次。
+            // 拼音方案的整句在停手后补算一次。
             const SchemeType scheme = g_inputSession->current_scheme_type();
-            const bool pinyin_sentence_scheme = scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin ||
-                                                (scheme == SchemeType::Wubi && GetConfiguredWubiMixedPinyin());
+            const bool pinyin_sentence_scheme = scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin;
             if (g_english_input_mode || !pinyin_sentence_scheme || !CanMergeAsyncCandidates() ||
                 GlobalIme::composition.creating_word.active || Global::candidate_ui.items.empty())
             {
@@ -1228,20 +1224,20 @@ SerialTaskRunner &DictionaryWriter()
 
 // The candidates are copied because the page moves on before the write runs. Called from the
 // worker thread only, which is also what serializes the replay guard.
-void EnqueueAdjustCandidateRankingTask(bool english, bool wubi, const std::string &context_key,
-                                       const std::string &entry_key, const std::string &word, uint64_t client_id,
-                                       uint64_t activation_epoch, const std::vector<WordItem> *ranking_candidates)
+void EnqueueAdjustCandidateRankingTask(bool english, const std::string &context_key, const std::string &entry_key,
+                                       const std::string &word, uint64_t client_id, uint64_t activation_epoch,
+                                       const std::vector<WordItem> *ranking_candidates)
 {
     static FanyImeIpc::SelectionRankingReplayGuard replay_guard;
     const std::string replay_key =
-        std::string(english ? "e" : (wubi ? "w" : "p")) + '\x1f' + context_key + '\x1f' + entry_key + '\x1f' + word;
+        std::string(english ? "e" : "p") + '\x1f' + context_key + '\x1f' + entry_key + '\x1f' + word;
     if (!replay_guard.should_apply(replay_key, client_id, activation_epoch, GetTickCount64()))
     {
         CAND_DIAG_LOGF(L"candidate-ranking-replay-skipped client={} epoch={}", client_id, activation_epoch);
         return;
     }
     const auto &frequency = GetConfiguredFrequencyAdjustment();
-    DictionaryWriter().Post([english, wubi, context_key,
+    DictionaryWriter().Post([english, context_key,
                              candidates = FanyImeIpc::FirstVariantsOnly(
                                  ranking_candidates ? *ranking_candidates : Global::candidate_ui.items),
                              entry_key, word, mode = frequency.mode, linear_step = frequency.linear_step,
@@ -1256,8 +1252,7 @@ void EnqueueAdjustCandidateRankingTask(bool english, bool wubi, const std::strin
         bool ranking_changed = false;
         (void)user_dictionary::adjust_candidate_ranking(
             CommonUtils::get_ime_data_path() + "\\msime.db", user_dictionary::default_user_db_path(), context_key,
-            candidates, entry_key, word, mode, linear_step, trigger_count, false, &ranking_changed,
-            wubi ? user_dictionary::DictionaryKind::Wubi : user_dictionary::DictionaryKind::Pinyin);
+            candidates, entry_key, word, mode, linear_step, trigger_count, false, &ranking_changed);
         if (ranking_changed)
         {
             EnqueueResetInputSessionCacheTask();

@@ -1,4 +1,4 @@
-// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、双拼与五笔方案、上屏样式、辅助码、全拼纠错、模糊音和调频。
+// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、双拼方案、上屏样式、辅助码、全拼纠错、模糊音和调频。
 #include "config/ime_config_internal.h"
 #include <cstdint>
 #include <iterator>
@@ -20,7 +20,6 @@ SchemeType GetConfiguredInputScheme()
     return g_input_scheme;
 }
 
-
 std::string GetConfiguredInputSchemeName()
 {
     switch (g_input_scheme)
@@ -29,8 +28,6 @@ std::string GetConfiguredInputSchemeName()
         return "quanpin";
     case SchemeType::Shuangpin:
         return "shuangpin";
-    case SchemeType::Wubi:
-        return "wubi";
     default:
         return "shuangpin";
     }
@@ -38,7 +35,7 @@ std::string GetConfiguredInputSchemeName()
 
 bool SetConfiguredInputScheme(const std::string &scheme)
 {
-    if (scheme != "quanpin" && scheme != "shuangpin" && scheme != "wubi")
+    if (scheme != "quanpin" && scheme != "shuangpin")
     {
         return false;
     }
@@ -226,89 +223,6 @@ bool SetConfiguredShuangpinSchema(const std::string &schema)
         return false;
     }
     g_shuangpin_schema = schema;
-    return true;
-}
-
-const std::string &GetConfiguredWubiSchema()
-{
-    return g_wubi_schema;
-}
-
-bool SetConfiguredWubiSchema(const std::string &schema)
-{
-    if (schema != "wubi86")
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "wubi_schema", EscapeTomlBasicString(schema)))
-    {
-        return false;
-    }
-    g_wubi_schema = schema;
-    return true;
-}
-
-const std::string &GetConfiguredWubiZMode()
-{
-    return g_wubi_z_mode;
-}
-
-bool SetConfiguredWubiZMode(const std::string &mode)
-{
-    if (mode != "off" && mode != "wildcard")
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "wubi_z_mode", EscapeTomlBasicString(mode)))
-    {
-        return false;
-    }
-    g_wubi_z_mode = mode;
-    return true;
-}
-
-bool GetConfiguredWubiMixedPinyin()
-{
-    return g_wubi_mixed_pinyin;
-}
-
-bool SetConfiguredWubiMixedPinyin(bool enabled)
-{
-    if (!WriteConfiguredValue("input", "wubi_mixed_pinyin", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_wubi_mixed_pinyin = enabled;
-    return true;
-}
-
-bool GetConfiguredWubiFourCodeAutoCommit()
-{
-    return g_wubi_four_code_auto_commit;
-}
-
-bool SetConfiguredWubiFourCodeAutoCommit(bool enabled)
-{
-    if (!WriteConfiguredValue("input", "wubi_four_code_auto_commit", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_wubi_four_code_auto_commit = enabled;
-    return true;
-}
-
-bool GetConfiguredWubiFifthCodeTopCommit()
-{
-    return g_wubi_fifth_code_top_commit;
-}
-
-bool SetConfiguredWubiFifthCodeTopCommit(bool enabled)
-{
-    if (!WriteConfiguredValue("input", "wubi_fifth_code_top_commit", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_wubi_fifth_code_top_commit = enabled;
     return true;
 }
 
@@ -1006,14 +920,6 @@ bool SetConfiguredShowQuanpinHelpcodeInCandidateWindow(bool enabled)
     g_show_quanpin_helpcode_in_candidate_window = enabled;
     return true;
 }
-
-
-
-
-
-
-
-
 
 const FrequencyAdjustmentConfig &GetConfiguredFrequencyAdjustment()
 {

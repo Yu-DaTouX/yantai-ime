@@ -236,7 +236,7 @@ KeyResult InputSession::insert_at_caret(char character)
             }
             if (character == '/')
                 accepted = accepts_direct_helpcode_slash_at(caret);
-            if (character == '\'' && scheme() != SchemeType::Wubi)
+            if (character == '\'')
                 accepted = caret > 0;
             // 光标移回句中补句中辅助码：反引号和它后面的码按光标前的部分判断。
             if (character == shuangpin::kMidSentenceHelpcodeMarker)

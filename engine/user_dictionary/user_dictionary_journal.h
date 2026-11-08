@@ -11,7 +11,6 @@ namespace user_dictionary
 enum class DictionaryKind
 {
     Pinyin,
-    Wubi,
     QuickPhrase,
     English,
 };
@@ -66,12 +65,6 @@ bool enable_write_ahead_log(const std::string &db_path);
 bool record_pinyin_upsert_from_database(const std::string &main_db_path, const std::string &key,
                                         const std::string &value,
                                         const std::string &user_db_path = default_user_db_path());
-// Raise the selected wubi candidate to the top of its own code group (max weight + 1, same
-// semantics as the quanpin side) and persist the new weight plus a journal upsert in one
-// attached-database transaction. Existing rows only: a missing (key,value) pair returns false
-// without inserting. Row-missing behaviour matches update_wubi_weight.
-bool bump_wubi_weight(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
-                      const std::string &value);
 // 同上，拼音分表（key 是带分隔符的完整全拼，表名按格式契约从它算）。长词前缀补全（#1343）选中时用：
 // 它的键和同页其他候选不同，不能走 adjust_candidate_ranking 按排位挪位置。
 bool bump_pinyin_weight(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
@@ -175,15 +168,14 @@ ReplayResult replay(const std::string &user_db_path, const std::string &main_db_
 bool adjust_candidate_ranking(const std::string &main_db_path, const std::string &user_db_path,
                               const std::string &context_key, const std::vector<WordItem> &ordered_candidates,
                               const std::string &entry_key, const std::string &value, const std::string &mode,
-                              int linear_step, int trigger_count, bool force_top, bool *ranking_changed = nullptr,
-                              DictionaryKind kind = DictionaryKind::Pinyin);
+                              int linear_step, int trigger_count, bool force_top, bool *ranking_changed = nullptr);
 bool adjust_english_candidate_ranking(const std::string &english_db_path, const std::string &user_db_path,
                                       const std::string &context_key, const std::vector<WordItem> &ordered_candidates,
                                       const std::string &entry_key, const std::string &value, const std::string &mode,
                                       int linear_step, int trigger_count, bool force_top,
                                       bool *ranking_changed = nullptr);
 // Delete an exact dictionary key and persist its tombstone in one attached-database
-// transaction. Supports Pinyin, Wubi and English; false preserves candidate rows and journal operations
+// transaction. Supports Pinyin, quick phrases and English; false preserves candidate rows and journal operations
 // on statement/commit failures (not a cross-file power-loss guarantee in WAL mode).
 bool delete_dictionary_candidate(const std::string &dictionary_db_path, const std::string &user_db_path,
                                  DictionaryKind kind, const std::string &entry_key, const std::string &value);

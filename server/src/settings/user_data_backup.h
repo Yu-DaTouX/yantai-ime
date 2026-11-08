@@ -33,7 +33,7 @@ struct Hooks
     // including after a failed stop, and never after a pre-stop validation
     // failure.
     std::function<bool(std::string &message)> start_server;
-    // Runs SettingsDictionary's export request for "quanpin" / "wubi" /
+    // Runs SettingsDictionary's export request for "quanpin" /
     // "english" / "quick". content is the original export text.
     std::function<bool(const std::string &dictionary, std::string &content, std::string &message)> export_dictionary;
     // Runs SettingsDictionary's import request for one dictionary file.

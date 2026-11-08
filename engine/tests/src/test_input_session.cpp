@@ -137,17 +137,6 @@ void prepare_shuangpin_frequency_fixture(const std::filesystem::path &directory)
                      "COMMIT;");
 }
 
-void prepare_wubi_frequency_fixture(const std::filesystem::path &directory)
-{
-    std::filesystem::create_directories(directory);
-    Database database(directory / "msime.db");
-    database.execute("BEGIN;"
-                     "CREATE TABLE wubi86(key TEXT, value TEXT, weight INTEGER);"
-                     "INSERT INTO wubi86 VALUES('aaaa', '工', 100);"
-                     "INSERT INTO wubi86 VALUES('aaaa', '或', 50);"
-                     "COMMIT;");
-}
-
 std::size_t candidate_index(const metasequoia::InputSession &session, const std::string &word)
 {
     const auto found = std::find_if(session.candidates().begin(), session.candidates().end(),
@@ -2060,9 +2049,6 @@ void run_caret_prefix_session_tests(const std::filesystem::path &data_directory)
         database.execute("CREATE TABLE tbl_1_y(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_1_y VALUES('ya','y','呀',100);"
                          "INSERT INTO tbl_1_y VALUES('ya','y','压',90);");
-        database.execute("CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
-                         "INSERT INTO wubi86 VALUES('aaaa','工',100);"
-                         "INSERT INTO wubi86 VALUES('aaaa','或',50);");
     }
 
     metasequoia::RuntimePaths paths;
@@ -2205,23 +2191,6 @@ void run_caret_prefix_session_tests(const std::filesystem::path &data_directory)
         require(session.editing_text() == "Hni'hao", "Restoring the end caret altered the raw text");
     }
 
-    // 无单元模型（五笔）：segment_raw_boundaries 为空 → caret 移动不量化，候选零变化。
-    {
-        metasequoia::InputSession session(SchemeType::Wubi, 0, true, true, false, paths);
-        type(session, "aaaa");
-        require(session.has_composition() && candidate_index(session, "工") < session.candidates().size(),
-                "The wubi fixture lost its candidates");
-        const auto native = words_of(session);
-        for (const std::size_t caret : {std::size_t(0), std::size_t(2)})
-        {
-            session.set_caret(caret);
-            session.recompute_candidates();
-            require(same_word_list(session, native), "A scheme without the unit model must not re-decode by caret");
-            require(session.prefix_end() == 4 && session.pending_suffix().empty(),
-                    "Without a unit model the caret never shortens the decode");
-        }
-    }
-
     // 双拼贪心配对（engine spec #187）：nihkb; → {0,2,4,6}、nihcb; → {0,2,3,5,6}，
     // caret 落在段中间时同样 floor 到完整段边界；首单元内侧向上取整到首单元末尾。
     const auto shuangpin_words = [&](const std::string &typed) {
@@ -2311,8 +2280,8 @@ void run_word_final_helpcode_lifecycle_tests(const std::filesystem::path &data_d
             throw std::runtime_error("No lifecycle candidates for: " + raw);
         }
         const auto picked = session->candidates()[candidate_index(*session, word)];
-        const auto transition = session->advance_composition_after_selection(picked.pinyin, picked.word,
-                                                                             picked.canonical_pinyin, picked.scheme);
+        const auto transition =
+            session->advance_composition_after_selection(picked.pinyin, picked.word, picked.canonical_pinyin);
         require(transition.continues_composition && session->get_pinyin_sequence_with_cases() == rest,
                 "Terminal helpcode selection did not preserve the expected suffix.");
         require(transition.consumed_raw_input_with_cases == prefix &&
@@ -2355,8 +2324,8 @@ void run_word_final_helpcode_lifecycle_tests(const std::filesystem::path &data_d
         session->set_caret(2);
         session->recompute_candidates();
         const auto picked = session->candidates()[candidate_index(*session, "拟")];
-        const auto transition = session->advance_composition_after_selection(picked.pinyin, picked.word,
-                                                                             picked.canonical_pinyin, picked.scheme);
+        const auto transition =
+            session->advance_composition_after_selection(picked.pinyin, picked.word, picked.canonical_pinyin);
         require(transition.continues_composition && transition.consumed_terminal_helpcode_with_cases.empty() &&
                     session->get_pinyin_sequence_with_cases() == "hc|fR",
                 "A caret-prefix selection changed the full-string terminal helpcode lifecycle.");
@@ -2747,14 +2716,6 @@ int run_test()
                 "The requested double-pinyin scheme was not retained.");
         require(shuangpin_session.handle_character('n').handled && shuangpin_session.preedit() == "n",
                 "A valid Shuangpin letter was rejected.");
-        metasequoia::InputSession wubi_session(SchemeType::Wubi);
-        require(!wubi_session.handle_character('z').handled && wubi_session.preedit().empty(),
-                "An unsupported Wubi letter was swallowed.");
-        type(wubi_session, "abcd");
-        require(!wubi_session.handle_character('e').handled && wubi_session.preedit() == "abcd",
-                "A Wubi letter beyond the four-code limit was swallowed.");
-        require(!wubi_session.handle_character('\'').handled && wubi_session.preedit() == "abcd",
-                "An unsupported Wubi apostrophe was swallowed.");
 
         metasequoia::InputSession ascii_punctuation_session(SchemeType::Quanpin, true, true, false);
         require(!ascii_punctuation_session.chinese_punctuation_enabled(),
@@ -2915,8 +2876,8 @@ int run_test()
                 "Cancel did not discard the composition.");
 
         type(session, "nihao");
-        session.switch_scheme(SchemeType::Wubi);
-        require(session.scheme() == SchemeType::Wubi, "Switching to Wubi did not update the active scheme.");
+        session.switch_scheme(SchemeType::Shuangpin);
+        require(session.scheme() == SchemeType::Shuangpin, "Switching schemes did not update the active scheme.");
         require(!session.has_composition() && session.candidates().empty(),
                 "Switching schemes did not discard the old composition.");
 
@@ -3234,8 +3195,8 @@ int run_test()
                     target->set_shuangpin_helpcode_triggers(direct, false);
                     type(*target, "nihc" + (direct ? std::string() : "|") + codes);
                     const auto picked = target->candidates()[candidate_index(*target, "拟")];
-                    const auto transition = target->advance_composition_after_selection(
-                        picked.pinyin, picked.word, picked.canonical_pinyin, picked.scheme);
+                    const auto transition = target->advance_composition_after_selection(picked.pinyin, picked.word,
+                                                                                        picked.canonical_pinyin);
                     require(transition.continues_composition && target->get_pinyin_sequence_with_cases() == "hc" &&
                                 has_word(*target, "好"),
                             "A selected prefix left its terminal helpcode blocking the remaining syllables.");
@@ -3465,21 +3426,6 @@ int run_test()
             "A phrase committed with a mid-sentence helpcode was not promoted for the plain spelling.");
 
     user_dictionary::close_default_user_database();
-    const std::filesystem::path wubi_directory = data_directory / "frequency-wubi";
-    prepare_wubi_frequency_fixture(wubi_directory);
-    set_data_directory(wubi_directory);
-    metasequoia::InputSession wubi_learning(SchemeType::Wubi);
-    require(wubi_learning.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),
-            "A valid Wubi frequency configuration was rejected.");
-    type(wubi_learning, "aaaa");
-    require(wubi_learning.select_candidate(std::string("或")).commit == "或",
-            "Wubi frequency learning blocked candidate commit.");
-    metasequoia::InputSession reopened_wubi(SchemeType::Wubi);
-    type(reopened_wubi, "aaaa");
-    require(!reopened_wubi.candidates().empty() && reopened_wubi.candidates().front().word == "或",
-            "Wubi frequency learning did not persist through the Wubi table.");
-
-    user_dictionary::close_default_user_database();
     const std::filesystem::path failure_directory = data_directory / "frequency-write-failure";
     prepare_frequency_fixture(failure_directory);
     std::filesystem::create_directory(failure_directory / "msime_user.db");
@@ -3620,10 +3566,6 @@ int run_test()
                 disabled_radical.local_input_mode() == metasequoia::LocalInputMode::None,
             "A disabled radical shortcut swallowed Shift+U.");
 
-    metasequoia::InputSession wubi_radical(SchemeType::Wubi);
-    require(!wubi_radical.handle_character('U', true).handled && !wubi_radical.has_composition() &&
-                wubi_radical.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Shift+U was swallowed outside a pinyin scheme.");
     metasequoia::InputSession switch_clears_radical(SchemeType::Shuangpin);
     require(switch_clears_radical.handle_character('U', true).handled &&
                 switch_clears_radical.local_input_mode() == metasequoia::LocalInputMode::Radical,
@@ -3714,76 +3656,6 @@ int run_test()
     require(!disabled_date_time.handle_character('T', true).handled && !disabled_date_time.has_composition() &&
                 disabled_date_time.local_input_mode() == metasequoia::LocalInputMode::None,
             "A disabled date/time shortcut swallowed Shift+T.");
-
-    metasequoia::InputSession wubi_date_time(SchemeType::Wubi);
-    require(!wubi_date_time.handle_character('T', true).handled && !wubi_date_time.has_composition() &&
-                wubi_date_time.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Shift+T was swallowed outside a pinyin scheme.");
-
-    // 五笔保留原样串：Server 端的 T/V 形状判定（大写 T 前缀、V＋数字）读的是宿主回读的原样串，
-    // 而五笔码表查询和自动上屏用的是归一后的码。宿主把 T/V 模式的串标成字面输入，原样串才
-    // 留全用户敲的字符；普通码的原样串就是带大小写的码，与查询码逐位对应、一起截断。
-    const std::filesystem::path wubi_raw_directory = data_directory / "wubi-raw";
-    std::filesystem::create_directories(wubi_raw_directory);
-    {
-        Database database(wubi_raw_directory / "msime.db");
-        database.execute("CREATE TABLE wubi86(key TEXT, value TEXT, weight INTEGER)");
-    }
-    set_data_directory(wubi_raw_directory);
-    for (const bool mixed_pinyin : {false, true})
-    {
-        metasequoia::WubiInputOptions wubi_options;
-        wubi_options.mixed_pinyin = mixed_pinyin;
-
-        metasequoia::InputSession v_mode_wubi(SchemeType::Wubi);
-        v_mode_wubi.set_wubi_input_options(wubi_options);
-        v_mode_wubi.set_pinyin_sequence("V1+2");
-        v_mode_wubi.set_pinyin_sequence_with_cases("V1+2");
-        v_mode_wubi.set_wubi_literal_input(true);
-        v_mode_wubi.recompute_candidates();
-        require(v_mode_wubi.get_pinyin_sequence_with_cases() == "V1+2" && v_mode_wubi.get_pinyin_sequence() == "v",
-                "Wubi did not keep the raw-case V-mode prefix apart from the query code.");
-
-        // 不标字面输入时同一串就是普通码：数字不是码字，回读里也不能有。
-        metasequoia::InputSession v_code_wubi(SchemeType::Wubi);
-        v_code_wubi.set_wubi_input_options(wubi_options);
-        v_code_wubi.set_pinyin_sequence("V1+2");
-        v_code_wubi.set_pinyin_sequence_with_cases("V1+2");
-        v_code_wubi.recompute_candidates();
-        require(v_code_wubi.get_pinyin_sequence_with_cases() == "V" && v_code_wubi.get_pinyin_sequence() == "v",
-                "A wubi code kept characters that are not code letters in its raw-case string.");
-
-        metasequoia::InputSession t_mode_wubi(SchemeType::Wubi);
-        t_mode_wubi.set_wubi_input_options(wubi_options);
-        t_mode_wubi.set_pinyin_sequence("T2024/12/25");
-        t_mode_wubi.set_pinyin_sequence_with_cases("T2024/12/25");
-        t_mode_wubi.set_wubi_literal_input(true);
-        t_mode_wubi.recompute_candidates();
-        require(t_mode_wubi.get_pinyin_sequence_with_cases() == "T2024/12/25" &&
-                    t_mode_wubi.get_pinyin_sequence() == "t" && t_mode_wubi.preedit() == "t",
-                "Wubi did not keep the raw-case date/time prefix apart from the query code.");
-
-        // 反向保护：普通小写码字两个 getter 逐字节相同，预编辑也照旧。
-        metasequoia::InputSession plain_wubi(SchemeType::Wubi);
-        plain_wubi.set_wubi_input_options(wubi_options);
-        plain_wubi.set_pinyin_sequence("wqaa");
-        plain_wubi.set_pinyin_sequence_with_cases("wqaa");
-        plain_wubi.recompute_candidates();
-        require(plain_wubi.get_pinyin_sequence_with_cases() == "wqaa" && plain_wubi.get_pinyin_sequence() == "wqaa" &&
-                    plain_wubi.preedit() == "wqaa",
-                "A plain wubi code no longer round-trips unchanged.");
-
-        // z 不是码字时（混输与通配都关）必须从原样串里也丢掉：Server 按原样串长度数四码，
-        // 留着它会比码多一格，顶字提前一个键触发。混输开启时 z 是合法码字，照旧保留。
-        metasequoia::InputSession z_wubi(SchemeType::Wubi);
-        z_wubi.set_wubi_input_options(wubi_options);
-        z_wubi.set_pinyin_sequence("wqaz");
-        z_wubi.set_pinyin_sequence_with_cases("wqaz");
-        z_wubi.recompute_candidates();
-        require(z_wubi.get_pinyin_sequence_with_cases() == (mixed_pinyin ? "wqaz" : "wqa") &&
-                    z_wubi.get_pinyin_sequence() == (mixed_pinyin ? "wqaz" : "wqa"),
-                "A dropped wubi z did not stay dropped in the raw-case string.");
-    }
 
     const std::filesystem::path quick_phrase_directory = data_directory / "quick-phrase";
     std::filesystem::create_directories(quick_phrase_directory);
@@ -3928,14 +3800,6 @@ int run_test()
     require(!disabling_active_expressive.has_composition() &&
                 disabling_active_expressive.local_input_mode() == metasequoia::LocalInputMode::None,
             "Disabling an active Emoji mode did not reset it.");
-
-    metasequoia::InputSession wubi_expressive(SchemeType::Wubi);
-    require(!wubi_expressive.handle_character('E', true).handled && !wubi_expressive.has_composition() &&
-                wubi_expressive.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Shift+E was swallowed outside a pinyin scheme.");
-    require(!wubi_expressive.handle_character('M', true).handled && !wubi_expressive.has_composition() &&
-                wubi_expressive.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Shift+M was swallowed outside a pinyin scheme.");
 
     const std::filesystem::path missing_expressive_directory = data_directory / "expressive-missing";
     std::filesystem::create_directories(missing_expressive_directory);

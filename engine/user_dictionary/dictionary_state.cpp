@@ -58,8 +58,6 @@ const char *name(PersonalDictionaryKind kind)
     {
     case PersonalDictionaryKind::Pinyin:
         return "pinyin";
-    case PersonalDictionaryKind::Wubi:
-        return "wubi";
     case PersonalDictionaryKind::English:
         return "english";
     case PersonalDictionaryKind::QuickPhrase:
@@ -71,8 +69,6 @@ PersonalDictionaryKind kind(const std::string &value)
 {
     if (value == "pinyin")
         return PersonalDictionaryKind::Pinyin;
-    if (value == "wubi")
-        return PersonalDictionaryKind::Wubi;
     if (value == "english")
         return PersonalDictionaryKind::English;
     if (value == "quick")
@@ -109,6 +105,8 @@ void stream_dictionary_state(const RuntimePaths &paths, const std::function<bool
         int status;
         while ((status = sqlite3_step(rows.get())) == SQLITE_ROW)
         {
+            if (text(rows.get(), 0) == "wubi")
+                continue; // Retired dictionary entries are ignored during export.
             DictionaryStateEntry entry{kind(text(rows.get(), 0)),
                                        text(rows.get(), 1),
                                        text(rows.get(), 2),

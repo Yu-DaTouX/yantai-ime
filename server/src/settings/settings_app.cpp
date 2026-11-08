@@ -341,13 +341,8 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"default_ime_mode", GetConfiguredDefaultImeMode()},
             {"ime_mode_scope", GetConfiguredImeModeScope()},
             {"shuangpin_schema", GetConfiguredShuangpinSchema()},
-            {"wubi_schema", GetConfiguredWubiSchema()},
-            {"wubi_mixed_pinyin", GetConfiguredWubiMixedPinyin()},
             {"escape_keeps_selected_word", GetConfiguredEscapeKeepsSelectedWord()},
             {"enter_learns_english_word", GetConfiguredEnterLearnsEnglishWord()},
-            {"wubi_z_mode", GetConfiguredWubiZMode()},
-            {"wubi_four_code_auto_commit", GetConfiguredWubiFourCodeAutoCommit()},
-            {"wubi_fifth_code_top_commit", GetConfiguredWubiFifthCodeTopCommit()},
             {"word_to_character", GetConfiguredWordToCharacterEnabled()},
             {"word_to_character_keys", GetConfiguredWordToCharacterKeys()},
             {"smart_punctuation", GetConfiguredSmartPunctuationEnabled()},
@@ -642,20 +637,10 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredImeModeScope(json::value_to<std::string>(data.at("value")));
     if (path == "input.shuangpin_schema")
         return SetConfiguredShuangpinSchema(json::value_to<std::string>(data.at("value")));
-    if (path == "input.wubi_schema")
-        return SetConfiguredWubiSchema(json::value_to<std::string>(data.at("value")));
-    if (path == "input.wubi_mixed_pinyin")
-        return SetConfiguredWubiMixedPinyin(json::value_to<bool>(data.at("value")));
     if (path == "input.escape_keeps_selected_word")
         return SetConfiguredEscapeKeepsSelectedWord(json::value_to<bool>(data.at("value")));
     if (path == "input.enter_learns_english_word")
         return SetConfiguredEnterLearnsEnglishWord(json::value_to<bool>(data.at("value")));
-    if (path == "input.wubi_z_mode")
-        return SetConfiguredWubiZMode(json::value_to<std::string>(data.at("value")));
-    if (path == "input.wubi_four_code_auto_commit")
-        return SetConfiguredWubiFourCodeAutoCommit(json::value_to<bool>(data.at("value")));
-    if (path == "input.wubi_fifth_code_top_commit")
-        return SetConfiguredWubiFifthCodeTopCommit(json::value_to<bool>(data.at("value")));
     if (path == "input.word_to_character")
         return SetConfiguredWordToCharacterEnabled(json::value_to<bool>(data.at("value")));
     if (path == "input.word_to_character_keys")

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "pinyin_candidate_provider.h"
-#include "wubi_candidate_provider.h"
 #include "../core/scheme_type.h"
 #include <string>
 
@@ -25,7 +24,7 @@ class ProviderRegistry
         return pinyin_provider_.resolve_direct_helpcode(request);
     }
     void reset_cache(SchemeType scheme_type);
-    // 整句（词格 + 神经重排）只出在拼音 provider 上，五笔混输查的也是它。
+    // 整句（词格 + 神经重排）只出在拼音 provider 上。
     void reset_sentence_cache()
     {
         pinyin_provider_.reset_sentence_cache();
@@ -45,5 +44,4 @@ class ProviderRegistry
 
   private:
     PinyinCandidateProvider pinyin_provider_;
-    WubiCandidateProvider wubi_provider_;
 };

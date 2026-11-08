@@ -48,7 +48,6 @@ void run(bool capacity)
     sql(resources / assets::main_dictionary,
         "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
         "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',100),('ni''hao','nh','拟好',80);"
-        "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
         "CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);"
         "CREATE INDEX idx_quick_parases_key_weight ON quick_parases(key,weight DESC);");
     check(EnglishDictionary::ensure_schema(path_to_utf8(resources / assets::english_dictionary)), "English schema");

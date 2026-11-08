@@ -171,7 +171,7 @@ class DictionaryPanel
   public:
     enum class Kind
     {
-        Dictionary, // quanpin / wubi / english, requestId prefix "dict-"
+        Dictionary, // quanpin / english / quick / latin, requestId prefix "dict-"
         Quick,      // quick phrases, requestId prefix "quick-"
     };
 
@@ -179,7 +179,7 @@ class DictionaryPanel
 
     // Adds toolbar, hint, header, table and pager to `column`.
     void AddTo(Column &column);
-    // dict.ts updateMode(): switches quanpin / wubi / english.
+    // dict.ts updateMode(): switches quanpin / english / quick / latin.
     void SetDictionary(const std::string &dictionary);
     const std::string &Dictionary() const
     {

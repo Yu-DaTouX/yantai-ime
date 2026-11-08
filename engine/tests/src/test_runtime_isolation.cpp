@@ -227,7 +227,7 @@ void test_runtime_isolation()
         type(session, "ni");
         require(session.snapshot().caret_position == 2, "New composition inherited the old caret");
     }
-    for (const char marker : {'Y', 'J', 'E', 'M', 'K', 'U', 'R'})
+    for (const char marker : {'Y', 'J', 'E', 'M', 'K', 'U'})
     {
         SessionOptions options;
         options.paths = paths_a;
@@ -252,7 +252,7 @@ void test_runtime_isolation()
         require(session.snapshot().editing_text.empty() && session.snapshot().caret_position == 0,
                 "Cancel retained local-mode editing state");
     }
-    for (const auto scheme : {SchemeType::Shuangpin, SchemeType::Wubi})
+    for (const auto scheme : {SchemeType::Shuangpin})
     {
         SessionOptions options;
         options.paths = paths_a;
@@ -402,14 +402,12 @@ void test_runtime_isolation()
     make_resources(pin_resources, "你");
     execute(pin_resources / assets::main_dictionary,
             "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);"
-            "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO wubi86 VALUES('wq','你好',10000),('wq','拟好',9000);");
+            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);");
     execute(pin_resources / assets::english_dictionary,
             "INSERT INTO english_words(word,display,weight) VALUES('help','help',5);");
     const auto pin_main_bytes = bytes(pin_resources / assets::main_dictionary);
     const auto pin_english_bytes = bytes(pin_resources / assets::english_dictionary);
-    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin, SchemeType::Wubi})
+    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
     {
         const auto suffix = std::to_string(static_cast<int>(scheme));
         const auto user = root / ("position-user-" + suffix);
@@ -418,7 +416,7 @@ void test_runtime_isolation()
         options.paths = prepare_runtime_paths(pin_resources, user, cache, "v1");
         options.scheme = scheme;
         options.learning = false;
-        const auto input = scheme == SchemeType::Quanpin ? "nihao" : (scheme == SchemeType::Shuangpin ? "nihc" : "wq");
+        const auto input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
         {
             Session session(options);
             type(session, input);
@@ -498,7 +496,7 @@ void test_runtime_isolation()
                 "Pin did not refresh dictionary candidate order");
         require(!session.pin(before.candidates.size() + 100).handled, "Invalid pin index was accepted");
     };
-    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin, SchemeType::Wubi})
+    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
     {
         const auto suffix = std::to_string(static_cast<int>(scheme));
         const auto user = root / ("pin-user-" + suffix);
@@ -507,8 +505,7 @@ void test_runtime_isolation()
         options.paths = prepare_runtime_paths(pin_resources, user, cache, "v1");
         options.scheme = scheme;
         options.learning = false;
-        const std::string input =
-            scheme == SchemeType::Quanpin ? "nihao" : (scheme == SchemeType::Shuangpin ? "nihc" : "wq");
+        const std::string input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
         {
             Session session(options);
             require(!session.pin(0).handled, "Empty session accepted pin");

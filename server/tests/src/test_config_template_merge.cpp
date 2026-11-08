@@ -463,11 +463,19 @@ TEST_CASE(config_merge_ignores_assignments_inside_multiline_strings)
 
 TEST_CASE(config_merge_ignores_commented_out_keys)
 {
-    const std::string template_text = "[input]\n# schema = \"wubi\"\nschema = \"shuangpin\"\n";
-    const std::string user_text = "[input]\n# schema = \"quanpin\"\nschema = \"wubi\"\n";
+    const std::string template_text = "[input]\n# schema = \"shuangpin\"\nschema = \"quanpin\"\n";
+    const std::string user_text = "[input]\n# schema = \"quanpin\"\nschema = \"shuangpin\"\n";
 
     REQUIRE_EQ(MergeConfigIntoTemplate(template_text, user_text, std::string()),
-               "[input]\n# schema = \"wubi\"\nschema = \"wubi\"\n");
+               "[input]\n# schema = \"shuangpin\"\nschema = \"shuangpin\"\n");
+}
+
+// 已删除的方案在升级时静默回退全拼，不把用户留在不存在的方案上。
+TEST_CASE(config_merge_falls_back_from_retired_schemes_to_quanpin)
+{
+    const std::string template_text = "[input]\nschema = \"quanpin\"\n";
+    REQUIRE_EQ(MergeConfigIntoTemplate(template_text, "[input]\nschema = \"wubi\"\n", std::string()),
+               "[input]\nschema = \"quanpin\"\n");
 }
 
 TEST_CASE(retired_voice_config_is_ignored_during_template_upgrade)

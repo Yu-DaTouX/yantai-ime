@@ -179,7 +179,7 @@ TEST_CASE(config_round_trips_under_non_ascii_profile_path)
         REQUIRE(SetConfiguredInputStateShortcut(2, "Ctrl+Period"));
         REQUIRE(SetConfiguredInputStateShortcut(1, "Ctrl+Shift+Space"));
 
-        REQUIRE(SetConfiguredInputScheme("wubi"));
+        REQUIRE(SetConfiguredInputScheme("shuangpin"));
         for (const std::string &position : {"top-left", "top", "top-right", "bottom-left", "bottom", "bottom-right"})
         {
             REQUIRE(SetConfiguredCaretStateIndicatorPosition(position));
@@ -198,7 +198,7 @@ TEST_CASE(config_round_trips_under_non_ascii_profile_path)
         REQUIRE_EQ(GetConfiguredCaretStateIndicatorPosition(), std::string("bottom-right"));
 
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("wubi"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("shuangpin"));
 
         const std::vector<std::string> fonts = {"SimSun", "Font#1", "Font]2", "Font\\\"3", "微软雅黑"};
         REQUIRE(SetConfiguredCandidateFallbackFonts(fonts));
@@ -395,7 +395,6 @@ TEST_CASE(config_reload_detects_a_change_that_keeps_the_same_timestamp)
 
     fs::remove_all(unique_root, ec);
 }
-
 
 TEST_CASE(ai_provider_configuration_round_trips_without_mixing_credentials)
 {
@@ -758,15 +757,21 @@ TEST_CASE(config_migrates_legacy_acp_mangled_path)
     WriteText(data_dir / L"config.toml", stock + "\n# leftover-installer-marker\n");
     std::string leftover = stock;
     leftover.replace(pos, from.size(), "\nschema = \"shuangpin\"");
+    // 另改一个值，让找回后的配置不可能与出厂模板逐字节相同：测试要验证的是「找回 + 写回」，
+    // 而写回出厂默认值时文件会恰好等于模板，那是迁移的另一条分支（real_is_stock）。
+    const std::string theme_from = "theme = \"dark\"";
+    const auto theme_at = leftover.find(theme_from);
+    REQUIRE(theme_at != std::string::npos);
+    leftover.replace(theme_at, theme_from.size(), "theme = \"light\"");
     WriteText(mangled_dir / L"config.toml", leftover);
 
     {
         ScopedConfigLocation local_app_data_env(local_app_data);
         InitImeConfig();
         REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("shuangpin"));
-        REQUIRE(SetConfiguredInputScheme("wubi"));
+        REQUIRE(SetConfiguredInputScheme("quanpin"));
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("wubi"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
     }
 
     fs::remove_all(unique_root, ec);

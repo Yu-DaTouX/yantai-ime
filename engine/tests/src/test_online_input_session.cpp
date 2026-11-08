@@ -247,12 +247,6 @@ int main()
                 "Cloud arrival moved the Shuangpin AI suggestion out of slot three.");
         require(shuangpin.handle_character('A').handled && !shuangpin.online_query().has_value(),
                 "Active Shuangpin helpcode input was exposed to online providers.");
-
-
-        metasequoia::InputSession wubi(SchemeType::Wubi);
-        type(wubi, "aaaa");
-        require(!wubi.online_query().has_value(), "Wubi unexpectedly exposed an online query.");
-
         metasequoia::InputSession local_mode(SchemeType::Quanpin);
         require(local_mode.handle_character('U', true).handled && !local_mode.online_query().has_value(),
                 "A local input mode unexpectedly exposed an online query.");

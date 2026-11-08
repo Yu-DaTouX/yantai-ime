@@ -319,8 +319,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             AppendAiContext(curWord);
             if (curWordItem.source == CandidateSource::EnglishDictionary && isNeedUpdateWeight)
             {
-                EnqueueAdjustCandidateRankingTask(/*english=*/true, /*wubi=*/false, EnglishRankingContextKey(),
-                                                  curWordItem.pinyin, curWordItem.word, client_id, activation_epoch);
+                EnqueueAdjustCandidateRankingTask(/*english=*/true, EnglishRankingContextKey(), curWordItem.pinyin,
+                                                  curWordItem.word, client_id, activation_epoch);
             }
             // 日期时间按格式调频：Shift+T 模式、日期页和混输选中哪种格式，都往同一份顺序里记。
             // 已经排在首位的格式由引擎侧直接跳过，所以这里不看 isNeedUpdateWeight。
@@ -403,8 +403,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             g_inputSession->get_pinyin_sequence_with_cases(), g_inputSession->prefix_end());
         const bool caret_prefix_selection =
             g_inputSession->prefix_end() < g_inputSession->get_pinyin_sequence_with_cases().size();
-        auto selection_transition = g_inputSession->advance_composition_after_selection(
-            curWordPinyin, curWord, curWordItem.canonical_pinyin, curWordItem.scheme);
+        auto selection_transition =
+            g_inputSession->advance_composition_after_selection(curWordPinyin, curWord, curWordItem.canonical_pinyin);
         if (caret_prefix_selection)
         {
             g_inputSession->set_caret(std::nullopt);
@@ -506,7 +506,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         // 看看云联想出来的词是否需要被插入到数据库
         if (curWordItem.source == CandidateSource::CloudSuggestion && !cloudCommittedPinyin.empty())
         {
-                EnqueueStoreUserPhraseTask(cloudCommittedPinyin, curWord, cloudCommittedPinyinIsCanonical);
+            EnqueueStoreUserPhraseTask(cloudCommittedPinyin, curWord, cloudCommittedPinyinIsCanonical);
             // 清理云联想变量状态
             Global::cloud_candidate.added = false;
             Global::cloud_candidate.word.clear();
@@ -555,9 +555,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // changes the order, the worker drops its candidate cache and the next lookup sees
             // the new order; a lookup that lands before the write finishes still shows the old
             // one.
-            EnqueueAdjustCandidateRankingTask(/*english=*/false, /*wubi=*/curWordItem.scheme == SchemeType::Wubi,
-                                              ranking_context_key, ranking_entry_key, curWord, client_id,
-                                              activation_epoch,
+            EnqueueAdjustCandidateRankingTask(/*english=*/false, ranking_context_key, ranking_entry_key, curWord,
+                                              client_id, activation_epoch,
                                               mid_sentence_ranking ? &mid_sentence_ranking_candidates : nullptr);
         }
     }
