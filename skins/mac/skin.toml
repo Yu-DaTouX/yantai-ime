@@ -42,6 +42,8 @@ selected_text = "#ffffff"
 selected_number = "rgba(255, 255, 255, 0.78)"
 text = "#1d1d1f"
 number = "#8e8e93"
+# 英文词义清单页右侧的词性小字：用系统次要文字色，不继承 fluent 的紫色。
+translation = "#8e8e93"
 show_selected_bar = false
 
 [candidate.dark]
@@ -55,4 +57,5 @@ selected_text = "#ffffff"
 selected_number = "rgba(255, 255, 255, 0.80)"
 text = "#f2f2f7"
 number = "#98989f"
+translation = "#98989f"
 show_selected_bar = false
