@@ -261,6 +261,8 @@ void CandidatePresenter::ApplySkin()
                 << GetConfiguredCandidateWindowPreeditFontSize() << '|' << GetConfiguredCandidateWindowLayout() << '|'
                 << GetConfiguredCandidateTextColor() << '|' << GetConfiguredCandidateWindowPreeditStyle();
     fingerprint << '|' << GetConfiguredCandidateEnglishFont() << '|' << GetConfiguredCandidateWindowFitContent();
+    // 英文词义清单页换成固定竖排、带页眉的另一种场景；不换皮肤就不能沿用上一页的外观。
+    fingerprint << '|' << (sensesPage_ ? 'S' : 's');
     // 卷轴展开网格的列数上限跟每页候选数走。
     fingerprint << '|' << GetConfiguredCandidatePageSize();
     // 同一个外部皮肤的 skin.toml 或图片改了，只有强制重载能看出来；带上重载代数让 D2D 也重读 manifest。
