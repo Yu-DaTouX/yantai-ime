@@ -1745,6 +1745,17 @@ bool SendToAuxNamedpipe(const std::wstring &pipeData, bool waitForAcknowledgemen
     {
         return false;
     }
+    // Aux notifications also run on the host's TSF/UI thread. A live but
+    // stalled Server must not turn the synchronous write into an unbounded
+    // wait for pipe quota. Message-mode NOWAIT either writes the whole frame
+    // or fails (including a successful zero-byte write), never a partial retry.
+    DWORD pipeMode = PIPE_READMODE_MESSAGE | PIPE_NOWAIT;
+    if (!SetNamedPipeHandleState(hAuxPipe, &pipeMode, nullptr, nullptr))
+    {
+        CloseHandle(hAuxPipe);
+        return false;
+    }
+
     DWORD bytesWritten = 0;
     // The payload is a single control message, orders of magnitude below DWORD range.
     const DWORD bytesToWrite = static_cast<DWORD>(pipeData.length() * sizeof(wchar_t));
@@ -1760,13 +1771,6 @@ bool SendToAuxNamedpipe(const std::wstring &pipeData, bool waitForAcknowledgemen
     {
         CloseHandle(hAuxPipe);
         return sent;
-    }
-
-    DWORD pipeMode = PIPE_READMODE_MESSAGE | PIPE_NOWAIT;
-    if (!SetNamedPipeHandleState(hAuxPipe, &pipeMode, nullptr, nullptr))
-    {
-        CloseHandle(hAuxPipe);
-        return false;
     }
 
     bool acknowledged = false;

@@ -127,6 +127,20 @@ target_include_directories(test_focus_activation PRIVATE "${CMAKE_CURRENT_BINARY
 target_compile_features(test_focus_activation PRIVATE cxx_std_17)
 add_test(NAME focus_activation COMMAND test_focus_activation)
 
+# Compile the real Aux sender: bounded mode must be set before any write,
+# including fire-and-forget lifecycle notifications on the host thread.
+set(aux_pipe_generator "${CMAKE_CURRENT_SOURCE_DIR}/generate_aux_pipe_fixture.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${focus_activation_ipc_source}" "${aux_pipe_generator}")
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -B "${aux_pipe_generator}"
+        "${focus_activation_ipc_source}" "${CMAKE_CURRENT_BINARY_DIR}/aux_pipe_source.h"
+    COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_aux_pipe aux_pipe.cpp)
+target_include_directories(test_aux_pipe PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(test_aux_pipe PRIVATE cxx_std_17)
+add_test(NAME aux_pipe COMMAND test_aux_pipe)
+
 # Exercise both production extent handlers with clipped and collapsed host rectangles
 set(caret_layout_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Tf/TfTextLayoutSink.cpp")
 set(caret_edit_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Edit/GetTextExtentEditSession.cpp")
