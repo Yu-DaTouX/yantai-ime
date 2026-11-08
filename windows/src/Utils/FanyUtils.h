@@ -32,7 +32,6 @@ struct SwitchLanguageHotkeys
     // Ctrl+Shift+Enter。未配置、空串或写错时 key 为 0，表示这两条不在 TSF 侧吃键。
     FanyImeKeyChord::Binding commit_english{0x0d, FanyImeKeyChord::Control};
     FanyImeKeyChord::Binding english_senses{0x0d, FanyImeKeyChord::Control | FanyImeKeyChord::Shift};
-    FanyImeKeyChord::Binding translate_mode{}; // 默认关闭：只从悬浮工具栏「译」进入
     FanyImeInputStateShortcuts::Snapshot input_state;
 };
 // Read keybindings.switch_language_* from shared config.toml.
@@ -54,8 +53,4 @@ struct LanguageBarVisibility
 // Read language_bar.enabled / show_ime_mode / show_double_single_byte / show_punctuation.
 LanguageBarVisibility ReadConfiguredLanguageBarVisibility();
 
-// Whether the candidate glosses are on (general.candidate_translations). The two translation
-// chords, Ctrl+Enter and Ctrl+1..9, hang off it and are otherwise always on: with the glosses
-// turned off there is nothing to commit, so the chords must not be taken from the host either.
-bool ReadConfiguredCandidateTranslationsEnabled();
 } // namespace FanyUtils

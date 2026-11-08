@@ -159,7 +159,9 @@ TEST_CASE(shipped_caret_indicator_defaults_and_upgrade_behavior)
     REQUIRE(opted_in["general"]["caret_state_indicator"].value_or(false));
 }
 
-TEST_CASE(shipped_translation_pos_defaults_and_upgrade_preserve_user_choice)
+// 候选词翻译（candidate_translations 及其两个子项）与 Ctrl+T 的 translate_mode 已删除：
+// 出厂模板里不再有这些键，升级时用户配置里的旧值随之被丢弃；英文行开关 english_line 照常保留用户的选择。
+TEST_CASE(removed_translation_settings_are_dropped_on_upgrade_and_english_line_is_kept)
 {
     std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
     REQUIRE(static_cast<bool>(input));
@@ -170,51 +172,29 @@ TEST_CASE(shipped_translation_pos_defaults_and_upgrade_preserve_user_choice)
     std::ifstream development(working_path, std::ios::binary);
     REQUIRE(static_cast<bool>(development));
     const std::string working((std::istreambuf_iterator<char>(development)), {});
-    REQUIRE(toml::parse(installed)["general"]["candidate_translation_show_pos"].value_or(false));
-    REQUIRE(toml::parse(working)["general"]["candidate_translation_show_pos"].value_or(false));
-
-    const std::string old_template = "[general]\ncandidate_translations = false\n";
-    const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, old_template, old_template));
-    REQUIRE(upgraded["general"]["candidate_translation_show_pos"].value_or(false));
-    for (const bool show : {false, true})
+    for (const std::string &shipped : {installed, working})
     {
-        const std::string configured =
-            old_template + "candidate_translation_show_pos = " + (show ? "true\n" : "false\n");
-        for (const auto &baseline : {std::string(), old_template, installed})
-        {
-            const auto preserved = toml::parse(MergeConfigIntoTemplate(installed, configured, baseline));
-            REQUIRE_EQ(preserved["general"]["candidate_translation_show_pos"].value_or(!show), show);
-            REQUIRE(!preserved["general"]["candidate_translations"].value_or(true));
-        }
+        const auto parsed = toml::parse(shipped);
+        REQUIRE(!parsed["general"]["candidate_translations"]);
+        REQUIRE(!parsed["general"]["candidate_translation_show_pos"]);
+        REQUIRE(!parsed["general"]["candidate_translation_single_sense"]);
+        REQUIRE(!parsed["keybindings"]["translate_mode"]);
+        REQUIRE(parsed["general"]["english_line"].value_or(false));
     }
-}
 
-TEST_CASE(shipped_translation_single_sense_defaults_and_upgrade_preserve_user_choice)
-{
-    std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
-    REQUIRE(static_cast<bool>(input));
-    const std::string installed((std::istreambuf_iterator<char>(input)), {});
-    const auto working_path =
-        std::filesystem::path(MSIME_DEFAULT_CONFIG_PATH).parent_path().parent_path().parent_path() /
-        "server/assets/config/config.toml";
-    std::ifstream development(working_path, std::ios::binary);
-    REQUIRE(static_cast<bool>(development));
-    const std::string working((std::istreambuf_iterator<char>(development)), {});
-    REQUIRE(!toml::parse(installed)["general"]["candidate_translation_single_sense"].value_or(true));
-    REQUIRE(!toml::parse(working)["general"]["candidate_translation_single_sense"].value_or(true));
-
-    const std::string old_template = "[general]\ncandidate_translations = false\n";
-    const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, old_template, old_template));
-    REQUIRE(!upgraded["general"]["candidate_translation_single_sense"].value_or(true));
-    for (const bool single : {false, true})
+    const std::string old_config = "[general]\ncandidate_translations = true\ncandidate_translation_show_pos = false\n"
+                                   "candidate_translation_single_sense = true\nenglish_line = false\n"
+                                   "[keybindings]\ntranslate_mode = \"Ctrl+T\"\n";
+    for (const auto &baseline : {std::string(), old_config})
     {
-        const std::string configured =
-            old_template + "candidate_translation_single_sense = " + (single ? "true\n" : "false\n");
-        for (const auto &baseline : {std::string(), old_template, installed})
-        {
-            const auto preserved = toml::parse(MergeConfigIntoTemplate(installed, configured, baseline));
-            REQUIRE_EQ(preserved["general"]["candidate_translation_single_sense"].value_or(!single), single);
-        }
+        const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, old_config, baseline));
+        REQUIRE(!upgraded["general"]["candidate_translations"]);
+        REQUIRE(!upgraded["general"]["candidate_translation_show_pos"]);
+        REQUIRE(!upgraded["general"]["candidate_translation_single_sense"]);
+        REQUIRE(!upgraded["keybindings"]["translate_mode"]);
+        // 用户值与基线相同视为没动过、跟随新默认；基线为空时才是用户亲手关掉的，必须保留。
+        if (baseline.empty())
+            REQUIRE(!upgraded["general"]["english_line"].value_or(true));
     }
 }
 
@@ -344,7 +324,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
     REQUIRE(static_cast<bool>(input));
     const std::string installed((std::istreambuf_iterator<char>(input)), {});
-    const std::string previous_defaults = "[general]\nemoji_mixed_input = true\ncandidate_translations = true\n"
+    const std::string previous_defaults = "[general]\nemoji_mixed_input = true\n"
                                           "floating_toolbar_font_size = 24\n"
                                           "[association]\nsentence_wordlattice = true\n"
                                           "[input]\ndefault_ime_mode = \"english\"\n"
@@ -356,7 +336,6 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
 
     const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, previous_defaults, previous_defaults));
     REQUIRE(upgraded["general"]["emoji_mixed_input"].value_or(false));
-    REQUIRE(upgraded["general"]["candidate_translations"].value_or(false));
     REQUIRE_EQ(upgraded["general"]["floating_toolbar_font_size"].value_or(0), 24);
     // 0.12.0 起 sc.lm 改为按需下载，新装默认关；升级用户的模型由安装器挪进 models\language-model\，开关保持原样。
     REQUIRE(upgraded["association"]["sentence_wordlattice"].value_or(false));

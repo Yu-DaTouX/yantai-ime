@@ -74,7 +74,6 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_text_boundary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_async_request_origin.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_ui_action_policy.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_translation_policy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_key_route_policy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_english_gloss_policy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_ui_state.cpp"
@@ -88,14 +87,12 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_task_classes.cpp"
     "${CMAKE_SOURCE_DIR}/src/ipc/event_listener_task_class.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_input_cadence.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_translation_state.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_translation_mode.cpp"
-    "${CMAKE_SOURCE_DIR}/src/translation/translation_mode.cpp"
     "${CMAKE_SOURCE_DIR}/src/translation/local_engine.cpp"
     "${CMAKE_SOURCE_DIR}/src/translation/local_inference.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_translation_worker.cpp"
-    "${CMAKE_SOURCE_DIR}/src/translation/translation_state.cpp"
     "${CMAKE_SOURCE_DIR}/src/translation/translation_worker.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_gloss_resolver.cpp"
+    "${CMAKE_SOURCE_DIR}/src/translation/gloss_resolver.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_sentence_association_options.cpp"
     "${CMAKE_SOURCE_DIR}/src/session/input_cadence.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_wheel_paging.cpp"
@@ -208,7 +205,6 @@ target_include_directories(${TEST_EXECUTABLE_NAME}
 target_compile_definitions(${TEST_EXECUTABLE_NAME}
     PRIVATE
     MSIME_AI_ASSISTANT_TEST
-    MSIME_TRANSLATION_MODE_TESTING
     "MSIME_DEFAULT_CONFIG_PATH=\"${CMAKE_SOURCE_DIR}/../installer/default_config/config.default.toml\""
     "MSIME_SKINS_PATH=\"${CMAKE_SOURCE_DIR}/../skins\""
     "MSIME_DICTIONARY_REPLAY_EXE=\"$<TARGET_FILE:${DICTIONARY_REPLAY_EXECUTABLE_NAME}>\""

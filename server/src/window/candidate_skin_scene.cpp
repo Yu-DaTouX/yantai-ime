@@ -553,9 +553,6 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
     });
     body_ = std::make_shared<msimeui::StackPanel>(kCandidateBodyRowSpacingDip);
     body_->SetPadding({0.0f, 0.0f, 0.0f, 0.0f});
-    translationDraft_ = std::make_shared<CandidateTranslationPanel>(true);
-    translationEnglish_ = std::make_shared<CandidateTranslationPanel>(false);
-    body_->AddChild(translationDraft_);
     body_->AddChild(preedit_);
     body_->AddChild(header_);
     pager_.reset();
@@ -609,7 +606,6 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
     }
     // 英文行固定在候选条最下面一行（横排竖排都是）。
     body_->AddChild(englishLine_);
-    body_->AddChild(translationEnglish_);
     msimeui::Brush brush;
     brush.fill = D2D1::ColorF(0x202020);
     brush.stroke = D2D1::ColorF(0x9B9B9B, 0x2E / 255.0f);
@@ -684,8 +680,6 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
         package ? &(candLight ? package->light : package->dark) : nullptr;
     const CandidateSkinPalette palette =
         ResolveCandidateSkinPalette(baseLook, candLight, settings.textColor, packageColors);
-    translationDraft_->SetAppearance(settings.fontFamily, fontSize * 0.85f, palette.text, tokens.number);
-    translationEnglish_->SetAppearance(settings.fontFamily, fontSize * 0.78f, tokens.translation, tokens.number);
     tokens.surface = palette.surface;
     tokens.border = palette.border;
     tokens.text = palette.text;
@@ -826,8 +820,10 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
         lineAppearance.fontSize = (std::max)(12.0f, fontSize * 0.82f);
         lineAppearance.posFontSize = (std::max)(10.0f, fontSize * 0.7f);
         lineAppearance.hintFontSize = (std::max)(10.0f, fontSize * 0.66f);
-        lineAppearance.wordColor = palette.candidateText;
-        lineAppearance.posColor = WithAlpha(tokens.number, 0.9f);
+        // 英文行是候选的补充，不和候选本身抢眼：一律用皮肤的次要文字色（序号色），不用强调色或翻译色
+        // （内置 fluent 的翻译色是紫色，mac 深色下尤其突兀）。词性与提示在它基础上再淡一档。
+        lineAppearance.wordColor = tokens.number;
+        lineAppearance.posColor = WithAlpha(tokens.number, 0.85f);
         lineAppearance.hintColor = WithAlpha(tokens.number, 0.66f);
         lineAppearance.padLeft = appearance.contentPadLeft + appearance.textPadLeft;
         lineAppearance.padRight = appearance.contentPadLeft + appearance.textPadLeft;

@@ -5,7 +5,6 @@
 #include "defines/globals.h"
 #include "global/globals.h"
 #include "ipc/event_listener.h"
-#include "translation/translation_mode.h"
 #include "ipc/ipc.h"
 #include "log/ftb_diag_log.h"
 #include "settings/settings_launcher.h"
@@ -646,9 +645,8 @@ void FloatingToolbarPresenter::RebuildScene()
                                   }));
     }
     if (items.translate)
-        specs.push_back(TextSpec("translate", translation_mode::Active() ? "on" : "off", L"译",
-                                 translation_mode::Active(),
-                                 []() { FanyNamedPipe::EnqueueToolbarTranslationToggleTask(); }));
+        // TODO(选中翻译): 点击后读取宿主选区、本地模型翻译并替换选区；这一步先保留按钮，点击暂不做事。
+        specs.push_back(TextSpec("translate", "off", L"译", false, []() {}));
     if (items.settings)
     {
         specs.push_back(GlyphSpec("settings", "", kIconSettings, []() { OpenSettingsApplication(); }));

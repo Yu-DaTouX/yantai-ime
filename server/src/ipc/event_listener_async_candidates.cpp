@@ -122,12 +122,11 @@ void ApplyEnglishCandidates(std::vector<WordItem> candidates, const std::string 
 
 void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation)
 {
-    if (!EnglishIme::IsTranslationCurrent(generation) ||
-        !(GetConfiguredCandidateTranslationsEnabled() || EnglishGlossFeatureEnabled()) || IsUiLessMode() ||
-        g_candidate_translation_signature.empty() || IsCandidateSubPageActive())
+    if (!EnglishIme::IsTranslationCurrent(generation) || !EnglishGlossFeatureEnabled() || IsUiLessMode() ||
+        g_english_gloss_signature.empty() || IsCandidateSubPageActive())
         return;
 
-    // The page reads its glosses from g_candidate_translation_glosses when it is
+    // The page reads its glosses from g_english_gloss_cache when it is
     // built, so an unchanged map means the page on screen is already current.
     // Most lookups on a new keystroke hit words the previous page already
     // glossed; repainting for them cost a full candidate frame per keystroke.
@@ -135,21 +134,18 @@ void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> resul
     for (auto &result : results)
     {
         std::string gloss = std::move(result.gloss);
-        const bool from_dictionary = !gloss.empty();
-        const std::string identity = TranslationIdentity({result.key, result.direction});
-        if (!gloss.empty())
+        if (!gloss.empty() || result.hidden)
         {
-            auto existing = g_candidate_translation_glosses.find(identity);
-            if (existing != g_candidate_translation_glosses.end() && existing->second.text == gloss &&
-                existing->second.from_dictionary == from_dictionary)
+            auto existing = g_english_gloss_cache.find(result.key);
+            if (existing != g_english_gloss_cache.end() && existing->second.text == gloss &&
+                existing->second.hidden == result.hidden)
                 continue;
-            if (g_candidate_translation_glosses.size() >= kMaxCandidateTranslationGlosses &&
-                existing == g_candidate_translation_glosses.end())
-                g_candidate_translation_glosses.clear();
-            g_candidate_translation_glosses[identity] = {std::move(gloss), from_dictionary};
+            if (g_english_gloss_cache.size() >= kMaxEnglishGlossCache && existing == g_english_gloss_cache.end())
+                g_english_gloss_cache.clear();
+            g_english_gloss_cache[result.key] = {std::move(gloss), result.hidden};
             glosses_changed = true;
         }
-        else if (g_candidate_translation_glosses.erase(identity) > 0)
+        else if (g_english_gloss_cache.erase(result.key) > 0)
         {
             glosses_changed = true;
         }

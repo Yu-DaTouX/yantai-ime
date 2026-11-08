@@ -3,8 +3,6 @@
 #include <string>
 #include <vector>
 
-#include "ipc/candidate_translation_policy.h"
-
 // Built once on the candidate worker. Renderers only adapt this presentation data;
 // they do not query dictionaries or decide which source gets a badge.
 struct CandidateViewItem
@@ -14,12 +12,12 @@ struct CandidateViewItem
     // 来源/状态徽标（☁️/🤖、固定排位 📎）。纯展示字段：D2D 候选窗把 text+badge 拼起来画。
     // page_words 与上屏内容不含徽标。
     std::string badge;
-    std::string translation;
     bool fixed_position = false;
     // 这个候选的中译英释义原文（只有中→英方向才填）；候选窗的英文行和 Ctrl+Enter 都从这里取。
-    // translation 是给「候选词翻译」显示的格式化文字，和这里的原文不是一回事。
     // 放在 fixed_position 之后：已有的 5 字段聚合初始化（测试里的 CandidateViewItem{...}）保持不变。
     std::string english_gloss;
+    // 覆盖表标了「-」：这个词高亮时不显示英文行。
+    bool english_hidden = false;
     // 英文词义清单页上这一项的词性（"n." / "adj."），右对齐小号灰字，不上屏。
     std::string english_pos;
 };
@@ -68,36 +66,11 @@ inline void ApplyFixedPositionBadge(CandidateViewItem &view, bool show, const st
         view.badge += " \xF0\x9F\x93\x8E"; // 📎
 }
 
-// 词性与分隔符各包一层 span，皮肤用 .cand-pos / .cand-sep 单独配色；没配时继承 .cand-translation。
-inline std::string CandidateTranslationHtml(const std::string &translation)
-{
-    std::string html = "<span class=\"cand-translation\">";
-    for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(translation))
-    {
-        const std::string text = EscapeCandidateViewHtml(segment.text);
-        switch (segment.kind)
-        {
-        case FanyImeIpc::TranslationSegmentKind::PartOfSpeech:
-            html += "<span class=\"cand-pos\">" + text + "</span>";
-            break;
-        case FanyImeIpc::TranslationSegmentKind::Separator:
-            html += "<span class=\"cand-sep\">" + text + "</span>";
-            break;
-        default:
-            html += text;
-            break;
-        }
-    }
-    return html + "</span>";
-}
-
 inline std::string CandidateViewHtml(const CandidateViewItem &item)
 {
     std::string html = EscapeCandidateViewHtml(item.text + item.annotation + item.badge);
     if (item.fixed_position)
         html = "<span style=\"color:#379AD3\">" + html + "</span>";
-    if (!item.translation.empty())
-        html += CandidateTranslationHtml(item.translation);
     return html;
 }
 

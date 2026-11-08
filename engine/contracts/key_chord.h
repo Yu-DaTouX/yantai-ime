@@ -59,26 +59,6 @@ inline constexpr bool Parse(std::string_view value, Binding &result)
     result = {key, modifiers};
     return true;
 }
-// Translation mode shipped the human-readable "Ctrl+T" default. Keep this
-// alias local to that setting: existing keybindings retain their strict parser.
-inline constexpr bool ParseTranslationMode(std::string_view value, Binding &result)
-{
-    if (Parse(value, result))
-        return true;
-    unsigned modifiers = Control;
-    if (value.substr(0, 5) != "Ctrl+")
-        return false;
-    value.remove_prefix(5);
-    if (value.substr(0, 6) == "Shift+")
-    {
-        modifiers |= Shift;
-        value.remove_prefix(6);
-    }
-    if (value.size() != 1 || value[0] < 'A' || value[0] > 'Z')
-        return false;
-    result = {static_cast<unsigned>(value[0]), modifiers};
-    return true;
-}
 // Stands in for a configured value that is not a string; Parse rejects it.
 constexpr std::string_view InvalidValue = "!invalid";
 // Used by the DLL's existing small TOML reader; invalid types stay invalid.

@@ -1,5 +1,4 @@
 #include "window/caret_state_indicator.h"
-#include "translation/translation_mode.h"
 #include "config/ime_config.h"
 #include "defines/globals.h"
 #include "skin/candidate_skin_catalog.h"
@@ -132,7 +131,7 @@ bool Show(HWND hwnd, const FanyImeUi::CaretStateBadge &badge, POINT caret, bool 
     if (!hwnd || !IsWindow(hwnd) || badge.text.empty())
         return false;
 
-    g_state.badge = translation_mode::Active() && badge.text == L"译" ? FanyImeUi::CaretStateBadge{L"译"} : badge;
+    g_state.badge = badge;
     RefreshPalette();
     if (!PositionWindow(hwnd, caret, topmost, true))
     {
@@ -163,13 +162,6 @@ void Hide(HWND hwnd)
 
 bool HandleTimer(HWND hwnd, WPARAM timerId)
 {
-    if (translation_mode::Active() && timerId == kHideTimer)
-    {
-        g_state.badge = {L"译"};
-        KillTimer(hwnd, kHideTimer);
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return true;
-    }
     if (timerId != kHideTimer)
         return false;
     Hide(hwnd);

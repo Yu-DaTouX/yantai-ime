@@ -1,6 +1,5 @@
 // 按键处理：按键分类、组合编辑（光标/退格/插入）、译文副候选页，以及 HandleImeKey 主流程。
 #include "ipc/event_listener_internal.h"
-#include "translation/translation_mode.h"
 #include <Windows.h>
 #include <string>
 #include <algorithm>
@@ -10,7 +9,6 @@
 #include "ipc.h"
 #include "ipc/candidate_text_policy.h"
 #include "ipc/candidate_key_route_policy.h"
-#include "ipc/candidate_translation_policy.h"
 #include "ipc/input_key_policy.h"
 #include "engine/contracts/date_time_input.h"
 #include "engine/contracts/ipc_negotiation.h"
@@ -546,7 +544,6 @@ void ExitCandidateSubPage()
         return;
     }
     const bool was_english_senses_page = g_english_senses_page_active;
-    g_translation_candidates_active = false;
     g_date_time_page_active = false;
     g_date_time_page_keyword.clear();
     g_english_senses_page_active = false;
@@ -611,67 +608,6 @@ void RebuildDateTimeCandidatePage()
     }
     ui.selected_index_in_page = selected_index;
     RefreshCandidatePageUi(true);
-}
-
-// Ctrl+Enter：上屏高亮候选右边的那条译文（副候选）。Ctrl+数字：上屏指定序号候选的那条译文
-// （forced_index_in_page，0 起）。只有一条译义就直接上屏；有多条时把候选框整个换成这几条
-// 译义，空格/数字键照常选一条上屏（见 ProcessSelectionKey 的译文分支）。
-void HandleTranslationCommitKey(uint64_t client_id, uint64_t activation_epoch, uint64_t request_id,
-                                int forced_index_in_page)
-{
-    // 拿不到译文时回 NavigationIgnored：这颗键已经被 TSF 吃掉了，必须给一条回复，
-    // 而且这条回复既不上屏也不给 wch 补标点。
-    Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
-    if (IsCandidateSubPageActive() || IsUiLessMode() || !GetConfiguredCandidateTranslationsEnabled() ||
-        Global::candidate_ui.items.empty())
-    {
-        SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        return;
-    }
-
-    // 和数字/空格选词一样，先等画面追上已发布的那一页，否则取到的是用户没看见的那条译文。
-    WaitForCandidateRenderSync(Global::Keycode);
-    EnsureCandidatePageReady();
-
-    auto &ui = Global::candidate_ui;
-    const int highlighted_position = (std::max)(0, ui.selected_index_in_page);
-    const int page_position = forced_index_in_page >= 0 ? forced_index_in_page : highlighted_position;
-    const size_t index = static_cast<size_t>(page_position);
-    if (index >= ui.page_glosses.size())
-    {
-        SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        return;
-    }
-    const auto senses = FanyImeIpc::SplitTranslationGloss(wstring_to_string(ui.page_glosses[index]));
-    if (senses.empty())
-    {
-        SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        return;
-    }
-
-    if (senses.size() == 1)
-    {
-        Global::MsgTypeToTsf = Global::DataFromServerMsgType::CommitExactText;
-        ui.selected_text = string_to_wstring(CandidateTextForOutput(senses.front()));
-        // Normal/CommitExactText 的回复由 SendCurrentDataToClient 负责收尾（ClearState）。
-        SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        return;
-    }
-
-    g_translation_saved_items = ui.items;
-    g_translation_saved_page_index = ui.page_index;
-    g_translation_saved_selected_index = ui.selected_index_in_page;
-    g_translation_saved_selection_started = ui.selection_started;
-    std::vector<WordItem> translation_items;
-    translation_items.reserve(senses.size());
-    for (const auto &sense : senses)
-    {
-        translation_items.emplace_back(std::string{}, sense, 0, CandidateSource::Fallback);
-    }
-    ui.set_items(std::move(translation_items));
-    g_translation_candidates_active = true;
-    RefreshCandidatePageUi(true);
-    SendCurrentDataToClient(client_id, activation_epoch, request_id);
 }
 
 // 英文词义清单页上的按键：数字/空格/回车选一条上屏，方向键移动高亮，Esc/Backspace 只退回原中文候选。
@@ -944,17 +880,9 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         return;
     }
 
-    if (translation_mode::HandleKey(client_id, activation_epoch, request_id))
-        return;
-
-    // 四条键位都落在 Ctrl+Enter 附近，谁先判谁就截走它。顺序集中在 RouteCandidateKey 一处：
-    // 英文行 → 展开词义 → 译文上屏 → 普通选词。IsTranslationCommitKey 不看译文开关，排在英文行
-    // 之前时 Ctrl+Enter 永远被它截走并回 NavigationIgnored，英文行上屏不会触发（51d7ee1d）。
     // 候选词英文上屏：[keybindings] commit_english 上屏候选条下面的英文行，english_senses 展开全部词义。
-    // 老的「候选词翻译」在用 Ctrl+Enter 上屏译文，两者同时开时把 Ctrl+Enter 留给它（TSF 侧同样不抢）。
-    // TSF 侧同一顺序见 windows/src/Key/KeyRoutingPolicy.h，两边改必须一起改。
+    // 顺序集中在 RouteCandidateKey 一处；TSF 侧同一判断见 windows/src/Key/KeyRoutingPolicy.h，两边改必须一起改。
     switch (FanyImeIpc::RouteCandidateKey(
-        Global::Keycode, Global::ModifiersDown, GetConfiguredCandidateTranslationsEnabled(),
         MatchesConfiguredBinding(GetConfiguredCommitEnglishBinding(), Global::Keycode, Global::ModifiersDown),
         MatchesConfiguredBinding(GetConfiguredEnglishSensesBinding(), Global::Keycode, Global::ModifiersDown)))
     {
@@ -972,7 +900,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         }
         SendCurrentDataToClient(client_id, activation_epoch, request_id);
         return;
-    // 展开全部词义不和「候选词翻译」抢键：那条功能只用 Ctrl+Enter 与 Ctrl+数字。
     case FanyImeIpc::CandidateKeyRoute::EnglishSenses:
         if (!g_english_senses_page_active)
         {
@@ -981,18 +908,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
         SendCurrentDataToClient(client_id, activation_epoch, request_id);
         return;
-    case FanyImeIpc::CandidateKeyRoute::TranslationCommit:
-        HandleTranslationCommitKey(client_id, activation_epoch, request_id, -1);
-        return;
-    // Ctrl+数字：上屏指定序号候选的译文（Ctrl+Enter 上屏当前高亮那条），两条 chord 落到同一个
-    // 处理 branch。译文总开关（general.candidate_translations）关掉时 TSF 直接不吃它们，这里仍进
-    // 同一个 branch 回 NavigationIgnored——不要改成先判总开关再放行，那样会落到下面的普通选词分支，
-    // Ctrl+1 直接上屏第一个候选。
-    case FanyImeIpc::CandidateKeyRoute::TranslationDigit: {
-        const uint32_t digit_position = FanyImeIpc::TranslationDigitPosition(Global::Keycode, Global::ModifiersDown);
-        HandleTranslationCommitKey(client_id, activation_epoch, request_id, static_cast<int>(digit_position) - 1);
-        return;
-    }
     case FanyImeIpc::CandidateKeyRoute::Ordinary:
     default:
         break;

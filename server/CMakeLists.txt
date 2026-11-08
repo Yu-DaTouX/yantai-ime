@@ -225,9 +225,9 @@ if(MSVC)
 endif()
 
 set(SRC_FILES
-    "./src/translation/translation_state.cpp"
-    "./src/translation/translation_mode.cpp"
     "./src/translation/translation_worker.cpp"
+    "./src/translation/gloss_resolver.cpp"
+    "./src/translation/gloss_service.cpp"
     "./src/translation/local_engine.cpp"
     "./src/translation/local_inference.cpp"
     "./src/clipboard/clipboard_history.cpp"
@@ -259,7 +259,6 @@ set(SRC_FILES
     "./src/english/english_ime.cpp"
     "./src/english/english_ime.h"
     "./src/global/globals.h"
-    "./src/ipc/candidate_translation_policy.h"
     "./src/ipc/event_listener.cpp"
     "./src/ipc/event_listener.h"
     "./src/ipc/event_listener_async_candidates.cpp"

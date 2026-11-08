@@ -129,7 +129,7 @@ TEST_CASE(candidate_page_snapshot_survives_a_rebuild_of_the_live_state)
 {
     Global::ClearCandidatePageSnapshot();
     Global::candidate_ui.clear_page();
-    Global::candidate_ui.page_views.push_back(CandidateViewItem{"ni", "", "", "", false});
+    Global::candidate_ui.page_views.push_back(CandidateViewItem{"ni", "", "", false});
     Global::candidate_ui.page_words.push_back(L"ni");
     Global::candidate_ui.cur_page_item_cnt = 1;
     Global::candidate_ui.item_total_count = 1;

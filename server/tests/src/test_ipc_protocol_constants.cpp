@@ -34,7 +34,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgType::UiLessComposition, 11u);
     REQUIRE(Global::DataFromServerMsgType::UiLessComposition > Global::DataFromServerMsgType::CommitExactText);
     REQUIRE_EQ(Global::DataFromServerMsgType::Reserved15, 15u);
-    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::TranslationComposition);
+    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::Reserved15);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady, 8u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady, 9u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::InsertText, 10u);
@@ -72,7 +72,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady, 40u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41, 41u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged, 42u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 44u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 42u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady >
             Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady >
@@ -138,32 +138,20 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown,
-               Global::DataFromServerMsgTypeToTsfWorkerThread::TranslationCompositionChanged);
+               Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged);
 }
 
-TEST_CASE(ipc_translation_mode_capability_is_optional_and_preserves_old_layout)
+TEST_CASE(ipc_retired_translation_mode_capabilities_stay_reserved)
 {
-    const auto hello = FanyImeProtocol::Hello(1, 2, FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode);
-    const auto old_server = FanyImeProtocol::Negotiate(hello);
-    REQUIRE(old_server.accepted);
-    REQUIRE((old_server.capabilities & FanyImeProtocol::TranslationMode) == 0);
-    const auto new_server =
-        FanyImeProtocol::Negotiate(hello, FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode);
-    REQUIRE(new_server.accepted);
-    REQUIRE((new_server.capabilities & FanyImeProtocol::TranslationMode) != 0);
+    // The Ctrl+T draft translation was removed; its capability bits and reply opcodes must never be reused.
+    REQUIRE_EQ(FanyImeProtocol::ReservedCapability9, 1u << 9);
+    REQUIRE_EQ(FanyImeProtocol::ReservedCapability10, 1u << 10);
     REQUIRE_EQ(sizeof(FanyImeNamedpipeDataToTsf), size_t(416));
-    REQUIRE_EQ(FanyImeReplyType::TranslationCommitPart, 16u);
-    REQUIRE_EQ(FanyImeReplyType::TranslationCommitEnd, 17u);
-    REQUIRE_EQ(FanyImeReplyType::TranslationComposition, 18u);
-    REQUIRE_EQ(FanyImeProtocol::TranslationModeState, 1u << 10);
-    const auto capabilities =
-        FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode | FanyImeProtocol::TranslationModeState;
-    const auto state_hello = FanyImeProtocol::Hello(1, 3, capabilities);
-    REQUIRE(
-        FanyImeProtocol::SupportsTranslationMode(FanyImeProtocol::Negotiate(state_hello, capabilities).capabilities));
-    REQUIRE(!FanyImeProtocol::SupportsTranslationMode(new_server.capabilities));
-    REQUIRE(!FanyImeProtocol::SupportsTranslationMode(
-        FanyImeProtocol::Negotiate(hello, capabilities).capabilities)); // Do not send opcode 18 to the old DLL.
+    REQUIRE_EQ(FanyImeReplyType::Reserved16, 16u);
+    REQUIRE_EQ(FanyImeReplyType::Reserved17, 17u);
+    REQUIRE_EQ(FanyImeReplyType::Reserved18, 18u);
+    REQUIRE_EQ(FanyImeWorkerReplyType::Reserved43, 43u);
+    REQUIRE_EQ(FanyImeWorkerReplyType::Reserved44, 44u);
 }
 
 TEST_CASE(ipc_client_suspension_is_a_distinct_nonterminal_route_reset)

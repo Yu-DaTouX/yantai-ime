@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <utility>
 #include "ipc.h"
-#include "ipc/candidate_translation_policy.h"
 #include "ipc/input_key_policy.h"
 #include "defines/globals.h"
 #include "global/globals.h"

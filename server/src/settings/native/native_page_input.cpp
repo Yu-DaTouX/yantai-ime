@@ -763,10 +763,6 @@ struct InputPage
     std::vector<std::shared_ptr<ToggleSwitch>> smartOptions;
     std::shared_ptr<Hideable> smartHint;
 
-    // Translation
-    std::shared_ptr<ToggleSwitch> translationsToggle;
-    std::shared_ptr<OpacityBox> translationOptions;
-
     // Models
     ModelRow translation;
     UINT_PTR translationPoll = 0;
@@ -966,28 +962,6 @@ VisualPtr BuildInputPage(PageContext &context)
                             Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
         auto section = MakeToggleSection(L"模糊音", details);
         page.AddSection(Col({std::make_shared<SettingRow>(section.expander, master), section.details}));
-    }
-
-    // ---- 候选词翻译 ----
-    {
-        auto master = std::make_shared<ToggleSwitch>(false);
-        auto options =
-            Col({std::make_shared<Divider>(Divider::Kind::Option),
-                 LanguageRow(L"显示词性", L"显示译文中的 n.、v. 等词性标记，关闭后仅显示释义",
-                             BindToggle(context, "general.candidate_translation_show_pos")),
-                 std::make_shared<Divider>(Divider::Kind::Option),
-                 LanguageRow(L"只显示单条释义", L"每个候选只显示第一条译文释义；Ctrl+Enter 仍可选择全部释义上屏",
-                             BindToggle(context, "general.candidate_translation_single_sense"))});
-        s->translationOptions = std::make_shared<OpacityBox>(options);
-        s->translationOptions->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-        master->SetOnChanged([s, model](bool on) {
-            model->Update("general.candidate_translations", on);
-            s->translationOptions->SetDimmed(!on);
-        });
-        page.AddSection(
-            Col({MakeRow(L"候选词翻译", L"在候选窗口中显示本机中英词库的互译，每项最多两个简短释义", master),
-                 s->translationOptions}));
-        s->translationsToggle = master;
     }
 
     // ---- 候选词英文行 ----
@@ -1232,12 +1206,6 @@ VisualPtr BuildInputPage(PageContext &context)
             s->fuzzyHint->SetVisible(!fuzzy->get<bool>());
         }
 
-        if (const Json *translations = model->Find("general.candidate_translations");
-            translations && translations->is_boolean())
-        {
-            s->translationsToggle->SetChecked(translations->get<bool>());
-            s->translationOptions->SetDimmed(!translations->get<bool>());
-        }
         // Lattice language model row. Server 映射着 sc.lm 时删除只留标记（deletePending），
         // 下载按钮换成「重启输入法」，重启后 Server 在映射前把文件删掉。
         {

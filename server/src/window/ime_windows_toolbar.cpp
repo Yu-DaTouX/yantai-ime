@@ -767,11 +767,6 @@ LRESULT CALLBACK WndProcFtbWindow(HWND hwnd, UINT message, WPARAM wParam, LPARAM
         break;
     }
 
-    case UPDATE_FTB_TRANSLATION_MODE:
-        RestartFloatingToolbarAutoHide(L"translation-mode");
-        FloatingToolbarPresenter::Instance().ApplyAppearance();
-        break;
-
     case UPDATE_FTB_ENGLISH_INPUT_MODE:
         UpdateFtbEnglishInputModeState(wParam != 0 ? 1 : 0);
         break;

@@ -148,14 +148,10 @@ extern bool g_floating_toolbar_auto_hide;
 extern int g_floating_toolbar_auto_hide_delay;
 extern bool g_floating_toolbar_shadow;
 extern bool g_english_candidates_enabled;
-extern bool g_candidate_translations_enabled;
-extern std::atomic_bool g_candidate_translation_show_pos;
-extern std::atomic_bool g_candidate_translation_single_sense;
 // 候选词英文行（[general] english_line）与两条英文上屏键位（[keybindings] commit_english /
 // english_senses）。键位是原样保存的字符串，空串表示未绑定。
 extern bool g_english_line_enabled;
 extern std::string g_commit_english_binding;
-extern std::string g_translate_mode_binding;
 extern std::string g_english_senses_binding;
 extern int g_english_mixed_input_min_chars;
 extern int g_english_mixed_input_first_page_count;

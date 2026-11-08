@@ -788,8 +788,7 @@ bool NegotiateMainPipeClient(const FanyImeNamedpipeData &hello, uint64_t registr
     const auto protocol = FanyImeProtocol::Negotiate(
         hello, FanyImeProtocol::Capabilities | FanyImeProtocol::CharacterSetShortcut |
                    FanyImeProtocol::CompositionRestore | FanyImeProtocol::CaretStateIndicator |
-                   FanyImeProtocol::InputStateShortcuts | FanyImeProtocol::TranslationMode |
-                   FanyImeProtocol::TranslationModeState);
+                   FanyImeProtocol::InputStateShortcuts);
     std::lock_guard lock(g_pipe_clients_mutex);
     auto it = g_pipe_clients.find(hello.client_id);
     if (it == g_pipe_clients.end() || registration_id == 0 || it->second.main_registration_id != registration_id)
@@ -830,14 +829,6 @@ bool ClientNegotiatedCaretStateIndicator(uint64_t client_id)
     const auto it = g_pipe_clients.find(client_id);
     return it != g_pipe_clients.end() && !it->second.protocol.legacy &&
            (it->second.protocol.capabilities & FanyImeProtocol::CaretStateIndicator) != 0;
-}
-
-bool ClientNegotiatedTranslationMode(uint64_t client_id)
-{
-    std::lock_guard lock(g_pipe_clients_mutex);
-    const auto it = g_pipe_clients.find(client_id);
-    return it != g_pipe_clients.end() && !it->second.protocol.legacy &&
-           FanyImeProtocol::SupportsTranslationMode(it->second.protocol.capabilities);
 }
 
 bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
@@ -1504,21 +1495,6 @@ int ReadDataFromNamedPipe(UINT read_flag)
 bool SendToTsfClientViaNamedpipe(uint64_t client_id, uint64_t activation_epoch, UINT msg_type, uint64_t request_id,
                                  const std::wstring &pipeData)
 {
-    if (msg_type == FanyImeReplyType::TranslationCommitEnd &&
-        pipeData.size() >= FanyImePipeLimits::CandidateTextCapacity)
-    {
-        const size_t chunk = FanyImePipeLimits::CandidateTextCapacity - 1;
-        for (size_t offset = 0; offset < pipeData.size(); offset += chunk)
-        {
-            const bool last = offset + chunk >= pipeData.size();
-            if (!SendToTsfClientViaNamedpipe(client_id, activation_epoch,
-                                             last ? FanyImeReplyType::TranslationCommitEnd
-                                                  : FanyImeReplyType::TranslationCommitPart,
-                                             request_id, pipeData.substr(offset, chunk)))
-                return false;
-        }
-        return true;
-    }
     FanyImeNamedpipeDataToTsf packet = {};
     packet.msg_type = msg_type;
     packet.request_id = request_id;

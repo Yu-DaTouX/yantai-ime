@@ -2,7 +2,6 @@
 // 配置同步定时器，以及候选上的鼠标动作。
 #include "window/ime_windows_internal.h"
 #include "global/globals.h"
-#include "translation/translation_mode.h"
 #include "config/ime_config.h"
 #include "conversion/chinese_converter.h"
 #include "ipc/ipc.h"
@@ -296,11 +295,15 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         const std::wstring signaturePreedit = showPreedit ? preedit : std::wstring{};
         const CandidateFramePageState pageState{candidatePage->selected_index_in_page, candidatePage->page_index,
                                                 candidatePage->has_previous_page, candidatePage->has_next_page};
-        const auto translation = translation_mode::Snapshot();
-        const std::wstring translationSignature = translation->draft + translation->english;
+        // 英文行不在 page_views 里：后台补查的释义到了，候选本身没变，帧也要重画。
         const std::wstring frameSignature =
-            translationSignature + CandidateFrameSignature(signaturePreedit, candidatePage->page_views, layoutCaret.x,
-                                                           layoutCaret.y, pageState);
+            (candidatePage->english_line_visible
+                 ? candidatePage->english_line_word + L'|' + candidatePage->english_line_pos + L'|' +
+                       candidatePage->english_line_hint
+                 : std::wstring{}) +
+            L'#' +
+            CandidateFrameSignature(signaturePreedit, candidatePage->page_views, layoutCaret.x, layoutCaret.y,
+                                    pageState);
         if (::is_global_wnd_cand_shown && !g_candidate_force_layout.load() &&
             frameSignature == g_last_rendered_candidate_signature &&
             updateStartedTick - g_last_rendered_candidate_tick < kCandidateShowDedupWindowMs)
@@ -590,8 +593,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         {
             const SchemeType previous_input_scheme = GetConfiguredInputScheme();
             const std::string previous_character_set = GetConfiguredCharacterSet();
-            const bool previous_translation_show_pos = GetConfiguredCandidateTranslationShowPos();
-            const bool previous_translation_single_sense = GetConfiguredCandidateTranslationSingleSense();
             const std::string previous_layout = GetConfiguredCandidateWindowLayout();
             const std::string previous_candidate_skin = GetConfiguredCandidateSkin();
             const bool previous_fit_content = GetConfiguredCandidateWindowFitContent();
@@ -642,9 +643,7 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                 {
                     UpdateFtbCharacterSetState();
                 }
-                if (previous_character_set != GetConfiguredCharacterSet() ||
-                    previous_translation_show_pos != GetConfiguredCandidateTranslationShowPos() ||
-                    previous_translation_single_sense != GetConfiguredCandidateTranslationSingleSense())
+                if (previous_character_set != GetConfiguredCharacterSet())
                 {
                     FanyNamedPipe::EnqueueRefreshCandidatePageTask();
                 }

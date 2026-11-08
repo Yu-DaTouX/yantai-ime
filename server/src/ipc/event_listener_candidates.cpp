@@ -40,6 +40,7 @@ namespace
 std::string BuildCurrentCandidatePage();
 void PrepareCandidateTranslationRequest();
 
+// 只有汉字候选才有中译英释义（英文行）；英文词条、emoji、符号、日期等没有。
 bool BuildTranslationQuery(const WordItem &item, EnglishIme::TranslationQuery &query)
 {
     // Dictionary keys remain simplified even when the visible candidate is
@@ -48,51 +49,13 @@ bool BuildTranslationQuery(const WordItem &item, EnglishIme::TranslationQuery &q
     if (visible.empty())
         return false;
     if (item.source == CandidateSource::Emoji || item.source == CandidateSource::Kaomoji ||
-        item.source == CandidateSource::Symbol || item.source == CandidateSource::DateTime)
+        item.source == CandidateSource::Symbol || item.source == CandidateSource::DateTime ||
+        item.source == CandidateSource::EnglishDictionary)
         return false;
-    if (item.source == CandidateSource::EnglishDictionary && !item.pinyin.empty())
-    {
-        query = {item.pinyin, EnglishIme::TranslationDirection::EnglishToChinese};
-        return true;
-    }
-
-    bool has_ascii_letter = false;
-    bool english = true;
-    std::string normalized;
-    normalized.reserve(visible.size());
-    for (const unsigned char ch : visible)
-    {
-        if (ch >= 'A' && ch <= 'Z')
-        {
-            normalized.push_back(static_cast<char>(ch + ('a' - 'A')));
-            has_ascii_letter = true;
-        }
-        else if (ch >= 'a' && ch <= 'z')
-        {
-            normalized.push_back(static_cast<char>(ch));
-            has_ascii_letter = true;
-        }
-        else if (ch == ' ' || ch == '-' || ch == '\'')
-        {
-            normalized.push_back(static_cast<char>(ch));
-        }
-        else
-        {
-            english = false;
-            break;
-        }
-    }
-    if (english && has_ascii_letter)
-    {
-        query = {std::move(normalized), EnglishIme::TranslationDirection::EnglishToChinese};
-        return true;
-    }
-    if (CommonUtils::count_han_chars(visible) > 0)
-    {
-        query = {visible, EnglishIme::TranslationDirection::ChineseToEnglish};
-        return true;
-    }
-    return false;
+    if (CommonUtils::count_han_chars(visible) == 0)
+        return false;
+    query = {visible};
+    return true;
 }
 
 bool IsQuickPhraseInput(const std::string &raw)
@@ -222,9 +185,6 @@ std::string BuildCurrentCandidatePage()
 {
     auto &ui = Global::candidate_ui;
     ui.clear_page();
-    // 副候选框里装的是译文，不是这次输入的候选：助记码、云/AI 角标和「右侧译文」都不适用，
-    // 而且 g_candidate_translation_glosses 还留着原候选的译文，照常查会把译文再标注一遍。
-    const bool translation_page = g_translation_candidates_active;
     // U 模式（部件拆字反查）：候选上反显该字的注音。annotation 在这个模式下专属注音。
     const bool radical_mode = IsRadicalCandidateListActive();
 
@@ -233,8 +193,6 @@ std::string BuildCurrentCandidatePage()
     const std::string fixed_badge_style = GetConfiguredCandidateFixedBadgeStyle();
     const bool show_sentence_source_badge = GetConfiguredAssocSentenceSourceBadge();
     const bool show_autocorrect_marker = GetConfiguredQuanpinAutocorrectMarker();
-    const bool show_translation_pos = GetConfiguredCandidateTranslationShowPos();
-    const bool single_translation_sense = GetConfiguredCandidateTranslationSingleSense();
     // 徽标开启时才解析模型包的来源标签，每次组页解析一次，不逐候选查。标签由目录条目
     // 自己声明（万象/八股/墨奇），各家互不冒名；激活值留空时不产生整句候选，徽章分支
     // 不会被走到。
@@ -326,35 +284,25 @@ std::string BuildCurrentCandidatePage()
         }
         view.fixed_position = item.fixed_position > 0;
         ApplyFixedPositionBadge(view, show_fixed_badge, fixed_badge_style);
+        // 英文行、Ctrl+Enter 与词义清单只用中→英方向的释义。
         std::string raw_translation;
-        bool dictionary_translation = false;
-        bool chinese_to_english = false;
+        bool english_hidden = false;
         EnglishIme::TranslationQuery translation_query;
-        if (!translation_page && BuildTranslationQuery(item, translation_query))
+        if (BuildTranslationQuery(item, translation_query))
         {
-            chinese_to_english = translation_query.direction == EnglishIme::TranslationDirection::ChineseToEnglish;
-            const auto gloss = g_candidate_translation_glosses.find(TranslationIdentity(translation_query));
-            if (gloss != g_candidate_translation_glosses.end())
+            const auto gloss = g_english_gloss_cache.find(translation_query.key);
+            if (gloss != g_english_gloss_cache.end())
             {
                 raw_translation = gloss->second.text;
-                dictionary_translation = gloss->second.from_dictionary;
+                english_hidden = gloss->second.hidden;
             }
         }
-        // 英文行、Ctrl+Enter 与词义清单只用中→英方向的原义，英文候选那边的中文释义不参加。
-        if (chinese_to_english)
-            view.english_gloss = raw_translation;
-        // 「候选词翻译」关着时不把释义放进给宿主/共享内存的候选串：候选词英文上屏自己也需要释义缓存，
-        // 但那是候选条下面单独一行，平时候选项不能因此又拖上一段英文。
-        if (GetConfiguredCandidateTranslationsEnabled())
-        {
-            view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(
-                raw_translation, show_translation_pos, single_translation_sense,
-                single_translation_sense && dictionary_translation);
-        }
+        view.english_gloss = raw_translation;
+        view.english_hidden = english_hidden;
         const std::string visible = view.text + view.annotation + view.badge;
         const int display_length = static_cast<int>(utf8::distance(visible.begin(), visible.end()));
         candidate_string += CandidateViewHtml(view);
-        // Ctrl+Enter consumes the original senses, independently of display preferences.
+        // Ctrl+Enter consumes the original senses.
         ui.page_glosses.push_back(string_to_wstring(raw_translation));
         ui.page_views.push_back(std::move(view));
         maxCount = (std::max)(maxCount, display_length);
@@ -380,28 +328,26 @@ std::string BuildCurrentCandidatePage()
 
 void PrepareCandidateTranslationRequest()
 {
-    // 候选词翻译和候选词英文上屏（英文行、Ctrl+Enter、词义清单）共用这一份译文缓存：只要其中
-    // 一个开着就得查，否则英文行与清单拿不到释义。
-    const bool enabled =
-        (GetConfiguredCandidateTranslationsEnabled() || EnglishGlossFeatureEnabled()) && !IsUiLessMode();
+    // 候选词英文上屏（英文行、Ctrl+Enter、词义清单）共用这一份释义缓存：英文行与两条键位都没开时不必去查。
+    const bool enabled = EnglishGlossFeatureEnabled() && !IsUiLessMode();
     auto &ui = Global::candidate_ui;
     if (IsCandidateSubPageActive())
     {
-        // 译文页、日期页、英文词义清单页不再查译文。已经取出的 glosses 也不能清，退出子模式后原候选还要用。
+        // 日期页、英文词义清单页不再查释义。已经取出的 glosses 也不能清，退出子模式后原候选还要用。
         return;
     }
     if (!enabled)
     {
-        g_candidate_translation_glosses.clear();
+        g_english_gloss_cache.clear();
     }
     if (!enabled || ui.items.empty())
     {
         // An empty page (English mode between keystrokes, or the end of a
         // composition) only cancels the pending lookups; the cache stays for
         // the next page.
-        if (!g_candidate_translation_signature.empty())
+        if (!g_english_gloss_signature.empty())
         {
-            g_candidate_translation_signature.clear();
+            g_english_gloss_signature.clear();
             EnglishIme::ClearTranslations();
         }
         return;
@@ -415,17 +361,15 @@ void PrepareCandidateTranslationRequest()
         EnglishIme::TranslationQuery query;
         if (!BuildTranslationQuery(ui.items[start + i], query))
             continue;
-        const std::string identity = TranslationIdentity(query);
-        signature += std::to_string(identity.size()) + ":" + identity;
-        if (std::none_of(queries.begin(), queries.end(), [&](const auto &existing) {
-                return existing.key == query.key && existing.direction == query.direction;
-            }))
+        signature += std::to_string(query.key.size()) + ":" + query.key;
+        if (std::none_of(queries.begin(), queries.end(),
+                         [&](const auto &existing) { return existing.key == query.key; }))
             queries.push_back(std::move(query));
     }
 
-    if (signature == g_candidate_translation_signature)
+    if (signature == g_english_gloss_signature)
         return;
-    g_candidate_translation_signature = std::move(signature);
+    g_english_gloss_signature = std::move(signature);
     EnglishIme::RequestTranslations(std::move(queries));
 }
 
@@ -463,17 +407,20 @@ void PublishBuiltCandidatePage(const std::wstring &candidate_string)
         // 英文行：本页只要有一个候选查得到英文就保留（否则高亮到没释义的词时会跳一下），
         // 高亮那条没有释义时显示「—」；整页都没有就不画。
         bool any_english = false;
+        bool highlighted_hidden = false;
         std::string highlighted_gloss;
         for (size_t i = 0; i < snapshot->page_views.size(); ++i)
         {
             if (!snapshot->page_views[i].english_gloss.empty())
-            {
                 any_english = true;
-                if (static_cast<int>(i) == snapshot->selected_index_in_page)
-                    highlighted_gloss = snapshot->page_views[i].english_gloss;
+            if (static_cast<int>(i) == snapshot->selected_index_in_page)
+            {
+                highlighted_gloss = snapshot->page_views[i].english_gloss;
+                // 覆盖表标了「-」的词（的、就、都……）高亮时不显示英文行。
+                highlighted_hidden = snapshot->page_views[i].english_hidden;
             }
         }
-        if (any_english)
+        if (any_english && !highlighted_hidden)
         {
             snapshot->english_line_visible = true;
             const auto senses = FanyImeIpc::SplitEnglishSenses(highlighted_gloss, 1);
@@ -485,9 +432,7 @@ void PublishBuiltCandidatePage(const std::wstring &candidate_string)
             {
                 snapshot->english_line_word = string_to_wstring(senses.front().text);
                 snapshot->english_line_pos = string_to_wstring(senses.front().part_of_speech);
-                // 「候选词翻译」开着时 Ctrl+Enter 归它，别在英文行上写一条会误导的提示。
-                if (!GetConfiguredCandidateTranslationsEnabled())
-                    snapshot->english_line_hint = EnglishLineHint();
+                snapshot->english_line_hint = EnglishLineHint();
             }
         }
     }

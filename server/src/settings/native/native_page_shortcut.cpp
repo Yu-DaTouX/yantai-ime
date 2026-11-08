@@ -1105,13 +1105,6 @@ VisualPtr BuildShortcutPage(PageContext &context)
         });
     }
 
-    {
-        auto column = std::make_shared<Column>(8.0f);
-        column->Add(Heading(L"整句翻译模式",
-                            L"默认 Ctrl+T，仅在组字或翻译模式中接管；空闲用悬浮工具栏「译」进入。空串关闭快捷键。"));
-        column->Add(BindText(context, "keybindings.translate_mode", {}));
-        page.AddRaw(std::make_shared<FlatSection>(column), 18.0f);
-    }
     // 提交
     {
         auto column = std::make_shared<Column>(0.0f);

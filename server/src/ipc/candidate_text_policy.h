@@ -100,12 +100,11 @@ inline bool IsRadicalComposition(bool radical_mode_triggered, std::string_view r
 }
 
 /**
- * 当前候选列表是不是 U 模式的拆字结果：U 模式组合中，且候选框没有被译文页占着。
- * 译文页上列的是译义，不算拆字结果。
+ * 当前候选列表是不是 U 模式的拆字结果：U 模式组合中。
  */
-inline bool IsRadicalCandidateList(bool radical_mode_triggered, bool translation_page_active, std::string_view raw)
+inline bool IsRadicalCandidateList(bool radical_mode_triggered, std::string_view raw)
 {
-    return !translation_page_active && IsRadicalComposition(radical_mode_triggered, raw);
+    return IsRadicalComposition(radical_mode_triggered, raw);
 }
 
 /**

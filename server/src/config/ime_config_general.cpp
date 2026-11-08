@@ -48,45 +48,6 @@ bool SetConfiguredEnglishCandidatesEnabled(bool enabled)
     return true;
 }
 
-bool GetConfiguredCandidateTranslationsEnabled()
-{
-    return g_candidate_translations_enabled;
-}
-
-bool SetConfiguredCandidateTranslationsEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("general", "candidate_translations", enabled ? "true" : "false"))
-        return false;
-    g_candidate_translations_enabled = enabled;
-    return true;
-}
-
-bool GetConfiguredCandidateTranslationShowPos()
-{
-    return g_candidate_translation_show_pos.load(std::memory_order_relaxed);
-}
-
-bool SetConfiguredCandidateTranslationShowPos(bool show)
-{
-    if (!WriteConfiguredValue("general", "candidate_translation_show_pos", show ? "true" : "false"))
-        return false;
-    g_candidate_translation_show_pos.store(show, std::memory_order_relaxed);
-    return true;
-}
-
-bool GetConfiguredCandidateTranslationSingleSense()
-{
-    return g_candidate_translation_single_sense.load(std::memory_order_relaxed);
-}
-
-bool SetConfiguredCandidateTranslationSingleSense(bool single)
-{
-    if (!WriteConfiguredValue("general", "candidate_translation_single_sense", single ? "true" : "false"))
-        return false;
-    g_candidate_translation_single_sense.store(single, std::memory_order_relaxed);
-    return true;
-}
-
 bool GetConfiguredEnglishLineEnabled()
 {
     return g_english_line_enabled;
@@ -97,18 +58,6 @@ bool SetConfiguredEnglishLineEnabled(bool enabled)
     if (!WriteConfiguredValue("general", "english_line", enabled ? "true" : "false"))
         return false;
     g_english_line_enabled = enabled;
-    return true;
-}
-
-const std::string &GetConfiguredTranslateModeBinding()
-{
-    return g_translate_mode_binding;
-}
-bool SetConfiguredTranslateModeBinding(const std::string &binding)
-{
-    if (!WriteConfiguredValue("keybindings", "translate_mode", EscapeTomlBasicString(binding)))
-        return false;
-    g_translate_mode_binding = binding;
     return true;
 }
 

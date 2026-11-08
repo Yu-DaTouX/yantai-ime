@@ -403,11 +403,6 @@ SwitchLanguageHotkeys ParseSwitchLanguageHotkeys(const std::filesystem::path &co
         {
             result.character_set_ctrl_shift_f = ParseTomlBool(raw, true);
         }
-        else if (key == "translate_mode")
-        {
-            result.translate_mode = {};
-            FanyImeKeyChord::ParseTranslationMode(FanyImeKeyChord::TomlString(raw), result.translate_mode);
-        }
         else if (key == "commit_pinyin_shift_enter")
         {
             result.commit_pinyin_shift_enter = ParseTomlBool(raw, true);
@@ -509,103 +504,6 @@ SwitchLanguageHotkeys ReadConfiguredSwitchLanguageHotkeys()
         // Keep the last known hotkeys; a read failure must not take the key path down.
     }
     ReleaseSRWLockExclusive(&g_hotkeyConfigLock);
-    return result;
-}
-
-// Same one-second stamp cache as the hotkeys above: the key sink asks for this on every
-// translation chord while the settings page writes the file underneath it. Constant-initialized,
-// so the local statics carry no guard variable and no destructor even with /Zc:threadSafeInit-.
-bool ReadConfiguredCandidateTranslationsEnabled()
-{
-    struct Cache
-    {
-        ULONGLONG checkedTick = 0;
-        FILETIME lastWrite{};
-        DWORD sizeLow = 0;
-        DWORD sizeHigh = 0;
-        bool checked = false;
-        bool haveStamp = false;
-        bool value = false;
-    };
-    static Cache cache;
-    static SRWLOCK lock = SRWLOCK_INIT;
-    AcquireSRWLockExclusive(&lock);
-    const ULONGLONG now = GetTickCount64();
-    if (!cache.checked || now - cache.checkedTick >= kHotkeyConfigRecheckMs)
-    {
-        cache.checked = true;
-        cache.checkedTick = now;
-        try
-        {
-            const std::filesystem::path path = SharedConfigPath();
-            WIN32_FILE_ATTRIBUTE_DATA attributes{};
-            if (path.empty() || !GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &attributes))
-            {
-                cache.value = false;
-                cache.haveStamp = false;
-            }
-            else if (!cache.haveStamp || CompareFileTime(&attributes.ftLastWriteTime, &cache.lastWrite) != 0 ||
-                     attributes.nFileSizeLow != cache.sizeLow || attributes.nFileSizeHigh != cache.sizeHigh)
-            {
-                cache.haveStamp = true;
-                cache.lastWrite = attributes.ftLastWriteTime;
-                cache.sizeLow = attributes.nFileSizeLow;
-                cache.sizeHigh = attributes.nFileSizeHigh;
-                bool parsed = false;
-                std::ifstream input(path, std::ios::binary);
-                if (!input)
-                {
-                    cache.haveStamp = false;
-                }
-                else
-                {
-                    bool inGeneral = false;
-                    std::string line;
-                    while (std::getline(input, line))
-                    {
-                        const size_t comment = line.find('#');
-                        if (comment != std::string::npos)
-                        {
-                            line = line.substr(0, comment);
-                        }
-                        line = TrimAscii(line);
-                        if (line.empty())
-                        {
-                            continue;
-                        }
-                        if (line.front() == '[' && line.back() == ']')
-                        {
-                            inGeneral = (line == "[general]");
-                            continue;
-                        }
-                        if (!inGeneral)
-                        {
-                            continue;
-                        }
-                        const size_t eq = line.find('=');
-                        if (eq == std::string::npos)
-                        {
-                            continue;
-                        }
-                        const std::string key = TrimAscii(line.substr(0, eq));
-                        const std::string raw = line.substr(eq + 1);
-                        if (key == "candidate_translations")
-                        {
-                            parsed = ParseTomlBool(raw, false);
-                        }
-                    }
-                    cache.value = parsed;
-                }
-            }
-        }
-        catch (...)
-        {
-            cache.value = false;
-            cache.haveStamp = false;
-        }
-    }
-    const bool result = cache.value;
-    ReleaseSRWLockExclusive(&lock);
     return result;
 }
 

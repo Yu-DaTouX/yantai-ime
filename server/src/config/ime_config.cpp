@@ -90,12 +90,8 @@ bool g_floating_toolbar_auto_hide = false;
 int g_floating_toolbar_auto_hide_delay = kFloatingToolbarAutoHideDelayDefault;
 bool g_floating_toolbar_shadow = true;
 bool g_english_candidates_enabled = false;
-bool g_candidate_translations_enabled = false;
-std::atomic_bool g_candidate_translation_show_pos{true};
-std::atomic_bool g_candidate_translation_single_sense{false};
 bool g_english_line_enabled = true;
 std::string g_commit_english_binding = "Ctrl+Enter";
-std::string g_translate_mode_binding;
 std::string g_english_senses_binding = "Ctrl+Shift+Enter";
 int g_english_mixed_input_min_chars = kEnglishMixedInputMinCharsDefault;
 int g_english_mixed_input_first_page_count = kEnglishMixedInputFirstPageCountDefault;
@@ -419,11 +415,6 @@ bool LoadImeConfig()
             g_floating_toolbar_shadow = tbl["general"]["floating_toolbar_shadow"].value_or(true);
         }
         g_english_candidates_enabled = tbl["general"]["cn_en_mixed_input"].value_or(false);
-        g_candidate_translations_enabled = tbl["general"]["candidate_translations"].value_or(false);
-        g_candidate_translation_show_pos.store(tbl["general"]["candidate_translation_show_pos"].value_or(true),
-                                               std::memory_order_relaxed);
-        g_candidate_translation_single_sense.store(tbl["general"]["candidate_translation_single_sense"].value_or(false),
-                                                   std::memory_order_relaxed);
         g_english_line_enabled = tbl["general"]["english_line"].value_or(true);
         {
             const int min_chars =
@@ -575,7 +566,6 @@ bool LoadImeConfig()
                     return value ? value.value_or(std::string(FanyImeKeyChord::InvalidValue)) : std::string(fallback);
                 };
                 g_commit_english_binding = read_binding("commit_english", "Ctrl+Enter");
-                g_translate_mode_binding = read_binding("translate_mode", "");
                 g_english_senses_binding = read_binding("english_senses", "Ctrl+Shift+Enter");
             }
             for (std::size_t i = 0; i < g_input_state_shortcuts.size(); ++i)
