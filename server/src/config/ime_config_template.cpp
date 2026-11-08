@@ -62,7 +62,7 @@ std::string ReapplyRealCredentials(std::string text, const std::map<std::string,
 }
 
 // 这些键改过出厂默认值，但新默认只给新装用户：老用户的值哪怕仍等于旧默认，也是他一直在用的行为
-// （辅助码、翻译供应商、横竖排……），升级时按「没动过就跟随新默认」翻掉，等于替他改了设置。
+// （翻译供应商、横竖排……），升级时按「没动过就跟随新默认」翻掉，等于替他改了设置。
 // 以后改模板里某个已有键的默认值、又不想推给老用户时，把键加进这里。
 bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
 {
@@ -74,7 +74,6 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
         MakeTomlAssignmentId("input", "default_ime_mode"),
         MakeTomlAssignmentId("appearance", "candidate_window_layout"),
         MakeTomlAssignmentId("appearance", "candidate_skin"),
-        MakeTomlAssignmentId("helpcode", "quanpin_helpcode"),
         MakeTomlAssignmentId("utility", "emoji_mode"),
         MakeTomlAssignmentId("utility", "kaomoji_mode"),
     };

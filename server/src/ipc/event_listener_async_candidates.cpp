@@ -243,8 +243,7 @@ void ApplyMixedCandidates(MixedCandidates::Result result, const std::string &inp
             // items 已按写法展开过，固定位置要作用在每组一项的列表上。
             ReorderCandidatesAsOneItemPerWord(items, [](std::vector<WordItem> &collapsed) {
                 user_dictionary::apply_fixed_positions(user_dictionary::default_user_db_path(),
-                                                       CurrentRankingContextKey(), collapsed, false, {},
-                                                       g_inputSession->has_active_helpcode());
+                                                       CurrentRankingContextKey(), collapsed, false);
             });
             for (size_t index = 1; index < english.size(); ++index)
                 items.push_back(std::move(english[index]));

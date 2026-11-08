@@ -752,12 +752,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return value.is_string() && SetConfiguredNetworkString(path.substr(std::string("network.").size()),
                                                                json::value_to<std::string>(value));
     }
-    if (path == "helpcode.quanpin_helpcode")
-        return SetConfiguredQuanpinHelpcodeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.quanpin_helpcode_schema")
-        return SetConfiguredQuanpinHelpcodeSchema(json::value_to<std::string>(data.at("value")));
-    if (path == "helpcode.show_qp_helpcode_in_candidate_window")
-        return SetConfiguredShowQuanpinHelpcodeInCandidateWindow(json::value_to<bool>(data.at("value")));
     if (path == "quanpin.autocorrect_transposition")
         return SetConfiguredQuanpinAutocorrectTransposition(json::value_to<bool>(data.at("value")));
     if (path == "quanpin.autocorrect_neighbor")

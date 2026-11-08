@@ -18,20 +18,9 @@
 #include "utils/common_utils.h"
 #include "global/globals.h"
 #include "clipboard/clipboard_history.h"
-#include "engine/common/helpcode_utils.h"
-#include "engine/core/data_path.h"
 #include "engine/contracts/input_state_shortcuts.h"
 
 using namespace ime_config_detail;
-
-namespace ime_config_detail
-{
-// A custom schema whose file was removed falls back to the default instead of loading an empty table.
-bool IsHelpcodeSchemaAvailable(const std::string &schema)
-{
-    return HelpcodeUtils::is_helpcode_schema_available(metasequoia::data_directory(), schema);
-}
-} // namespace ime_config_detail
 
 namespace
 {
@@ -71,9 +60,6 @@ bool g_escape_keeps_selected_word = false;
 // 回车上屏英文时顺带写入英文词库。默认开启，保持原有行为。
 bool g_enter_learns_english_word = true;
 std::string g_tsf_preedit_style = "raw";
-bool g_quanpin_helpcode_enabled = true;
-std::string g_quanpin_helpcode_schema = "lantian";
-bool g_show_quanpin_helpcode_in_candidate_window = true;
 // The legacy single "quanpin.autocorrect" key is deliberately not read anymore:
 // all four correction types default to off and users opt in from the settings page.
 // The two legacy switches may still be set by users who had them on; the deletion and
@@ -377,14 +363,6 @@ bool LoadImeConfig()
         }
         g_escape_keeps_selected_word = tbl["input"]["escape_keeps_selected_word"].value_or(false);
         g_enter_learns_english_word = tbl["input"]["enter_learns_english_word"].value_or(true);
-        g_quanpin_helpcode_enabled = tbl["helpcode"]["quanpin_helpcode"].value_or(true);
-        const std::string quanpin_helpcode_schema =
-            tbl["helpcode"]["quanpin_helpcode_schema"].value_or(std::string("lantian"));
-        g_quanpin_helpcode_schema =
-            IsHelpcodeSchemaAvailable(quanpin_helpcode_schema) ? quanpin_helpcode_schema : "lantian";
-        g_show_quanpin_helpcode_in_candidate_window =
-            tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
-        tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
         g_quanpin_autocorrect_transposition = tbl["quanpin"]["autocorrect_transposition"].value_or(false);
         g_quanpin_autocorrect_neighbor = tbl["quanpin"]["autocorrect_neighbor"].value_or(false);
         g_quanpin_autocorrect_deletion = tbl["quanpin"]["autocorrect_deletion"].value_or(false);

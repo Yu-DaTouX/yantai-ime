@@ -343,10 +343,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             g_inputSession->recompute_candidates();
             GlobalIme::composition.caret_position = 0;
         }
-        else if (!selection_transition.consumed_terminal_helpcode_with_cases.empty())
-        {
-            GlobalIme::composition.caret_position = g_inputSession->get_pinyin_sequence_with_cases().size();
-        }
         const bool isNeedCreateWord =
             FanyImeIpc::ShouldEnterCreatingWord(curWordItem.source, selection_transition.continues_composition);
         if (isNeedCreateWord)
@@ -358,9 +354,9 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // candidate position travels with it, together with the page prefix
             // it was recorded on, so a retraction can put that item back under
             // the highlight.
-            GlobalIme::composition.push_selection_snapshot(
-                selection_transition.consumed_raw_input_with_cases, Global::candidate_ui.page_index * page_size + index,
-                selection_page_prefix, selection_transition.consumed_terminal_helpcode_with_cases);
+            GlobalIme::composition.push_selection_snapshot(selection_transition.consumed_raw_input_with_cases,
+                                                           Global::candidate_ui.page_index * page_size + index,
+                                                           selection_page_prefix);
             /* 打开造词开关 */
             GlobalIme::composition.creating_word.active = true;
             Global::MsgTypeToTsf = Global::DataFromServerMsgType::NeedToCreateWord;

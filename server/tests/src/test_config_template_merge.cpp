@@ -338,7 +338,7 @@ TEST_CASE(config_merge_lets_new_defaults_win_for_untouched_keys)
 }
 
 // 0.10.0 把这些键的出厂值改成了新装用户的默认。从 0.9.5 升级上来、一直用着旧默认值的用户，升级后
-// 必须还是原来的行为：辅助码不能被关掉，横竖排和皮肤不能被换掉。
+// 必须还是原来的行为：横竖排和皮肤不能被换掉。
 TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
 {
     std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
@@ -361,9 +361,10 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     // 0.12.0 起 sc.lm 改为按需下载，新装默认关；升级用户的模型由安装器挪进 models\language-model\，开关保持原样。
     REQUIRE(upgraded["association"]["sentence_wordlattice"].value_or(false));
     REQUIRE_EQ(upgraded["input"]["default_ime_mode"].value_or(std::string()), std::string("english"));
-    REQUIRE_EQ(upgraded["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("vertical"));
+    REQUIRE(upgraded["appearance"]["candidate_window_layout"].value_or(std::string()) == "vertical");
     REQUIRE_EQ(upgraded["appearance"]["candidate_skin"].value_or(std::string()), std::string("acrylic"));
-    REQUIRE(upgraded["helpcode"]["quanpin_helpcode"].value_or(false));
+    // 辅助码已删除：老配置里的 [helpcode] 段静默丢弃，不报错也不留在升级后的配置里。
+    REQUIRE(!upgraded.contains("helpcode"));
     REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));
     REQUIRE(upgraded["utility"]["kaomoji_mode"].value_or(false));
     REQUIRE(!upgraded.contains("voice_input"));

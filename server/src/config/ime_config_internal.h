@@ -129,9 +129,6 @@ extern std::string g_candidate_text_color;
 extern bool g_escape_keeps_selected_word;
 extern bool g_enter_learns_english_word;
 extern std::string g_tsf_preedit_style;
-extern bool g_quanpin_helpcode_enabled;
-extern std::string g_quanpin_helpcode_schema;
-extern bool g_show_quanpin_helpcode_in_candidate_window;
 extern bool g_quanpin_autocorrect_transposition;
 extern bool g_quanpin_autocorrect_neighbor;
 extern bool g_quanpin_autocorrect_deletion;
@@ -236,7 +233,6 @@ extern NetworkProxyConfig g_network_proxy; // guarded by g_network_proxy_mutex
 extern FrequencyAdjustmentConfig g_frequency_adjustment;
 extern std::filesystem::path g_config_path;
 
-bool IsHelpcodeSchemaAvailable(const std::string &schema);
 // ime_config_input.cpp：把用户选的行内预编辑样式写进 GlobalSettings。
 void RefreshEffectiveTsfPreeditStyle();
 bool IsValidCandidateSkinId(const std::string &skin);
