@@ -69,7 +69,7 @@ TEST_CASE(candidate_expansion_preserves_mixed_results_before_entering_a_partial_
     REQUIRE_EQ(ui.items[5].source, CandidateSource::EnglishDictionary);
     RequireExpressiveTail(ui.items);
 
-    // The final page remains reachable and still contains Emoji followed by kaomoji.
+    // The final page remains reachable and still contains kaomoji at the end.
     while (ui.has_next_page())
         ++ui.page_index;
     REQUIRE_EQ(ui.page_index, 8);
@@ -101,8 +101,8 @@ TEST_CASE(candidate_expansion_refills_the_current_last_page_and_keeps_learned_en
     const auto english_index = FanyImeIpc::SlottedEnglishIndex(ui.items);
     REQUIRE(english_index.has_value());
     REQUIRE_EQ(*english_index, size_t{6});
-    // 知道每页候选数时，最匹配的 emoji 展开后仍在首页末位，其余 emoji 和颜文字在末尾。
-    REQUIRE_EQ(ui.items[7].word, std::string("😀"));
+    // 知道每页候选数时，最匹配的 emoji 展开后在首选之后，其余 emoji 和颜文字在末尾。
+    REQUIRE_EQ(ui.items[1].word, std::string("😀"));
     const size_t start = ui.items.size() - 3;
     REQUIRE_EQ(ui.items[start].word, std::string("😁"));
     REQUIRE_EQ(ui.items[start + 1].word, std::string("(^_^)"));

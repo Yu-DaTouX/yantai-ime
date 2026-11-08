@@ -163,7 +163,7 @@ int run_test()
     require(mixed.set_english_input_options(english_options), "Valid mixed-English options were rejected.");
     mixed.set_mixed_expressive_options(expressive_options);
     type(mixed, "ni");
-    const std::vector<std::string> expected_words{"你", "Ni", "倪", "Ninja", "😀", "😁", "(^_^)", "(T_T)"};
+    const std::vector<std::string> expected_words{"你", "😀", "Ni", "倪", "Ninja", "😁", "(^_^)", "(T_T)"};
     require(mixed.candidates().size() == expected_words.size(),
             "Mixed candidate deduplication produced the wrong candidate count.");
     for (std::size_t index = 0; index < expected_words.size(); ++index)
@@ -171,12 +171,12 @@ int run_test()
         require(mixed.candidates()[index].word == expected_words[index],
                 "Mixed expressive candidates did not stay after local Chinese and English candidates.");
     }
-    require(sources(mixed) ==
-                std::vector<CandidateSource>{CandidateSource::Database, CandidateSource::EnglishDictionary,
-                                             CandidateSource::Database, CandidateSource::EnglishDictionary,
-                                             CandidateSource::Emoji, CandidateSource::Emoji, CandidateSource::Kaomoji,
-                                             CandidateSource::Kaomoji},
-            "Mixed candidate sources did not retain their priority groups.");
+    require(sources(mixed) == std::vector<CandidateSource>{CandidateSource::Database, CandidateSource::Emoji,
+                                                           CandidateSource::EnglishDictionary,
+                                                           CandidateSource::Database,
+                                                           CandidateSource::EnglishDictionary, CandidateSource::Emoji,
+                                                           CandidateSource::Kaomoji, CandidateSource::Kaomoji},
+            "Mixed candidate sources did not put the best emoji right after the first candidate.");
 
     metasequoia::SessionOptions public_options;
     public_options.paths = metasequoia::RuntimePaths::legacy();
@@ -197,8 +197,8 @@ int run_test()
         {WordItem("ni", "你", 200), WordItem("ni", "cloud", 0, CandidateSource::CloudSuggestion),
          WordItem("ni", "ai", 0, CandidateSource::AiSuggestion), WordItem("ni", "倪", 100)},
         "ni", SchemeType::Quanpin, english_options, expressive_options, false, metasequoia::LocalInputMode::None);
-    const std::vector<std::string> expected_online{"你",    "cloud", "ai", "Ni",    "倪",
-                                                   "Ninja", "😀",    "😁", "(^_^)", "(T_T)"};
+    const std::vector<std::string> expected_online{"你", "😀",    "cloud", "ai",    "Ni",
+                                                   "倪", "Ninja", "😁",    "(^_^)", "(T_T)"};
     require(with_online.size() == expected_online.size(), "Online candidates changed mixed deduplication.");
     for (std::size_t index = 0; index < expected_online.size(); ++index)
         require(with_online[index].word == expected_online[index],
@@ -223,10 +223,22 @@ int run_test()
                 !has_source(emoji_only, CandidateSource::Kaomoji),
             "The mixed Emoji toggle was not independent.");
     require(emoji_only.candidates().size() >= 3, "Mixed Emoji candidates were incomplete.");
-    require(emoji_only.candidates()[0].word == "你" && emoji_only.candidates()[1].word == "倪" &&
-                emoji_only.candidates()[2].source == CandidateSource::Emoji &&
-                emoji_only.candidates().back().source == CandidateSource::Emoji,
-            "Mixed Emoji candidates displaced Chinese candidates with mixed English disabled.");
+    require(emoji_only.candidates()[0].word == "你" && emoji_only.candidates()[1].source == CandidateSource::Emoji &&
+                emoji_only.candidates()[2].word == "倪" && emoji_only.candidates().back().word == "😁",
+            "Mixed Emoji did not take the second slot ahead of the remaining Chinese candidates.");
+
+    // 候选不足两个时没有可让的位置：命中的 emoji 和其余候选一起排在末尾。
+    metasequoia::CandidateQueries sparse_queries(metasequoia::RuntimePaths::legacy());
+    const auto only_emoji = sparse_queries.mixed({}, "ni", SchemeType::Quanpin, metasequoia::EnglishInputOptions{},
+                                                 emoji_only_options, false, metasequoia::LocalInputMode::None);
+    require(!only_emoji.empty() && only_emoji.front().source == CandidateSource::Emoji,
+            "Mixed Emoji did not append the hit when the candidate list was empty.");
+    const auto single_candidate =
+        sparse_queries.mixed({WordItem("ni", "你", 200)}, "ni", SchemeType::Quanpin, metasequoia::EnglishInputOptions{},
+                             emoji_only_options, false, metasequoia::LocalInputMode::None);
+    require(single_candidate.size() >= 2 && single_candidate[0].word == "你" &&
+                single_candidate[1].source == CandidateSource::Emoji,
+            "Mixed Emoji did not keep the sole candidate first.");
 
     metasequoia::MixedExpressiveOptions kaomoji_only_options;
     kaomoji_only_options.kaomoji_candidates = true;

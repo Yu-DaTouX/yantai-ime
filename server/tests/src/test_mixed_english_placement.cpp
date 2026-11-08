@@ -83,11 +83,11 @@ TEST_CASE(MixedEnglishFirstPageCountReservesEmojiAndClampsLearnedSlots)
     placement.first_page_count = 3;
     placement.slot = 5;
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    REQUIRE_EQ(items.front().word, std::string("中文0"));
-    REQUIRE_EQ(items[2].word, std::string("work"));
-    REQUIRE_EQ(items[3].word, std::string("works"));
-    REQUIRE_EQ(items[4].word, std::string("worked"));
-    REQUIRE_EQ(items[5].source, CandidateSource::Emoji);
+    // 命中的 emoji 占第 2 位；学到的槽位 5 放不下 3 个英文，夹到首页还能放下它们的最后一个位置。
+    REQUIRE_EQ(items[1].source, CandidateSource::Emoji);
+    REQUIRE_EQ(items[3].word, std::string("work"));
+    REQUIRE_EQ(items[4].word, std::string("works"));
+    REQUIRE_EQ(items[5].word, std::string("worked"));
 }
 
 TEST_CASE(MixedEnglishFirstPageCountHonorsSmallPagesAndExplicitFixedPositions)
@@ -127,10 +127,10 @@ TEST_CASE(MixedEnglishFirstPageCountSharesThePageWithCloudAiAndEmoji)
     placement.first_page_count = 3;
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
     REQUIRE_EQ(items.front().word, std::string("中文0"));
-    REQUIRE_EQ(items[1].source, CandidateSource::CloudSuggestion);
+    REQUIRE_EQ(items[1].source, CandidateSource::Emoji);
+    REQUIRE_EQ(items[2].source, CandidateSource::CloudSuggestion);
     REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{2});
-    REQUIRE_EQ(items[2].source, CandidateSource::AiSuggestion);
-    REQUIRE_EQ(items[5].source, CandidateSource::Emoji);
+    REQUIRE_EQ(items[3].source, CandidateSource::AiSuggestion);
     REQUIRE_EQ(std::count_if(items.begin(), items.end(),
                              [](const WordItem &item) { return item.source == CandidateSource::AiSuggestion; }),
                1);
@@ -171,7 +171,8 @@ TEST_CASE(MixedEnglishFirstPageCountIncludesFixedEnglishAndKeepsTheEmojiSlot)
     REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{3});
     REQUIRE_EQ(items.front().word, std::string("中文0"));
     REQUIRE_EQ(items[1].word, std::string("workplace"));
-    REQUIRE_EQ(items[5].source, CandidateSource::Emoji);
+    // 固定的英文占住第 1 位，命中的 emoji 让到第 3 位。
+    REQUIRE_EQ(items[2].source, CandidateSource::Emoji);
 }
 
 TEST_CASE(MixedEnglishFixedFirstWordLeavesTheSlotToTheNextUnfixedWord)
@@ -201,8 +202,11 @@ TEST_CASE(MixedEnglishSingleCompletionStillMovesAheadOfAsyncCandidates)
     placement.require_exact = true;
     placement.input = "wor";
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    REQUIRE_EQ(items[3].word, std::string("work"));
-    REQUIRE_EQ(items[4].source, CandidateSource::Emoji);
+    REQUIRE_EQ(items[1].source, CandidateSource::Emoji);
+    REQUIRE_EQ(items[2].word, std::string("日期"));
+    REQUIRE_EQ(items[3].word, std::string("云"));
+    REQUIRE_EQ(items[4].word, std::string("work"));
+    REQUIRE_EQ(items[5].source, CandidateSource::AiSuggestion);
 }
 
 TEST_CASE(MixedEnglishLearnedSlotDoesNotPushCloudOrAiOffTheFirstPage)
@@ -224,7 +228,9 @@ TEST_CASE(MixedEnglishLearnedSlotDoesNotPushCloudOrAiOffTheFirstPage)
     };
     REQUIRE(on_first_page(CandidateSource::CloudSuggestion));
     REQUIRE(on_first_page(CandidateSource::AiSuggestion));
-    REQUIRE_EQ(items[5].source, CandidateSource::Emoji);
+    // 学到的槽位 1、2 给了英文组，命中的 emoji 让到第 4 位。
+    REQUIRE_EQ(items[2].word, std::string("works"));
+    REQUIRE_EQ(items[3].source, CandidateSource::Emoji);
 }
 
 TEST_CASE(MixedEnglishFirstPageCountUsesDifferentWordsRatherThanCaseVariants)
@@ -389,9 +395,9 @@ TEST_CASE(FirstSymbolAloneTakesTheLastSlotOfTheFirstPage)
     RequireWords(items, Concat({ChineseWords(0, 5), {"→"}, ChineseWords(5, 8), {"(^_^)", "←"}}));
 }
 
-TEST_CASE(LatinWordTakesTheLastOrdinarySlotBeforeEnglishAndEmoji)
+TEST_CASE(LatinWordTakesTheLastOrdinarySlotAfterTheLeadingEmoji)
 {
-    // 首页末尾是 work、emoji 时，字母词占它们前面最后一个中文的位置；其余字母词与符号接在 emoji 后面。
+    // 命中的 emoji 在第 2 位，字母词占首页里最后一个普通候选的位置；其余字母词与符号接在它后面。
     auto items = MixedEnglishItems();
     items.insert(items.begin() + 1, Latin("T恤", 10));
     items.insert(items.begin() + 2, Latin("T恤衫", 9));
@@ -401,12 +407,11 @@ TEST_CASE(LatinWordTakesTheLastOrdinarySlotBeforeEnglishAndEmoji)
     placement.require_exact = true;
     placement.input = "wor";
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    RequirePrefix(items,
-                  Concat({ChineseWords(0, 3), {"T恤", "work", "\xF0\x9F\x98\x80", "T恤衫", "→"}, ChineseWords(3, 12)}));
+    RequirePrefix(items, {"中文0", "\xF0\x9F\x98\x80", "中文1", "中文2", "T恤", "work", "T恤衫", "→"});
     RequireStableUnderRenormalization(items, placement);
 }
 
-TEST_CASE(FirstPageTailWithoutEnglishPutsTheLatinWordBeforeTheEmoji)
+TEST_CASE(FirstPageTailWithoutEnglishKeepsTheLatinWordsOnTheFirstPage)
 {
     auto items = ChineseItems(10);
     items.insert(items.begin() + 1, Latin("T恤", 10));
@@ -415,8 +420,10 @@ TEST_CASE(FirstPageTailWithoutEnglishPutsTheLatinWordBeforeTheEmoji)
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     items.push_back(MixedSource("\xF0\x9F\x98\x81", CandidateSource::Emoji));
     FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
-    RequireWords(items, Concat({ChineseWords(0, 4),
-                                {"T恤", "\xF0\x9F\x98\x80", "T恤衫", "→"},
+    RequireWords(items, Concat({{ChineseWords(0, 1)},
+                                {"\xF0\x9F\x98\x80"},
+                                ChineseWords(1, 4),
+                                {"T恤", "T恤衫", "→"},
                                 ChineseWords(4, 10),
                                 {"\xF0\x9F\x98\x81"}}));
     RequireStableUnderRenormalization(items, PageOf(6));
@@ -431,7 +438,7 @@ TEST_CASE(ExactEnglishKeepsItsSlotNextToTheLatinWord)
     placement.require_exact = true;
     placement.input = "work";
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    RequirePrefix(items, {"中文0", "work", "中文1", "中文2", "T恤", "\xF0\x9F\x98\x80", "中文3"});
+    RequirePrefix(items, {"中文0", "\xF0\x9F\x98\x80", "work", "中文1", "中文2", "T恤", "中文3"});
 }
 
 TEST_CASE(LearnedEnglishSlotKeepsItsPlaceNextToTheLatinWord)
@@ -463,7 +470,7 @@ TEST_CASE(LatinWordInAShortListTakesTheLastOrdinarySlot)
     items.insert(items.begin() + 2, Latin("T恤衫", 9));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
-    RequireWords(items, {"中文0", "T恤", "\xF0\x9F\x98\x80", "T恤衫", "中文1"});
+    RequireWords(items, {"中文0", "\xF0\x9F\x98\x80", "T恤", "T恤衫", "中文1"});
 
     // 除首选外没有普通候选：排在末尾。
     items = ChineseItems(1);
@@ -481,7 +488,7 @@ TEST_CASE(LatinWordInAShortListTakesTheLastOrdinarySlot)
 
 TEST_CASE(SmallPageWithoutOrdinarySlotsPutsTheLatinWordAfterTheFirstPage)
 {
-    // 每页 3：首页是 首选、英文补全、emoji，没有可占的普通位置，字母词排到首页之后的第一个位置。
+    // 每页 3：首页是 首选、命中的 emoji、英文补全，没有可占的普通位置，字母词排到首页之后的第一个位置。
     auto items = MixedEnglishItems();
     items.insert(items.begin() + 1, Latin("T恤", 10));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
@@ -489,7 +496,7 @@ TEST_CASE(SmallPageWithoutOrdinarySlotsPutsTheLatinWordAfterTheFirstPage)
     placement.require_exact = true;
     placement.input = "wor";
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    RequirePrefix(items, {"中文0", "work", "\xF0\x9F\x98\x80", "T恤", "中文1"});
+    RequirePrefix(items, {"中文0", "\xF0\x9F\x98\x80", "work", "T恤", "中文1"});
 
     // 英文精确匹配紧跟首选，同样不被挤出首页。
     items = MixedEnglishItems();
@@ -497,7 +504,7 @@ TEST_CASE(SmallPageWithoutOrdinarySlotsPutsTheLatinWordAfterTheFirstPage)
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     placement.input = "work";
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    RequirePrefix(items, {"中文0", "work", "\xF0\x9F\x98\x80", "T恤", "中文1"});
+    RequirePrefix(items, {"中文0", "\xF0\x9F\x98\x80", "work", "T恤", "中文1"});
 }
 
 // 在 control 里插入 latin：字母词插在其余候选的第 at 个之前，正停在固定位置上的候选留在原下标
@@ -572,15 +579,17 @@ WordItem SpellingOf(WordItem head, const std::string &text)
 
 TEST_CASE(LatinWordsMoveAsWholeSpellingGroups)
 {
-    // 繁体：T恤 有两种写法，整组连续放，占首页末尾 emoji 前的两个普通位置。
+    // 繁体：T恤 有两种写法，整组连续放，占首页里的两个普通位置。
     auto items = ChineseItems(8);
     const WordItem tee = Latin("T恤", 10);
     items.insert(items.begin() + 1, tee);
     items.insert(items.begin() + 2, SpellingOf(tee, "T卹"));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
-    RequireWords(items, Concat({ChineseWords(0, 3), {"T恤", "T恤", "\xF0\x9F\x98\x80"}, ChineseWords(3, 8)}));
-    REQUIRE_EQ(items[4].variant_rank, 1);
+    RequireWords(
+        items,
+        Concat({ChineseWords(0, 1), {"\xF0\x9F\x98\x80"}, ChineseWords(1, 3), {"T恤", "T恤"}, ChineseWords(3, 8)}));
+    REQUIRE_EQ(items[5].variant_rank, 1);
     RequireStableUnderRenormalization(items, PageOf(6));
 
     // 中文3 有两种写法、正好排在 emoji 前：字母词放上首页就得拆开它或挪动 emoji，所以排到首页之后。
@@ -589,8 +598,12 @@ TEST_CASE(LatinWordsMoveAsWholeSpellingGroups)
     items.insert(items.begin() + 1, Latin("浙L", 4));
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
     FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
-    RequireWords(items, Concat({ChineseWords(0, 4), {"中文3", "\xF0\x9F\x98\x80", "浙L"}, ChineseWords(4, 8)}));
-    REQUIRE_EQ(items[4].variant_rank, 1);
+    RequireWords(items, Concat({{ChineseWords(0, 1)},
+                                {"\xF0\x9F\x98\x80"},
+                                ChineseWords(1, 3),
+                                {"浙L", "中文3", "中文3"},
+                                ChineseWords(4, 8)}));
+    REQUIRE_EQ(items[6].variant_rank, 1);
 }
 
 TEST_CASE(SpellingGroupTakesTheLastRunOfOrdinarySlotsThatHoldsIt)
@@ -824,7 +837,7 @@ TEST_CASE(MixedOrderWithoutLatinWordsOrSymbolsIsUnchanged)
     items.push_back(MixedSource("云", CandidateSource::CloudSuggestion));
     items.push_back(MixedSource("AI", CandidateSource::AiSuggestion));
     FanyImeIpc::NormalizeMixedCandidateOrder(items, PageOf(6));
-    RequireWords(items, {"中文0", "云", "AI", "中文1", "中文2", "\xF0\x9F\x98\x80"});
+    RequireWords(items, {"中文0", "\xF0\x9F\x98\x80", "云", "AI", "中文1", "中文2"});
 
     items = MixedEnglishItems();
     items.push_back(MixedSource("\xF0\x9F\x98\x80", CandidateSource::Emoji));
@@ -833,8 +846,10 @@ TEST_CASE(MixedOrderWithoutLatinWordsOrSymbolsIsUnchanged)
     placement.require_exact = true;
     placement.input = "wor";
     FanyImeIpc::NormalizeMixedCandidateOrder(items, placement);
-    RequireWords(items, Concat({ChineseWords(0, 4),
-                                {"work", "\xF0\x9F\x98\x80"},
+    RequireWords(items, Concat({ChineseWords(0, 1),
+                                {"\xF0\x9F\x98\x80"},
+                                ChineseWords(1, 4),
+                                {"work"},
                                 ChineseWords(4, 12),
                                 {"works", "worked", "working", "workplace", "(^_^)"}}));
 

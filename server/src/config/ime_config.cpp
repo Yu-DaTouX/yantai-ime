@@ -117,16 +117,16 @@ double g_assoc_sentence_collocation_weak_penalty = -100.0;
 double g_assoc_sentence_collocation_rear_penalty = -18.0;
 // 候选窗整句候选后的来源标签（〔Trigram〕〔神经K〕等），默认不显示。
 bool g_assoc_sentence_source_badge = false;
-bool g_emoji_mixed_input_enabled = false;
+bool g_emoji_mixed_input_enabled = true;
 bool g_kaomoji_mixed_input_enabled = false;
 bool g_symbol_mixed_input_enabled = false;
 bool g_radical_mode_enabled = true;
 bool g_quick_phrase_enabled = true;
-bool g_quick_phrase_candidates_enabled = false;
+bool g_quick_phrase_candidates_enabled = true;
 bool g_quick_phrase_frequency_enabled = true;
 bool g_mixed_candidates_enabled = true;
-bool g_date_time_candidates_enabled = false;
-bool g_date_time_menu_enabled = true;
+bool g_date_time_candidates_enabled = true;
+bool g_date_time_menu_enabled = false;
 bool g_date_time_mode_enabled = true;
 bool g_emoji_mode_enabled = false;
 bool g_kaomoji_mode_enabled = false;
@@ -143,9 +143,9 @@ bool g_paging_comma_period_enabled = false;
 bool g_paging_brackets_enabled = false;
 bool g_paging_tab_enabled = true;
 bool g_paging_page_up_down_enabled = true;
-// Off by default: the wheel only reaches the candidate host when Windows'
-// "scroll inactive windows on hover" is on, so the feature is opt-in.
-bool g_paging_mouse_wheel_enabled = false;
+// On by default: the wheel only reaches the candidate host when Windows'
+// "scroll inactive windows on hover" is on, so the system setting still gates it.
+bool g_paging_mouse_wheel_enabled = true;
 bool g_candidate_arrow_navigation_enabled = true;
 bool g_candidate_horizontal_arrow_navigation_enabled = false;
 bool g_word_to_character_enabled = false;
@@ -464,17 +464,17 @@ bool LoadImeConfig()
         g_assoc_sentence_collocation_rear_penalty =
             tbl["association"]["sentence_collocation_rear_penalty"].value_or(-18.0);
         g_assoc_sentence_source_badge = tbl["association"]["sentence_source_badge"].value_or(false);
-        g_emoji_mixed_input_enabled = tbl["general"]["emoji_mixed_input"].value_or(false);
+        g_emoji_mixed_input_enabled = tbl["general"]["emoji_mixed_input"].value_or(true);
         g_kaomoji_mixed_input_enabled = tbl["general"]["kaomoji_mixed_input"].value_or(false);
         g_symbol_mixed_input_enabled = tbl["general"]["symbol_mixed_input"].value_or(false);
         // 改名前的 unicode_mode 作迁移兜底；升级合并已把它搬到新键，新写入只用新键。
         g_radical_mode_enabled = tbl["utility"]["radical_mode"].value_or(tbl["utility"]["unicode_mode"].value_or(true));
         g_quick_phrase_enabled = tbl["utility"]["quick_phrase"].value_or(true);
-        g_quick_phrase_candidates_enabled = tbl["utility"]["quick_phrase_candidates"].value_or(false);
+        g_quick_phrase_candidates_enabled = tbl["utility"]["quick_phrase_candidates"].value_or(true);
         g_quick_phrase_frequency_enabled = tbl["utility"]["quick_phrase_frequency"].value_or(true);
         g_mixed_candidates_enabled = tbl["utility"]["mixed_candidates"].value_or(true);
-        g_date_time_candidates_enabled = tbl["utility"]["date_time_candidates"].value_or(false);
-        g_date_time_menu_enabled = tbl["utility"]["date_time_menu"].value_or(true);
+        g_date_time_candidates_enabled = tbl["utility"]["date_time_candidates"].value_or(true);
+        g_date_time_menu_enabled = tbl["utility"]["date_time_menu"].value_or(false);
         g_date_time_mode_enabled = tbl["utility"]["date_time_mode"].value_or(true);
         g_emoji_mode_enabled = tbl["utility"]["emoji_mode"].value_or(false);
         g_kaomoji_mode_enabled = tbl["utility"]["kaomoji_mode"].value_or(false);
@@ -503,7 +503,7 @@ bool LoadImeConfig()
         g_paging_tab_enabled =
             tbl["general"]["paging_tab"].value_or(legacy_paging_mode && *legacy_paging_mode == "Shift+Tab/Tab");
         g_paging_page_up_down_enabled = tbl["general"]["paging_page_up_down"].value_or(true);
-        g_paging_mouse_wheel_enabled = tbl["general"]["paging_mouse_wheel"].value_or(false);
+        g_paging_mouse_wheel_enabled = tbl["general"]["paging_mouse_wheel"].value_or(true);
         g_candidate_arrow_navigation_enabled = tbl["general"]["candidate_arrow_navigation"].value_or(true);
         g_candidate_horizontal_arrow_navigation_enabled =
             tbl["general"]["candidate_horizontal_arrow_navigation"].value_or(false);
