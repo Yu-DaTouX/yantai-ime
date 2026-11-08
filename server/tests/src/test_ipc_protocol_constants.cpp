@@ -63,7 +63,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged, 31u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged, 32u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged, 33u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged, 34u);
+    // Opcode 34 (AiContextUploadChanged) was retired with the AI assistant; never reused.
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged, 35u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::TemporaryJapanesePolicyChanged, 36u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged, 37u);
@@ -122,10 +122,8 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged);
+    REQUIRE(34u > Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged);
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged > 34u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::TemporaryJapanesePolicyChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged >
@@ -209,4 +207,3 @@ TEST_CASE(ipc_pipe_security_descriptor_fails_closed_without_an_owner_sid)
 {
     REQUIRE(FanyImeIpc::BuildPipeSecurityDescriptorSddl(L"").empty());
 }
-

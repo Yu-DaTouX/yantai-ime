@@ -324,7 +324,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TrilingualCycleChanged ||
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CapsLockChanged ||
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TsfDiagnosticLogChanged ||
-             buf.msg_type == Global::DataToTsfWorkerThreadMsgType::AiContextUploadChanged ||
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::HorizontalArrowSelectionChanged))
         {
             bool hasTerminator = false;
@@ -446,7 +445,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TrilingualCycleChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CapsLockChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TsfDiagnosticLogChanged ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::AiContextUploadChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PunctuationLockChanged ||
                 buf.msg_type == FanyImeWorkerReplyType::TemporaryJapanesePolicyChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::VModeChanged ||
@@ -615,10 +613,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TsfDiagnosticLogChanged)
         {
             Global::TsfDiagnosticLogEnabled.store(buf.data[0] == L'1', std::memory_order_relaxed);
-        }
-        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::AiContextUploadChanged)
-        {
-            Global::AiContextUploadEnabled.store(buf.data[0] == L'1', std::memory_order_relaxed);
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PunctuationLockChanged)
         {

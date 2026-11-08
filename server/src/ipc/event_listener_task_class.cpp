@@ -50,7 +50,7 @@ TaskClass ClassifyTask(TaskType type)
 
     // 后台算完的富化结果：晚一轮就可能随下一次按键失效，但绝不能挡住下一次按键。
     case TaskType::ApplyCloudCandidate:
-    case TaskType::ApplyAiCandidate:
+    case TaskType::ReservedAiCandidate:
     case TaskType::ApplyEnglishCandidates:
     case TaskType::ApplyCandidateTranslations:
     case TaskType::ApplyMixedCandidates:

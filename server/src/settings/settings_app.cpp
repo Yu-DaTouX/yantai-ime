@@ -206,35 +206,6 @@ static nlohmann::json CustomShuangpinSchemasJson()
     return schemas;
 }
 
-// The provider registry as sent to the settings page: one entry per user-defined service. Built-in
-// ids stay config.toml-authoritative, so their endpoint/model come from the parsed config rather
-// than a possibly-stale store copy. Every token comes from config.toml; the store holds none.
-nlohmann::json ProviderEntriesJson(const AiAssistantConfig &ai)
-{
-    nlohmann::json array = nlohmann::json::array();
-    for (const auto &entry : ai.providers)
-    {
-        nlohmann::json item = {{"id", entry.id},
-                               {"name", entry.name},
-                               {"endpoint", entry.endpoint},
-                               {"token", ""},
-                               {"model", entry.model}};
-        if (AiAssistant::ProviderStore::IsBuiltinProvider(entry.id))
-        {
-            const auto endpoint = ai.endpoints.find(entry.id);
-            const auto model = ai.models.find(entry.id);
-            if (endpoint != ai.endpoints.end())
-                item["endpoint"] = endpoint->second;
-            if (model != ai.models.end())
-                item["model"] = model->second;
-        }
-        if (const auto token = ai.tokens.find(entry.id); token != ai.tokens.end())
-            item["token"] = token->second;
-        array.push_back(std::move(item));
-    }
-    return array;
-}
-
 // Index of the input-state shortcut written by a config path, or Definitions.size().
 std::size_t InputStateShortcutIndex(const std::string &path)
 {
@@ -285,7 +256,6 @@ nlohmann::json BuildInputStateShortcutMetadata()
 std::wstring BuildConfigMessage(bool refresh_skin_catalog)
 {
 
-    const AiAssistantConfig &ai = GetConfiguredAiAssistant();
     const TencentTmtConfig &tencent_tmt = GetConfiguredTencentTmt();
     const CustomTranslationConfig &custom_translation = GetConfiguredCustomTranslation();
     const AliyunMtConfig &aliyun_mt = GetConfiguredAliyunMt();
@@ -503,7 +473,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_window_preedit_shuangpin_quanpin", GetConfiguredCandidateWindowPreeditShuangpinQuanpin()},
             {"candidate_fixed_badge", GetConfiguredCandidateFixedBadge()},
             {"candidate_fixed_badge_style", GetConfiguredCandidateFixedBadgeStyle()},
-            {"candidate_ai_badge_style", GetConfiguredCandidateAiBadgeStyle()},
             {"tsf_preedit_style", GetConfiguredTsfPreeditStyle()},
             {"tsf_preedit_shuangpin_quanpin", GetConfiguredTsfPreeditShuangpinQuanpin()},
             {"theme_mode", GetConfiguredThemeMode()},
@@ -529,25 +498,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_skin_catalog_scanned", g_candidate_skin_catalog.has_value()},
             {"candidate_skin_catalog_revision", g_candidate_skin_catalog_revision},
             {"candidate_skin_directory", skins_root.u8string()}}},
-          {"ai_assistant",
-           {{"enabled", ai.enabled},
-            {"provider", ai.provider},
-            {"generate_provider", ai.generate_provider},
-            {"token", ai.token},
-            {"tokens", ai.tokens},
-            {"endpoint", ai.endpoint},
-            {"model", ai.model},
-            {"endpoints", ai.endpoints},
-            {"models", ai.models},
-            {"providers", ProviderEntriesJson(ai)},
-            {"candidate_limit", ai.candidate_limit},
-            {"thinking", ai.thinking},
-            {"json_mode", ai.json_mode},
-            {"prompt", ai.prompt},
-            {"prompt_id", ai.prompt_id},
-            {"prompt_custom_1", ai.prompt_custom_1},
-            {"prompt_custom_2", ai.prompt_custom_2},
-            {"prompt_custom_3", ai.prompt_custom_3}}},
           {"tencent_tmt",
            {{"secret_id", tencent_tmt.secret_id},
             {"secret_key", tencent_tmt.secret_key},
@@ -722,8 +672,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCandidateFixedBadge(json::value_to<bool>(data.at("value")));
     if (path == "appearance.candidate_fixed_badge_style")
         return SetConfiguredCandidateFixedBadgeStyle(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.candidate_ai_badge_style")
-        return SetConfiguredCandidateAiBadgeStyle(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.page_size")
         return SetConfiguredCandidatePageSize(static_cast<int>(data.at("value").as_int64()));
     if (path == "appearance.font")
@@ -899,30 +847,6 @@ bool ApplyConfigUpdate(const json::object &data)
             return SetConfiguredFrequencyAdjustmentString(key, json::value_to<std::string>(value));
         if (value.is_int64())
             return SetConfiguredFrequencyAdjustmentInt(key, static_cast<int>(value.as_int64()));
-        return false;
-    }
-    if (path.rfind("ai_assistant.", 0) == 0)
-    {
-        std::string key = path.substr(13);
-        const json::value &value = data.at("value");
-        // `endpoint@<id>` / `model@<id>`：设置页按服务商写槽位。@ 不会出现在任何配置键名里，
-        // 用它在一条 configUpdate 里指明目标服务商，宿主据此判断单值键要不要跟着改，
-        // 不必拿后端此刻的活动服务商去猜页面在说哪一家。
-        const size_t at = key.find('@');
-        if (at != std::string::npos)
-        {
-            const std::string field = key.substr(0, at);
-            const std::string provider = key.substr(at + 1);
-            if ((field != "endpoint" && field != "model") || provider.empty() || !value.is_string())
-                return false;
-            return SetConfiguredAiAssistantProviderValue(provider, field, json::value_to<std::string>(value));
-        }
-        if (value.is_bool())
-            return SetConfiguredAiAssistantBool(key, json::value_to<bool>(value));
-        if (value.is_string())
-            return SetConfiguredAiAssistantString(key, json::value_to<std::string>(value));
-        if (value.is_int64())
-            return SetConfiguredAiAssistantInt(key, static_cast<int>(value.as_int64()));
         return false;
     }
     if (path.rfind("tencent_tmt.", 0) == 0)
@@ -1243,73 +1167,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
                     throw std::runtime_error("Invalid API credential test response");
                 auto message = string_to_wstring(json::serialize(response));
                 return [message = std::move(message)] { PostToPage(message); };
-            });
-        }
-        else if (type == "apiModelList")
-        {
-            const auto &data = value.at("data").as_object();
-            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-            ApiCredentialTest::Request request;
-            request.service = json::value_to<std::string>(data.at("service"));
-            for (const auto &[key, item] : data.at("config").as_object())
-            {
-                if (item.is_string())
-                    request.config.emplace(std::string(key), json::value_to<std::string>(item));
-            }
-            g_worker->Submit([request_id, request = std::move(request)]() -> SerialTaskQueue::Completion {
-                ApiCredentialTest::ModelListResult result;
-                try
-                {
-                    result = ApiCredentialTest::FetchModels(request);
-                }
-                catch (...)
-                {
-                    result = {false, "获取模型列表失败：内部错误。", {}};
-                }
-                json::array models_array;
-                for (const auto &m : result.models)
-                    models_array.push_back(json::value(m));
-                json::value response = {{"type", "apiModelListResult"},
-                                        {"requestId", request_id},
-                                        {"ok", result.ok},
-                                        {"message", result.message},
-                                        {"models", std::move(models_array)},
-                                        {"protocolVersion", metasequoia::webview::Version}};
-                if (!metasequoia::webview::Validate(response, "server"))
-                    throw std::runtime_error("Invalid API model list response");
-                auto message = string_to_wstring(json::serialize(response));
-                return [message = std::move(message)] { PostToPage(message); };
-            });
-        }
-        else if (type == "aiProviderSync")
-        {
-            const auto &data = value.at("data").as_object();
-            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-            std::vector<AiAssistant::AiProvider> entries;
-            for (const auto &item : data.at("entries").as_array())
-            {
-                const auto &object = item.as_object();
-                AiAssistant::AiProvider entry;
-                entry.id = json::value_to<std::string>(object.at("id"));
-                entry.name = json::value_to<std::string>(object.at("name"));
-                entry.endpoint = json::value_to<std::string>(object.at("endpoint"));
-                entry.token = json::value_to<std::string>(object.at("token"));
-                entry.model = json::value_to<std::string>(object.at("model"));
-                entries.push_back(std::move(entry));
-            }
-            const bool ok = SetAiAssistantProviders(entries);
-            const std::string result_message = ok ? "已保存 " + std::to_string(entries.size()) + " 个服务商"
-                                                  : "保存失败：服务商列表为空或包含无效条目。";
-            json::value response = {{"type", "aiProviderSyncResult"},
-                                    {"requestId", request_id},
-                                    {"ok", ok},
-                                    {"message", result_message},
-                                    {"protocolVersion", metasequoia::webview::Version}};
-            if (!metasequoia::webview::Validate(response, "server"))
-                throw std::runtime_error("Invalid AI provider sync response");
-            auto message = string_to_wstring(json::serialize(response));
-            g_worker->Submit([message = std::move(message)]() -> SerialTaskQueue::Completion {
-                return [message] { PostToPage(message); };
             });
         }
         else if (type == "restartServer")

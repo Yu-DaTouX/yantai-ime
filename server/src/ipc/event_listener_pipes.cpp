@@ -885,9 +885,6 @@ void RegisteredPipeMonitorThread(HANDLE clientPipe, UINT pipeRole, uint64_t hand
             SendToTsfWorkerThreadClientViaNamedpipe(
                 hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::PunctuationLockChanged,
                 FormatPunctuationLockWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged,
-                GetConfiguredAiAssistant().enabled ? L"1" : L"0");
         }
     }
 

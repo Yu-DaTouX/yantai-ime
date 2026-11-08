@@ -9,6 +9,16 @@ namespace CredentialProtection
 {
 bool IsProtected(std::string_view stored);
 
+// 空值、出厂占位符（<...>）和测试用的 FAKESECRET_ 前缀都不是可用的凭证。
+inline bool IsPlaceholderCredential(std::string_view value)
+{
+    if (value.empty())
+        return true;
+    if (value.front() == '<' && value.back() == '>')
+        return true;
+    return value.find("FAKESECRET_") == 0;
+}
+
 // 返回带 "dpapi:" 前缀的密文；DPAPI 调用失败时返回 nullopt。
 std::optional<std::string> Protect(const std::string &plaintext);
 

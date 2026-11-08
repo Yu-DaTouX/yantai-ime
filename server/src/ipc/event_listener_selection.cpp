@@ -7,7 +7,6 @@
 #include <cstdint>
 #include "ipc.h"
 #include "conversion/chinese_converter.h"
-#include "ipc/ai_context_policy.h"
 #include "ipc/candidate_render_sync.h"
 #include "ipc/candidate_selection_policy.h"
 #include "ipc/input_key_policy.h"
@@ -321,7 +320,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             }
             // 同理，这条捷径也到不了下面的 AI 上下文累积。造词前缀在它自己被选中的那次
             // ProcessSelectionKey 里已经追加过了，这里只补本次提交的这一段。
-            AppendAiContext(curWord);
+            AppendRescoringContext(curWord);
             if (curWordItem.source == CandidateSource::EnglishDictionary && isNeedUpdateWeight)
             {
                 EnqueueAdjustCandidateRankingTask(/*english=*/true, /*wubi=*/false, EnglishRankingContextKey(),
@@ -348,8 +347,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         }
         std::string cloudCommittedPinyin;
         bool cloudCommittedPinyinIsCanonical = false;
-        std::string aiCommittedPinyin;
-        bool aiCommittedPinyinIsCanonical = false;
         if (curWordItem.source == CandidateSource::CloudSuggestion)
         {
             if (!curWordItem.canonical_pinyin.empty())
@@ -372,32 +369,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             {
                 cloudCommittedPinyin = g_inputSession->get_cloud_query_state().committed_pinyin;
             }
-        }
-        if (curWordItem.source == CandidateSource::AiSuggestion)
-        {
-            if (g_inputSession->is_all_complete_pure_pinyin())
-            {
-                if (!curWordItem.canonical_pinyin.empty())
-                {
-                    aiCommittedPinyin = curWordItem.canonical_pinyin;
-                    aiCommittedPinyinIsCanonical = true;
-                }
-                else
-                {
-                    // AI 候选自己不带 canonical_pinyin。committed_pinyin 走的是
-                    // normalized_input，那串已经去掉了音节边界（见 quanpin_scheme 里
-                    // 只往 normalized_input 里塞非撇号字符），create_word 会用贪心的
-                    // "correction" 切分重新断句：qi'e'huan 落成 qie'huan，音节数与字数
-                    // 对不上，do_validate 直接判失败、静默不入库，于是用户再打同样的音
-                    // 时这条 AI 联想仍然要靠现场猜。这里改用带撇号的 normalized_segmentation
-                    // （即屏幕上的分段，is_all_complete_pure_pinyin 已保证它整串是完整音节）
-                    // 作 canonical 键，create_word_from_canonical_pinyin 按撇号 split、不再
-                    // 重新贪心断句，用户实际选的那条读音就能正确落库。
-                    aiCommittedPinyin = g_inputSession->get_pinyin_segmentation();
-                    aiCommittedPinyinIsCanonical = true;
-                }
-            }
-            isNeedUpdateWeight = false;
         }
         // 这次选择之前是否已经在造词。下面的造词收尾会清掉这个标志，之后就问不出来了。
         const bool was_creating_word = GlobalIme::composition.creating_word.active;
@@ -523,20 +494,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             Global::cloud_candidate.word.clear();
             Global::cloud_candidate.pinyin.clear();
         }
-        // AI 候选可能是繁体原文；落库和 AI 上下文共用 SimplifiedAiCandidateText 的结果，
-        // 其余候选的 curWord 本来就是简体底词。
-        const std::string learnedWord =
-            curWordItem.source == CandidateSource::AiSuggestion
-                ? FanyImeIpc::SimplifiedAiCandidateText(curWord, GetConfiguredCharacterSet(),
-                                                        ChineseConverter::ToSimplified, ChineseConverter::ToTraditional)
-                : curWord;
-        if (curWordItem.source == CandidateSource::AiSuggestion && !aiCommittedPinyin.empty())
-        {
-            EnqueueStoreUserPhraseTask(aiCommittedPinyin, learnedWord, aiCommittedPinyinIsCanonical);
-            Global::ai_candidate = {};
-        }
-
-        AppendAiContext(learnedWord);
+        AppendRescoringContext(curWord);
 
         if (!isNeedCreateWord)
         {

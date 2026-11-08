@@ -10,7 +10,7 @@
 #include <system_error>
 #include <utility>
 #include <vector>
-#include "ai/provider_utils.h"
+#include "config/credential_protection.h"
 
 using namespace ime_config_detail;
 
@@ -36,7 +36,7 @@ bool AssignmentHoldsRealCredential(const std::string &assignment_id, const std::
     {
         return false;
     }
-    return !ProviderUtils::IsPlaceholderToken(UnquoteTomlScalar(raw_value));
+    return !CredentialProtection::IsPlaceholderCredential(UnquoteTomlScalar(raw_value));
 }
 
 // 把用户填过真值的凭证逐条重放到 text 上：有键改值，无键则在其分节里插入。幂等——重放已经等于
@@ -78,7 +78,6 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
         MakeTomlAssignmentId("helpcode", "quanpin_helpcode"),
         MakeTomlAssignmentId("utility", "emoji_mode"),
         MakeTomlAssignmentId("utility", "kaomoji_mode"),
-        MakeTomlAssignmentId("ai_assistant", "enabled"),
         MakeTomlAssignmentId("tencent_tmt", "enabled"),
         MakeTomlAssignmentId("aliyun_mt", "enabled"),
         MakeTomlAssignmentId("niutrans", "enabled"),

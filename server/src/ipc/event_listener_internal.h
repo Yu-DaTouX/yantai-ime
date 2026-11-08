@@ -36,9 +36,6 @@ template <typename... Args> int FanyIpcDiscardLogArgs(const Args &...);
 
 namespace event_listener_detail
 {
-void ClearJevSelection();
-void RefreshJevSelection();
-const std::string &JevSelectionWord();
 using AsyncRequestOrigin = FanyImeIpc::AsyncRequestOrigin;
 
 extern bool g_quick_phrase_triggered;
@@ -131,11 +128,9 @@ void UpdateEnglishInput(const std::string &input, uint64_t client_id = 0, uint64
                         bool dedicated_mode = false);
 // 混输（英文、emoji、颜文字、日期时间）的查询请求；request.input 为空表示取消。
 void UpdateMixedInput(MixedCandidates::Request request, uint64_t client_id = 0, uint64_t activation_epoch = 0);
-void UpdateAiInput(const std::string &identity, uint64_t client_id = 0, uint64_t activation_epoch = 0);
 AsyncRequestOrigin FindCloudRequestOrigin(const std::string &input, uint64_t generation);
 AsyncRequestOrigin FindEnglishRequestOrigin(const std::string &input, uint64_t generation);
 AsyncRequestOrigin FindMixedRequestOrigin(const std::string &input, uint64_t generation);
-AsyncRequestOrigin FindAiRequestOrigin(const std::string &input, uint64_t generation);
 // 不属于当前候选列表的文字的输出形式：繁体字符集下做简转繁，日语方案原样输出。这类文字有只有一条译义时
 // 直接上屏的那条译义、AI 上下文、按键原串。当前候选列表里的某条候选（含译文页上列出的译义）不要用它，
 // 用 CandidateOutputText；造词前缀用 creating_word.prefix_text。
@@ -174,9 +169,9 @@ std::string FirstSpellingOfText(const std::string &text);
 // 当前造词已选部分（GlobalIme::composition.creating_word）的简体底词、显示文字与第一写法标记。
 // ShownCandidateCharacterSet 与第一段选中时不同，第一写法标记为 false，上屏按显示的文字拼接。
 FanyImeIpc::ChosenText CreatingWordChosenText();
-// 每个按键包到达时调用：记下它是否来自密码 / PIN 输入框，并在宿主或焦点会话变化时清空 AI 上下文。
-void NoteAiContextKeySource(uint64_t client_id, uint64_t activation_epoch, bool sensitive_field);
-void AppendAiContext(const std::string &committed_word);
+// 本地神经重排历史，不参与联网请求；焦点会话变化时清空。
+void NoteRescoringContextKeySource(uint64_t client_id, uint64_t activation_epoch);
+void AppendRescoringContext(const std::string &committed_word);
 // current_output_text 是造词前缀的输出文字（creating_word.prefix_text），原样放进管道。
 std::wstring BuildCreateWordPipePayload(const std::string &remaining_raw_input_with_cases,
                                         const std::string &current_output_text);
@@ -281,8 +276,6 @@ void ApplyRescoredOrder();
 // 用当前会话状态重查一次候选，保留只活在 series cache 里的云/AI 候选；候选没变就不动 UI。
 // 调用方负责前置守卫（选词中/造词/子页、owner 有效性）。返回是否重发了候选页。
 bool RequeryCandidatesPreservingOnline(const FanyImeIpc::CandidateUiOwner &owner);
-void ApplyAiCandidate(const std::string &candidate, const std::string &identity, uint64_t generation,
-                      const std::optional<metasequoia::OnlineQuery> &query);
 void ApplyEnglishCandidates(std::vector<WordItem> candidates, const std::string &input, uint64_t generation);
 void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation, bool merge);
 void ApplyMixedCandidates(MixedCandidates::Result result, const std::string &input, uint64_t generation);

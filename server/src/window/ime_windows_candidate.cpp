@@ -615,7 +615,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const std::wstring previous_horizontal_arrow_selection = FormatHorizontalArrowSelectionWorkerPayload();
             const std::string previous_punctuation_lock = GetConfiguredPunctuationLock();
             const bool previous_tsf_diagnostic_log = GetConfiguredTsfDiagnosticLogEnabled();
-            const bool previous_ai_assistant_enabled = GetConfiguredAiAssistant().enabled;
             const std::wstring previous_mid_sentence_helpcode = FormatMidSentenceHelpcodeWorkerPayload();
             const std::wstring previous_mid_sentence_helpcode_semicolon =
                 FormatMidSentenceHelpcodeSemicolonWorkerPayload();
@@ -798,12 +797,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                     BroadcastToTsfWorkerThreadViaNamedpipe(
                         Global::DataFromServerMsgTypeToTsfWorkerThread::TsfDiagnosticLogChanged,
                         GetConfiguredTsfDiagnosticLogEnabled() ? L"1" : L"0");
-                }
-                if (previous_ai_assistant_enabled != GetConfiguredAiAssistant().enabled)
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged,
-                        GetConfiguredAiAssistant().enabled ? L"1" : L"0");
                 }
                 if (previous_mid_sentence_helpcode != FormatMidSentenceHelpcodeWorkerPayload())
                 {

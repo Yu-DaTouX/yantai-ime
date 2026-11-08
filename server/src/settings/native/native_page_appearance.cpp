@@ -545,9 +545,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
         addRow(MakeRow(L"固定候选徽标样式", L"",
                        BindDropdown(context, "appearance.candidate_fixed_badge_style",
                                     Options({{"paperclip", L"回形针"}, {"pushpin", L"图钉"}, {"dot", L"圆点"}}))));
-        addRow(MakeRow(L"AI 联想候选徽标样式", L"AI 联想候选词末尾的来源角标：机器人 🤖 或小鲸鱼 🐳",
-                       BindDropdown(context, "appearance.candidate_ai_badge_style",
-                                    Options({{"robot", L"机器人"}, {"whale", L"小鲸鱼"}}))));
 
         // 候选窗主字体: searchable system font list, each row in its own font.
         Dropdown::Options fontOptions;

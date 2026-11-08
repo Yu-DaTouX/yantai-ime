@@ -42,7 +42,7 @@ struct SettingsIndexEntry
 // with no pinyin input. A title match outranks a description-only match, then the tighter match
 // wins, so "候选" surfaces the candidate-box rows before long rows that merely mention the word.
 //
-// Comparison folds ASCII case and full-width forms, so "ai" finds "AI 与云联想" and "ＡＩ". Equal
+// Comparison folds ASCII case and full-width forms, so "ai" finds "AI" and "ＡＩ". Equal
 // scores keep index order, so the same query always gives the same list.
 std::vector<SettingsIndexEntry> SearchSettings(const std::vector<SettingsIndexEntry> &entries,
                                                const std::wstring &query, size_t limit = 12);

@@ -116,7 +116,6 @@ VisualPtr BuildShortcutPage(PageContext &context);
 VisualPtr BuildDictionaryPage(PageContext &context);
 VisualPtr BuildSkinPage(PageContext &context);
 VisualPtr BuildToolsPage(PageContext &context);
-VisualPtr BuildAiPage(PageContext &context);
 VisualPtr BuildFloatingToolbarPage(PageContext &context);
 VisualPtr BuildHelpPage(PageContext &context);
 VisualPtr BuildAboutPage(PageContext &context);

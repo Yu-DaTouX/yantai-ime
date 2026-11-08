@@ -75,7 +75,7 @@ void ClearReadOnlyAttribute(const std::filesystem::path &path)
     SetFileAttributesW(path.c_str(), attributes & ~FILE_ATTRIBUTE_READONLY);
 }
 
-// 与 FindTomlValueEnd 相同，但值可以跨行（ai_assistant.prompt 用的是 """ 多行字符串）。
+// 与 FindTomlValueEnd 相同，但值可以跨行（模板里的多行字符串用 """）。
 size_t FindTomlValueEndInText(const std::string &text, size_t value_begin)
 {
     if (value_begin < text.size() && text[value_begin] == '[')

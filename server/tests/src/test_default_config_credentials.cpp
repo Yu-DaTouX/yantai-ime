@@ -3,7 +3,7 @@
 #endif
 #include "cloud/translation_gloss.h"
 #include "tests/includes/test_framework.h"
-#include "ai/provider_utils.h"
+#include "config/credential_protection.h"
 
 #include <cctype>
 #include <fstream>
@@ -71,7 +71,7 @@ std::vector<ConfigEntry> ReadCredentialEntries(const std::string &path, bool &op
 } // namespace
 
 // The shipped default config must not contain anything the runtime mistakes for a real credential.
-// ai_assistant.enabled, voice_input.voice_input and tencent_tmt.enabled now ship off, but a user who
+// tencent_tmt.enabled now ships off, but a user who
 // switches one on before filling in a key must not end up sending the composition, the recorded
 // audio or the candidate text to a third party under a placeholder that reads as usable.
 // This reads the file the installer actually ships rather than restating today's placeholder
@@ -85,7 +85,7 @@ TEST_CASE(default_config_ships_no_usable_credentials)
 
     for (const ConfigEntry &entry : entries)
     {
-        const bool usable_as_token = !ProviderUtils::UsableToken(entry.value).empty();
+        const bool usable_as_token = !CredentialProtection::IsPlaceholderCredential(entry.value);
         const bool usable_as_secret = CloudTranslation::IsUsableSecret(entry.value);
         if (usable_as_token || usable_as_secret)
         {
@@ -98,12 +98,12 @@ TEST_CASE(default_config_ships_no_usable_credentials)
 
 TEST_CASE(placeholder_credentials_are_rejected_in_every_shipped_spelling)
 {
-    REQUIRE(ProviderUtils::IsPlaceholderToken(""));
-    REQUIRE(ProviderUtils::IsPlaceholderToken("<YOUR_OWN_DOUBAO_ACCESS_TOKEN>"));
-    REQUIRE(ProviderUtils::IsPlaceholderToken("<YOUR_AI_TOKEN_DEEPSEEK>"));
-    REQUIRE(ProviderUtils::IsPlaceholderToken("<YOUR_ASR_APP_KEY>"));
-    REQUIRE(ProviderUtils::IsPlaceholderToken("FAKESECRET_e1f2g3h4i5j6k7l8m9n0"));
-    REQUIRE(!ProviderUtils::IsPlaceholderToken("sk-a-real-looking-token"));
+    REQUIRE(CredentialProtection::IsPlaceholderCredential(""));
+    REQUIRE(CredentialProtection::IsPlaceholderCredential("<YOUR_OWN_DOUBAO_ACCESS_TOKEN>"));
+    REQUIRE(CredentialProtection::IsPlaceholderCredential("<YOUR_AI_TOKEN_DEEPSEEK>"));
+    REQUIRE(CredentialProtection::IsPlaceholderCredential("<YOUR_ASR_APP_KEY>"));
+    REQUIRE(CredentialProtection::IsPlaceholderCredential("FAKESECRET_e1f2g3h4i5j6k7l8m9n0"));
+    REQUIRE(!CredentialProtection::IsPlaceholderCredential("sk-a-real-looking-token"));
 
     REQUIRE(!CloudTranslation::IsUsableSecret(""));
     REQUIRE(!CloudTranslation::IsUsableSecret("<YOUR_OWN_TENCENT_SECRET_ID>"));

@@ -21,8 +21,6 @@
 #include "engine/common/helpcode_utils.h"
 #include "engine/core/data_path.h"
 #include "engine/contracts/input_state_shortcuts.h"
-#include "ai/provider_utils.h"
-#include "ai/chat_request_params.h"
 
 using namespace ime_config_detail;
 
@@ -222,7 +220,6 @@ std::string g_candidate_skin = "fluent";
 std::string g_candidate_window_preedit_style = "pinyin";
 bool g_candidate_fixed_badge = true;
 std::string g_candidate_fixed_badge_style = "paperclip";
-std::string g_candidate_ai_badge_style = "robot";
 std::string g_settings_window_linger = "off";
 bool g_settings_launch_animation = true;
 // 发现新版本时由后台自动下载安装包并校验。出厂开启：下载完还要用户自己确认安装，
@@ -237,7 +234,6 @@ std::string g_theme_menu = "follow";
 
 namespace ime_config_detail
 {
-AiAssistantConfig g_ai_assistant;
 TencentTmtConfig g_tencent_tmt;
 AliyunMtConfig g_aliyun_mt;
 CustomTranslationConfig g_custom_translation;
@@ -257,9 +253,6 @@ std::optional<std::filesystem::file_time_type> g_config_last_write_time;
 // 那时 last_write_time 相等但内容已经变了。只在时间戳没变时用它补一次判定。
 std::optional<std::uintmax_t> g_config_last_size;
 std::optional<uint64_t> g_config_last_content_hash;
-// ai_providers.json 的修改时间。服务商注册表不在 config.toml 里，只看 config.toml 的修改时间会漏掉它的变化。
-std::optional<std::filesystem::file_time_type> g_provider_store_last_write_time;
-bool g_provider_store_seen = false;
 } // namespace
 
 namespace ime_config_detail
@@ -282,13 +275,6 @@ bool IsValidCandidateFixedBadgeStyle(const std::string &style)
     return style == "paperclip" || style == "pushpin" || style == "dot";
 }
 
-// AI 联想徽标样式白名单，理由同上：存 "robot"/"whale" 而不是字面 emoji。
-// 直接查展示层的映射表，避免两份样式列表各自维护。
-bool IsValidCandidateAiBadgeStyle(const std::string &style)
-{
-    return AiSuggestionBadgeGlyph(style) != nullptr;
-}
-
 bool IsValidSettingsWindowLinger(const std::string &linger)
 {
     return linger == "off" || linger == "1m" || linger == "5m" || linger == "10m" || linger == "30m" ||
@@ -299,34 +285,6 @@ bool IsValidTranslationTargetLanguage(const std::string &language)
 {
     static constexpr std::string_view kLanguages[] = {"en", "fr", "ja", "es", "ru", "de", "ko", "th", "vi", "it"};
     return std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
-}
-} // namespace ime_config_detail
-
-namespace
-{
-const std::vector<std::string_view> &AiAssistantProviders()
-{
-    return AiAssistant::ProviderStore::BuiltinProviderIds();
-}
-
-// 服务商已下线的旧默认模型。用户配置里残留这些值时按空槽位处理，跟随当前默认值。
-bool IsRetiredAiAssistantDefaultModel(std::string_view provider, std::string_view model)
-{
-    return provider == "groq" && model == "llama-3.3-70b-versatile";
-}
-} // namespace
-
-namespace ime_config_detail
-{
-std::string AiAssistantTokenSlotKey(std::string_view provider)
-{
-    const std::string id = ProviderUtils::NormalizeProviderId(provider);
-    for (const auto known : AiAssistantProviders())
-    {
-        if (id == known)
-            return "token_" + id;
-    }
-    return {};
 }
 } // namespace ime_config_detail
 
@@ -388,17 +346,6 @@ void RememberConfigWriteTime()
     }
 }
 
-void RememberProviderStoreWriteTime()
-{
-    std::error_code error;
-    const auto write_time = std::filesystem::last_write_time(AiAssistant::ProviderStore::StorePath(), error);
-    g_provider_store_last_write_time = error ? std::nullopt : std::optional(write_time);
-    g_provider_store_seen = true;
-}
-} // namespace ime_config_detail
-
-namespace
-{
 bool LoadImeConfig()
 {
     ConfigFileLock lock;
@@ -791,12 +738,6 @@ bool LoadImeConfig()
             g_candidate_fixed_badge_style = IsValidCandidateFixedBadgeStyle(badge_style) ? badge_style : "paperclip";
         }
         {
-            // 同上：非法值回退到出厂 🤖，AI 候选不会因此失去来源标识
-            const std::string ai_badge_style =
-                tbl["appearance"]["candidate_ai_badge_style"].value_or(std::string("robot"));
-            g_candidate_ai_badge_style = IsValidCandidateAiBadgeStyle(ai_badge_style) ? ai_badge_style : "robot";
-        }
-        {
             const std::string linger = tbl["appearance"]["settings_window_linger"].value_or(std::string("off"));
             g_settings_window_linger = IsValidSettingsWindowLinger(linger) ? linger : "off";
         }
@@ -826,112 +767,6 @@ bool LoadImeConfig()
             g_tsf_preedit_shuangpin_quanpin = tbl["appearance"]["tsf_preedit_shuangpin_quanpin"].value_or(false);
             RefreshEffectiveTsfPreeditStyle();
         }
-        g_ai_assistant.enabled = tbl["ai_assistant"]["enabled"].value_or(false);
-        // The provider registry lives in the data directory (ai_providers.json) and has to be read
-        // before the active provider is validated: an id the user added there is not one of the
-        // built-in slots, and checking only those would reset it to deepseek on every load.
-        if (const auto stored = AiAssistant::ProviderStore::Load())
-        {
-            g_ai_assistant.providers = *stored;
-        }
-        else
-        {
-            g_ai_assistant.providers = AiAssistant::ProviderStore::SeedBuiltins();
-            AiAssistant::ProviderStore::Save(g_ai_assistant.providers);
-        }
-        RememberProviderStoreWriteTime();
-        g_ai_assistant.provider =
-            ProviderUtils::NormalizeProviderId(tbl["ai_assistant"]["provider"].value_or(std::string("deepseek")));
-        const auto registered = [](const std::string &id) {
-            return std::any_of(g_ai_assistant.providers.begin(), g_ai_assistant.providers.end(),
-                               [&id](const AiAssistant::AiProvider &entry) { return entry.id == id; });
-        };
-        if (AiAssistantTokenSlotKey(g_ai_assistant.provider).empty() && !registered(g_ai_assistant.provider))
-            g_ai_assistant.provider = "deepseek";
-        // 生成式记的上次服务商只在它是合法 id 时才算数，旧配置里没有这个键时跟随当前 provider。
-        g_ai_assistant.generate_provider =
-            ProviderUtils::NormalizeProviderId(tbl["ai_assistant"]["generate_provider"].value_or(std::string()));
-        const bool generate_known = AiAssistantTokenSlotKey(g_ai_assistant.generate_provider) != "" ||
-                                    std::any_of(g_ai_assistant.providers.begin(), g_ai_assistant.providers.end(),
-                                                [](const AiAssistant::AiProvider &entry) {
-                                                    return entry.id == g_ai_assistant.generate_provider;
-                                                });
-        if (!generate_known || g_ai_assistant.generate_provider == "jev")
-            g_ai_assistant.generate_provider =
-                g_ai_assistant.provider == "jev" ? std::string("deepseek") : g_ai_assistant.provider;
-        g_ai_assistant.token = tbl["ai_assistant"]["token"].value_or(std::string());
-        g_ai_assistant.tokens.clear();
-        for (const auto provider : AiAssistantProviders())
-        {
-            const std::string id(provider);
-            g_ai_assistant.tokens[id] =
-                ProviderUtils::UsableToken(tbl["ai_assistant"][AiAssistantTokenSlotKey(id)].value_or(std::string()));
-        }
-        // Registry providers keep their token in config.toml as well, as token_<id>: that key is
-        // DPAPI-protected and survives template merges as a credential.
-        for (const auto &entry : g_ai_assistant.providers)
-        {
-            if (!AiAssistant::ProviderStore::IsBuiltinProvider(entry.id))
-                g_ai_assistant.tokens[entry.id] =
-                    ProviderUtils::UsableToken(tbl["ai_assistant"]["token_" + entry.id].value_or(std::string()));
-        }
-        {
-            std::string &stored = g_ai_assistant.tokens[g_ai_assistant.provider];
-            if (stored.empty())
-                stored = ProviderUtils::UsableToken(g_ai_assistant.token);
-            g_ai_assistant.token = stored;
-        }
-        g_ai_assistant.endpoint =
-            tbl["ai_assistant"]["endpoint"].value_or(std::string("https://api.deepseek.com/chat/completions"));
-        g_ai_assistant.model = tbl["ai_assistant"]["model"].value_or(std::string("deepseek-v4-flash"));
-        const AiAssistantConfig ai_defaults;
-        g_ai_assistant.endpoints = ai_defaults.endpoints;
-        g_ai_assistant.models = ai_defaults.models;
-        for (const auto provider : AiAssistantProviders())
-        {
-            const std::string id(provider);
-            const auto load_slot = [&](const std::string &key, const std::string &legacy, std::string &target) {
-                // 空值和服务商已下线的旧默认模型都表示「用默认值」：早于 #610 的版本会把默认值原样写盘。
-                const auto usable = [&](const std::string &value) {
-                    return !value.empty() && !(key == "model" && IsRetiredAiAssistantDefaultModel(id, value));
-                };
-                const std::string stored = tbl["ai_assistant"][key + "_" + id].value_or(std::string());
-                if (usable(stored))
-                    target = stored;
-                else if (id == g_ai_assistant.provider && usable(legacy))
-                    target = legacy;
-            };
-            load_slot("endpoint", g_ai_assistant.endpoint, g_ai_assistant.endpoints[id]);
-            load_slot("model", g_ai_assistant.model, g_ai_assistant.models[id]);
-        }
-        g_ai_assistant.endpoint = g_ai_assistant.endpoints[g_ai_assistant.provider];
-        g_ai_assistant.model = g_ai_assistant.models[g_ai_assistant.provider];
-        // Registry-only providers have no endpoint_/model_ slot that survives an upgrade; their
-        // values come from the store.
-        AiAssistant::ProviderStore::ResolveActive(g_ai_assistant.active, g_ai_assistant.endpoint, g_ai_assistant.model,
-                                                  g_ai_assistant.provider, g_ai_assistant.providers);
-        const int ai_limit = tbl["ai_assistant"]["candidate_limit"].value_or(3);
-        g_ai_assistant.candidate_limit = ai_limit >= 1 && ai_limit <= 10 ? ai_limit : 3;
-        g_ai_assistant.thinking = tbl["ai_assistant"]["thinking"].value_or(std::string("disabled"));
-        if (!ProviderUtils::IsValidThinkingLevel(g_ai_assistant.thinking))
-            g_ai_assistant.thinking = "disabled";
-        // 旧配置里没有这个键，缺省按 auto：本机地址与未知服务不带 response_format，
-        // 原生实现照旧带上，升级后行为对已有的云端用户不变。
-        g_ai_assistant.json_mode =
-            ChatCompletions::NormalizeJsonMode(tbl["ai_assistant"]["json_mode"].value_or(std::string("auto")));
-        const std::string legacy_ai_prompt = tbl["ai_assistant"]["prompt"].value_or(g_ai_assistant.prompt);
-        g_ai_assistant.prompt_id = tbl["ai_assistant"]["prompt_id"].value_or(std::string("custom_1"));
-        if (g_ai_assistant.prompt_id != "custom_1" && g_ai_assistant.prompt_id != "custom_2" &&
-            g_ai_assistant.prompt_id != "custom_3")
-            g_ai_assistant.prompt_id = "custom_1";
-        g_ai_assistant.prompt_custom_1 = tbl["ai_assistant"]["prompt_custom_1"].value_or(std::string());
-        if (g_ai_assistant.prompt_custom_1.empty())
-            g_ai_assistant.prompt_custom_1 = legacy_ai_prompt;
-        g_ai_assistant.prompt_custom_2 = tbl["ai_assistant"]["prompt_custom_2"].value_or(std::string());
-        g_ai_assistant.prompt_custom_3 = tbl["ai_assistant"]["prompt_custom_3"].value_or(std::string());
-        g_ai_assistant.prompt = g_ai_assistant.prompt_id == "custom_2"   ? g_ai_assistant.prompt_custom_2
-                                : g_ai_assistant.prompt_id == "custom_3" ? g_ai_assistant.prompt_custom_3
-                                                                         : g_ai_assistant.prompt_custom_1;
         g_tencent_tmt.enabled = tbl["tencent_tmt"]["enabled"].value_or(false);
         g_tencent_tmt.secret_id = tbl["tencent_tmt"]["secret_id"].value_or(std::string());
         g_tencent_tmt.secret_key = tbl["tencent_tmt"]["secret_key"].value_or(std::string());
@@ -996,7 +831,7 @@ bool LoadImeConfig()
     }
 }
 
-} // namespace
+} // namespace ime_config_detail
 
 namespace ime_config_detail
 {
@@ -1017,7 +852,6 @@ SchemeType ParseScheme(const std::string &value)
 void InvalidateImeConfigWriteTime()
 {
     g_config_last_write_time.reset();
-    g_provider_store_seen = false;
 }
 
 void InitImeConfig()
@@ -1075,15 +909,7 @@ bool ReloadImeConfigIfChanged()
             config_changed = true;
         }
     }
-    bool store_changed = false;
-    if (!error && !config_changed && g_provider_store_seen)
-    {
-        std::error_code store_error;
-        const auto store_time = std::filesystem::last_write_time(AiAssistant::ProviderStore::StorePath(), store_error);
-        const auto current = store_error ? std::nullopt : std::optional(store_time);
-        store_changed = current != g_provider_store_last_write_time;
-    }
-    if (!config_changed && !store_changed)
+    if (!config_changed)
     {
         return false;
     }

@@ -236,7 +236,7 @@ int main()
     CHECK(FanyImeWorkerReplyType::MidSentenceHelpcodeUppercaseChanged == 31);
     CHECK(FanyImeWorkerReplyType::VModeChanged == 32);
     CHECK(FanyImeWorkerReplyType::TrilingualCycleChanged == 33);
-    CHECK(FanyImeWorkerReplyType::AiContextUploadChanged == 34);
+    // 34 was AiContextUploadChanged, retired with the AI assistant; never reused.
     CHECK(FanyImeWorkerReplyType::UiLessCandidatesChanged == 35);
     CHECK(FanyImeWorkerReplyType::TemporaryJapanesePolicyChanged == 36);
     CHECK(FanyImeWorkerReplyType::EndHelpcodeTriggersChanged == 37);
@@ -267,9 +267,11 @@ int main()
         CHECK(FanyImeUiLessPage::IsCurrent(0, 9) && FanyImeUiLessPage::IsCurrent(9, 9));
         CHECK(FanyImeUiLessPage::IsCurrent(10, 9) && !FanyImeUiLessPage::IsCurrent(8, 9));
     }
-    // The sensitive-field flag stays clear of Shift/Ctrl/Alt, every pipe flag and the cycle request bits.
-    CHECK((FanyImePipeFlags::SensitiveField & 7u) == 0);
-    CHECK((FanyImePipeFlags::SensitiveField &
+    // The retired sensitive-field bit (was FanyImePipeFlags::SensitiveField) stays clear of
+    // Shift/Ctrl/Alt, every pipe flag and the cycle request bits.
+    constexpr std::uint32_t kRetiredSensitiveField = 0x02000000u;
+    CHECK((kRetiredSensitiveField & 7u) == 0);
+    CHECK((kRetiredSensitiveField &
            (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
             FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | FanyImeTrilingualInput::CycleRequestMask)) == 0);
     // The direct helpcode end trigger flag stays clear of every other flag bit.
@@ -277,13 +279,13 @@ int main()
     CHECK((FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite &
            (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
             FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | FanyImeTrilingualInput::CycleRequestMask |
-            FanyImePipeFlags::SensitiveField | FanyImePipeFlags::HorizontalArrowSelection)) == 0);
+            kRetiredSensitiveField | FanyImePipeFlags::HorizontalArrowSelection)) == 0);
     // Same for the horizontal arrow selection flag, which also stays clear of the sensitive-field bit.
     CHECK((FanyImePipeFlags::HorizontalArrowSelection & 7u) == 0);
     CHECK((FanyImePipeFlags::HorizontalArrowSelection &
            (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
             FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | FanyImeTrilingualInput::CycleRequestMask |
-            FanyImePipeFlags::SensitiveField)) == 0);
+            kRetiredSensitiveField)) == 0);
     // V 模式的形状规则，TSF（WCHAR）与 Server（char）共用。
     {
         using FanyImeVModeInput::Trigger;

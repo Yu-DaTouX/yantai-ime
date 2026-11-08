@@ -10,7 +10,7 @@
 #include <utility>
 #include <unordered_map>
 #include "Ipc.h"
-#include "ipc/ai_context_policy.h"
+#include "ipc/rescoring_context_policy.h"
 #include "ipc/candidate_text_policy.h"
 #include "ipc/traditional_variant_expansion_policy.h"
 #include "ipc/async_request_origin.h"
@@ -30,7 +30,6 @@
 #include "utils/ime_utils.h"
 #include "cloud/cloud_ime.h"
 #include "cloud/cloud_translation.h"
-#include "ai/ai_assistant.h"
 #include "english/english_ime.h"
 #include "config/ime_config.h"
 #include "engine/contracts/date_time_input.h"
@@ -40,7 +39,6 @@
 #include "conversion/traditional_spelling_index.h"
 #include "log/candidate_diag_log.h"
 #include "ipc/event_listener_internal.h"
-#include "ai/jev_candidate_policy.h"
 
 using namespace event_listener_detail;
 
@@ -352,18 +350,12 @@ std::mutex g_async_request_mutex;
 uint64_t g_cloud_generation = 0;
 uint64_t g_english_generation = 0;
 uint64_t g_mixed_generation = 0;
-uint64_t g_ai_generation = 0;
 AsyncRequestOrigin g_cloud_request_origin;
 AsyncRequestOrigin g_english_request_origin;
 AsyncRequestOrigin g_mixed_request_origin;
-AsyncRequestOrigin g_ai_request_origin;
-std::string g_ai_context;
-// g_ai_context 属于哪一次焦点会话。换了宿主进程（client_id）或焦点会话重新激活（activation_epoch）
-// 就清空，免得在一个应用里打的字被带进另一个应用的 AI 请求。
-uint64_t g_ai_context_client_id = 0;
-uint64_t g_ai_context_activation_epoch = 0;
-// 当前按键来自密码 / PIN 输入框（TSF 按 InputScope 判定）：不发 AI 请求，上屏也不进上下文。
-bool g_ai_sensitive_field = false;
+std::string g_rescoring_context;
+uint64_t g_rescoring_context_client_id = 0;
+uint64_t g_rescoring_context_activation_epoch = 0;
 std::mutex g_status_snapshot_mutex;
 int g_latest_status_snapshot = -1;
 bool g_latest_english_input_mode = false;
@@ -534,49 +526,8 @@ void UpdateMixedInput(MixedCandidates::Request request, uint64_t client_id, uint
 }
 } // namespace event_listener_detail
 
-namespace
-{
-std::vector<std::string> SplitPinyin(const std::string &segmentation)
-{
-    std::vector<std::string> result;
-    boost::split(result, segmentation, boost::is_any_of("' "), boost::token_compress_on);
-    result.erase(std::remove_if(result.begin(), result.end(), [](const std::string &item) { return item.empty(); }),
-                 result.end());
-    return result;
-}
-} // namespace
-
 namespace event_listener_detail
 {
-void UpdateAiInput(const std::string &identity, uint64_t client_id, uint64_t activation_epoch)
-{
-    ClearJevSelection();
-    std::lock_guard lock(g_async_request_mutex);
-    const AiAssistantConfig config = GetConfiguredAiAssistant();
-    const bool usable = config.enabled && g_inputSession &&
-                        (g_inputSession->current_scheme_type() == SchemeType::Quanpin ||
-                         g_inputSession->current_scheme_type() == SchemeType::Shuangpin) &&
-                        g_inputSession->is_all_complete_pure_pinyin() && !g_inputSession->has_active_helpcode() &&
-                        !identity.empty() && !g_ai_sensitive_field;
-    (void)0;
-    AiAssistant::Request request;
-    if (usable)
-    {
-        request.pinyin_segments = SplitPinyin(g_inputSession->get_pinyin_segmentation());
-        request.context = FanyImeIpc::StripCredentialLikeText(g_ai_context);
-        request.identity = identity;
-        request.config = config;
-        if (config.provider == "jev")
-            request.candidates = Jev::CandidatePool(g_inputSession->get_candidates(), request.pinyin_segments.size());
-    }
-    AiAssistant::OnInputChanged(std::move(request));
-    ++g_ai_generation;
-    g_ai_request_origin =
-        usable ? AsyncRequestOrigin{client_id, activation_epoch, g_ai_generation, identity} : AsyncRequestOrigin{};
-    if (usable)
-        g_ai_request_origin.engine_query = g_inputSession->online_query();
-}
-
 AsyncRequestOrigin FindCloudRequestOrigin(const std::string &input, uint64_t generation)
 {
     std::lock_guard lock(g_async_request_mutex);
@@ -604,14 +555,6 @@ AsyncRequestOrigin FindMixedRequestOrigin(const std::string &input, uint64_t gen
     {
         return g_mixed_request_origin;
     }
-    return {};
-}
-
-AsyncRequestOrigin FindAiRequestOrigin(const std::string &input, uint64_t generation)
-{
-    std::lock_guard lock(g_async_request_mutex);
-    if (g_ai_request_origin.matches(input, generation))
-        return g_ai_request_origin;
     return {};
 }
 
@@ -719,33 +662,24 @@ WordItem WithFirstTraditionalSpelling(WordItem item)
     return FanyImeIpc::WithFirstTraditionalSpellingOf(std::move(item), CandidateListSpellingSettings());
 }
 
-void NoteAiContextKeySource(uint64_t client_id, uint64_t activation_epoch, bool sensitive_field)
+// 上屏历史仅供本地神经整句重排使用，切换焦点会话时清空。
+void NoteRescoringContextKeySource(uint64_t client_id, uint64_t activation_epoch)
 {
-    g_ai_sensitive_field = sensitive_field;
-    if (client_id == g_ai_context_client_id && activation_epoch == g_ai_context_activation_epoch)
+    if (client_id == g_rescoring_context_client_id && activation_epoch == g_rescoring_context_activation_epoch)
         return;
-    g_ai_context_client_id = client_id;
-    g_ai_context_activation_epoch = activation_epoch;
-    if (g_ai_context.empty())
-        return;
-    g_ai_context.clear();
+    g_rescoring_context_client_id = client_id;
+    g_rescoring_context_activation_epoch = activation_epoch;
+    g_rescoring_context.clear();
     if (g_inputSession)
-        g_inputSession->set_rescoring_context(g_ai_context);
+        g_inputSession->set_rescoring_context(g_rescoring_context);
 }
 
-// 每次提交都把上屏文本追加进 AI 联想的上下文，并按 UTF-8 边界裁剪到 kAiContextMaxBytes。
-// committed_word 是候选的内部文字，原样追加：上下文的读方按简体工作，不要传显示用的繁体。
-// 造词过程中每选中一段都会各自调用一次，因此这里只追加本次提交的那一段。
-void AppendAiContext(const std::string &committed_word)
+void AppendRescoringContext(const std::string &committed_word)
 {
-    if (g_ai_sensitive_field)
-        return;
-    g_ai_context += committed_word;
-    g_ai_context = FanyImeIpc::TrimAiContextFront(std::move(g_ai_context));
-    // 同一份上屏历史也是神经整句重排的前文（青简那边叫 InputHistory）：下一次查询会随
-    // QueryRequest 下发到词典层。词典层自己按 RerankOptions::context_chars 取末尾若干字。
+    g_rescoring_context += committed_word;
+    g_rescoring_context = FanyImeIpc::TrimRescoringContextFront(std::move(g_rescoring_context));
     if (g_inputSession)
-        g_inputSession->set_rescoring_context(g_ai_context);
+        g_inputSession->set_rescoring_context(g_rescoring_context);
 }
 
 void SyncShuangpinPreeditForms()
@@ -918,7 +852,6 @@ void ClearState()
     EnglishIme::ClearTranslations();
     CloudTranslation::Clear();
     UpdateMixedInput({});
-    UpdateAiInput("");
     /* Clear dict engine state */
     g_inputSession->reset_state();
     if (r_mode_original_session)

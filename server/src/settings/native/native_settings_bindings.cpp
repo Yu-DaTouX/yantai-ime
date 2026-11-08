@@ -231,7 +231,6 @@ const std::vector<PageInfo> &Pages()
         {"dict", L"词库", L"sidebar/dictionary.svg", &BuildDictionaryPage},
         {"skin", L"皮肤", L"sidebar/skin.svg", &BuildSkinPage},
         {"tools-settings", L"实用功能", L"sidebar/utilities.svg", &BuildToolsPage},
-        {"ai-settings", L"AI 与云联想", L"sidebar/ai.svg", &BuildAiPage},
         {"floating-toolbar", L"悬浮工具栏", L"sidebar/floating_toolbar.svg", &BuildFloatingToolbarPage},
         {"help-settings", L"帮助", L"sidebar/help.svg", &BuildHelpPage},
         {"about-settings", L"关于", L"sidebar/about.svg", &BuildAboutPage},

@@ -1,7 +1,6 @@
 #include "cloud_translation.h"
 
 #include "config/ime_config.h"
-#include "ai_translation.h"
 #include "aliyun_mt.h"
 #include "custom_translation.h"
 #include "niutrans_translation.h"
@@ -58,14 +57,11 @@ enum class Provider
     Aliyun,
     Custom,
     NiuTrans,
-    Ai,
 };
 
 // 当前生效的提供方由 [translation].provider 单一决定，服务端与页面不再各写一份优先级。
 Provider ActiveProvider(const TranslationConfig &config)
 {
-    if (config.provider == "ai")
-        return Provider::Ai;
     if (config.provider == "niutrans")
         return Provider::NiuTrans;
     if (config.provider == "aliyun")
@@ -79,8 +75,6 @@ std::string ProviderScope(const TranslationConfig &config)
 {
     switch (ActiveProvider(config))
     {
-    case Provider::Ai:
-        return "ai:" + config.ai.provider + ":" + config.ai.endpoint + ":" + config.ai.model;
     case Provider::Aliyun:
         // 阿里云没有应用 id，缓存域按 AccessKey ID 区分。
         return "aliyun:" + config.aliyun.secret_id;
@@ -154,7 +148,6 @@ struct ResolvedProvider
     AliyunMt::Credentials aliyun;
     CustomTranslation::Config custom;
     NiuTransTranslation::Config niutrans;
-    AiTranslation::Config ai;
 };
 
 std::optional<ResolvedProvider> ResolveActiveProvider(const TranslationConfig &config)
@@ -163,13 +156,6 @@ std::optional<ResolvedProvider> ResolveActiveProvider(const TranslationConfig &c
     resolved.provider = ActiveProvider(config);
     switch (resolved.provider)
     {
-    case Provider::Ai:
-        // 复用 AI 辅助当前服务商的接口地址、Token 与模型，与 ai_assistant.enabled 解耦：
-        // 用户可能只想用翻译、不开 AI 联想。
-        resolved.ai = AiTranslation::FromConfiguredTranslation(config);
-        if (!AiTranslation::IsUsableConfig(resolved.ai))
-            return std::nullopt;
-        break;
     case Provider::Aliyun:
         resolved.aliyun = {CloudTranslation::TrimSecret(config.aliyun.secret_id),
                            CloudTranslation::TrimSecret(config.aliyun.secret_key)};
@@ -236,8 +222,6 @@ std::vector<std::string> TranslateWithProvider(const ResolvedProvider &resolved,
 {
     switch (resolved.provider)
     {
-    case Provider::Ai:
-        return AiTranslation::TextTranslateBatch(resolved.ai, texts, source, target);
     case Provider::Aliyun:
         return AliyunMt::TextTranslateBatch(resolved.aliyun, texts, source, target);
     case Provider::NiuTrans:

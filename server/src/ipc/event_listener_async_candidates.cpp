@@ -17,55 +17,11 @@
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "cloud/cloud_translation.h"
 #include "cloud/translation_gloss.h"
-#include "ai/ai_assistant.h"
-#include "ai/jev_candidate_policy.h"
 #include "english/english_ime.h"
 #include "config/ime_config.h"
 #include "mixed/mixed_candidates.h"
 
 using namespace event_listener_detail;
-
-namespace
-{
-std::string g_jev_word;
-std::string g_jev_identity;
-uint64_t g_jev_generation = 0;
-} // namespace
-
-namespace event_listener_detail
-{
-void ClearJevSelection()
-{
-    g_jev_word.clear();
-    g_jev_identity.clear();
-    g_jev_generation = 0;
-}
-
-const std::string &JevSelectionWord()
-{
-    return g_jev_word;
-}
-
-void RefreshJevSelection()
-{
-    if (g_jev_word.empty())
-        return;
-    const auto &config = GetConfiguredAiAssistant();
-    const auto origin = FindAiRequestOrigin(g_jev_identity, g_jev_generation);
-    const auto current = g_inputSession ? g_inputSession->online_query() : std::nullopt;
-    if (!config.enabled || config.provider != "jev" || !g_inputSession || origin.client_id == 0 ||
-        !IsPipeActivationCurrent(origin.client_id, origin.activation_epoch) || !origin.engine_query || !current ||
-        !Jev::SameQuery(*origin.engine_query, *current) || g_inputSession->get_pinyin_segmentation() != g_jev_identity)
-    {
-        ClearJevSelection();
-        return;
-    }
-    auto &ui = Global::candidate_ui;
-    if (!IsCandidateSubPageActive() && ui.page_index == 0 && ui.selected_index_in_page == 0 &&
-        !Jev::Promote(ui.items, g_jev_word))
-        ClearJevSelection();
-}
-} // namespace event_listener_detail
 
 namespace FanyNamedPipe
 {
@@ -139,9 +95,8 @@ bool RequeryCandidatesPreservingOnline(const FanyImeIpc::CandidateUiOwner &owner
     // 再发一次——不补回来，重查一落地它们就从列表里消失了。重查不推进在线请求的 generation，
     // 所以用当前的 online_query 原样回填即可；回填时若同一句已被整句候选占了，引擎自己会拒绝。
     std::vector<WordItem> online_items;
-    std::copy_if(before.begin(), before.end(), std::back_inserter(online_items), [](const WordItem &item) {
-        return item.source == CandidateSource::CloudSuggestion || item.source == CandidateSource::AiSuggestion;
-    });
+    std::copy_if(before.begin(), before.end(), std::back_inserter(online_items),
+                 [](const WordItem &item) { return item.source == CandidateSource::CloudSuggestion; });
     // 只失效整句那层：逐前缀的词库查询和切分与重排无关，保持热缓存，下一键也不会变冷。
     // 不用 reset_cache——它自己会先冷算一遍候选，这里紧接着又算一遍。
     g_inputSession->reset_sentence_cache();
@@ -185,75 +140,6 @@ void ApplyRescoredOrder()
     if (!owner || !IsPipeActivationCurrent(owner.client_id, owner.activation_epoch))
         return;
     (void)RequeryCandidatesPreservingOnline(owner);
-}
-
-void ApplyAiCandidate(const std::string &candidate, const std::string &identity, uint64_t generation,
-                      const std::optional<metasequoia::OnlineQuery> &engine_query)
-{
-    if (!engine_query || FindAiRequestOrigin(identity, generation).client_id == 0)
-        return;
-    const bool enabled = GetConfiguredAiAssistant().enabled;
-    const bool has_session = static_cast<bool>(g_inputSession);
-    const bool non_pinyin = has_session && g_inputSession->current_scheme_type() != SchemeType::Quanpin &&
-                            g_inputSession->current_scheme_type() != SchemeType::Shuangpin;
-    const bool complete = has_session && g_inputSession->is_all_complete_pure_pinyin();
-    const bool helpcode_active = has_session && g_inputSession->has_active_helpcode();
-    const std::string current_identity = has_session ? g_inputSession->get_pinyin_segmentation() : std::string{};
-    if (!enabled || candidate.empty() || !has_session || non_pinyin || !complete || helpcode_active ||
-        GlobalIme::composition.creating_word.active || current_identity != identity || !CanMergeAsyncCandidates())
-    {
-        (void)0;
-        return;
-    }
-    auto &items = Global::candidate_ui.items;
-    const auto query = g_inputSession->get_cloud_query_state();
-    if (GetConfiguredAiAssistant().provider == "jev")
-    {
-        const auto current = g_inputSession->online_query();
-        if (!current || !Jev::SameQuery(*engine_query, *current))
-            return;
-        // The server owns this presentation order; preserve each WordItem's original metadata
-        // so selecting a partial or dictionary candidate still follows the normal commit path.
-        if (Global::candidate_ui.page_index != 0 || Global::candidate_ui.selected_index_in_page != 0 ||
-            !Jev::Promote(items, candidate))
-            return;
-        g_jev_word = candidate;
-        g_jev_identity = identity;
-        g_jev_generation = generation;
-        RefreshCandidatePageUi(true);
-        PushUiLessCandidatesToOwner();
-        return;
-    }
-    // 与云候选一致：同一底词或同一种写法已经显示时，不删、不重插、不重置页码、不让引擎再缓存一次；
-    // 缓存命中后再次应用时才不会把翻页打乱。
-    if (!FanyImeIpc::ShouldInsertAsyncCandidate(items, identity, candidate, CandidateSource::AiSuggestion,
-                                                CandidateListSpellingSettings()))
-        return;
-
-    if (!g_inputSession->apply_online_candidate(*engine_query, candidate, CandidateSource::AiSuggestion))
-        return;
-    const auto &engine_candidates = g_inputSession->get_candidates();
-    const auto accepted = std::find_if(engine_candidates.begin(), engine_candidates.end(), [&](const WordItem &item) {
-        return item.word == candidate && item.source == CandidateSource::AiSuggestion;
-    });
-    if (accepted == engine_candidates.end())
-        return;
-
-    // Only replace prior AI rows when inserting a genuinely new suggestion text.
-    items.erase(std::remove_if(items.begin(), items.end(),
-                               [](const WordItem &item) { return item.source == CandidateSource::AiSuggestion; }),
-                items.end());
-    const size_t insert_index = std::min<size_t>(2, items.size());
-    items.insert(items.begin() + insert_index, WithFirstTraditionalSpelling(*accepted));
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, CurrentEnglishPlacement(items));
-    (void)0;
-    Global::ai_candidate = {true, candidate, query.committed_pinyin};
-    Global::candidate_ui.item_total_count = static_cast<int>(items.size());
-    Global::candidate_ui.page_index = 0;
-    Global::candidate_ui.select_first_on_page();
-    Global::candidate_ui.clear_page();
-    RefreshCandidatePageUi(true);
-    PushUiLessCandidatesToOwner();
 }
 
 // 专用英文（英文状态、Shift+Y）的整页英文候选。中文里混进来的英文走 ApplyMixedCandidates。

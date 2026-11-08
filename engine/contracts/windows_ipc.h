@@ -150,13 +150,8 @@ namespace FanyImePipeFlags
 constexpr std::uint32_t UiLess = 0x80000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotPresent = 0x40000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotEnabled = 0x20000000u;
-// KeyEvent only: the focused field declares a password or PIN input scope. The
-// DLL checks only while the Server reports AiContextUploadChanged "1"; the Server
-// then sends no AI request and keeps the committed text out of the AI context.
-// The Server strips it before any key-modifier policy runs; old Servers never
-// receive it because the DLL only sets it after the new opcode turned it on.
 // 0x10000000..0x04000000 belong to FanyImeTrilingualInput.
-constexpr std::uint32_t SensitiveField = 0x02000000u;
+// 0x02000000 was SensitiveField (the AI assistant's password-field marker). Never reuse.
 // KeyEvent only, plain Left / Right while candidates are shown: the DLL asks the Server to decide between moving
 // the candidate highlight and moving the composition caret (horizontal candidate window, see
 // HorizontalArrowSelectionChanged). The Server answers a highlight move with MoveSelectionPrevious / MoveSelectionNext
@@ -446,11 +441,8 @@ constexpr std::uint32_t VModeChanged = 32;
 // Whether language-switch hotkeys commit raw composition, then cycle Chinese/Japanese/English. Payload "0"/"1".
 // Separate from InputModeChanged so old DLLs retain its active-language meaning and ignore this switch.
 constexpr std::uint32_t TrilingualCycleChanged = 33;
-// Whether the AI assistant uploads the committed-text context. Payload "0"/"1". Only while it is "1" does the DLL
-// read the focused field's input scope and mark password fields with FanyImePipeFlags::SensitiveField, so with
-// the assistant off the key path does no extra TSF work.
-constexpr std::uint32_t AiContextUploadChanged = 34;
-// UI-less hosts only: the Server replaced the candidate page outside a key reply (cloud/AI suggestion, reranking,
+// 34 was AiContextUploadChanged (the AI assistant's committed-text context). Never send or reuse.
+// UI-less hosts only: the Server replaced the candidate page outside a key reply (cloud suggestion, reranking,
 // mixed English). Payload has the UiLessComposition shape "<preedit>\t<page>\t<selection>\t<generation>" with an
 // empty preedit; see FanyImeUiLessPage. Without it the host keeps drawing the page it read on the last key while
 // digits commit from the new one.

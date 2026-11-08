@@ -144,9 +144,6 @@ struct Task
     std::string cloud_candidate;
     std::string cloud_pinyin;
     uint64_t cloud_generation = 0;
-    std::string ai_candidate;
-    std::string ai_identity;
-    uint64_t ai_generation = 0;
     std::optional<metasequoia::OnlineQuery> online_query;
     std::vector<WordItem> english_candidates;
     std::string english_input;
@@ -538,11 +535,6 @@ void WorkerThread()
 
         case TaskType::ApplyCloudCandidate: {
             ApplyCloudCandidate(task.cloud_candidate, task.cloud_pinyin, task.cloud_generation, task.online_query);
-            break;
-        }
-
-        case TaskType::ApplyAiCandidate: {
-            ApplyAiCandidate(task.ai_candidate, task.ai_identity, task.ai_generation, task.online_query);
             break;
         }
 
@@ -1113,26 +1105,6 @@ void EnqueueRescoredCandidates()
         rescoreApplyQueued = true;
         Task task;
         task.type = TaskType::ApplyRescoredOrder;
-        PushTaskLocked(std::move(task));
-    }
-    pipe_queueCv.notify_one();
-}
-
-void EnqueueAiCandidate(const std::string &candidate, const std::string &identity, uint64_t generation)
-{
-    const AsyncRequestOrigin origin = FindAiRequestOrigin(identity, generation);
-    if (origin.client_id == 0 || origin.activation_epoch == 0)
-        return;
-    {
-        std::lock_guard lock(queueMutex);
-        Task task;
-        task.type = TaskType::ApplyAiCandidate;
-        task.ai_candidate = candidate;
-        task.ai_identity = identity;
-        task.ai_generation = generation;
-        task.online_query = origin.engine_query;
-        task.client_id = origin.client_id;
-        task.activation_epoch = origin.activation_epoch;
         PushTaskLocked(std::move(task));
     }
     pipe_queueCv.notify_one();

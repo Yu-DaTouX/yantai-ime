@@ -378,7 +378,6 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
                                           "[helpcode]\nshuangpin_helpcode = true\nquanpin_helpcode = true\n"
                                           "[utility]\nemoji_mode = true # Shift+E\nkaomoji_mode = true\n"
                                           "[voice_input]\nvoice_input = true\ndoubao_enable_ddc = true\n"
-                                          "[ai_assistant]\nenabled = true\n"
                                           "[tencent_tmt]\nenabled = true\n"
                                           "[niutrans]\nenabled = false\n";
 
@@ -396,7 +395,6 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));
     REQUIRE(upgraded["utility"]["kaomoji_mode"].value_or(false));
     REQUIRE(!upgraded.contains("voice_input"));
-    REQUIRE(upgraded["ai_assistant"]["enabled"].value_or(false));
     REQUIRE(upgraded["tencent_tmt"]["enabled"].value_or(false));
     REQUIRE(!upgraded["niutrans"]["enabled"].value_or(true));
 
@@ -430,17 +428,17 @@ TEST_CASE(config_merge_keeps_all_user_values_without_a_baseline)
 
 TEST_CASE(config_merge_handles_multiline_string_values)
 {
-    const std::string template_text = "[ai_assistant]\n"
+    const std::string template_text = "[test_service]\n"
                                       "prompt = \"\"\"new\ndefault prompt\"\"\"\n"
                                       "model = \"v2\"\n";
-    const std::string user_text = "[ai_assistant]\n"
+    const std::string user_text = "[test_service]\n"
                                   "prompt = \"\"\"my\nown prompt\"\"\"\n"
                                   "model = \"v1\"\n";
-    const std::string baseline_text = "[ai_assistant]\n"
+    const std::string baseline_text = "[test_service]\n"
                                       "prompt = \"\"\"old\ndefault prompt\"\"\"\n"
                                       "model = \"v1\"\n";
 
-    const std::string expected = "[ai_assistant]\n"
+    const std::string expected = "[test_service]\n"
                                  "prompt = \"\"\"my\nown prompt\"\"\"\n"
                                  "model = \"v2\"\n";
     REQUIRE_EQ(MergeConfigIntoTemplate(template_text, user_text, baseline_text), expected);
@@ -448,14 +446,14 @@ TEST_CASE(config_merge_handles_multiline_string_values)
 
 TEST_CASE(config_merge_ignores_assignments_inside_multiline_strings)
 {
-    const std::string template_text = "[ai_assistant]\n"
+    const std::string template_text = "[test_service]\n"
                                       "prompt = \"\"\"say hi\"\"\"\n"
                                       "model = \"v2\"\n";
     // prompt 正文里的 model = ... 只是提示词内容，不能被当成一个键。
-    const std::string user_text = "[ai_assistant]\n"
+    const std::string user_text = "[test_service]\n"
                                   "prompt = \"\"\"say hi\nmodel = \"hijacked\"\n\"\"\"\n";
 
-    const std::string expected = "[ai_assistant]\n"
+    const std::string expected = "[test_service]\n"
                                  "prompt = \"\"\"say hi\nmodel = \"hijacked\"\n\"\"\"\n"
                                  "model = \"v2\"\n";
     REQUIRE_EQ(MergeConfigIntoTemplate(template_text, user_text, std::string()), expected);
@@ -509,29 +507,29 @@ TEST_CASE(shipped_translation_settings_survive_template_upgrade)
 // 必须被重新写回它所属的分节。
 TEST_CASE(config_merge_reappends_real_credentials_absent_from_template)
 {
-    const std::string template_text = "[ai_assistant]\nprovider = \"deepseek\"\nmodel = \"v2\"\n";
+    const std::string template_text = "[test_service]\nprovider = \"deepseek\"\nmodel = \"v2\"\n";
     const std::string user_text =
-        "[ai_assistant]\nprovider = \"deepseek\"\ntoken = \"sk-real-secret\"\ntoken_openai = \"sk-openai-real\"\n";
+        "[test_service]\nprovider = \"deepseek\"\ntoken = \"sk-real-secret\"\ntoken_openai = \"sk-openai-real\"\n";
     const auto merged = toml::parse(MergeConfigIntoTemplate(template_text, user_text, std::string()));
-    REQUIRE_EQ(merged["ai_assistant"]["token"].value_or(std::string()), std::string("sk-real-secret"));
-    REQUIRE_EQ(merged["ai_assistant"]["token_openai"].value_or(std::string()), std::string("sk-openai-real"));
+    REQUIRE_EQ(merged["test_service"]["token"].value_or(std::string()), std::string("sk-real-secret"));
+    REQUIRE_EQ(merged["test_service"]["token_openai"].value_or(std::string()), std::string("sk-openai-real"));
 }
 
 // 用户从没填过这个 token（还是占位符）：升级不该把旧占位符粘住，让新模板的默认占位符生效即可。
 TEST_CASE(config_merge_keeps_new_placeholder_for_untouched_credential)
 {
-    const std::string template_text = "[ai_assistant]\ntoken = \"<YOUR_AI_TOKEN_DEEPSEEK>\"\n";
-    const std::string user_text = "[ai_assistant]\ntoken = \"<YOUR_OLD_TOKEN>\"\n";
-    const std::string baseline_text = "[ai_assistant]\ntoken = \"<YOUR_OLD_TOKEN>\"\n";
+    const std::string template_text = "[test_service]\ntoken = \"<YOUR_AI_TOKEN_DEEPSEEK>\"\n";
+    const std::string user_text = "[test_service]\ntoken = \"<YOUR_OLD_TOKEN>\"\n";
+    const std::string baseline_text = "[test_service]\ntoken = \"<YOUR_OLD_TOKEN>\"\n";
     REQUIRE_EQ(MergeConfigIntoTemplate(template_text, user_text, baseline_text),
-               "[ai_assistant]\ntoken = \"<YOUR_AI_TOKEN_DEEPSEEK>\"\n");
+               "[test_service]\ntoken = \"<YOUR_AI_TOKEN_DEEPSEEK>\"\n");
 }
 
 // 抢救路径的核心：一份解析不过的 config.toml（这里结尾留了半行）仍能逐行捞回前面的真 token，
 // 重放到新模板上。SyncConfigWithInstalledTemplate 的 unparseable 分支走的正是这条 Merge。
 TEST_CASE(config_salvage_recovers_credentials_from_unparseable_config)
 {
-    const std::string corrupt = "[ai_assistant]\ntoken = \"sk-real-secret\"\nmodel = \"v1\"\nbroken = \n";
+    const std::string corrupt = "[test_service]\ntoken = \"sk-real-secret\"\nmodel = \"v1\"\nbroken = \n";
     bool corrupt_parses = true;
     try
     {
@@ -543,9 +541,9 @@ TEST_CASE(config_salvage_recovers_credentials_from_unparseable_config)
     }
     REQUIRE(!corrupt_parses);
 
-    const std::string template_text = "[ai_assistant]\ntoken = \"<YOUR_AI_TOKEN_DEEPSEEK>\"\nmodel = \"v2\"\n";
+    const std::string template_text = "[test_service]\ntoken = \"<YOUR_AI_TOKEN_DEEPSEEK>\"\nmodel = \"v2\"\n";
     const auto salvaged = toml::parse(MergeConfigIntoTemplate(template_text, corrupt, std::string()));
-    REQUIRE_EQ(salvaged["ai_assistant"]["token"].value_or(std::string()), std::string("sk-real-secret"));
+    REQUIRE_EQ(salvaged["test_service"]["token"].value_or(std::string()), std::string("sk-real-secret"));
 }
 
 // 读取安装器真正分发的模板，逐个分节确认所有凭证类键都能挺过升级——无论有没有基线。
@@ -560,8 +558,7 @@ TEST_CASE(shipped_credentials_survive_template_upgrade)
                                    "[custom_translation]\napi_key = \"real-api-key\"\n"
                                    "[niutrans]\napp_id = \"real-app-id\"\napikey = \"real-apikey\"\n"
                                    "[voice_input]\nasr_token = \"real-asr\"\nasr_token_doubao = \"real-doubao\"\n"
-                                   "polish_token_deepseek = \"real-polish\"\n"
-                                   "[ai_assistant]\ntoken = \"real-ai\"\ntoken_openai = \"real-ai-openai\"\n";
+                                   "polish_token_deepseek = \"real-polish\"\n";
 
     for (const auto &baseline : {std::string(), installed})
     {
@@ -574,7 +571,5 @@ TEST_CASE(shipped_credentials_survive_template_upgrade)
         REQUIRE_EQ(merged["niutrans"]["app_id"].value_or(std::string()), std::string("real-app-id"));
         REQUIRE_EQ(merged["niutrans"]["apikey"].value_or(std::string()), std::string("real-apikey"));
         REQUIRE(!merged.contains("voice_input"));
-        REQUIRE_EQ(merged["ai_assistant"]["token"].value_or(std::string()), std::string("real-ai"));
-        REQUIRE_EQ(merged["ai_assistant"]["token_openai"].value_or(std::string()), std::string("real-ai-openai"));
     }
 }

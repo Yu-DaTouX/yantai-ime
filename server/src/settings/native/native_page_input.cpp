@@ -1,7 +1,4 @@
-#include "settings/native/native_service_fields.h"
 #include "settings/native/native_settings_pages.h"
-
-#include "config/ai_provider.h"
 
 #include "msimeui/DeviceResources.h"
 #include "msimeui/Fonts.h"
@@ -1316,7 +1313,6 @@ struct InputPage
     std::shared_ptr<Dimmable> singleSenseBlock;
     std::map<std::string, std::shared_ptr<Hideable>> providerFields;
     std::map<std::string, std::shared_ptr<ApiField>> fields;
-    std::shared_ptr<ApiField> aiSummary;
     std::shared_ptr<Label> warning;
     std::shared_ptr<Hideable> warningBox;
     std::unique_ptr<CredentialTest> credentialTest;
@@ -1337,13 +1333,6 @@ struct InputPage
     std::shared_ptr<ToggleSwitch> collocationToggle;
     UINT_PTR collocationPoll = 0;
 
-    // 与「AI 与云联想」页共用同一份解析：分槽优先、单值键只在它就是当前服务商时作数，
-    // 可用性判定与后端 AiTranslation::IsUsableConfig 同一口径。
-    service_fields::ActiveAiConfig AiState() const
-    {
-        return service_fields::ReadActiveAiConfig(context->model);
-    }
-
     std::string Field(const char *key) const
     {
         auto it = fields.find(key);
@@ -1357,8 +1346,6 @@ struct InputPage
 
     ConfigMap TestConfig() const
     {
-        if (provider == "ai")
-            return {};
         if (provider == "aliyun")
             return {{"accessKeyId", Field("aliyunAccessKeyId")}, {"accessKeySecret", Field("aliyunAccessKeySecret")}};
         if (provider == "niutrans")
@@ -1372,15 +1359,7 @@ struct InputPage
     {
         std::wstring text;
         bool ok = false;
-        if (provider == "ai")
-        {
-            const service_fields::ActiveAiConfig state = AiState();
-            // 选择器模式下这里的 provider 已经解析成「生成式上次用的那家」，所以不再是 jev。
-            // AI 联想总开关与这里无关，只要凭据齐就能用。
-            text = L"请先在「AI 与云联想」页面填写当前服务商的接口地址、模型和 Token（Ollama 不需要）";
-            ok = state.usable;
-        }
-        else if (provider == "custom")
+        if (provider == "custom")
         {
             text = L"请填写以 http:// 或 https:// 开头的完整接口地址";
             static const std::regex url(R"(^https?://\S+$)", std::regex::icase);
@@ -1409,14 +1388,6 @@ struct InputPage
     {
         for (auto &[name, box] : providerFields)
             box->SetVisible(name == provider);
-        const service_fields::ActiveAiConfig state = AiState();
-        // 摘要用显示名而不是内部 id。
-        if (state.usable)
-            aiSummary->SetText(
-                service_fields::AiProviderLabel(state.provider, context->model.Find("ai_assistant.providers")) +
-                L" · " + Widen(state.model));
-        else
-            aiSummary->SetText(std::wstring());
         SyncWarning();
     }
 
@@ -1765,8 +1736,7 @@ VisualPtr BuildInputPage(PageContext &context)
                                      Options({{"tencent", L"腾讯云"},
                                               {"aliyun", L"阿里云"},
                                               {"niutrans", L"小牛翻译"},
-                                              {"custom", L"自定义 DeepLX"},
-                                              {"ai", L"AI 辅助"}}),
+                                              {"custom", L"自定义 DeepLX"}}),
                                      language, ValueKind::String, [s](const std::string &value) {
                                          s->provider = value;
                                          s->SyncProviderView();
@@ -1837,17 +1807,10 @@ VisualPtr BuildInputPage(PageContext &context)
                                             {field("customTranslationApiKey", "custom_translation.api_key",
                                                    L"API Key（可选，以 Bearer Token 发送）", L"留空表示不鉴权", true),
                                              true}}))});
-        s->aiSummary = std::make_shared<ApiField>(L"当前服务商与模型", L"未配置", false, true);
-        auto ai = Col({heading(L"复用 AI 辅助配置",
-                               L"使用「AI 与云联想」页生成式服务商的接口地址、Token 与模型，无需在此重复填写。"
-                               L"那边选了「从候选里挑」也照样能用，翻译会用生成式那一家。"
-                               L"不依赖「启用 AI 联想」开关，凭据填好就能用于翻译。"),
-                       blockInput(grid({{s->aiSummary, true}}))});
         s->providerFields["tencent"] = std::make_shared<Hideable>(tencent, true);
         s->providerFields["aliyun"] = std::make_shared<Hideable>(aliyun, false);
         s->providerFields["niutrans"] = std::make_shared<Hideable>(niutrans, false);
         s->providerFields["custom"] = std::make_shared<Hideable>(custom, false);
-        s->providerFields["ai"] = std::make_shared<Hideable>(ai, false);
 
         TextStyle warningStyle;
         warningStyle.size = kFontCaption;
@@ -1857,17 +1820,7 @@ VisualPtr BuildInputPage(PageContext &context)
         s->warningBox = std::make_shared<Hideable>(s->warning, true);
         s->credentialTest = std::make_unique<CredentialTest>(
             context, [s]() { return "translation." + s->provider; }, [s]() { return s->TestConfig(); },
-            [s]() -> Json {
-                if (s->provider != "ai")
-                    return s->TestConfig();
-                // 把当前生效的服务商配置摊平成页面字段，凭据测试据此判断「测试期间配置是否改过」，
-                // 宿主再用同一份字段去发请求。
-                const service_fields::ActiveAiConfig state = s->AiState();
-                return Json{{"provider", state.provider},
-                            {"endpoint", state.endpoint},
-                            {"token", state.token},
-                            {"model", state.model}};
-            });
+            [s]() { return s->TestConfig(); });
 
         auto options = Col(
             {std::make_shared<Divider>(Divider::Kind::Option),
@@ -1876,14 +1829,13 @@ VisualPtr BuildInputPage(PageContext &context)
              blockInput(LanguageRow(L"只显示单条释义", L"每个候选只显示第一条译文释义；Ctrl+Enter 仍可选择全部释义上屏",
                                     s->singleSenseBlock)),
              std::make_shared<Divider>(Divider::Kind::Option),
-             blockInput(LanguageRow(L"在线翻译服务",
-                                    L"可使用腾讯云、阿里云、小牛翻译、自己部署的 DeepLX 兼容接口，或复用 AI 辅助的配置",
-                                    provider)),
+             blockInput(
+                 LanguageRow(L"在线翻译服务", L"可使用腾讯云、阿里云、小牛翻译或自己部署的 DeepLX 兼容接口", provider)),
              std::make_shared<Divider>(Divider::Kind::Option),
              blockInput(LanguageRow(L"目标语种", L"英语优先使用本地词库；本地未命中时使用所选在线服务", target)),
              std::make_shared<Divider>(Divider::Kind::Option), s->providerFields["tencent"],
-             s->providerFields["aliyun"], s->providerFields["niutrans"], s->providerFields["custom"],
-             s->providerFields["ai"], s->warningBox, s->credentialTest->View()});
+             s->providerFields["aliyun"], s->providerFields["niutrans"], s->providerFields["custom"], s->warningBox,
+             s->credentialTest->View()});
         s->translationOptions = std::make_shared<OpacityBox>(options);
         s->translationOptions->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         master->SetOnChanged([s, model](bool on) {
@@ -2186,9 +2138,7 @@ VisualPtr BuildInputPage(PageContext &context)
             s->SetTranslationsEnabled(translations->get<bool>());
         }
         const std::string provider = model->GetString("translation.provider");
-        s->provider = provider == "aliyun" || provider == "niutrans" || provider == "custom" || provider == "ai"
-                          ? provider
-                          : "tencent";
+        s->provider = provider == "aliyun" || provider == "niutrans" || provider == "custom" ? provider : "tencent";
         s->fields["tencentTmtSecretId"]->SetText(Widen(model->GetString("tencent_tmt.secret_id")));
         s->fields["tencentTmtSecretKey"]->SetText(Widen(model->GetString("tencent_tmt.secret_key")));
         s->fields["aliyunAccessKeyId"]->SetText(Widen(model->GetString("aliyun_mt.secret_id")));
@@ -2286,10 +2236,10 @@ VisualPtr BuildInputPage(PageContext &context)
                             meta += L" · ";
                         meta += Widen(part);
                     }
-                    ModelRow row = MakeModelRow(context, id, Widen(entry.value("displayName", id)), meta,
-                                                entry.value("url", std::string()), true, "collocationModelDownload",
-                                                "collocationModelImport", "collocationModelDelete",
-                                                "collocationModelCheckUpdate");
+                    ModelRow row =
+                        MakeModelRow(context, id, Widen(entry.value("displayName", id)), meta,
+                                     entry.value("url", std::string()), true, "collocationModelDownload",
+                                     "collocationModelImport", "collocationModelDelete", "collocationModelCheckUpdate");
                     if (msimeui::Window *window = context.host.Window())
                         row.view->Attach(window);
                     s->collocationList->Add(row.view);
@@ -2320,11 +2270,11 @@ VisualPtr BuildInputPage(PageContext &context)
                 // 待重启时按钮直接变成可点的「重启」，点下去走设置页已有的 restartServer。
                 // 已就绪且没有已知更新时按钮是「检查更新」：点了才向远端发探测请求，不点不联网。
                 const bool can_check = stateName == "ready" && !update_available && row.checkAction;
-                row.download->SetText(pending  ? L"重启输入法"
+                row.download->SetText(pending            ? L"重启输入法"
                                       : update_available ? L"更新"
                                       : can_check        ? L"检查更新"
                                                          : L"下载");
-                row.download->SetOnClick(pending  ? row.restartAction
+                row.download->SetOnClick(pending     ? row.restartAction
                                          : can_check ? row.checkAction
                                                      : row.downloadAction);
                 row.download->SetDisabled(pending ? false : ((stateName == "ready" && !can_check) || anyBusy));
