@@ -60,6 +60,9 @@ class CCaretStateSwitchEditSession : public CEditSessionBase
 // keys: Windows writes OPENCLOSE directly and we only see the compartment
 // edge. The chord still being held is what tells it apart from Server,
 // host or language-bar writes.
+// Reads the real keyboard on purpose: this runs from the compartment callback, not from a key
+// message, so the message-time GetKeyState() snapshot says nothing about the chord; the question
+// is whether it is physically still held.
 bool IsSystemCtrlSpaceToggleHeld()
 {
     return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 && (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0 &&

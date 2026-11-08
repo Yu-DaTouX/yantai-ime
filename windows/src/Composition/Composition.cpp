@@ -122,6 +122,9 @@ bool AreCaretModifiersPhysicallyDown()
     // VK_LWIN/VK_RWIN matter as much as Shift here: Win+Left is the window snap
     // shortcut, so an arrow released into a held Win chord rearranges the
     // desktop instead of moving the caret.
+    // The physical keyboard is the right source here, not GetKeyState(): this
+    // runs from the retry timer before synthetic arrow keys, and the hazard is
+    // a modifier held right now.
     static const int keys[] = {VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN};
     for (int key : keys)
     {

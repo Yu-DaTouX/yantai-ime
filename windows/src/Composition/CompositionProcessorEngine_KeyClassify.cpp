@@ -5,6 +5,7 @@
 #include "MetasequoiaIME.h"
 #include "CompositionProcessorEngine.h"
 #include "VirtualKeyNeedPolicy.h"
+#include "ModifierState.h"
 #include "TfInputProcessorProfile.h"
 #include "Globals.h"
 #include "FanyDefines.h"
@@ -113,7 +114,7 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
     context.disableWildcardAtFirst = IsDisableWildcardAtFirst() != FALSE;
     context.wildcardInKeystrokeBuffer = _hasWildcardIncludedInKeystrokeBuffer != FALSE;
     context.usesHorizontalArrowSelection = UsesHorizontalArrowSelection();
-    context.shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    context.shiftDown = IsShiftDownForCurrentMessage();
     context.pureShiftKeyUp = Global::PureShiftKeyUp != FALSE;
     context.dateTimeInputKey = IsDateTimeInputKey(uCode, character, buffer, bufferLength, _caretPosition) != FALSE;
     context.vModeInputKey = IsVModeInputKey(character, buffer, bufferLength, _caretPosition) != FALSE;
@@ -167,8 +168,8 @@ bool CCompositionProcessorEngine::IsDateTimeInputKey(UINT uCode, WCHAR wch, cons
 // VModeChanged 决定（全拼 V、v 都认）。
 bool CCompositionProcessorEngine::IsVModeShiftDigitSelectionKey(UINT uCode, const WCHAR *buffer, DWORD_PTR length)
 {
-    const bool shift_only = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 &&
-                            (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0 && (GetAsyncKeyState(VK_MENU) & 0x8000) == 0;
+    const bool shift_only =
+        IsShiftDownForCurrentMessage() && !IsControlDownForCurrentMessage() && !IsAltDownForCurrentMessage();
     return shift_only && uCode >= L'1' && uCode <= L'9' &&
            FanyImeVModeInput::IsComposition(buffer, static_cast<std::size_t>(length),
                                             Global::VModeTrigger.load(std::memory_order_relaxed));

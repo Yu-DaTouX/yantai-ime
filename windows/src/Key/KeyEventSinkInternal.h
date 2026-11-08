@@ -14,7 +14,8 @@
 namespace key_event_sink_detail
 {
 KEYSTROKE_FUNCTION SegmentEditFunction(UINT code, UINT modifiers);
-UINT CaptureIpcModifiers();
+// CaptureIpcModifiers() 和修饰键判定在 ModifierState.h：读消息发出时的状态（GetKeyState），
+// 不读此刻的物理键盘。
 bool IsEnglishInputModeToggle(UINT code, UINT modifiers);
 // Ctrl+Enter / Ctrl+1..9 on a candidate: the chords plus the gloss switch they hang off.
 bool IsTranslationCommitShortcut(UINT code, UINT modifiers);

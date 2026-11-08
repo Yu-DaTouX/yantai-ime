@@ -9,6 +9,7 @@
 #include "CapsLockInputPolicy.h"
 #include "PinyinCommitShortcutPolicy.h"
 #include "KeyRoutingPolicy.h"
+#include "ModifierState.h"
 #include "TranslationModeKeyPolicy.h"
 #include "CaretAnchorPolicy.h"
 #include "Compartment.h"
@@ -80,7 +81,7 @@ bool ResolveKeyCaretAnchor(CMetasequoiaIME *textService, ITfContext *context, Tf
 void ApplyVimModeEscape(CCompositionProcessorEngine *engine, ITfThreadMgr *threadMgr, TfClientId clientId, WPARAM key,
                         LPARAM keyFlags, bool eaten, bool compositionActive, bool deferredKeysPending)
 {
-    const bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    const bool winDown = IsWindowsKeyDownForCurrentMessage();
     if (!VimMode::ShouldSwitchToEnglish(static_cast<UINT>(key), eaten, IsAutoRepeat(keyFlags), CaptureIpcModifiers(),
                                         winDown, compositionActive, deferredKeysPending) ||
         !engine || !engine->GetIMEMode(threadMgr, clientId) || !FanyUtils::ReadConfiguredVimMode())
@@ -94,6 +95,10 @@ void ApplyVimModeEscape(CCompositionProcessorEngine *engine, ITfThreadMgr *threa
 
 void ClearReleasedShiftModifierState()
 {
+    // Deliberately the physical keyboard, not GetKeyState(): this runs on the modifier's own
+    // release, and hosts that call the sink outside their message dispatch (Word) hand us a
+    // stale GetKeyState() snapshot -- the same reason IsOnlyModifierPhysicallyDown() in
+    // KeyEventSink_Hotkeys.cpp reads the real keyboard.
     if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
     {
         return;
@@ -115,8 +120,7 @@ namespace key_event_sink_detail
 // claim site must classify the key as; FUNCTION_NONE means "host key".
 KEYSTROKE_FUNCTION SegmentEditFunction(UINT code, UINT modifiers)
 {
-    if ((modifiers & 0b00000111u) != 0b00000010u || (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 ||
-        (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0)
+    if ((modifiers & 0b00000111u) != 0b00000010u || IsWindowsKeyDownForCurrentMessage())
     {
         return FUNCTION_NONE;
     }
@@ -133,18 +137,6 @@ KEYSTROKE_FUNCTION SegmentEditFunction(UINT code, UINT modifiers)
     }
 }
 
-UINT CaptureIpcModifiers()
-{
-    UINT modifiers = 0;
-    if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
-        modifiers |= 0b00000001;
-    if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
-        modifiers |= 0b00000010;
-    if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0)
-        modifiers |= 0b00000100;
-    return modifiers;
-}
-
 // Ctrl+Shift+E, without Alt: the only chord a Server without InputStateShortcuts
 // recognizes, sent to it as a plain KeyEvent.
 static bool IsLegacyEnglishInputModeToggle(UINT code, UINT modifiers)
@@ -158,7 +150,7 @@ bool IsEnglishInputModeToggle(UINT code, UINT modifiers)
         return false;
     if (!SupportsInputStateShortcuts())
         return IsLegacyEnglishInputModeToggle(code, modifiers);
-    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000))
+    if (IsWindowsKeyDownForCurrentMessage())
         modifiers |= FanyImeKeyChord::Win;
     return FanyUtils::ReadConfiguredSwitchLanguageHotkeys().input_state.Match(code, modifiers) ==
            FanyImeInputStateShortcuts::Action::EnglishCandidates;
@@ -181,7 +173,7 @@ static bool CanQueueHotkeyBehindBarrier(REFGUID hotkeyGuid)
 // from a chat box's "send" -- or Ctrl+1 from a tab switch -- for nothing in exchange.
 bool IsTranslationCommitShortcut(UINT code, UINT modifiers)
 {
-    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    const bool windowsKeyDown = IsWindowsKeyDownForCurrentMessage();
     return key_route_policy::IsTranslationCommitChord(FanyUtils::ReadConfiguredCandidateTranslationsEnabled(), code,
                                                       modifiers, windowsKeyDown);
 }
@@ -191,14 +183,14 @@ bool IsTranslationCommitShortcut(UINT code, UINT modifiers)
 // most hosts it is the shifted symbol on the key (Shift+1 types '!'), so it stays the host's.
 bool IsTranslationDigitShortcut(UINT code, UINT modifiers)
 {
-    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    const bool windowsKeyDown = IsWindowsKeyDownForCurrentMessage();
     return key_route_policy::IsTranslationDigitChord(FanyUtils::ReadConfiguredCandidateTranslationsEnabled(), code,
                                                      modifiers, windowsKeyDown);
 }
 
 bool IsPinyinCommitShortcut(UINT code, UINT modifiers)
 {
-    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    const bool windowsKeyDown = IsWindowsKeyDownForCurrentMessage();
     return key_route_policy::IsPinyinCommitChord(
         FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_pinyin_shift_enter, code, modifiers, windowsKeyDown);
 }
@@ -212,7 +204,7 @@ bool IsTranslationModeKey(UINT code, UINT modifiers, bool composing)
     context.active = Global::TranslationModeActive.load();
     context.composing = composing;
     context.serverAvailable = Global::TranslationModeSupported.load();
-    context.windowsKey = (GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000);
+    context.windowsKey = IsWindowsKeyDownForCurrentMessage();
     context.toggleBindingMatches =
         FanyUtils::ReadConfiguredSwitchLanguageHotkeys().translate_mode.Matches(code, modifiers);
     // Apostrophe remains the pinyin separator, not punctuation.
@@ -224,7 +216,7 @@ bool IsTranslationModeKey(UINT code, UINT modifiers, bool composing)
 
 bool IsEnglishCommitShortcut(UINT code, UINT modifiers)
 {
-    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    const bool windowsKeyDown = IsWindowsKeyDownForCurrentMessage();
     return key_route_policy::IsEnglishCommitChord(
         FanyUtils::ReadConfiguredCandidateTranslationsEnabled(),
         FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_english.Matches(code, modifiers), windowsKeyDown);
@@ -232,15 +224,15 @@ bool IsEnglishCommitShortcut(UINT code, UINT modifiers)
 
 bool IsEnglishSensesShortcut(UINT code, UINT modifiers)
 {
-    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    const bool windowsKeyDown = IsWindowsKeyDownForCurrentMessage();
     return key_route_policy::IsEnglishSensesChord(
         FanyUtils::ReadConfiguredSwitchLanguageHotkeys().english_senses.Matches(code, modifiers), windowsKeyDown);
 }
 
 bool IsCharacterSetInputModeToggle(UINT code, UINT modifiers)
 {
-    return FanyImeProtocol::IsCharacterSetShortcut(code, modifiers) && (GetAsyncKeyState(VK_LWIN) & 0x8000) == 0 &&
-           (GetAsyncKeyState(VK_RWIN) & 0x8000) == 0 && SupportsCharacterSetShortcut() &&
+    return FanyImeProtocol::IsCharacterSetShortcut(code, modifiers) && !IsWindowsKeyDownForCurrentMessage() &&
+           SupportsCharacterSetShortcut() &&
            FanyUtils::ReadConfiguredSwitchLanguageHotkeys().character_set_ctrl_shift_f;
 }
 
@@ -509,8 +501,7 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
         // the one exception: they edit one input unit, whose length only
         // the Server can decide.
         const KEYSTROKE_FUNCTION segmentEdit = SegmentEditFunction(*pCodeOut, shortcutModifiers);
-        const bool windowsKeyDown =
-            (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+        const bool windowsKeyDown = IsWindowsKeyDownForCurrentMessage();
         switch (key_route_policy::RouteModifiedKey(shortcutModifiers, windowsKeyDown,
                                                    segmentEdit != FUNCTION_NONE && _IsCompositionActiveForKeyGuard()))
         {
