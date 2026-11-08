@@ -322,8 +322,8 @@ commit_pinyin_shift_enter = true
 # 键位只支持 Ctrl / Ctrl+Shift + 一个键名（如 Ctrl+Enter、Ctrl+Shift+Enter、Ctrl+Period）；空字符串表示关闭。
 commit_english = "Ctrl+Enter"
 english_senses = "Ctrl+Shift+Enter"
-# Only intercepted while composing or in translation mode; idle Ctrl+T belongs to the host.
-translate_mode = "Ctrl+T"
+# 翻译模式快捷键，默认关闭（从悬浮工具栏「译」进入）。填 "Ctrl+T" 等即启用：只在组字中或已在翻译模式时拦截。
+translate_mode = ""
 
 #
 # Dictionary
