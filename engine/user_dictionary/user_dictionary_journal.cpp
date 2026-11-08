@@ -13,6 +13,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <system_error>
 #include <vector>
 #include <algorithm>
 #include <limits>
@@ -63,6 +64,8 @@ const char *kind_name(DictionaryKind kind)
     return "";
 }
 
+void tune_wal_connection(sqlite3 *db);
+
 Db open_database(const std::string &path, int flags)
 {
     sqlite3 *raw = nullptr;
@@ -73,6 +76,11 @@ Db open_database(const std::string &path, int flags)
         return {};
     }
     sqlite3_busy_timeout(raw, kJournalBusyTimeoutMs);
+    // journal_mode is persistent, but synchronous and wal_autocheckpoint are per connection. The helper that
+    // switches a dictionary to WAL is short-lived, so the connections that actually commit have to ask for the
+    // same settings or they run at FULL with the 1000-page autocheckpoint (see tune_wal).
+    if ((flags & SQLITE_OPEN_READWRITE) != 0)
+        tune_wal_connection(raw);
     return Db(raw);
 }
 
@@ -134,6 +142,18 @@ bool tune_wal(sqlite3 *db)
             return true;
     }
     return false;
+}
+
+// Only a database that is already in WAL takes these settings; a rollback-mode database keeps FULL, where NORMAL
+// would trade the same durability for nothing.
+void tune_wal_connection(sqlite3 *db)
+{
+    auto stmt = prepare(db, "PRAGMA journal_mode");
+    if (!stmt || sqlite3_step(stmt.get()) != SQLITE_ROW)
+        return;
+    const unsigned char *mode = sqlite3_column_text(stmt.get(), 0);
+    if (mode != nullptr && std::string(reinterpret_cast<const char *>(mode)) == "wal")
+        (void)tune_wal(db);
 }
 
 bool bind_text(sqlite3_stmt *stmt, int index, const std::string &value)
@@ -557,11 +577,25 @@ bool enable_write_ahead_log(const std::string &db_path)
     auto db = open_database(db_path, SQLITE_OPEN_READWRITE);
     if (!db || !use_write_ahead_log(db.get()))
         return false;
-    // The same durability setting the journal uses: this connection is opened by the writer, and its commits are the
-    // other half of what a selection costs on a slow disk. A database that refuses the setting is still usable, so the
-    // failure is not reported as "not in WAL".
+    // WAL mode is persistent; the per-connection durability settings are applied by open_database on every
+    // read-write connection from now on (this one is about to close, but tune it as well so the mode switch and
+    // the first checkpoint already run under them).
     (void)tune_wal(db.get());
     return true;
+}
+
+void enable_dictionary_write_ahead_logs(const std::string &data_dir)
+{
+    if (data_dir.empty())
+        return;
+    const auto directory = metasequoia::path_from_utf8(data_dir.c_str());
+    for (const char *name : {metasequoia::assets::main_dictionary, metasequoia::assets::english_dictionary})
+    {
+        std::error_code error;
+        const auto path = directory / name;
+        if (std::filesystem::is_regular_file(path, error))
+            (void)enable_write_ahead_log(metasequoia::path_to_utf8(path));
+    }
 }
 
 void checkpoint_user_journal_if_needed()

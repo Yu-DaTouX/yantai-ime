@@ -12,6 +12,13 @@
 
 namespace
 {
+// Fallback only. The shipped dictionaries are switched to WAL when the session is
+// created, where a read never waits for a learning commit. A database that could not
+// be switched (WAL is unsupported on some network volumes) still gets a short wait
+// instead of an empty candidate page while a commit is in flight. Keep it inside the
+// client's reply window, like quanpin::kDictionaryBusyTimeoutMs.
+constexpr int kEnglishReadBusyTimeoutMs = 250;
+
 bool IsLowerAsciiWord(const std::string &value)
 {
     return !value.empty() &&
@@ -140,7 +147,7 @@ bool EnglishDictionary::upsert_gloss(const std::string &db_path, bool chinese_to
             sqlite3_close(database);
         return false;
     }
-    sqlite3_busy_timeout(database, 250);
+    sqlite3_busy_timeout(database, kEnglishReadBusyTimeoutMs);
     sqlite3_stmt *statement = nullptr;
     const char *sql = chinese_to_english ? "INSERT OR REPLACE INTO zh_en_glosses(chinese,english_gloss) VALUES(?1,?2)"
                                          : "INSERT OR REPLACE INTO en_zh_glosses(english,chinese_gloss) VALUES(?1,?2)";
@@ -312,6 +319,7 @@ bool EnglishDictionary::ensure_query_statement()
         close_database();
         return false;
     }
+    sqlite3_busy_timeout(db_, kEnglishReadBusyTimeoutMs);
 
     constexpr const char *query_sql =
         "SELECT word,display,weight FROM english_words "

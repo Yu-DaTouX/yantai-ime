@@ -463,6 +463,27 @@ int run(int argc, wchar_t **argv)
     for (const auto &path : built)
     {
         const fs::path final_path = fs::path(path).replace_extension();
+        // WAL and its shared-memory index belong to the file being replaced. A leftover
+        // -wal would be replayed into the new database as if it were its own log, mixing
+        // pages of the old dictionary into the new one, so drop the sidecars first. The
+        // installer already deletes them before it starts this tool; this covers a manual
+        // rebuild and a build restarted after an interrupted install.
+        for (const wchar_t *suffix : {L"-wal", L"-shm", L"-journal"})
+        {
+            fs::path sidecar = final_path;
+            sidecar += suffix;
+            std::error_code error;
+            fs::remove(sidecar, error);
+            if (error)
+            {
+                const std::string message =
+                    "cannot remove " + to_utf8(sidecar.wstring()) + ": " + error.message();
+                std::error_code ignored;
+                for (const auto &leftover : built)
+                    fs::remove(leftover, ignored);
+                throw std::runtime_error(message);
+            }
+        }
         // 刚写完的大文件可能正被杀毒软件扫描，替换会短暂地拒绝访问或共享冲突，等一等再试。
         // 被别的进程长期打开着（比如 Server 抢先建了空库）就等不完，报出来让安装程序处理。
         DWORD error = ERROR_SUCCESS;

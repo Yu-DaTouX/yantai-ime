@@ -1,7 +1,9 @@
 #include "tests/includes/fake_traditional_spelling_index.h"
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
+#include "engine/english/english_dictionary.h"
 #include "engine/local_modes/date_time_query.h"
+#include "engine/quanpin/quanpin_query.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "ipc/traditional_variant_expansion_policy.h"
 
@@ -12,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <windows.h>
@@ -98,6 +101,11 @@ TEST_CASE(DictionaryLockWaitEndsBeforeTheClientGivesUp)
     // one is opened per call and closed when the operation returns, which is what lets the directory be deleted below.
     REQUIRE(user_dictionary::ensure_user_database(test::Utf8(user_path)));
 
+    // Warm the per-call open and schema check before taking the lock. Those are disk work, not
+    // the lock wait this case bounds, and on a cold cache or under a scanner they alone can
+    // reach the client window and time the case out.
+    REQUIRE(user_dictionary::set_fixed_position(test::Utf8(user_path), "ni", "ni", "甲", 2));
+
     {
         // Hold the journal's write lock from a separate connection, the way a learning commit would.
         TestDatabase holder(user_path);
@@ -107,10 +115,11 @@ TEST_CASE(DictionaryLockWaitEndsBeforeTheClientGivesUp)
         const bool wrote = user_dictionary::set_fixed_position(test::Utf8(user_path), "ni", "ni", "乙", 1);
         const ULONGLONG waited = GetTickCount64() - started;
 
-        // The write must lose, and must lose quickly, rather than sit on the lock until the client has already given
-        // up. A write that somehow succeeded would also mean the lock was not real, so neither branch may pass.
+        // The write must lose, and must lose after the busy timeout instead of sitting on the
+        // lock until the client has already given up. The bound is the wait plus headroom for
+        // the (warm) open; it stays inside the client's 300 ms window checked above.
         REQUIRE(!wrote);
-        REQUIRE(waited < 300);
+        REQUIRE(waited < user_dictionary::kJournalBusyTimeoutMs + 100);
         holder.exec("ROLLBACK");
     }
 
@@ -159,6 +168,110 @@ TEST_CASE(DictionaryReadsDoNotWaitForALearningWrite)
 
         journal_writer.exec("ROLLBACK");
         main_writer.exec("ROLLBACK");
+    }
+    std::filesystem::remove_all(directory, ec);
+}
+
+// The session switches both shipped dictionaries to WAL when it is created; english.db used
+// to keep the shipped rollback journal even though the dictionary writer commits learned
+// English weights into it and the key path reads it.
+TEST_CASE(EnableDictionaryWriteAheadLogsCoversEveryShippedDictionary)
+{
+    const auto directory = test::TempRoot() / ("msime-wal-switch-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    std::filesystem::create_directories(directory);
+    const auto main_path = directory / "msime.db";
+    const auto english_path = directory / "english.db";
+    {
+        TestDatabase main_db(main_path);
+        main_db.exec("CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);");
+        TestDatabase english_db(english_path);
+        english_db.exec("CREATE TABLE english_words(word TEXT,display TEXT,weight INTEGER);");
+        REQUIRE_EQ(main_db.scalar_int("SELECT COUNT(*) FROM pragma_journal_mode WHERE journal_mode='delete'"), 1);
+        REQUIRE_EQ(english_db.scalar_int("SELECT COUNT(*) FROM pragma_journal_mode WHERE journal_mode='delete'"), 1);
+    }
+
+    user_dictionary::enable_dictionary_write_ahead_logs(test::Utf8(directory));
+
+    for (const auto &path : {main_path, english_path})
+    {
+        TestDatabase db(path);
+        REQUIRE_EQ(db.scalar_int("SELECT COUNT(*) FROM pragma_journal_mode WHERE journal_mode='wal'"), 1);
+    }
+
+    // An older data directory can lack a shipped dictionary. The switch must neither fail nor
+    // create an empty one, which would then be held open while the installer replaces it.
+    std::filesystem::remove(english_path, ec);
+    user_dictionary::enable_dictionary_write_ahead_logs(test::Utf8(directory));
+    REQUIRE(!std::filesystem::exists(english_path));
+    std::filesystem::remove_all(directory, ec);
+}
+
+// The key path queries the dictionaries through connections opened once per session. A learning
+// commit in flight must not make those reads wait for the write lock (WAL) and must not make them
+// fail the page with SQLITE_BUSY; they keep reading the last committed snapshot.
+TEST_CASE(DictionaryQueriesReturnTheCommittedSnapshotDuringALearningWrite)
+{
+    const auto directory = test::TempRoot() / ("msime-wal-query-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    std::filesystem::create_directories(directory);
+    const auto main_path = directory / "msime.db";
+    const auto english_path = directory / "english.db";
+    {
+        TestDatabase main_db(main_path);
+        main_db.exec("CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                     "INSERT INTO tbl_1_n VALUES('ni','n','你',100);"
+                     "INSERT INTO tbl_1_n VALUES('ni','n','尼',90);");
+        TestDatabase english_db(english_path);
+        english_db.exec("CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,"
+                        "weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;"
+                        "INSERT INTO english_words VALUES('ni','NI',100);"
+                        "INSERT INTO english_words VALUES('ni','Ni',90);");
+    }
+    user_dictionary::enable_dictionary_write_ahead_logs(test::Utf8(directory));
+
+    // Same shape as the session: both query connections are opened, and their statements
+    // prepared, before any write happens.
+    {
+        sqlite3 *reader = nullptr;
+        REQUIRE_EQ(sqlite3_open(test::Utf8(main_path).c_str(), &reader), SQLITE_OK);
+        std::unordered_map<std::string, sqlite3_stmt *> statement_cache;
+        EnglishDictionary english(test::Utf8(english_path), false);
+        REQUIRE_EQ(quanpin::query_segments_flat(quanpin::Segments{"ni"}, reader, statement_cache, 8).size(), 2);
+        REQUIRE_EQ(english.query_prefix("ni", 8).size(), 2);
+
+        {
+            // A learning commit in flight on both dictionaries, as the writer thread does it.
+            TestDatabase main_writer(main_path);
+            TestDatabase english_writer(english_path);
+            main_writer.exec("BEGIN IMMEDIATE");
+            main_writer.exec("UPDATE tbl_1_n SET weight=1 WHERE value='你'");
+            main_writer.exec("INSERT INTO tbl_1_n VALUES('ni','n','呢',7)");
+            english_writer.exec("BEGIN IMMEDIATE");
+            english_writer.exec("UPDATE english_words SET weight=weight+1");
+
+            const ULONGLONG started = GetTickCount64();
+            const auto words = quanpin::query_segments_flat(quanpin::Segments{"ni"}, reader, statement_cache, 8);
+            const auto english_words = english.query_prefix("ni", 8);
+            const ULONGLONG elapsed = GetTickCount64() - started;
+
+            // The uncommitted rows stay invisible, and neither page is dropped.
+            REQUIRE_EQ(words.size(), 2);
+            REQUIRE_EQ(words.front().second, 100);
+            REQUIRE_EQ(english_words.size(), 2);
+            REQUIRE_EQ(english_words.front().weight, 100);
+            REQUIRE(elapsed < quanpin::kDictionaryBusyTimeoutMs);
+
+            main_writer.exec("ROLLBACK");
+            english_writer.exec("ROLLBACK");
+        }
+
+        for (auto &[sql, statement] : statement_cache)
+            sqlite3_finalize(statement);
+        statement_cache.clear();
+        sqlite3_close(reader);
     }
     std::filesystem::remove_all(directory, ec);
 }

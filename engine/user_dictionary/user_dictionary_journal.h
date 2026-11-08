@@ -58,10 +58,16 @@ bool is_user_inserted(const std::string &user_db_path, DictionaryKind kind, cons
 // 它表达的是「不要这个词」，不是对这组读音的偏好。
 bool has_user_upsert_for_key(const std::string &user_db_path, DictionaryKind kind, const std::string &key);
 bool ensure_user_database(const std::string &user_db_path);
-// Switch an existing dictionary database (msime.db) to WAL so the key thread's
-// queries never wait for a learning write's commit. The user journal does this
-// on every connection it opens. Returns whether the database is now in WAL mode.
+// Switch a shipped dictionary database (msime.db, english.db) to WAL so the key
+// path's queries never wait for a learning write's commit. The user journal does
+// this on every connection it opens. Returns whether the database is now in WAL
+// mode; the -wal/-shm sidecars it creates are runtime files that the installer,
+// uninstaller and data-directory permission lists already cover.
 bool enable_write_ahead_log(const std::string &db_path);
+// Switches the shipped dictionaries under \p data_dir (msime.db, english.db) to WAL at
+// session creation. Files that do not exist are left alone; the query side already
+// handles a missing dictionary by returning no candidates.
+void enable_dictionary_write_ahead_logs(const std::string &data_dir);
 bool record_pinyin_upsert_from_database(const std::string &main_db_path, const std::string &key,
                                         const std::string &value,
                                         const std::string &user_db_path = default_user_db_path());
