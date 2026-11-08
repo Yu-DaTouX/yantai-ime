@@ -163,7 +163,7 @@ VisualPtr BuildToolsPage(PageContext &context)
             hint);
         auto &details = *section.details;
         details.Add(DetailsDescription(
-            L"全拼 / 双拼输入中文时，把下面这些内容直接混进候选，不用切换到对应的快捷模式。五笔不混输。"));
+            L"全拼输入中文时，把下面这些内容直接混进候选，不用切换到对应的快捷模式。"));
         details.Add(DetailsRow(context, L"中英混输", L"在候选项中补充英文单词", zhEn));
         auto triggerRow = MakeRow(L"英文触发字符数", L"预编辑字母达到该长度后才出现英文候选项", trigger, true);
         triggerRow->SetMargin({0.0f, 2.0f, 0.0f, 2.0f});
@@ -261,7 +261,7 @@ VisualPtr BuildToolsPage(PageContext &context)
 
     page.AddSection(MakeRow(L"日期与时间快捷输入(T 模式)",
                             L"中文模式下按 Shift+T，再输入 rq / riqi / date 可输入当前日期；输入 sj / shijian / time "
-                            L"可输入当前时间；输入 xq / xingqi / week 可输入当前星期。全拼、双拼、五笔都支持。",
+                            L"可输入当前时间；输入 xq / xingqi / week 可输入当前星期。全拼支持。",
                             BindToggle(context, "utility.date_time_mode")));
     page.AddSection(std::make_shared<TopAlignedRow>(
         QuickTitleBlock(L"U 模式（部件拆字）",
@@ -271,13 +271,13 @@ VisualPtr BuildToolsPage(PageContext &context)
         BindToggle(context, "utility.radical_mode"), 2.0f));
     page.AddSection(std::make_shared<TopAlignedRow>(
         QuickTitleBlock(L"Emoji 快捷输入(E 模式)",
-                        L"中文模式下按 Shift+E，再输入全拼 / 简拼 / 双拼 / 英文关键词即可输入 "
-                        L"emoji。例如 xiaolian、xl、xnlm（小鹤双拼）、laugh。空格上屏；数字选词"
+                        L"中文模式下按 Shift+E，再输入全拼 / 简拼 / 英文关键词即可输入 "
+                        L"emoji。例如 xiaolian、xl、xiaolian、laugh。空格上屏；数字选词"
                         L"。"),
         BindToggle(context, "utility.emoji_mode"), 2.0f));
     page.AddSection(std::make_shared<TopAlignedRow>(
         QuickTitleBlock(L"颜文字快捷输入(M 模式)",
-                        L"中文模式下按 Shift+M，再输入全拼 / 简拼 / 双拼 / 英文关键词即可输入颜"
+                        L"中文模式下按 Shift+M，再输入全拼 / 简拼 / 英文关键词即可输入颜"
                         L"文字。例如 haixiu、hx、zai xiang、zx、kiss。空格上屏；数字选词。"),
         BindToggle(context, "utility.kaomoji_mode"), 2.0f));
     page.AddSection(std::make_shared<TopAlignedRow>(
@@ -291,12 +291,6 @@ VisualPtr BuildToolsPage(PageContext &context)
                                      const std::string &path) {
         return std::make_shared<SettingRow>(QuickTitleBlock(title, description), BindToggle(context, path));
     };
-    page.AddSection(centered(L"超级简拼(J 模式)",
-                             L"仅双拼下可用。中文模式下按 Shift+J，之后输入的每个字母都作为简拼检索词库，"
-                             L"并按当前双拼方案转换声母。例如小鹤 nu → n'sh（你说），与 ns → n's 不同。"
-                             L"全拼不需要该模式，直接输入声母就是简拼，包括 zh / ch / sh 声母，例如 nh → 你好、"
-                             L"eq → 而且、zhly → 张靓颖。空格上屏；数字选词。",
-                             "utility.jianpin_mode"));
     page.AddSection(
         centered(L"临时英文(Y 模式)",
                  L"中文模式下按 Shift+Y，之后输入的字母按英文处理，不会当作拼音。空格上屏当前输入；数字可选英"
@@ -305,7 +299,7 @@ VisualPtr BuildToolsPage(PageContext &context)
     page.AddSection(
         centered(L"数字与计算(V 模式)",
                  L"中文模式下输入 V 再接数字或算式：V123 → 一百二十三 / 壹佰贰拾叁；V123.45 → "
-                 L"壹佰贰拾叁元肆角伍分；V1+2*3 → 7（支持 + - * / 和括号）。双拼和五笔按 Shift+V；全拼大小写 v "
+                 L"壹佰贰拾叁元肆角伍分；V1+2*3 → 7（支持 + - * / 和括号）。全拼大小写 v "
                  L"都可以。空格上屏；数字键用来输入，Shift+数字选词。",
                  "utility.v_mode"));
 

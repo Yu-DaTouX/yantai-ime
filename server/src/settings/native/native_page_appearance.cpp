@@ -508,15 +508,8 @@ VisualPtr BuildAppearancePage(PageContext &context)
             options.horizontal = horizontal;
             options.pageSize = static_cast<size_t>(model->GetInt("appearance.page_size", 6));
             options.preedit = model->GetString("appearance.candidate_window_preedit_style", "pinyin") != "empty";
-            const std::string schema = model->GetString("input.schema", "shuangpin");
-            if (schema == "quanpin")
-                options.helpcode = model->GetBool("helpcode.quanpin_helpcode", true) &&
-                                   model->GetBool("helpcode.show_qp_helpcode_in_candidate_window", true);
-            else if (schema == "shuangpin")
-                options.helpcode = model->GetBool("helpcode.shuangpin_helpcode", true) &&
-                                   model->GetBool("helpcode.show_sp_helpcode_in_candidate_window", true);
-            else
-                options.helpcode = false;
+            options.helpcode = model->GetBool("helpcode.quanpin_helpcode", true) &&
+                               model->GetBool("helpcode.show_qp_helpcode_in_candidate_window", true);
             // 翻页箭头与卷轴展开按钮由预览按皮肤清单自己决定，与候选窗同一套判定。
             const Json *external = skinpreview::FindExternalSkin(*model, skin);
             previewBox->SetDecorated(external && external->contains("decorationTopDip") &&
@@ -680,8 +673,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
         MakeRow(L"行内预编辑", L"",
                 BindDropdown(context, "appearance.tsf_preedit_style",
                              Options({{"raw", L"原始按键"}, {"pinyin", L"拼音分词"}, {"empty", L"不显示"}}))),
-        MakeRow(L"双拼显示转换后的全拼", L"双拼方案下，原始按键显示不带分词符号的全拼，拼音分词显示带分词符号的全拼",
-                BindToggle(context, "appearance.tsf_preedit_shuangpin_quanpin")),
     }));
 
     // 候选窗预编辑
@@ -689,8 +680,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
         MakeRow(L"候选窗预编辑", L"",
                 BindDropdown(context, "appearance.candidate_window_preedit_style",
                              Options({{"pinyin", L"拼音分词"}, {"empty", L"不显示"}}))),
-        MakeRow(L"双拼显示转换后的全拼", L"双拼方案下，候选窗预编辑显示带分词符号的全拼",
-                BindToggle(context, "appearance.candidate_window_preedit_shuangpin_quanpin")),
     }));
 
     return page.Build();

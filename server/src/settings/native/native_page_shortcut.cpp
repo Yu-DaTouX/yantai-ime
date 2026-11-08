@@ -1108,7 +1108,7 @@ VisualPtr BuildShortcutPage(PageContext &context)
     // 提交
     {
         auto column = std::make_shared<Column>(0.0f);
-        column->Add(Heading(L"提交", L"双拼方案下，Enter 提交原始输入，Shift + Enter 提交转换后的全拼。"
+        column->Add(Heading(L"提交", L"Enter 提交原始输入，Shift + Enter 提交转换后的全拼。"
                                      L"敲大写字母时 Shift 常常没松开就按了回车，容易误触，可在此关闭"));
         column->Add(
             Options({BindCheck(context, L"Shift + Enter 提交转换后的全拼", "keybindings.commit_pinyin_shift_enter")}));
@@ -1159,7 +1159,7 @@ VisualPtr BuildShortcutPage(PageContext &context)
             {L"上屏高亮候选的译文（需开启候选中英互译；有多条释义时再选一条）", Keys({L"Ctrl", L"|+", L"Enter"})},
             {L"上屏指定序号候选的译文（需开启候选中英互译）", Keys({L"Ctrl", L"|+", L"1", L"|–", L"9"})},
             {L"提交原始输入 / 取消输入", Keys({L"Enter", L"|/", L"Esc"})},
-            {L"提交拼音（双拼方案下提交转换后的全拼，可在上方关闭）", Keys({L"Shift", L"|+", L"Enter"})},
+            {L"提交拼音（提交转换后的全拼，可在上方关闭）", Keys({L"Shift", L"|+", L"Enter"})},
         };
         for (size_t i = 0; i < entries.size(); ++i)
             list->Add(RuledRow(RowLabel(entries[i].label), entries[i].keys, true, i > 0));

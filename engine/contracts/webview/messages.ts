@@ -7,7 +7,6 @@ export type ClientMessage =
   | { "type": "openSkinDirectory"; "protocolVersion"?: 1 }
   | { "type": "openLogDirectory"; "protocolVersion"?: 1 }
   | { "type": "openHelpcodeDirectory"; "protocolVersion"?: 1 }
-  | { "type": "openShuangpinDirectory"; "protocolVersion"?: 1 }
   | { "type": "collocationModelDownload"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelCheckUpdate"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelDelete"; "protocolVersion"?: 1; "data": { "modelId": string } }
@@ -56,7 +55,7 @@ export type ClientMessage =
   | { "type": "settings"; "protocolVersion"?: 1 }
   | { "type": "about"; "protocolVersion"?: 1 }
   | { "type": "voiceInput"; "protocolVersion"?: 1 }
-  | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" | "shuangpin" }
+  | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" }
   | { "type": "inputSchemeSubmenu"; "protocolVersion"?: 1; "data": { "open": boolean; "width": number } }
   | { "type": "ready"; "protocolVersion"?: 1 }
   | { "type": "exitEnglishInputMode"; "protocolVersion"?: 1 }
@@ -83,7 +82,6 @@ export type SettingsMessage =
   | { "type": "openSkinDirectory"; "protocolVersion"?: 1 }
   | { "type": "openLogDirectory"; "protocolVersion"?: 1 }
   | { "type": "openHelpcodeDirectory"; "protocolVersion"?: 1 }
-  | { "type": "openShuangpinDirectory"; "protocolVersion"?: 1 }
   | { "type": "collocationModelDownload"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelCheckUpdate"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelDelete"; "protocolVersion"?: 1; "data": { "modelId": string } }
