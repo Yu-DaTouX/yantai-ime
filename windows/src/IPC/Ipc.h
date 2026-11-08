@@ -12,6 +12,10 @@
 #include "../../../engine/contracts/windows_ipc.h"
 #include "../../../engine/contracts/enumeration_comma.h"
 #include "../../../engine/contracts/v_mode_input.h"
+#include "../../../engine/contracts/translation_mode.h"
+
+// TSF owner-thread only; Worker state must first pass the focus-scoped message queue.
+bool ApplyTranslationModeSnapshot(std::wstring_view payload, std::wstring *composition = nullptr);
 
 class CMetasequoiaIME;
 

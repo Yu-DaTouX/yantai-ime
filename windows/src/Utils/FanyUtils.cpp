@@ -271,7 +271,6 @@ void RefreshPunctuationLockFromConfig()
     Global::PunctuationLockMode.store(ReadConfiguredPunctuationLock(), std::memory_order_relaxed);
 }
 
-
 LanguageBarVisibility ReadConfiguredLanguageBarVisibility()
 {
     LanguageBarVisibility result;
@@ -407,7 +406,7 @@ SwitchLanguageHotkeys ParseSwitchLanguageHotkeys(const std::filesystem::path &co
         else if (key == "translate_mode")
         {
             result.translate_mode = {};
-            FanyImeKeyChord::Parse(FanyImeKeyChord::TomlString(raw), result.translate_mode);
+            FanyImeKeyChord::ParseTranslationMode(FanyImeKeyChord::TomlString(raw), result.translate_mode);
         }
         else if (key == "commit_pinyin_shift_enter")
         {

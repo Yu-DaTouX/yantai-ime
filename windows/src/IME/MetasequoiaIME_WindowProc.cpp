@@ -623,11 +623,23 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
         }
         break;
     }
+    case WM_ApplyTranslationMode: {
+        CMetasequoiaIME::WorkerCandidateCommit request;
+        if (pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request) &&
+            pIME->_IsFocusSessionCurrent(request.focusToken))
+            ApplyTranslationModeSnapshot(request.text);
+        // Mode survives composition changes (including a Ctrl+Enter commit),
+        // but never focus/transport reset. Do not gate this on composition epoch.
+        break;
+    }
     case WM_ApplyTranslationComposition: {
         CMetasequoiaIME::WorkerCandidateCommit request;
         if (!pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request) ||
             !pIME->_IsFocusSessionCurrent(request.focusToken) ||
             !pIME->_IsCompositionEpochCurrent(request.compositionEpoch))
+            break;
+        std::wstring composition;
+        if (!ApplyTranslationModeSnapshot(request.text, &composition))
             break;
         ITfDocumentMgr *document = nullptr;
         ITfContext *context = nullptr;
@@ -637,7 +649,7 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
             _KEYSTROKE_STATE state{};
             state.Category = CATEGORY_COMPOSING;
             state.Function = FUNCTION_APPLY_COMPOSITION_RESTORE;
-            pIME->_InvokeKeyHandler(context, 0, 0, 0, state, FANY_IME_NO_REQUEST_ID, request.text, 0,
+            pIME->_InvokeKeyHandler(context, 0, 0, 0, state, FANY_IME_NO_REQUEST_ID, composition, 0,
                                     request.compositionEpoch, request.focusToken);
         }
         if (context)
@@ -852,7 +864,15 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
             pIME->_CompleteDeferredKeyReplay(request.deferredReplayToken);
             break;
         }
-        if (receivedData->msg_type == Global::DataFromServerMsgType::CompositionRestored)
+        const bool translationComposition = receivedData->msg_type == FanyImeReplyType::TranslationComposition;
+        std::wstring restoredComposition;
+        if (translationComposition &&
+            !ApplyTranslationModeSnapshot(receivedData->candidate_string, &restoredComposition))
+        {
+            pIME->_CompleteDeferredKeyReplay(request.deferredReplayToken);
+            break;
+        }
+        if (translationComposition || receivedData->msg_type == Global::DataFromServerMsgType::CompositionRestored)
         {
             // A page-boundary minus turned into a literal character in the raw
             // spelling. The Server owns the new composition; TSF rebuilds its
@@ -866,8 +886,9 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
                 state.Category = CATEGORY_COMPOSING;
                 state.Function = FUNCTION_APPLY_COMPOSITION_RESTORE;
                 pIME->_InvokeKeyHandler(pContext, code, wch, 0, state, request.requestId,
-                                        std::wstring(receivedData->candidate_string), 0, request.compositionEpoch,
-                                        request.focusToken, request.deferredReplayToken);
+                                        translationComposition ? restoredComposition
+                                                               : std::wstring(receivedData->candidate_string),
+                                        0, request.compositionEpoch, request.focusToken, request.deferredReplayToken);
                 pContext->Release();
             }
             if (pDocMgrFocus != nullptr)

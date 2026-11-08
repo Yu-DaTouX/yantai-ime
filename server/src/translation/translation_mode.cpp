@@ -8,7 +8,12 @@
 #include "utils/common_utils.h"
 #include "config/ime_config.h"
 #include "engine/contracts/key_chord.h"
+#include "engine/contracts/translation_mode.h"
 #include "engine/english/english_dictionary.h"
+#include "engine/core/data_path.h"
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+translation::Worker::Infer translation_mode_test_inference;
+#endif
 #include <atomic>
 #include <mutex>
 #include <cwctype>
@@ -32,14 +37,17 @@ struct PendingCommit
     translation::CommitKind kind;
 };
 std::optional<PendingCommit> pending_commit;
-std::unique_ptr<EnglishDictionary> dictionary;
 
+std::wstring ModePayload()
+{
+    return FanyImeTranslationMode::Format(state.active(), state.generation() + 1);
+}
 void Notify()
 {
     active.store(state.active());
     if (owner && IsPipeActivationCurrent(owner, epoch))
         SendToTsfWorkerThreadClientViaNamedpipe(owner, epoch, FanyImeWorkerReplyType::TranslationModeChanged,
-                                                state.active() ? L"1" : L"0");
+                                                ModePayload());
     if (::global_hwnd_ftb)
         PostMessage(::global_hwnd_ftb, UPDATE_FTB_TRANSLATION_MODE, 0, 0);
 }
@@ -70,9 +78,7 @@ void Publish()
         break;
     }
     if (next->english.empty())
-        next->english = translation_model::ResolveDirectory().empty()
-                            ? L"需要下载翻译模型（约 81 MB）· 点击英文行打开设置"
-                            : L"英文会显示在这里";
+        next->english = L"英文会显示在这里 · 未安装模型可点击打开设置";
     if (next->hint.empty())
         next->hint = L"Enter 上屏 · Shift+Enter 中文 · Ctrl+Enter 上屏并退出";
     std::atomic_store(&view, std::shared_ptr<const View>(next));
@@ -94,14 +100,36 @@ void SyncRaw()
 }
 void Append(std::string word)
 {
-    if (!dictionary)
-        dictionary = std::make_unique<EnglishDictionary>(
-            metasequoia::path_to_utf8(metasequoia::data_directory() / "english.db"), false);
-    const auto gloss = dictionary->query_english_gloss(word);
     if (worker)
         worker->Cancel();
-    state.Append(std::move(word), gloss, translation::Clock::now());
+    state.Append(std::move(word), {}, translation::Clock::now());
 }
+translation::Worker::Infer ModeInference()
+{
+    // Server-only fallback stays out of LocalInference: the independently built
+    // engine/worker smoke tools must not depend on the IME dictionary or SQLite.
+    return [infer = translation::LocalInference(translation_model::Directory()),
+            dictionary = std::shared_ptr<EnglishDictionary>{}](
+               const translation::Request &request, const translation::Worker::Cancelled &cancelled) mutable {
+        auto value = infer(request, cancelled);
+        if (value.status != translation::Status::Missing || cancelled())
+            return value;
+        if (!dictionary)
+            dictionary = std::make_shared<EnglishDictionary>(
+                metasequoia::path_to_utf8(metasequoia::data_directory() / "english.db"), false);
+        for (const auto &word : request.words)
+        {
+            if (cancelled())
+                break;
+            const auto gloss = word.gloss.empty() ? dictionary->query_english_gloss(word.chinese) : word.gloss;
+            if (!value.english.empty())
+                value.english += " ";
+            value.english += gloss.empty() ? word.chinese : gloss;
+        }
+        return value;
+    };
+}
+
 bool AcceptHighlighted()
 {
     if (g_inputSession->get_pinyin_sequence().empty())
@@ -117,9 +145,14 @@ std::wstring CompositionPayload()
     const auto raw = g_inputSession->get_pinyin_sequence_with_cases();
     const auto caret = std::to_wstring(GlobalIme::composition.caret_position);
     auto payload = BuildCreateWordPipePayload(raw, "") + L"\t" + caret;
-    if (payload.size() >= FanyImePipeLimits::CandidateTextCapacity)
+    if (payload.size() + ModePayload().size() + 1 >= FanyImePipeLimits::CandidateTextCapacity)
         payload = string_to_wstring(raw) + L"\t\t\t" + caret;
     return payload; // Omit redundant display text when necessary; TSF renders its local spelling.
+}
+
+std::wstring TranslationComposition()
+{
+    return ModePayload() + L"\t" + CompositionPayload();
 }
 
 void CompleteCommit(uint64_t request, translation::CommitKind kind)
@@ -195,19 +228,23 @@ void Shutdown()
 {
     Reset();
     worker.reset();
-    dictionary.reset();
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+    translation_mode_test_inference = {};
+#endif
 }
 
 void Toggle(uint64_t client, uint64_t activation, bool toolbar)
 {
+    if (!IsPipeActivationCurrent(client, activation))
+        return;
     if (state.active())
     {
         Reset();
         g_inputSession->reset_state();
         FanyNamedPipe::ClearState();
         if (toolbar)
-            SendToTsfWorkerThreadClientViaNamedpipe(client, activation,
-                                                    FanyImeWorkerReplyType::TranslationCompositionChanged, L"\t\t\t0");
+            SendToTsfWorkerThreadClientViaNamedpipe(
+                client, activation, FanyImeWorkerReplyType::TranslationCompositionChanged, TranslationComposition());
         return;
     }
     if (!ClientNegotiatedTranslationMode(client) || g_authoritative_cn_mode == 0)
@@ -217,13 +254,7 @@ void Toggle(uint64_t client, uint64_t activation, bool toolbar)
     owner = client;
     epoch = activation;
     state.Enter();
-    if (!worker)
-        worker = std::make_unique<translation::Worker>(translation::LocalInference(translation_model::Directory()),
-                                                       [](translation::Result value) {
-                                                           std::lock_guard lock(results_mutex);
-                                                           result = std::move(value);
-                                                       });
-    Notify();
+    Notify(); // No thread creation, engine/model/english.db I/O on the toggle path.
     const bool had_raw = !g_inputSession->get_pinyin_sequence().empty();
     if (toolbar && !had_raw)
     {
@@ -238,7 +269,7 @@ void Toggle(uint64_t client, uint64_t activation, bool toolbar)
     AcceptRemainder();
     if (toolbar && had_raw)
         SendToTsfWorkerThreadClientViaNamedpipe(owner, epoch, FanyImeWorkerReplyType::TranslationCompositionChanged,
-                                                CompositionPayload());
+                                                TranslationComposition());
     PublishCandidateUiOwner(owner, epoch);
     Publish();
     PostCaretStateBadge({L"译"}, Global::Point[0], Global::Point[1]);
@@ -261,15 +292,15 @@ bool Select(const WordItem &item, uint64_t client, uint64_t activation)
     SyncRaw();
     PublishCandidateUiOwner(owner, epoch);
     Publish();
-    Global::MsgTypeToTsf = Global::DataFromServerMsgType::CompositionRestored;
-    Global::candidate_ui.selected_text = CompositionPayload();
+    Global::MsgTypeToTsf = FanyImeReplyType::TranslationComposition;
+    Global::candidate_ui.selected_text = TranslationComposition();
     return true;
 }
 
 void ReplyComposition(uint64_t client, uint64_t activation, uint64_t request)
 {
-    Global::MsgTypeToTsf = Global::DataFromServerMsgType::CompositionRestored;
-    Global::candidate_ui.selected_text = CompositionPayload();
+    Global::MsgTypeToTsf = FanyImeReplyType::TranslationComposition;
+    Global::candidate_ui.selected_text = TranslationComposition();
     FanyNamedPipe::SendCurrentDataToClient(client, activation, request);
 }
 
@@ -278,9 +309,10 @@ bool HandleKey(uint64_t client, uint64_t activation, uint64_t request)
     const auto key = Global::Keycode;
     const auto modifiers = Global::ModifiersDown & 7;
     FanyImeKeyChord::Binding binding;
-    const bool toggle = FanyImeKeyChord::Parse(GetConfiguredTranslateModeBinding(), binding) && binding.key &&
-                        binding.Matches(key, modifiers);
-    if (toggle && (state.active() || !g_inputSession->get_pinyin_sequence().empty()))
+    const bool toggle = FanyImeKeyChord::ParseTranslationMode(GetConfiguredTranslateModeBinding(), binding) &&
+                        binding.key && binding.Matches(key, modifiers);
+    if (toggle && ClientNegotiatedTranslationMode(client) && IsPipeActivationCurrent(client, activation) &&
+        (state.active() || !g_inputSession->get_pinyin_sequence().empty()))
     {
         Toggle(client, activation);
         ReplyComposition(client, activation, request);
@@ -415,6 +447,18 @@ void Poll()
     }
     if (auto request = state.TakeDueRequest(translation::Clock::now()))
     {
+        if (!worker)
+        {
+            auto infer = ModeInference();
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+            if (translation_mode_test_inference)
+                infer = translation_mode_test_inference;
+#endif
+            worker = std::make_unique<translation::Worker>(std::move(infer), [](translation::Result value) {
+                std::lock_guard lock(results_mutex);
+                result = std::move(value);
+            });
+        }
         worker->Submit(std::move(*request));
         changed = true;
     }

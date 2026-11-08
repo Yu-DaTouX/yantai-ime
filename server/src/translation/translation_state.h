@@ -39,6 +39,7 @@ struct Request
     uint64_t generation = 0;
     std::string chinese;
     Time deadline{};
+    std::vector<DraftWord> words; // Background-only english.db fallback input.
 };
 
 struct Result

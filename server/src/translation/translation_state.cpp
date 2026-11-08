@@ -92,7 +92,7 @@ std::optional<Request> State::TakeDueRequest(Time now)
         return std::nullopt;
     status_ = Status::Translating;
     deadline_ = now + std::chrono::seconds(1);
-    return Request{generation_, Chinese(), deadline_};
+    return Request{generation_, Chinese(), deadline_, words_};
 }
 
 bool State::Tick(Time now)
@@ -118,7 +118,7 @@ bool State::Apply(Result result, Time now)
         break;
     case Status::Missing:
         status_ = Status::Missing;
-        english_ = Glosses();
+        english_ = result.english.empty() ? Glosses() : std::move(result.english);
         break;
     case Status::Timeout:
     case Status::Error:

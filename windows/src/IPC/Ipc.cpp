@@ -27,6 +27,18 @@ static thread_local bool canUseSharedMemory = false;
 
 static thread_local HANDLE hPipe = nullptr;
 static thread_local uint32_t negotiatedServerCapabilities = 0;
+static thread_local FanyImeTranslationMode::Mirror translationModeMirror;
+bool ApplyTranslationModeSnapshot(std::wstring_view payload, std::wstring *composition)
+{
+    FanyImeTranslationMode::Snapshot snapshot;
+    if (!Global::TranslationModeSupported.load() || !FanyImeTranslationMode::Parse(payload, snapshot) ||
+        !translationModeMirror.Apply(snapshot))
+        return false;
+    Global::TranslationModeActive.store(translationModeMirror.active);
+    if (composition)
+        composition->assign(snapshot.composition);
+    return true;
+}
 static thread_local HANDLE hFromServerPipe = nullptr;
 static thread_local HANDLE hToTsfWorkerThreadPipe = nullptr;
 
@@ -481,6 +493,7 @@ bool WaitForWorkerPipeReady(HANDLE hPipeHandle)
 bool WaitForProtocolReady(uint64_t requestId)
 {
     negotiatedServerCapabilities = 0;
+    Global::TranslationModeSupported.store(false);
     const ULONGLONG deadline = GetTickCount64() + 250;
     while (GetTickCount64() < deadline)
     {
@@ -497,7 +510,11 @@ bool WaitForProtocolReady(uint64_t requestId)
         {
             const bool accepted = FanyImeProtocol::AcceptReply(reply, requestId);
             if (accepted)
+            {
                 negotiatedServerCapabilities = FanyImeProtocol::ReplyCapabilities(reply);
+                Global::TranslationModeSupported.store(
+                    FanyImeProtocol::SupportsTranslationMode(negotiatedServerCapabilities));
+            }
             return accepted;
         }
         CachePendingReply(reply);
@@ -514,7 +531,8 @@ bool WritePipeHello(HANDLE hPipeHandle, UINT pipeRole)
             FanyImeProtocol::Hello(GetPipeClientId(), NextProtocolId(nextRequestId),
                                    FanyImeProtocol::Capabilities | FanyImeProtocol::CharacterSetShortcut |
                                        FanyImeProtocol::CompositionRestore | FanyImeProtocol::CaretStateIndicator |
-                                       FanyImeProtocol::InputStateShortcuts | FanyImeProtocol::TranslationMode);
+                                       FanyImeProtocol::InputStateShortcuts | FanyImeProtocol::TranslationMode |
+                                       FanyImeProtocol::TranslationModeState);
         BOOL ret = WriteFile(hPipeHandle, &hello, sizeof(hello), &bytesWritten, NULL);
         // Never authorize keys from merely writing a hello. An old Server
         // without negotiation times out into the existing raw-input fallback.
@@ -731,6 +749,7 @@ bool IsNamedpipeThreadFocused()
 
 UINT BeginNamedpipeLocalSessionReset()
 {
+    translationModeMirror = {};
     Global::TranslationModeActive.store(false);
     if (!boundLocalSessionResetPending || !boundLocalSessionResetToken)
     {
@@ -752,6 +771,8 @@ void InvalidateNamedpipeWorkerGeneration()
 
 void RequireNamedpipeFocusActivation()
 {
+    translationModeMirror = {};
+    Global::TranslationModeActive.store(false);
     if (boundActivationRequired)
     {
         *boundActivationRequired = true;
@@ -773,6 +794,7 @@ void RequireNamedpipeFocusActivation()
 
 void MarkNamedpipeFocusLost()
 {
+    translationModeMirror = {};
     Global::TranslationModeActive.store(false);
     Global::TranslationModeSupported.store(false);
     if (boundFocusResetPending)
@@ -1003,6 +1025,9 @@ int CloseIpc()
 
 int CloseNamedpipe()
 {
+    translationModeMirror = {};
+    Global::TranslationModeActive.store(false);
+    Global::TranslationModeSupported.store(false);
     negotiatedServerCapabilities = 0;
     ClosePipeHandleIfValid(hPipe);
     ClosePipeHandleIfValid(hFromServerPipe);
