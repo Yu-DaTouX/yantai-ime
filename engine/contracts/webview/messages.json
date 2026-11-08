@@ -469,6 +469,12 @@
           "code": {
             "type": "string"
           },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "user"
+            ]
+          },
           "content": {
             "type": "string"
           },

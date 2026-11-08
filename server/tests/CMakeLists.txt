@@ -310,6 +310,7 @@ set(SETTINGS_UI_TEST_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings_ui_main.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_settings_dropdown_scroll.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_settings_ai_model_list_scroll.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_settings_dictionary_panel.cpp"
 )
 foreach(_source IN LISTS _settings_sources)
     if(_source MATCHES "settings_app\\.cpp$" OR NOT _source MATCHES "\\.cpp$")
