@@ -433,6 +433,7 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/neural_model.cpp"
     "./src/settings/neural_model.h"
     "./src/settings/lattice_model.cpp"
+    "./src/settings/translation_model.cpp"
     "./src/settings/lattice_model.h"
     "./src/settings/model_download.cpp"
     "./src/settings/model_download.h"

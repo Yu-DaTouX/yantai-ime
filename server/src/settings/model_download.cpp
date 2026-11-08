@@ -114,6 +114,32 @@ void ModelDownloader::InstallPart(bool imported)
         Fail(verify_error);
         return;
     }
+    if (spec_.install_archive)
+    {
+        try
+        {
+            if (!spec_.install_archive(PartFile(), Directory(), verify_error))
+            {
+                Fail(verify_error);
+                return;
+            }
+            // Publish readiness last, after every component file has been installed.
+            // Do not retain a second ~80 MB copy of the archive in the user data directory.
+            std::ofstream receipt(PartFile(), std::ios::binary | std::ios::trunc);
+            receipt << spec_.sha256 << "\n";
+            receipt.close();
+            if (!receipt)
+            {
+                Fail("无法写入模型就绪标记");
+                return;
+            }
+        }
+        catch (...)
+        {
+            Fail("模型组件解包失败");
+            return;
+        }
+    }
     std::error_code rename_error;
     std::filesystem::rename(PartFile(), ModelFile(), rename_error);
     if (rename_error)
@@ -386,7 +412,7 @@ bool ModelDownloader::Delete()
     }
     std::error_code error;
     std::filesystem::remove_all(Directory(), error);
-    if (!std::filesystem::exists(ModelFile(), error))
+    if (!std::filesystem::exists(spec_.install_archive ? Directory() : ModelFile(), error))
         return true;
     if (!spec_.deferred_delete)
         return false;

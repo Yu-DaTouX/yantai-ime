@@ -19,6 +19,10 @@ export type ClientMessage =
   | { "type": "latticeModelImport"; "protocolVersion"?: 1 }
   | { "type": "latticeModelDelete"; "protocolVersion"?: 1 }
   | { "type": "latticeModelStatusRequest"; "protocolVersion"?: 1 }
+  | { "type": "translationModelDownload"; "protocolVersion"?: 1 }
+  | { "type": "translationModelImport"; "protocolVersion"?: 1 }
+  | { "type": "translationModelDelete"; "protocolVersion"?: 1 }
+  | { "type": "translationModelStatusRequest"; "protocolVersion"?: 1 }
   | { "type": "restartServer"; "protocolVersion"?: 1 }
   | { "type": "userDataBackupRequest"; "protocolVersion"?: 1; "data": { "action": "export" | "import"; "path": string; "includeModels"?: boolean } }
   | { "type": "copyText"; "protocolVersion"?: 1; "data": string }
@@ -86,6 +90,10 @@ export type SettingsMessage =
   | { "type": "latticeModelImport"; "protocolVersion"?: 1 }
   | { "type": "latticeModelDelete"; "protocolVersion"?: 1 }
   | { "type": "latticeModelStatusRequest"; "protocolVersion"?: 1 }
+  | { "type": "translationModelDownload"; "protocolVersion"?: 1 }
+  | { "type": "translationModelImport"; "protocolVersion"?: 1 }
+  | { "type": "translationModelDelete"; "protocolVersion"?: 1 }
+  | { "type": "translationModelStatusRequest"; "protocolVersion"?: 1 }
   | { "type": "restartServer"; "protocolVersion"?: 1 }
   | { "type": "userDataBackupRequest"; "protocolVersion"?: 1; "data": { "action": "export" | "import"; "path": string; "includeModels"?: boolean } }
   | { "type": "copyText"; "protocolVersion"?: 1; "data": string }

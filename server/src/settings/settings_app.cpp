@@ -6,6 +6,7 @@
 #include "settings/settings_launcher.h"
 #include "settings/collocation_model.h"
 #include "settings/lattice_model.h"
+#include "settings/translation_model.h"
 #include "settings/neural_model.h"
 #include "settings/default_input_method.h"
 #include "settings/game_compat_name.h"
@@ -355,6 +356,12 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
                                        {"deletePending", status.delete_pending}};
              }()},
             {"sentence_wordlattice_model_url", lattice_model::SourceUrl()},
+            {"translation_model_status", [] {
+                 const auto status = translation_model::GetModelStatus();
+                 return nlohmann::json{{"state", status.state}, {"progress", status.progress},
+                     {"error", status.error}, {"deletePending", status.delete_pending}};
+             }()},
+            {"translation_model_url", translation_model::SourceUrl()},
             {"sentence_google", GetConfiguredAssocSentenceGoogle()},
             {"sentence_neural_desktop", GetConfiguredAssocSentenceNeuralDesktop()},
             {"sentence_neural_desktop_model_status", [] {
@@ -930,6 +937,27 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
             PostConfig(false);
         }
         else if (type == "latticeModelStatusRequest")
+        {
+            PostConfig(false);
+        }
+        else if (type == "translationModelDownload")
+        {
+            translation_model::StartDownload();
+            PostConfig(false);
+        }
+        else if (type == "translationModelImport")
+        {
+            const auto source = translation_model::PromptForModelFile(hwnd);
+            if (!source.empty())
+                translation_model::ImportModel(source);
+            PostConfig(false);
+        }
+        else if (type == "translationModelDelete")
+        {
+            translation_model::DeleteModel();
+            PostConfig(false);
+        }
+        else if (type == "translationModelStatusRequest")
         {
             PostConfig(false);
         }

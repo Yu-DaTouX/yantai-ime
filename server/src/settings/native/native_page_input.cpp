@@ -768,6 +768,14 @@ struct InputPage
     std::shared_ptr<OpacityBox> translationOptions;
 
     // Models
+    ModelRow translation;
+    UINT_PTR translationPoll = 0;
+    bool translationLinkShown = false;
+    std::string translationUrl;
+    ~InputPage()
+    {
+        PageTimers::Stop(translationPoll);
+    }
     ModelRow lattice;
     std::shared_ptr<ToggleSwitch> latticeToggle;
     UINT_PTR latticePoll = 0;
@@ -1161,6 +1169,14 @@ VisualPtr BuildInputPage(PageContext &context)
         content->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         page.AddSection(
             Col({MakeTitleBlock(L"整句候选", L"输入多个拼音音节时，额外提供本机模型给出的整句候选"), content}));
+        s->translation = MakeModelRow(context, "", L"整句翻译模型", L"约 81 MB · CC-BY-4.0 / MIT", "", false,
+                                      "translationModelDownload", "translationModelImport", "translationModelDelete");
+        page.AddSection(downloadSection(
+            L"整句翻译模型",
+            L"Opus-MT zh-en int8 与本地 CPU 引擎一并按需下载，不随安装包分发；模型约 83 MB，"
+            L"引擎约 39 MB。模型作者 University of Helsinki NLP；oneDNN 与 SentencePiece 为 Apache-2.0。"
+            L"可用浏览器下载 ZIP 后导入，下载与导入均校验 SHA256；已加载的引擎删除后需重启释放。",
+            s->translation));
     }
 
     // ---- 拼音方案调频 ----
@@ -1257,6 +1273,36 @@ VisualPtr BuildInputPage(PageContext &context)
                                                    [model]() { model->Post("latticeModelStatusRequest"); });
             else if (!busy && !deletePending)
                 PageTimers::Stop(s->latticePoll);
+        }
+
+        // Optional local sentence translation component; its DLL may remain pinned until restart.
+        {
+            const Json *status = model->Find("association.translation_model_status");
+            const std::string stateName = StateOf(status);
+            const bool busy = IsBusy(stateName);
+            const bool pending = status && status->is_object() && status->value("deletePending", false);
+            auto &row = s->translation;
+            row.status->SetText(pending ? L"已删除，重启输入法后释放引擎" : StatusText(status));
+            row.download->SetText(pending ? L"重启输入法" : L"下载");
+            row.download->SetOnClick(pending ? row.restartAction : row.downloadAction);
+            row.download->SetDisabled(!pending && (stateName == "ready" || busy));
+            row.importBox->SetVisible(stateName != "ready" && !pending);
+            row.import->SetDisabled(busy);
+            row.removeBox->SetVisible(stateName == "ready");
+            const std::string url = model->GetString("association.translation_model_url");
+            const bool link = !url.empty() && stateName != "ready" && !pending;
+            if (link != s->translationLinkShown || url != s->translationUrl)
+            {
+                s->translationLinkShown = link;
+                s->translationUrl = url;
+                row.name->SetSpans(NameSpans(L"整句翻译模型", L"约 81 MB · CC-BY-4.0 / MIT", link,
+                                             [model, url]() { model->Post("openExternalUrl", url); }));
+            }
+            if ((busy || pending) && s->translationPoll == 0)
+                s->translationPoll = PageTimers::Start(host->Hwnd(), 2000, true,
+                                                       [model]() { model->Post("translationModelStatusRequest"); });
+            else if (!busy && !pending)
+                PageTimers::Stop(s->translationPoll);
         }
 
         // Neural model row (applyNeuralModelStatus).
