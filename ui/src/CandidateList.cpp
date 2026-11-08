@@ -263,6 +263,9 @@ ComPtr<IDWriteTextLayout> CandidateList::TextLayoutFor(IDWriteFactory *factory, 
     {
         return {};
     }
+    // 候选文字里的 emoji（键帽、ZWJ 序列、肤色、旗帜）单独换字体，否则主字体画出来是怪字形。
+    ApplyEmojiFontRuns(layout.Get(), text, appearance_.emojiFontFamily, appearance_.flagFontFamily,
+                       appearance_.flagFontCollection.get());
     if (appearance_.ellipsisText)
     {
         ComPtr<IDWriteInlineObject> ellipsisSign;
@@ -333,6 +336,9 @@ float CandidateList::EstimateTextWidth(const std::wstring &text, float fontSize)
         }
         return width;
     }
+    // 量宽度时也要用 emoji 字体：emoji 的宽度和主字体的豆腐块不一样。
+    ApplyEmojiFontRuns(layout.Get(), text, appearance_.emojiFontFamily, appearance_.flagFontFamily,
+                       appearance_.flagFontCollection.get());
 
     DWRITE_TEXT_METRICS metrics = {};
     layout->GetMetrics(&metrics);
@@ -354,6 +360,8 @@ float CandidateList::MeasureTextHeight(const std::wstring &text, float fontSize,
                                                DWRITE_FONT_WEIGHT_NORMAL, width, 65536.0f,
                                                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_NEAR,
                                                DWRITE_WORD_WRAPPING_WRAP, appearance_.fallbackFontFamilies);
+    ApplyEmojiFontRuns(layout.Get(), text, appearance_.emojiFontFamily, appearance_.flagFontFamily,
+                       appearance_.flagFontCollection.get());
     DWRITE_TEXT_METRICS metrics{};
     if (layout && SUCCEEDED(layout->GetMetrics(&metrics)))
     {

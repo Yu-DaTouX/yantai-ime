@@ -32,6 +32,11 @@ ComPtr<IDWriteTextLayout> CreateCachedTextLayout(IDWriteFactory *factory, const 
                                                  DWRITE_PARAGRAPH_ALIGNMENT paragraphAlignment,
                                                  DWRITE_WORD_WRAPPING wordWrapping,
                                                  const std::vector<std::wstring> &fallbackFamilies = {});
+// 按 msimeui::FindEmojiRuns 给出的区间给 text layout 换 emoji 字体：扩展象形符号（含 FE0F、20E3
+// 键帽、ZWJ 序列、肤色修饰）用 emojiFamily；区域旗帜用宿主加载的私有字体集（flagFamily +
+// flagCollection），没有私有字体时退回 emojiFamily。两者都为空时什么也不做。
+void ApplyEmojiFontRuns(IDWriteTextLayout *layout, const std::wstring &text, const std::wstring &emojiFamily,
+                        const std::wstring &flagFamily, IDWriteFontCollection *flagCollection);
 // Moves a text layout's draw origin onto the device pixel grid: the left edge and the first baseline land on
 // whole pixels. D2D rounds the baseline itself; doing it first keeps that rounding away from the half-pixel
 // boundary, where float noise in the transform (the composition atlas offset) would flip it from frame to

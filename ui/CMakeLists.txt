@@ -31,6 +31,7 @@ add_library(msimeui STATIC
     src/ControlsInternal.cpp
     src/DebugLog.cpp
     src/DeviceResources.cpp
+    src/EmojiText.cpp
     src/Fonts.cpp
     src/Image.cpp
     src/ImageMask.cpp
@@ -63,6 +64,7 @@ add_library(msimeui STATIC
     src/ControlsInternal.h
     src/DebugLog.h
     include/msimeui/Controls.h
+    include/msimeui/EmojiText.h
     include/msimeui/DeviceResources.h
     include/msimeui/Fonts.h
     include/msimeui/ImageMask.h
