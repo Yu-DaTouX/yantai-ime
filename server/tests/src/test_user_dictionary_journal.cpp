@@ -4,15 +4,19 @@
 #include "engine/english/english_dictionary.h"
 #include "engine/local_modes/date_time_query.h"
 #include "engine/quanpin/quanpin_query.h"
+#include "engine/user_dictionary/learning_dynamics.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "ipc/traditional_variant_expansion_policy.h"
 
 #include <sqlite3.h>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -399,7 +403,8 @@ TEST_CASE(UserDictionaryReplayKeepsNewShippedWeightsWhenTheDictionaryChanged)
     REQUIRE_EQ(replay.rebased, 0);
     {
         TestDatabase main_db(main_path);
-        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='了'"), 6501704);
+        // 旧调频给提升的词让位而压低的权重（了 6501704 < 出厂 52009647）对衰减学习没有意义，保留出厂词频。
+        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='了'"), 52009647);
     }
 
     // A dictionary the journal has not been replayed onto yet.
@@ -414,21 +419,25 @@ TEST_CASE(UserDictionaryReplayKeepsNewShippedWeightsWhenTheDictionaryChanged)
         TestDatabase main_db(main_path);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='了'"), 52009647);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='乐'"), 6501204);
-        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='直到'"), 5052903);
+        // 旧调频把直到提到 5052903（出厂 364449 的 13.9 倍）：换算成初始 dee，权重不丢。
+        REQUIRE(std::abs(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='直到'") - 5052903) <= 2);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='知道'"), 1);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='来'"), 10000);
         TestDatabase journal(user_path);
         REQUIRE_EQ(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='了' AND "
                                         "dictionary='pinyin'"),
                    52009647);
-        REQUIRE_EQ(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='直到'"), 5052903);
+        REQUIRE(std::abs(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='直到'") -
+                         5052903) <= 2);
+        REQUIRE_EQ(journal.scalar_int64("SELECT commits FROM user_dictionary_operations WHERE value='直到'"), 1);
+        REQUIRE_EQ(journal.scalar_int64("SELECT base_weight FROM user_dictionary_operations WHERE value='直到'"),
+                   364449);
         REQUIRE_EQ(journal.scalar_int("SELECT COUNT(*) FROM dictionary_state WHERE "
                                       "name='replayed_dictionary_sha256' AND value='a'"),
                    1);
     }
 
-    // Learning on that dictionary, then reinstalling the same dictionary: weights below the
-    // shipped ones are the staircase room made for a promotion and must replay exactly.
+    // 旧调频记录（commits = 0）里低于出厂词频的权重不再写回；已迁移的学习条目重装同一份词库后照样换算。
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin, "le", "乐",
                                            5000000));
     install_dictionary("a");
@@ -438,8 +447,8 @@ TEST_CASE(UserDictionaryReplayKeepsNewShippedWeightsWhenTheDictionaryChanged)
     {
         TestDatabase main_db(main_path);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='了'"), 52009647);
-        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='乐'"), 5000000);
-        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='直到'"), 5052903);
+        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='乐'"), 6501204);
+        REQUIRE(std::abs(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='直到'") - 5052903) <= 2);
     }
 
     // A learning write over a hand-set weight makes the row learned again.
@@ -593,17 +602,21 @@ TEST_CASE(UserDictionarySupportsFixedPositionsAndDeferredSafeRanking)
 
     candidates = {{"ni", "甲", 100}, {"ni", "乙", 90}, {"ni", "丙", 80},
                   {"ni", "丁", 70},  {"ni", "戊", 60}, {"ni", "己", 50}};
+    // 衰减打分学习：不再数选择次数，每次上屏都记，一次就把权重抬到出厂词频的数倍。
     REQUIRE(user_dictionary::adjust_candidate_ranking(test::Utf8(main_path), test::Utf8(user_path), "ni", candidates,
                                                       "ni", "己", "linear", 2, 2, false));
+    int first_weight = 0;
     {
         TestDatabase db(main_path);
-        REQUIRE_EQ(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='己'"), 50);
+        first_weight = db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='己'");
+        REQUIRE(first_weight > 100);
+        REQUIRE_EQ(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='甲'"), 100);
     }
     REQUIRE(user_dictionary::adjust_candidate_ranking(test::Utf8(main_path), test::Utf8(user_path), "ni", candidates,
                                                       "ni", "己", "linear", 2, 2, false));
     {
         TestDatabase db(main_path);
-        REQUIRE(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='己'") > 70);
+        REQUIRE(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='己'") > first_weight);
     }
 
     {
@@ -617,7 +630,7 @@ TEST_CASE(UserDictionarySupportsFixedPositionsAndDeferredSafeRanking)
                                                       "ni", "丙", "linear", 1, 1, false));
     {
         TestDatabase db(main_path);
-        REQUIRE_EQ(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='丙'"), 101);
+        REQUIRE(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='丙'") > 100);
         REQUIRE_EQ(db.scalar_int("SELECT weight FROM tbl_1_n WHERE value='乙'"), 99);
     }
     std::filesystem::remove_all(directory);
@@ -836,7 +849,7 @@ TEST_CASE(UserDictionaryPromoteLiftsAnAlternativeSegmentationAcrossKeys)
 
 // 回归：不置顶、按 promote 模式连着选几次，也要能把吉安一路顶到首位。每一轮都照着
 // 库里的新权重重排候选列表，模拟用户重新打一遍 jian 看到的顺序。
-TEST_CASE(UserDictionaryRepeatedPromotionWalksAnAlternativeSegmentationToTheTop)
+TEST_CASE(UserDictionaryRepeatedCommitsRaiseAnAlternativeSegmentationOnItsOwnKey)
 {
     const auto directory = test::TempRoot() / ("msime-cross-key-walk-" + std::to_string(GetCurrentProcessId()));
     std::filesystem::create_directories(directory);
@@ -881,20 +894,25 @@ TEST_CASE(UserDictionaryRepeatedPromotionWalksAnAlternativeSegmentationToTheTop)
         return list.size();
     };
 
-    // promote 模式一次最多前进到第 5 位，所以从第 8 位走到首位需要几轮。上限给 8 轮，
-    // 断言的是「会收敛」，不是精确的轮数。
-    std::size_t rounds = 0;
-    while (rank_of(current_list(), "吉安") != 0 && rounds < 8)
+    // 衰减打分：反复上屏同一个另一读音的词，权重逐次上升，写入只落在它自己的键（ji'an）的行上；
+    // 权重只有 1 的生僻词不会一下子越过 340 万的常用字（要靠大量上屏才行），也不会拖动别的键的行。
+    std::int64_t previous = 1;
+    for (int round = 0; round < 20; ++round)
     {
         const auto list = current_list();
         REQUIRE(user_dictionary::adjust_candidate_ranking(test::Utf8(main_path), test::Utf8(user_path), "jian", list,
                                                           "ji'an", "吉安", "promote", 1, 1, false));
-        ++rounds;
+        TestDatabase db(main_path);
+        const std::int64_t weight = db.scalar_int64("SELECT weight FROM tbl_2_j WHERE value='吉安'");
+        REQUIRE(weight > previous);
+        previous = weight;
     }
-    REQUIRE_EQ(rank_of(current_list(), "吉安"), static_cast<std::size_t>(0));
+    REQUIRE(previous > 100);
+    REQUIRE(rank_of(current_list(), "吉安") > 0);
     {
         TestDatabase db(main_path);
         REQUIRE_EQ(db.scalar_int64("SELECT weight FROM tbl_1_j WHERE value='见'"), 3460998);
+        REQUIRE_EQ(db.scalar_int64("SELECT weight FROM tbl_2_j WHERE value='积案'"), 9420);
     }
     std::filesystem::remove_all(directory);
 }
@@ -1077,7 +1095,8 @@ TEST_CASE(UserDictionaryReplaySkipsLearnedKanaPinyinUpserts)
         REQUIRE_EQ(db.scalar_int("SELECT COUNT(*) FROM tbl_1_p WHERE value='パン'"), 0);
         REQUIRE_EQ(db.scalar_int("SELECT COUNT(*) FROM tbl_1_a"), 0);
         REQUIRE_EQ(db.scalar_int("SELECT COUNT(*) FROM tbl_1_o"), 0);
-        REQUIRE_EQ(db.scalar_int64("SELECT weight FROM tbl_1_x WHERE value='现'"), 5000);
+        // 现 的旧调频权重 5000 是出厂 1 的 5000 倍：迁移成封顶热度的学习条目，权重落在 (1, 上限] 内。
+        REQUIRE(db.scalar_int64("SELECT weight FROM tbl_1_x WHERE value='现'") > 1);
         REQUIRE_EQ(db.scalar_int("SELECT COUNT(*) FROM tbl_1_p WHERE value='ペン'"), 1);
     }
 
@@ -1093,7 +1112,7 @@ TEST_CASE(UserDictionaryReplaySkipsLearnedKanaPinyinUpserts)
     std::filesystem::remove_all(directory);
 }
 
-TEST_CASE(UserDictionaryLocalRebalanceKeepsPositiveSameKeyWeights)
+TEST_CASE(UserDictionaryLearningLeavesTheOtherRowsOfTheKeyUntouched)
 {
     const auto directory = test::TempRoot() / ("msime-local-rebalance-" + std::to_string(GetCurrentProcessId()));
     std::filesystem::create_directories(directory);
@@ -1119,9 +1138,8 @@ TEST_CASE(UserDictionaryLocalRebalanceKeepsPositiveSameKeyWeights)
         TestDatabase db(main_path);
         REQUIRE_EQ(db.scalar_int("SELECT COUNT(*) FROM tbl_1_n WHERE weight < 1"), 0);
         REQUIRE_EQ(db.scalar_int64("SELECT weight FROM tbl_1_n WHERE value='甲'"), 20000);
-        REQUIRE(db.scalar_int64("SELECT weight FROM tbl_1_n WHERE value='己'") >
-                db.scalar_int64("SELECT weight FROM tbl_1_n WHERE value='戊'"));
-        REQUIRE(db.scalar_int64("SELECT weight FROM tbl_1_n WHERE value='己'") < 20000);
+        REQUIRE_EQ(db.scalar_int64("SELECT weight FROM tbl_1_n WHERE value='戊'"), 16000);
+        REQUIRE(db.scalar_int64("SELECT weight FROM tbl_1_n WHERE value='己'") > 20000);
     }
     std::filesystem::remove_all(directory);
 }
@@ -1231,4 +1249,455 @@ TEST_CASE(DateTimeFormatOrderIsLearnedPinnedAndFixedByFormatId)
     items = ordered("rq");
     REQUIRE_EQ(items[0].fixed_position, 0);
     std::filesystem::remove_all(directory);
+}
+namespace
+{
+// 一份只有 tbl_1_n 的小词库：甲 100 > 乙 90 > ... > 己 50。
+std::filesystem::path MakeLearningDictionary(const std::filesystem::path &directory)
+{
+    std::filesystem::create_directories(directory);
+    const auto main_path = directory / "msime.db";
+    TestDatabase db(main_path);
+    db.exec("CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+            "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+            "INSERT INTO tbl_1_n VALUES('ni','n','甲',100),('ni','n','乙',90),('ni','n','丙',80),"
+            "('ni','n','丁',70),('ni','n','戊',60),('ni','n','己',50);");
+    return main_path;
+}
+
+std::int64_t WeightOf(const std::filesystem::path &main_path, const char *sql)
+{
+    TestDatabase db(main_path);
+    return db.scalar_int64(sql);
+}
+
+void SetLearnTick(const std::filesystem::path &user_path, std::int64_t tick)
+{
+    TestDatabase db(user_path);
+    db.exec(("INSERT INTO dictionary_state(name,value) VALUES('learn_tick','" + std::to_string(tick) +
+             "') ON CONFLICT(name) DO UPDATE SET value=excluded.value")
+                .c_str());
+}
+} // namespace
+
+// 公式照 librime：formula_d 的半衰期约 139 tick，formula_p 在 dee < 20 与 ≥ 20 两段连续。
+TEST_CASE(UserDictionaryDecayFormulasFollowLibrime)
+{
+    namespace dyn = user_dictionary::dynamics;
+    REQUIRE(std::abs(dyn::formula_d(1.0, 200.0, 1.0, 0.0) - (1.0 + std::exp(-1.0))) < 1e-12);
+    REQUIRE(std::abs(dyn::decayed_dee(1.0, 0, 139) - 0.5) < 0.002);
+    REQUIRE(dyn::decayed_dee(3.0, 50, 50) == 3.0);
+    // 两段在 dee = 20 处连续
+    const double kM = 1 / (1 - std::exp(-0.005));
+    REQUIRE(std::abs(dyn::formula_p(0, 0, 1000, 19.999) - dyn::formula_p(0, 0, 1000, 20.001)) < 1e-3);
+    REQUIRE(std::abs(dyn::formula_p(0, 0, 0, 20.0 - 1e-9) - 0.5 * (20.0 / kM)) < 1e-6);
+    // 一次上屏约 ×11；阈值处倍率恰为 1；越热倍率越大、越冷越小，遗忘前平滑回落。
+    REQUIRE(dyn::boost(1.0, 1, 10) > 8.0 && dyn::boost(1.0, 1, 10) < 14.0);
+    REQUIRE(std::abs(dyn::boost(dyn::kForgetDee, 1, 10) - 1.0) < 1e-9);
+    REQUIRE(dyn::boost(0.5, 1, 10) < dyn::boost(1.0, 1, 10));
+    REQUIRE(dyn::boost(5.0, 5, 10) > dyn::boost(1.0, 1, 10));
+    REQUIRE(dyn::boost(300.0, 300, 1000) > dyn::boost(30.0, 30, 1000));
+    REQUIRE(!dyn::forgotten(dyn::decayed_dee(1.0, 0, 500)));
+    REQUIRE(dyn::forgotten(dyn::decayed_dee(1.0, 0, 700)));
+    // 换算回去：旧调频的倍率 -> dee -> 倍率
+    for (double ratio : {1.5, 13.9, 250.0})
+        REQUIRE(std::abs(dyn::boost(dyn::dee_for_boost(ratio, 1, 77), 1, 77) / ratio - 1.0) < 1e-6);
+    REQUIRE_EQ(dyn::effective_weight(77000000, 5.0, 5, 10, 100000000), 100000000);
+}
+
+TEST_CASE(UserDictionaryLearnedCommitRaisesDecaysAndIsForgotten)
+{
+    const auto directory = test::TempRoot() / ("msime-decay-learning-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    const auto main_path = MakeLearningDictionary(directory);
+    const auto user_path = directory / "msime_user.db";
+    const std::string main = test::Utf8(main_path), user = test::Utf8(user_path);
+
+    bool changed = false;
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni", "己", &changed));
+    REQUIRE(changed);
+    const std::int64_t first = WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='己'");
+    REQUIRE(first > 100); // 一次上屏就越过首位的出厂词频
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='己'"), 1);
+        REQUIRE_EQ(journal.scalar_int("SELECT tick FROM user_dictionary_operations WHERE value='己'"), 1);
+        REQUIRE_EQ(journal.scalar_int("SELECT base_weight FROM user_dictionary_operations WHERE value='己'"), 50);
+        REQUIRE_EQ(journal.scalar_int("SELECT CAST(dee AS INTEGER) FROM user_dictionary_operations WHERE value='己'"),
+                   1);
+        REQUIRE_EQ(journal.scalar_int("SELECT value FROM dictionary_state WHERE name='learn_tick'"), 1);
+    }
+    // 其余行不动
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='甲'"), 100);
+
+    // 衰减：全局上屏计数走到 139，dee 约减半，权重回落但仍高于出厂词频。
+    SetLearnTick(user_path, 139);
+    REQUIRE(user_dictionary::sweep_learned_entries(main, user));
+    const std::int64_t halved = WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='己'");
+    REQUIRE(halved < first);
+    REQUIRE(halved > 50);
+
+    // 遗忘：衰减到阈值以下，出厂词回到出厂词频，日志里不留这一行。
+    SetLearnTick(user_path, 700);
+    REQUIRE(user_dictionary::sweep_learned_entries(main, user));
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='己'"), 50);
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT COUNT(*) FROM user_dictionary_operations WHERE value='己'"), 0);
+    }
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='甲'"), 100);
+    std::filesystem::remove_all(directory, ec);
+}
+
+// 直接上屏首选也计一次：dee 累积、权重升高，tick 与 commits 前进。
+TEST_CASE(UserDictionaryCommittingTheTopCandidateReinforcesIt)
+{
+    const auto directory = test::TempRoot() / ("msime-decay-first-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    const auto main_path = MakeLearningDictionary(directory);
+    const auto user_path = directory / "msime_user.db";
+    const std::string main = test::Utf8(main_path), user = test::Utf8(user_path);
+    const std::vector<WordItem> list = {{"ni", "甲", 100, CandidateSource::Database, "ni"},
+                                        {"ni", "乙", 90, CandidateSource::Database, "ni"}};
+
+    // 走 adjust_candidate_ranking（Server 与引擎的入口）：首选不再被跳过。
+    REQUIRE(user_dictionary::adjust_candidate_ranking(main, user, "ni", list, "ni", "甲", "promote", 1, 1, false));
+    const std::int64_t once = WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='甲'");
+    REQUIRE(once > 100);
+    REQUIRE(user_dictionary::adjust_candidate_ranking(main, user, "ni", list, "ni", "甲", "promote", 1, 1, false));
+    REQUIRE(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='甲'") > once);
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='甲'"), 2);
+        REQUIRE_EQ(journal.scalar_int("SELECT tick FROM user_dictionary_operations WHERE value='甲'"), 2);
+        REQUIRE(journal.scalar_int("SELECT dee > 1.9 FROM user_dictionary_operations WHERE value='甲'"));
+    }
+    // 关闭调频时什么也不记。
+    REQUIRE(user_dictionary::adjust_candidate_ranking(main, user, "ni", list, "ni", "乙", "disabled", 1, 1, false));
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='乙'"), 90);
+    std::filesystem::remove_all(directory, ec);
+}
+
+// 手动加的词、设置页改的权重、置顶写下的权重都不受衰减影响，出厂词没学过也不受影响。
+TEST_CASE(UserDictionaryDecayLeavesFactoryManualAndPinnedWordsAlone)
+{
+    const auto directory = test::TempRoot() / ("msime-decay-owned-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    const auto main_path = MakeLearningDictionary(directory);
+    const auto user_path = directory / "msime_user.db";
+    const std::string main = test::Utf8(main_path), user = test::Utf8(user_path);
+    {
+        TestDatabase db(main_path);
+        db.exec("INSERT INTO tbl_1_n VALUES('ni','n','手',10000),('ni','n','改',500);");
+    }
+    REQUIRE(user_dictionary::record_user_insert(user, user_dictionary::DictionaryKind::Pinyin, "ni", "手", 10000));
+    REQUIRE(user_dictionary::record_weight_edit(user, user_dictionary::DictionaryKind::Pinyin, "ni", "改", 500));
+    // 上屏手动词不改它；置顶 丁
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni", "手"));
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni", "改"));
+    const std::vector<WordItem> list = {{"ni", "手", 10000, CandidateSource::Database, "ni"},
+                                        {"ni", "丁", 70, CandidateSource::Database, "ni"}};
+    REQUIRE(user_dictionary::adjust_candidate_ranking(main, user, "ni", list, "ni", "丁", "pin", 1, 1, true));
+    const std::int64_t pinned = WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='丁'");
+    REQUIRE(pinned > 10000);
+    // 置顶之后再上屏它也不被学习（权重不动），遗忘时间再久也在
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni", "丁"));
+    SetLearnTick(user_path, 1000000);
+    REQUIRE(user_dictionary::sweep_learned_entries(main, user));
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='手'"), 10000);
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='改'"), 500);
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='丁'"), pinned);
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='甲'"), 100);
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT COUNT(*) FROM user_dictionary_operations"), 3);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='手'"), 0);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='丁'"), -1);
+    }
+    std::filesystem::remove_all(directory, ec);
+}
+
+// 整句造词记成学习条目：遗忘后从词库里消失；删除后再造，从头累积（删除恢复）。
+TEST_CASE(UserDictionaryLearnedPhraseIsForgottenAndRevivesAfterDeletion)
+{
+    const auto directory = test::TempRoot() / ("msime-decay-phrase-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    const auto main_path = MakeLearningDictionary(directory);
+    const auto user_path = directory / "msime_user.db";
+    const std::string main = test::Utf8(main_path), user = test::Utf8(user_path);
+    const auto learn_phrase = [&]() {
+        {
+            TestDatabase db(main_path);
+            db.exec("INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',10000);");
+        }
+        REQUIRE(user_dictionary::record_learned_phrase(user, "ni'hao", "拟好"));
+    };
+    learn_phrase();
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT user_inserted FROM user_dictionary_operations WHERE value='拟好'"), 1);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='拟好'"), 1);
+        // 刚落库时权重等于词库里写的 10000
+        REQUIRE(std::abs(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='拟好'") -
+                         10000) <= 10);
+    }
+    // 再上屏一次它（词库里有这一行了）：commits 2，权重高于 10000。
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni'hao", "拟好"));
+    REQUIRE(WeightOf(main_path, "SELECT weight FROM tbl_2_n WHERE value='拟好'") > 10000);
+
+    // 删除：词库行没了，日志记成 delete，学习状态清零；此时上屏（没有行）什么也不记。
+    REQUIRE(user_dictionary::delete_dictionary_candidate(main, user, user_dictionary::DictionaryKind::Pinyin, "ni'hao",
+                                                         "拟好"));
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='拟好'"), 0);
+        REQUIRE_EQ(journal.scalar_int("SELECT operation='delete' FROM user_dictionary_operations WHERE "
+                                      "value='拟好'"),
+                   1);
+    }
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni'hao", "拟好"));
+    REQUIRE_EQ(WeightOf(main_path, "SELECT COUNT(*) FROM tbl_2_n"), 0);
+
+    // 再次造出来：恢复成 upsert，从头累积（commits 1）。
+    learn_phrase();
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT operation='upsert' FROM user_dictionary_operations WHERE "
+                                      "value='拟好'"),
+                   1);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='拟好'"), 1);
+    }
+    REQUIRE_EQ(WeightOf(main_path, "SELECT COUNT(*) FROM tbl_2_n"), 1);
+
+    // 久不再用：遗忘，词库行与日志行一起消失。
+    SetLearnTick(user_path, 5000);
+    REQUIRE(user_dictionary::sweep_learned_entries(main, user));
+    REQUIRE_EQ(WeightOf(main_path, "SELECT COUNT(*) FROM tbl_2_n"), 0);
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT COUNT(*) FROM user_dictionary_operations"), 0);
+    }
+    std::filesystem::remove_all(directory, ec);
+}
+
+// 衰减状态随升级回放写回：衰减后的权重换算到新装的出厂词库上；过期的不写回；旧版整句造词的长条目
+// 迁移成学习条目；旧调频的权重迁移成初始 dee；短的旧整句（与设置页手动加的分不开）保持永久。
+TEST_CASE(UserDictionaryReplayCarriesTheLearningState)
+{
+    const auto directory = test::TempRoot() / ("msime-decay-replay-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    std::filesystem::create_directories(directory);
+    const auto user_path = directory / "msime_user.db";
+    const std::string user = test::Utf8(user_path);
+    const auto english_path = directory / "english.db";
+    {
+        TestDatabase english_db(english_path);
+        english_db.exec("CREATE TABLE english_words(word TEXT PRIMARY KEY,display TEXT);");
+    }
+    const auto fresh_dictionary = [&]() {
+        const auto main_path = directory / "msime.db";
+        std::filesystem::remove(main_path, ec);
+        auto path = MakeLearningDictionary(directory);
+        return path;
+    };
+    // 学一次己和戊、造一个整句；全局上屏计数随后推到 2000，这些条目回放时都已过期。
+    auto main_path = fresh_dictionary();
+    const std::string main = test::Utf8(main_path);
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni", "己"));
+    REQUIRE(user_dictionary::learn_pinyin_commit(main, user, "ni", "戊"));
+    {
+        TestDatabase db(main_path);
+        db.exec("INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',10000);");
+    }
+    REQUIRE(user_dictionary::record_learned_phrase(user, "ni'hao", "拟好"));
+    // 旧版留下的：八音节整句（user_inserted、10000）、五音节整句、旧调频提升的丁（出厂 70 → 7000）
+    REQUIRE(user_dictionary::record_user_insert(user, user_dictionary::DictionaryKind::Pinyin,
+                                                "ni'ni'ni'ni'ni'ni'ni'ni", "你你你你你你你你", 10000));
+    REQUIRE(user_dictionary::record_user_insert(user, user_dictionary::DictionaryKind::Pinyin, "ni'ni'ni'ni'ni",
+                                                "你你你你你", 10000));
+    REQUIRE(user_dictionary::record_upsert(user, user_dictionary::DictionaryKind::Pinyin, "ni", "丁", 7000));
+    {
+        // 模拟旧日志：这些行没有学习状态列的值
+        TestDatabase journal(user_path);
+        journal.exec("UPDATE user_dictionary_operations SET commits=0,dee=0,tick=0,base_weight=0 WHERE value IN "
+                     "('你你你你你你你你','你你你你你','丁')");
+        journal.exec("INSERT INTO dictionary_state(name,value) VALUES('learn_tick','2000') "
+                     "ON CONFLICT(name) DO UPDATE SET value=excluded.value");
+    }
+
+    // 新装一份出厂词库（己的出厂词频换了：50 -> 500）再回放。
+    main_path = fresh_dictionary();
+    {
+        TestDatabase db(main_path);
+        db.exec("UPDATE tbl_1_n SET weight=500 WHERE value='己';"
+                "CREATE TABLE tbl_others_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                "CREATE TABLE tbl_5_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);");
+    }
+    const auto replay = user_dictionary::replay(user, test::Utf8(main_path), test::Utf8(english_path));
+    REQUIRE(replay.error.empty());
+    REQUIRE_EQ(replay.failed, 0);
+    // 己：tick 1 的条目在 2000 个 tick 之后已经过期，不写回，保持新出厂词频；戊同理。
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='己'"), 500);
+    REQUIRE_EQ(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='戊'"), 60);
+    REQUIRE(replay.forgotten >= 3);
+    // 丁：旧调频 70 -> 7000（100 倍）迁移成学习条目，权重不丢（换算回 7000 上下）。
+    REQUIRE(std::abs(WeightOf(main_path, "SELECT weight FROM tbl_1_n WHERE value='丁'") - 7000) <= 2);
+    REQUIRE(replay.migrated >= 2);
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='丁'"), 1);
+        REQUIRE_EQ(journal.scalar_int("SELECT base_weight FROM user_dictionary_operations WHERE value='丁'"), 70);
+        // 八音节的旧整句迁移成学习条目（commits 1），五音节的原样保留（永久）。
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE "
+                                      "value='你你你你你你你你'"),
+                   1);
+        REQUIRE_EQ(journal.scalar_int("SELECT commits FROM user_dictionary_operations WHERE value='你你你你你'"), 0);
+    }
+    std::filesystem::remove_all(directory, ec);
+}
+
+// 用真实用户学习库的只读副本做回放（副本放在工作树外，见 MSIME_LEARN_REPLAY_SRC）：目录里要有
+// msime_user.db（用户日志副本）、msime.db（出厂词库）、english.db、dictionary-manifest.json。
+// 回放在同级 replay 目录的拷贝上做，不碰源目录；没有设置环境变量时跳过。
+TEST_CASE(UserDictionaryReplayOfARealLearningJournalKeepsTheLearning)
+{
+    const char *source_env = std::getenv("MSIME_LEARN_REPLAY_SRC");
+    if (source_env == nullptr || *source_env == '\0')
+        return;
+    const std::filesystem::path source(source_env);
+    const auto work = source.parent_path() / "replay";
+    std::error_code ec;
+    std::filesystem::remove_all(work, ec);
+    std::filesystem::create_directories(work);
+    for (const char *name : {"msime_user.db", "msime.db", "english.db", "dictionary-manifest.json"})
+        std::filesystem::copy_file(source / name, work / name, std::filesystem::copy_options::overwrite_existing);
+    const auto user_path = work / "msime_user.db";
+    const auto main_path = work / "msime.db";
+
+    // 回放前的日志与出厂词频。
+    struct Legacy
+    {
+        std::string key, value;
+        std::int64_t weight;
+        bool user_inserted;
+        std::int64_t shipped;
+    };
+    std::vector<Legacy> rows;
+    int total = 0, pinyin_total = 0, kept_short_phrases = 0, long_phrases = 0, tuned_up = 0, demoted = 0;
+    {
+        sqlite3 *journal = nullptr, *factory = nullptr;
+        REQUIRE_EQ(sqlite3_open_v2(test::Utf8(user_path).c_str(), &journal, SQLITE_OPEN_READONLY, nullptr), SQLITE_OK);
+        REQUIRE_EQ(sqlite3_open_v2(test::Utf8(main_path).c_str(), &factory, SQLITE_OPEN_READONLY, nullptr), SQLITE_OK);
+        sqlite3_stmt *stmt = nullptr;
+        REQUIRE_EQ(sqlite3_prepare_v2(journal,
+                                      "SELECT dictionary,key,value,weight,user_inserted,weight_edited,operation FROM "
+                                      "user_dictionary_operations",
+                                      -1, &stmt, nullptr),
+                   SQLITE_OK);
+        while (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            ++total;
+            const std::string kind = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+            const std::string operation = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+            if (kind != "pinyin" || operation != "upsert")
+                continue;
+            ++pinyin_total;
+            Legacy row{reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1)),
+                       reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2)), sqlite3_column_int64(stmt, 3),
+                       sqlite3_column_int(stmt, 4) != 0, 0};
+            const bool edited = sqlite3_column_int(stmt, 5) != 0;
+            const std::size_t syllables =
+                static_cast<std::size_t>(std::count(row.key.begin(), row.key.end(), '\'')) + 1;
+            const std::string table = syllables >= 8 ? "tbl_others_" + row.key.substr(0, 1)
+                                                     : "tbl_" + std::to_string(syllables) + "_" + row.key.substr(0, 1);
+            sqlite3_stmt *shipped = nullptr;
+            if (sqlite3_prepare_v2(factory, ("SELECT MAX(weight) FROM " + table + " WHERE key=?1 AND value=?2").c_str(),
+                                   -1, &shipped, nullptr) == SQLITE_OK)
+            {
+                sqlite3_bind_text(shipped, 1, row.key.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(shipped, 2, row.value.c_str(), -1, SQLITE_TRANSIENT);
+                if (sqlite3_step(shipped) == SQLITE_ROW && sqlite3_column_type(shipped, 0) != SQLITE_NULL)
+                    row.shipped = sqlite3_column_int64(shipped, 0);
+            }
+            sqlite3_finalize(shipped);
+            if (row.user_inserted && row.weight == 10000 && !edited)
+                (syllables > 7 ? long_phrases : kept_short_phrases) += 1;
+            else if (!row.user_inserted && !edited && row.shipped > 0)
+                (row.weight > row.shipped ? tuned_up : demoted) += 1;
+            if (!row.user_inserted && !edited && row.shipped > 0 && row.weight > row.shipped)
+                rows.push_back(row);
+        }
+        sqlite3_finalize(stmt);
+        sqlite3_close(journal);
+        sqlite3_close(factory);
+    }
+
+    const auto replay =
+        user_dictionary::replay(test::Utf8(user_path), test::Utf8(main_path), test::Utf8(work / "english.db"));
+    REQUIRE(replay.error.empty());
+    REQUIRE_EQ(replay.failed, 0);
+    std::cout << "[real-journal] rows=" << total << " pinyin_upserts=" << pinyin_total
+              << " short_phrases_kept=" << kept_short_phrases << " long_phrases_migrated=" << long_phrases
+              << " tuned_up=" << tuned_up << " demoted_dropped=" << demoted << " | replay applied=" << replay.applied
+              << " skipped=" << replay.skipped << " learned=" << replay.learned << " migrated=" << replay.migrated
+              << " forgotten=" << replay.forgotten << std::endl;
+    REQUIRE_EQ(replay.migrated, long_phrases + tuned_up);
+    REQUIRE_EQ(replay.forgotten, 0);
+
+    // 旧调频抬高的权重换算后不丢：落在原权重上下（只有被 dee 封顶限制的才会更低）。
+    int exact = 0, capped = 0;
+    std::vector<std::int64_t> carried;
+    const auto read_carried = [&](bool first) {
+        sqlite3 *db = nullptr;
+        REQUIRE_EQ(sqlite3_open_v2(test::Utf8(main_path).c_str(), &db, SQLITE_OPEN_READONLY, nullptr), SQLITE_OK);
+        std::size_t index = 0;
+        for (const auto &row : rows)
+        {
+            const std::size_t syllables =
+                static_cast<std::size_t>(std::count(row.key.begin(), row.key.end(), '\'')) + 1;
+            const std::string table = syllables >= 8 ? "tbl_others_" + row.key.substr(0, 1)
+                                                     : "tbl_" + std::to_string(syllables) + "_" + row.key.substr(0, 1);
+            sqlite3_stmt *stmt = nullptr;
+            REQUIRE_EQ(sqlite3_prepare_v2(db, ("SELECT weight FROM " + table + " WHERE key=?1 AND value=?2").c_str(),
+                                          -1, &stmt, nullptr),
+                       SQLITE_OK);
+            sqlite3_bind_text(stmt, 1, row.key.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 2, row.value.c_str(), -1, SQLITE_TRANSIENT);
+            REQUIRE_EQ(sqlite3_step(stmt), SQLITE_ROW);
+            const std::int64_t weight = sqlite3_column_int64(stmt, 0);
+            sqlite3_finalize(stmt);
+            REQUIRE(weight > row.shipped);
+            if (first)
+            {
+                carried.push_back(weight);
+                if (std::abs(weight - row.weight) <= 2)
+                    ++exact;
+                else
+                {
+                    REQUIRE(weight < row.weight); // 只会因封顶而偏低
+                    ++capped;
+                }
+            }
+            else
+                REQUIRE_EQ(weight, carried[index]); // 重复回放不改变权重
+            ++index;
+        }
+        sqlite3_close(db);
+    };
+    read_carried(true);
+    std::cout << "[real-journal] tuned weights carried: exact=" << exact << " capped=" << capped << std::endl;
+
+    // 再回放一次：不再有要迁移的，结果不变。
+    const auto again =
+        user_dictionary::replay(test::Utf8(user_path), test::Utf8(main_path), test::Utf8(work / "english.db"));
+    REQUIRE(again.error.empty());
+    REQUIRE_EQ(again.failed, 0);
+    REQUIRE_EQ(again.migrated, 0);
+    REQUIRE_EQ(again.learned, replay.learned);
+    read_carried(false);
 }
