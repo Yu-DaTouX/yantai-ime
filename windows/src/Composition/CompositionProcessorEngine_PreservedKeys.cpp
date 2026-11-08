@@ -6,6 +6,7 @@
 #include "CompositionProcessorEngine.h"
 #include "TfInputProcessorProfile.h"
 #include "Globals.h"
+#include "ModifierState.h"
 #include "FanyDefines.h"
 #include "Compartment.h"
 #include "LanguageBar.h"
@@ -348,7 +349,7 @@ void CCompositionProcessorEngine::OnPreservedKey( //
         *pNeedToggleIMEMode = TRUE;
 
         Global::Keycode = VK_SHIFT;
-        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+        if (IsShiftDownForCurrentMessage())
             Global::ModifiersDown |= 0b00000001;
         else
             Global::ModifiersDown &= ~0b00000001;

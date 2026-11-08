@@ -9,6 +9,7 @@
 #include "KeyHandlerEditSession.h"
 #include "KeyFocusRecovery.h"
 #include "KeyRepeatGuard.h"
+#include "ModifierState.h"
 #include "CapsLockInputPolicy.h"
 #include "CaretAnchorPolicy.h"
 #include "Compartment.h"
@@ -442,8 +443,8 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
             return true;
         }
     }
-    if ((capturedModifiers & 0b00000110) != 0 || (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 ||
-        (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0 || IsBareModifierKey(*classifiedCode) || _IsKeyboardDisabled())
+    if ((capturedModifiers & 0b00000110) != 0 || IsWindowsKeyDownForCurrentMessage() ||
+        IsBareModifierKey(*classifiedCode) || _IsKeyboardDisabled())
     {
         return false;
     }

@@ -48,6 +48,13 @@ target_include_directories(test_key_route_policy PRIVATE ../src)
 target_compile_features(test_key_route_policy PRIVATE cxx_std_17)
 add_test(NAME key_route_policy COMMAND test_key_route_policy)
 
+# 修饰键采集读消息发出时的状态（GetKeyState），不读此刻的物理键盘：宿主卡顿时 Ctrl+A 不能被当成
+# 字母 a 吃进组字（问题清单第 1 条）。SetKeyboardState 写调用线程的状态表，不注入真实按键。
+add_executable(test_modifier_state modifier_state.cpp)
+target_include_directories(test_modifier_state PRIVATE ../src)
+target_compile_features(test_modifier_state PRIVATE cxx_std_17)
+add_test(NAME modifier_state COMMAND test_modifier_state)
+
 add_executable(test_pinyin_commit_shortcut_policy pinyin_commit_shortcut_policy.cpp)
 target_include_directories(test_pinyin_commit_shortcut_policy PRIVATE ../src)
 target_compile_features(test_pinyin_commit_shortcut_policy PRIVATE cxx_std_17)
