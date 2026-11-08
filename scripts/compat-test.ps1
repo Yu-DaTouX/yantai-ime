@@ -98,6 +98,8 @@ $cases = @(
     @{ n = 'rq+数字2(日期)'; k = { TypeKeys 'rq' }; f = { Tap 0x32 }; c = { param($t) $t -match [string]$today.Year }; cand = $true },
     @{ n = 'nihaoa+退格+空格'; k = { TypeKeys 'nihaoa'; Tap $VK.Back }; f = { Tap $VK.Space }; c = { param($t) $t -eq '你好' }; cand = $true },
     @{ n = 'nihao+Esc'; k = { TypeKeys 'nihao' }; f = { Tap $VK.Esc }; c = { param($t) $t -eq '' }; cand = $true },
+    @{ n = 'yi截图(键帽emoji)+Esc'; k = { TypeKeys 'yi' }; f = { Tap $VK.Esc }; c = { param($t) $t -eq '' }; cand = $true },
+    @{ n = 'meiguo截图(国旗)+Esc'; k = { TypeKeys 'meiguo' }; f = { Tap $VK.Esc }; c = { param($t) $t -eq '' }; cand = $true },
     @{ n = 'Shift切英文abc'; k = { Tap $VK.Shift; Start-Sleep -Milliseconds 200; TypeKeys 'abc'; Tap $VK.Shift }; f = { }; c = { param($t) $t -eq 'abc' }; cand = $false }
 )
 

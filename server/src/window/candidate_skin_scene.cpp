@@ -290,6 +290,8 @@ CandidateEnglishLine::CandidateEnglishLine()
     AddChild(word_);
     AddChild(pos_);
     AddChild(hint_);
+    // 初始是隐藏的：上外边距抵掉 body 为它留的 2 DIP 行距，末项才能贴着卡片内容底边。
+    SetMargin({0.0f, -kCandidateBodyRowSpacingDip, 0.0f, 0.0f});
 }
 
 void CandidateEnglishLine::SetAppearance(const Appearance &appearance)
@@ -322,11 +324,16 @@ void CandidateEnglishLine::SetContent(std::wstring word, std::wstring pos, std::
 
 void CandidateEnglishLine::SetLineVisible(bool visible)
 {
-    if (visible_ == visible)
-        return;
+    const bool changed = visible_ != visible;
     visible_ = visible;
-    InvalidateMeasure();
-    InvalidateVisual();
+    // 隐藏时这一行量为 0，但 body 仍会在它前面留 2 DIP 行距；用上外边距抵掉那一段，
+    // 末项的高亮块才能贴着卡片的内容底边（与隐藏的预编辑行、页眉同一套办法）。
+    SetMargin({0.0f, visible ? 0.0f : -kCandidateBodyRowSpacingDip, 0.0f, 0.0f});
+    if (changed)
+    {
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
 }
 
 msimeui::SizeF CandidateEnglishLine::Measure(const msimeui::SizeF &)
@@ -729,6 +736,9 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     }
     for (const auto &font : settings.fallbackFontFamilies)
         appearance.fallbackFontFamilies.push_back(font);
+    // 区域旗帜用安装目录里的私有字体；其他 emoji 仍用系统自带的 Segoe UI Emoji。
+    appearance.flagFontFamily = settings.flagFontFamily;
+    appearance.flagFontCollection = settings.flagFontCollection;
     appearance.itemHeight = fontSize * 1.35f + tokens.itemExtraHeight;
     appearance.itemGap = tokens.itemGap;
     appearance.fontSize = fontSize;
@@ -741,7 +751,8 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     appearance.textPadLeft = kCandidateNumberTextPad;
     appearance.labelGap = tokens.labelGap;
     appearance.minItemWidth = tokens.minItemWidth;
-    // 收紧宽度时右侧留白与序号左侧的留白相同，卡片两边对称。
+    // contentPad* 是每个候选块（高亮块）自己的内边距，不是卡片边距。收紧宽度时块右侧留白要等于
+    // 序号左侧的留白（contentPadLeft + textPadLeft），高亮块里的文字才左右对称。
     appearance.fitContent = fitContent;
     if (fitContent)
         appearance.contentPadRight = appearance.contentPadLeft + appearance.textPadLeft;
@@ -759,13 +770,12 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     // 英文词义清单页：每行一条词义，词性贴右；都不换行，超出省略号。
     appearance.translationAlignRight = settings.englishSensesPage;
     appearance.ellipsisText = settings.englishSensesPage;
-    // 隐藏的预编辑行高度为 0，但 body 仍在它和列表之间留 2px 行距；贴角皮肤把它抵掉，
-    // 让首项贴着卡片的内容顶边。
+    // 隐藏的预编辑行高度为 0，但 body 仍为每个子项留 2 DIP 行距。它自己的上外边距抵掉它名下
+    // 的那一段，这样预编辑行不占高度也不留行距；页眉与英文行同理（见 CandidatePresenter 与
+    // CandidateEnglishLine::SetLineVisible），首项才能贴着卡片的内容顶边、末项贴着内容底边。
     if (preeditHidden)
     {
-        preedit_->SetMargin(
-            {0.0f, 0.0f, 0.0f,
-             tokens.outerItemRadius > 0.0f || tokens.trimHiddenPreeditGap ? -kCandidateBodyRowSpacingDip : 0.0f});
+        preedit_->SetMargin({0.0f, -kCandidateBodyRowSpacingDip, 0.0f, 0.0f});
     }
     else
     {
@@ -797,6 +807,10 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
         header_->SetFallbackFontFamilies(appearance.fallbackFontFamilies);
         header_->SetFontSize((std::max)(11.0f, fontSize * 0.8f));
         header_->SetColor(tokens.number);
+        // 页眉平时高度为 0（只有英文词义清单页才显示）；隐藏时它自己名下的 2 DIP 行距用上外边距
+        // 抵掉，列表与预编辑行之间的行距照常保留。此前上下都抵，会多抵掉列表上方的一段，
+        // 让高亮块离卡片上沿比离下沿近 2 DIP。
+        header_->SetMargin({0.0f, settings.englishSensesPage ? 0.0f : -kCandidateBodyRowSpacingDip, 0.0f, 0.0f});
     }
     if (englishLine_)
     {

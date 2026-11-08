@@ -1,5 +1,18 @@
 set(TEST_EXECUTABLE_NAME "MetasequoiaImeServerTests")
 
+# Manual engine latency/evaluation tools use the same engine and CRT as the Server.
+# They are deliberately not ctest entries and only run against an isolated data copy.
+add_executable(bench_input_session "${MSIME_ENGINE_DIR}/tests/src/bench_input_session.cpp")
+target_link_libraries(bench_input_session PRIVATE MetasequoiaIme::Engine)
+add_executable(eval_quanpin_sentence "${MSIME_ENGINE_DIR}/tests/src/eval_quanpin_sentence.cpp")
+target_link_libraries(eval_quanpin_sentence PRIVATE MetasequoiaIme::Engine)
+
+# Keep the self-contained per-prefix candidate/cache equivalence regression in
+# the supported Server test command, not only in the standalone engine suite.
+add_executable(test_engine_candidate_consistency "${MSIME_ENGINE_DIR}/tests/src/test_candidate_consistency.cpp")
+target_link_libraries(test_engine_candidate_consistency PRIVATE MetasequoiaIme::Engine)
+add_test(NAME engine_candidate_consistency COMMAND test_engine_candidate_consistency)
+
 add_executable(test_native_settings_controls
     portable/main.cpp
     src/test_native_settings_controls.cpp
@@ -124,6 +137,10 @@ set(TEST_SOURCE_FILES
     "${CMAKE_SOURCE_DIR}/src/window/candidate_skin_tokens.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_skin_layers.cpp"
     "${CMAKE_SOURCE_DIR}/src/window/candidate_skin_layers.cpp"
+    # 候选窗场景的几何（高亮块与卡片内容区）直接驱动真实场景，皮肤清单从仓库的 skins/ 读。
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_skin_scene_geometry.cpp"
+    "${CMAKE_SOURCE_DIR}/src/window/candidate_skin_scene.cpp"
+    "${CMAKE_SOURCE_DIR}/src/window/candidate_skin_overlay.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_floating_toolbar_skin.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_floating_toolbar_image_layout.cpp"
     "${CMAKE_SOURCE_DIR}/src/window/floating_toolbar_skin.cpp"
@@ -188,6 +205,7 @@ target_compile_definitions(${TEST_EXECUTABLE_NAME}
     PRIVATE
     MSIME_AI_ASSISTANT_TEST
     "MSIME_DEFAULT_CONFIG_PATH=\"${CMAKE_SOURCE_DIR}/../installer/default_config/config.default.toml\""
+    "MSIME_SKINS_PATH=\"${CMAKE_SOURCE_DIR}/../skins\""
     "MSIME_DICTIONARY_REPLAY_EXE=\"$<TARGET_FILE:${DICTIONARY_REPLAY_EXECUTABLE_NAME}>\""
 )
 
@@ -196,6 +214,8 @@ add_dependencies(${TEST_EXECUTABLE_NAME} ${DICTIONARY_REPLAY_EXECUTABLE_NAME})
 target_link_libraries(${TEST_EXECUTABLE_NAME}
     PRIVATE
     MetasequoiaIme::Engine
+    # 候选窗场景的几何用例直接驱动 msimeui 的控件树（CandidateList / Card / StackPanel）。
+    msimeui
     nlohmann_json::nlohmann_json
     fmt::fmt
     spdlog::spdlog

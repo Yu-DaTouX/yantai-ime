@@ -356,8 +356,8 @@ int run_test()
         database.execute("INSERT INTO emoji_pinyin VALUES('ku','😭',94)");
         // 小鹤 xl 展开为 xiang；原始码 xl 精确命中简拼键（😀，目录更靠前）时不能压过它。
         database.execute("INSERT INTO emoji_pinyin VALUES('xiang','🐘',50)");
-        // 国旗是两个区域指示符拼成的，Windows 的 Segoe UI Emoji 会画成带框字母，查询结果里要去掉；
-        // 用其它码位画出来的旗（🏳️）不受影响。
+        // 国旗是两个区域指示符拼成的，之前因为 Segoe UI Emoji 画成带框字母被过滤；现在候选窗
+        // 给区域旗帜单独用随包的 Twemoji Mozilla，查询结果要原样保留。用其它码位画出来的旗（🏳️）同样保留。
         database.execute("INSERT INTO emoji_pinyin VALUES('guoqi','🇨🇳',60)");
         database.execute("INSERT INTO emoji_pinyin VALUES('guoqi','🇺🇸',61)");
         database.execute("INSERT INTO emoji_pinyin VALUES('guoqi','🏳️',62)");
@@ -422,13 +422,15 @@ int run_test()
     require(!mixed_exact.diagnostic.has_value() && mixed_exact.candidates.size() == 2 &&
                 mixed_exact.candidates[0].word == "😢" && mixed_exact.candidates[1].word == "😭",
             "Mixed emoji lookup did not return only exact key matches in catalog order.");
-    // 区域指示符拼成的国旗被过滤掉，同一个键下其它画法的旗照常出。
-    const auto without_flags = metasequoia::local_modes::query_emoji("guoqi", SchemeType::Quanpin, others_database, 10);
-    require(without_flags.candidates.size() == 1 && without_flags.candidates.front().word == "🏳️",
-            "Emoji lookup did not filter regional-indicator flag emoji.");
-    const auto mixed_without_flags = query_mixed_emoji("GUOQI", SchemeType::Quanpin, others_database, 3);
-    require(mixed_without_flags.candidates.size() == 1 && mixed_without_flags.candidates.front().word == "🏳️",
-            "Mixed emoji lookup did not filter regional-indicator flag emoji.");
+    // 区域指示符拼成的国旗照常出，与其它画法的旗一起按目录顺序排列。
+    const auto with_flags = metasequoia::local_modes::query_emoji("guoqi", SchemeType::Quanpin, others_database, 10);
+    require(with_flags.candidates.size() == 3 && with_flags.candidates[0].word == "🇨🇳" &&
+                with_flags.candidates[1].word == "🇺🇸" && with_flags.candidates[2].word == "🏳️",
+            "Emoji lookup dropped regional-indicator flag emoji.");
+    const auto mixed_with_flags = query_mixed_emoji("GUOQI", SchemeType::Quanpin, others_database, 3);
+    require(mixed_with_flags.candidates.size() == 3 && mixed_with_flags.candidates[0].word == "🇨🇳" &&
+                mixed_with_flags.candidates[2].word == "🏳️",
+            "Mixed emoji lookup dropped regional-indicator flag emoji.");
     require(query_mixed_emoji("xiao", SchemeType::Quanpin, others_database, 3).candidates.empty() &&
                 query_mixed_emoji("xiaolia", SchemeType::Quanpin, others_database, 3).candidates.empty(),
             "Mixed emoji lookup matched a key by prefix.");

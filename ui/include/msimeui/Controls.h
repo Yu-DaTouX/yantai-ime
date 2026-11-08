@@ -626,6 +626,13 @@ class CandidateList : public Visual
     {
         std::wstring fontFamily;
         std::vector<std::wstring> fallbackFontFamilies;
+        // emoji 段单独用的字体族：Extended_Pictographic（含 FE0F、20E3 键帽、ZWJ 序列、肤色修饰）
+        // 走它，免得主字体里画成怪字形。空字符串表示不单独设置。
+        std::wstring emojiFontFamily = L"Segoe UI Emoji";
+        // 区域旗帜（两个区域指示符）用的私有字体族与字体集，由宿主从安装目录加载后传进来；
+        // 字体集为空时旗帜退回 emojiFontFamily（Segoe UI Emoji 没有国旗图案，会画成方框字母）。
+        std::wstring flagFontFamily;
+        std::shared_ptr<IDWriteFontCollection> flagFontCollection;
         float itemHeight = 28.0f;
         float itemGap = 2.0f;
         float fontSize = 16.0f;
@@ -656,7 +663,8 @@ class CandidateList : public Visual
         bool selectable = true;
         // Measure exactly to the content: no 80 DIP minimum list width and no
         // slack after the text beyond the annotation gap. Pair it with a
-        // contentPadRight equal to contentPadLeft + textPadLeft for even margins.
+        // contentPadRight equal to contentPadLeft so the row's padding is even on
+        // both sides of the card; the row then ends at the card's content edge.
         bool fitContent = false;
         float contentPadLeft = 5.0f;
         float contentPadRight = 5.0f;
@@ -726,6 +734,7 @@ class CandidateList : public Visual
     void SetOnItemActivated(ItemActivatedHandler handler);
     void SetOnContextMenu(ContextMenuHandler handler);
     void SetAppearance(Appearance appearance);
+    const Appearance &GetAppearance() const;
     void SetOrientation(Orientation orientation);
     void SetHoverEnabled(bool enabled);
     // 列表为空时画的一行灰字（例如英文词义清单页的「没有英文释义」）。空串表示不画。

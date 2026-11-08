@@ -413,6 +413,12 @@ bool CMetasequoiaIME::_IsFocusSessionCurrent(uint64_t focusToken, _In_opt_ ITfCo
     return matches;
 }
 
+bool CMetasequoiaIME::_IsCandidateLayoutCurrent(const CTfTextLayoutSink *layout, uint64_t compositionEpoch) const
+{
+    return _IsCompositionEpochCurrent(compositionEpoch) && _pCandidateListUIPresenter &&
+           static_cast<const CTfTextLayoutSink *>(_pCandidateListUIPresenter) == layout;
+}
+
 uint64_t CMetasequoiaIME::_CaptureCompositionEpoch() const
 {
     return _compositionEpoch.load(std::memory_order_acquire);

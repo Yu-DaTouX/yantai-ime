@@ -203,3 +203,78 @@ TEST_CASE(candidate_text_rasterizes_identically_wherever_it_lands)
     std::printf("candidate probe worst channel difference %d/255 over %zu renders\n", worst, glyphs.size());
     REQUIRE(worst == 0);
 }
+
+// 序号用 0.72 倍字号，行盒各自居中时数字（cap height）的墨迹中线会比汉字高约 1px。按两者的墨迹
+// 中线对齐后，同一行里序号与汉字在视觉上应当是同一条水平中线。
+TEST_CASE(candidate_label_is_optically_centred_with_the_hanzi)
+{
+    GridHiddenWindow window;
+    msimeui::DeviceResources resources;
+    REQUIRE(resources.EnsureForComposition(window.hwnd));
+    ID2D1DeviceContext *dc = resources.GetDeviceContext();
+    REQUIRE(dc != nullptr);
+
+    // 125%（120 DPI）是用户报出 1px 偏差的缩放；96 DPI 用来确认不是高 DPI 才有的取整误差。
+    for (const float dpi : {96.0f, 120.0f})
+    {
+        const float scale = dpi / 96.0f;
+        msimeui::CandidateList::Appearance appearance;
+        appearance.fontFamily = L"Microsoft YaHei UI";
+        appearance.fallbackFontFamilies = {L"Microsoft YaHei"};
+        appearance.fontSize = 16.0f;
+        appearance.labelFontSize = 16.0f * 0.72f;
+        appearance.itemHeight = 16.0f * 1.35f + 2.0f;
+        appearance.itemGap = 2.0f;
+        appearance.contentPadLeft = 0.0f;
+        appearance.contentPadRight = 0.0f;
+        appearance.textPadLeft = 5.0f;
+        appearance.labelGap = 5.0f;
+        appearance.fitContent = true;
+        appearance.showSelectedBar = false;
+        appearance.rowFillSelected.a = 0.0f;
+        appearance.rowFillHover.a = 0.0f;
+        appearance.rowFillPressed.a = 0.0f;
+
+        msimeui::CandidateList list(appearance.itemHeight);
+        list.SetAppearance(appearance);
+        list.SetOrientation(msimeui::CandidateList::Orientation::Horizontal);
+        list.SetItems({{L"1", L"\u5fae", L"", L"", {}}});
+        const msimeui::SizeF size = list.Measure({2000.0f, 10000.0f});
+        list.Arrange({0.0f, 0.0f, size.width, size.height});
+
+        const Pixels pixels = RenderTo(dc, static_cast<UINT>(std::ceil(size.width * scale)) + 8,
+                                       static_cast<UINT>(std::ceil(size.height * scale)) + 8, dpi, [&]() {
+                                           dc->SetTransform(D2D1::Matrix3x2F::Translation(0.0f, 0.0f));
+                                           list.Render(resources);
+                                       });
+
+        const msimeui::RectF item = list.GetItemBounds(0);
+        // 序号在行首的固定槽位里（textPadLeft 起，宽 9 DIP 以上），汉字从 textPadLeft + 槽宽 + labelGap 开始。
+        const int split = static_cast<int>(std::floor((item.x + 20.0f) * scale));
+        const int y1 = static_cast<int>(std::ceil((item.y + item.height) * scale));
+        const auto inkCenter = [&](int x0, int x1, bool &found) {
+            int top = y1;
+            int bottom = -1;
+            for (int y = 0; y < y1; ++y)
+                for (int x = x0; x < x1; ++x)
+                    if (pixels.Gray(x, y) > 0x60)
+                    {
+                        top = (std::min)(top, y);
+                        bottom = (std::max)(bottom, y);
+                    }
+            found = bottom >= 0;
+            return (static_cast<float>(top) + static_cast<float>(bottom) + 1.0f) * 0.5f / scale;
+        };
+        bool labelFound = false;
+        bool textFound = false;
+        const float labelCenter = inkCenter(static_cast<int>(std::floor(item.x * scale)), split, labelFound);
+        const float textCenter = inkCenter(split, static_cast<int>(pixels.width), textFound);
+        REQUIRE(labelFound);
+        REQUIRE(textFound);
+        if (std::fabs(labelCenter - textCenter) > 0.5f)
+        {
+            std::printf("label centre %.2f dip vs text centre %.2f dip at %.0f dpi\n", labelCenter, textCenter, dpi);
+            REQUIRE(std::fabs(labelCenter - textCenter) <= 0.5f);
+        }
+    }
+}
