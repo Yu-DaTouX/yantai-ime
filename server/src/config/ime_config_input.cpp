@@ -1,4 +1,4 @@
-// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、双拼方案、上屏样式、辅助码、全拼纠错、模糊音和调频。
+// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、上屏样式、辅助码、全拼纠错、模糊音和调频。
 #include "config/ime_config_internal.h"
 #include <cstdint>
 #include <iterator>
@@ -7,11 +7,8 @@
 #include "global/globals.h"
 #include "defines/defines.h"
 #include "engine/common/helpcode_utils.h"
-#include "engine/contracts/direct_helpcode.h"
 #include "engine/contracts/input_state_shortcuts.h"
-#include "engine/contracts/mid_sentence_helpcode.h"
 #include "engine/core/data_path.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 
 using namespace ime_config_detail;
 
@@ -22,20 +19,12 @@ SchemeType GetConfiguredInputScheme()
 
 std::string GetConfiguredInputSchemeName()
 {
-    switch (g_input_scheme)
-    {
-    case SchemeType::Quanpin:
-        return "quanpin";
-    case SchemeType::Shuangpin:
-        return "shuangpin";
-    default:
-        return "shuangpin";
-    }
+    return "quanpin";
 }
 
 bool SetConfiguredInputScheme(const std::string &scheme)
 {
-    if (scheme != "quanpin" && scheme != "shuangpin")
+    if (scheme != "quanpin")
     {
         return false;
     }
@@ -202,30 +191,6 @@ bool SetConfiguredInputStateShortcut(std::size_t index, const std::string &bindi
     return true;
 }
 
-const std::string &GetConfiguredShuangpinSchema()
-{
-    return g_shuangpin_schema;
-}
-
-bool IsConfiguredShuangpinSemicolonFinal()
-{
-    return ShuangpinProfileUsesSemicolonFinal(GetShuangpinProfile(g_shuangpin_schema));
-}
-
-bool SetConfiguredShuangpinSchema(const std::string &schema)
-{
-    if (!LoadShuangpinSchema(schema))
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "shuangpin_schema", EscapeTomlBasicString(schema)))
-    {
-        return false;
-    }
-    g_shuangpin_schema = schema;
-    return true;
-}
-
 bool GetConfiguredEscapeKeepsSelectedWord()
 {
     return g_escape_keeps_selected_word;
@@ -256,11 +221,6 @@ bool SetConfiguredEnterLearnsEnglishWord(bool enabled)
     return true;
 }
 
-const std::string &GetConfiguredShuangpinPreeditMode()
-{
-    return g_shuangpin_preedit_mode;
-}
-
 const std::string &GetConfiguredTsfPreeditStyle()
 {
     return g_tsf_preedit_style;
@@ -281,410 +241,13 @@ bool SetConfiguredTsfPreeditStyle(const std::string &style)
     return true;
 }
 
-bool GetConfiguredTsfPreeditShuangpinQuanpin()
-{
-    return g_tsf_preedit_shuangpin_quanpin;
-}
-
-bool SetConfiguredTsfPreeditShuangpinQuanpin(bool enabled)
-{
-    if (!WriteConfiguredValue("appearance", "tsf_preedit_shuangpin_quanpin", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_tsf_preedit_shuangpin_quanpin = enabled;
-    RefreshEffectiveTsfPreeditStyle();
-    return true;
-}
-
 namespace ime_config_detail
 {
 void RefreshEffectiveTsfPreeditStyle()
 {
-    // 原始按键样式下 TSF 自己显示按键缓冲，从不等 Server 的预编辑；双拼要显示转换后的全拼就得
-    // 让它按分词样式等回包，回包里再按用户选的样式去掉分词符号（见 BuildTsfPreedit）。
-    const bool shuangpin_quanpin = g_tsf_preedit_shuangpin_quanpin && g_tsf_preedit_style == "raw" &&
-                                   GetConfiguredInputScheme() == SchemeType::Shuangpin;
-    GlobalSettings::setTsfPreeditStyle(shuangpin_quanpin ? std::string(GlobalSettings::TsfPreeditStyle::Pinyin)
-                                                         : g_tsf_preedit_style);
+    GlobalSettings::setTsfPreeditStyle(g_tsf_preedit_style);
 }
 } // namespace ime_config_detail
-
-bool GetConfiguredShuangpinHelpcodeEnabled()
-{
-    return g_shuangpin_helpcode_enabled;
-}
-
-bool SetConfiguredShuangpinHelpcodeEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("helpcode", "shuangpin_helpcode", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_helpcode_enabled = enabled;
-    return true;
-}
-
-bool GetConfiguredShuangpinHelpcodeDirect()
-{
-    return g_shuangpin_helpcode_direct;
-}
-
-bool SetConfiguredShuangpinHelpcodeDirect(bool enabled)
-{
-    if (!WriteConfiguredValue("helpcode", "shuangpin_helpcode_direct", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_helpcode_direct = enabled;
-    return true;
-}
-
-namespace
-{
-// 末尾辅助码（间接）与句中辅助码的同一个触发键。
-struct HelpcodeTriggerPair
-{
-    const char *end_key;
-    bool *end_value;
-    const char *mid_key;
-    bool *mid_value;
-};
-
-HelpcodeTriggerPair HelpcodeTriggerKeys(char trigger)
-{
-    switch (trigger)
-    {
-    case '`':
-        return {"shuangpin_helpcode_trigger_backtick", &g_shuangpin_helpcode_trigger_backtick,
-                "shuangpin_mid_sentence_helpcode_backtick", &g_shuangpin_mid_sentence_helpcode_backtick};
-    case ';':
-        return {"shuangpin_helpcode_trigger_semicolon", &g_shuangpin_helpcode_trigger_semicolon,
-                "shuangpin_mid_sentence_helpcode_semicolon", &g_shuangpin_mid_sentence_helpcode_semicolon};
-    default:
-        return {"shuangpin_helpcode_trigger_uppercase", &g_shuangpin_helpcode_trigger_uppercase,
-                "shuangpin_mid_sentence_helpcode_uppercase", &g_shuangpin_mid_sentence_helpcode_uppercase};
-    }
-}
-
-int CountEndHelpcodeTriggers()
-{
-    return int(g_shuangpin_helpcode_trigger_backtick) + int(g_shuangpin_helpcode_trigger_semicolon) +
-           int(g_shuangpin_helpcode_trigger_uppercase);
-}
-
-// 勾选或取消一个触发键（end 为 true 是末尾辅助码一侧）。两侧互斥：勾上时另一侧有同一个键就一并取消，哪怕
-// 那是另一侧最后一个键——另一侧这时一个键都不剩，引导键不生效，等用户重新勾一个；末尾一侧自己取消不掉最后
-// 一个。一次写入，失败时内存不动。
-bool SetHelpcodeTrigger(char trigger, bool end, bool enabled)
-{
-    const HelpcodeTriggerPair keys = HelpcodeTriggerKeys(trigger);
-    const char *key = end ? keys.end_key : keys.mid_key;
-    bool *value = end ? keys.end_value : keys.mid_value;
-    const char *other_key = end ? keys.mid_key : keys.end_key;
-    bool *other_value = end ? keys.mid_value : keys.end_value;
-    if (!enabled && end && *value && CountEndHelpcodeTriggers() == 1)
-    {
-        return false;
-    }
-    std::vector<ConfigValueUpdate> updates;
-    updates.push_back({"helpcode", key, enabled ? "true" : "false"});
-    const bool release_other = enabled && *other_value;
-    if (release_other)
-    {
-        updates.push_back({"helpcode", other_key, "false"});
-    }
-    if (!WriteConfiguredValues(updates))
-    {
-        return false;
-    }
-    *value = enabled;
-    if (release_other)
-    {
-        *other_value = false;
-    }
-    return true;
-}
-
-bool EndHelpcodeIndirectActive()
-{
-    return g_shuangpin_helpcode_enabled && !g_shuangpin_helpcode_direct && !g_shuangpin_direct_helpcode_enabled;
-}
-
-bool MidSentenceHelpcodeIndirectActive()
-{
-    return g_shuangpin_mid_sentence_helpcode_enabled && !g_shuangpin_direct_helpcode_enabled;
-}
-} // namespace
-
-bool GetConfiguredShuangpinHelpcodeTriggerBacktick()
-{
-    return g_shuangpin_helpcode_trigger_backtick;
-}
-
-bool SetConfiguredShuangpinHelpcodeTriggerBacktick(bool enabled)
-{
-    return SetHelpcodeTrigger('`', true, enabled);
-}
-
-bool GetConfiguredShuangpinHelpcodeTriggerSemicolon()
-{
-    return g_shuangpin_helpcode_trigger_semicolon;
-}
-
-bool SetConfiguredShuangpinHelpcodeTriggerSemicolon(bool enabled)
-{
-    return SetHelpcodeTrigger(';', true, enabled);
-}
-
-bool GetConfiguredShuangpinHelpcodeTriggerUppercase()
-{
-    return g_shuangpin_helpcode_trigger_uppercase;
-}
-
-bool SetConfiguredShuangpinHelpcodeTriggerUppercase(bool enabled)
-{
-    return SetHelpcodeTrigger('A', true, enabled);
-}
-
-bool IsConfiguredEndHelpcodeTrigger(wchar_t ch)
-{
-    if (!EndHelpcodeIndirectActive() || (ch != L'`' && ch != L';'))
-    {
-        return false;
-    }
-    const HelpcodeTriggerPair keys = HelpcodeTriggerKeys(static_cast<char>(ch));
-    return *keys.end_value && !(MidSentenceHelpcodeIndirectActive() && *keys.mid_value);
-}
-
-bool IsConfiguredEndHelpcodeUppercaseTrigger()
-{
-    return EndHelpcodeIndirectActive() && g_shuangpin_helpcode_trigger_uppercase &&
-           !IsConfiguredMidSentenceHelpcodeUppercaseTrigger();
-}
-
-std::wstring FormatEndHelpcodeTriggersWorkerPayload()
-{
-    const bool shuangpin = GetConfiguredInputScheme() == SchemeType::Shuangpin;
-    return std::wstring(
-        1, FanyImeEndHelpcode::PayloadFor<wchar_t>(shuangpin && IsConfiguredEndHelpcodeTrigger(L'`'),
-                                                   shuangpin && IsConfiguredEndHelpcodeTrigger(L';'),
-                                                   shuangpin && IsConfiguredEndHelpcodeUppercaseTrigger()));
-}
-
-bool GetConfiguredShuangpinMidSentenceHelpcodeEnabled()
-{
-    return g_shuangpin_mid_sentence_helpcode_enabled;
-}
-
-bool SetConfiguredShuangpinMidSentenceHelpcodeEnabled(bool enabled)
-{
-    // 句中辅助码与直接辅助码互斥：开这个就先关掉那个，设置页随回推的配置快照一起更新。先关后开，
-    // 写到一半失败时最多两个都关着，不会出现两个都开着。
-    if (enabled && g_shuangpin_direct_helpcode_enabled)
-    {
-        if (!WriteConfiguredValue("helpcode", "shuangpin_direct_helpcode", "false"))
-        {
-            return false;
-        }
-        g_shuangpin_direct_helpcode_enabled = false;
-    }
-    if (!WriteConfiguredValue("helpcode", "shuangpin_mid_sentence_helpcode", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_mid_sentence_helpcode_enabled = enabled;
-    return true;
-}
-
-bool GetConfiguredShuangpinMidSentenceHelpcodeBacktick()
-{
-    return g_shuangpin_mid_sentence_helpcode_backtick;
-}
-
-bool SetConfiguredShuangpinMidSentenceHelpcodeBacktick(bool enabled)
-{
-    return SetHelpcodeTrigger('`', false, enabled);
-}
-
-bool GetConfiguredShuangpinMidSentenceHelpcodeSemicolon()
-{
-    return g_shuangpin_mid_sentence_helpcode_semicolon;
-}
-
-bool SetConfiguredShuangpinMidSentenceHelpcodeSemicolon(bool enabled)
-{
-    return SetHelpcodeTrigger(';', false, enabled);
-}
-
-bool GetConfiguredShuangpinMidSentenceHelpcodeUppercase()
-{
-    return g_shuangpin_mid_sentence_helpcode_uppercase;
-}
-
-bool SetConfiguredShuangpinMidSentenceHelpcodeUppercase(bool enabled)
-{
-    return SetHelpcodeTrigger('A', false, enabled);
-}
-
-bool IsConfiguredMidSentenceHelpcodeUppercaseTrigger()
-{
-    // 与反引号、分号同一套门控：直接辅助码接管辅码时句中辅助码的触发键都不生效。
-    return g_shuangpin_mid_sentence_helpcode_enabled && g_shuangpin_mid_sentence_helpcode_uppercase &&
-           !g_shuangpin_direct_helpcode_enabled;
-}
-
-std::wstring FormatMidSentenceHelpcodeUppercaseWorkerPayload()
-{
-    return IsConfiguredMidSentenceHelpcodeUppercaseTrigger() && GetConfiguredInputScheme() == SchemeType::Shuangpin
-               ? L"1"
-               : L"0";
-}
-
-bool GetConfiguredShuangpinDirectHelpcodeEnabled()
-{
-    return g_shuangpin_direct_helpcode_enabled;
-}
-
-bool SetConfiguredShuangpinDirectHelpcodeEnabled(bool enabled)
-{
-    // 与句中辅助码互斥，规则同 SetConfiguredShuangpinMidSentenceHelpcodeEnabled。
-    if (enabled && g_shuangpin_mid_sentence_helpcode_enabled)
-    {
-        if (!WriteConfiguredValue("helpcode", "shuangpin_mid_sentence_helpcode", "false"))
-        {
-            return false;
-        }
-        g_shuangpin_mid_sentence_helpcode_enabled = false;
-    }
-    if (!WriteConfiguredValue("helpcode", "shuangpin_direct_helpcode", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_direct_helpcode_enabled = enabled;
-    return true;
-}
-
-bool GetConfiguredShuangpinDirectHelpcodeSlash()
-{
-    return g_shuangpin_direct_helpcode_slash;
-}
-
-bool SetConfiguredShuangpinDirectHelpcodeSlash(bool enabled)
-{
-    // 至少留一个：设置页取消不掉最后一个，这里同样不收。
-    if (!enabled && !g_shuangpin_direct_helpcode_uppercase)
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("helpcode", "shuangpin_direct_helpcode_slash", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_direct_helpcode_slash = enabled;
-    return true;
-}
-
-bool GetConfiguredShuangpinDirectHelpcodeUppercase()
-{
-    return g_shuangpin_direct_helpcode_uppercase;
-}
-
-bool SetConfiguredShuangpinDirectHelpcodeUppercase(bool enabled)
-{
-    if (!enabled && !g_shuangpin_direct_helpcode_slash)
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("helpcode", "shuangpin_direct_helpcode_uppercase", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_direct_helpcode_uppercase = enabled;
-    return true;
-}
-
-bool GetConfiguredShuangpinDirectHelpcodeEndTrigger()
-{
-    return g_shuangpin_direct_helpcode_end_trigger;
-}
-
-bool SetConfiguredShuangpinDirectHelpcodeEndTrigger(bool enabled)
-{
-    if (!WriteConfiguredValue("helpcode", "shuangpin_direct_helpcode_end_trigger", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_shuangpin_direct_helpcode_end_trigger = enabled;
-    return true;
-}
-
-bool IsConfiguredDirectHelpcodeEndTriggerActive()
-{
-    return g_shuangpin_direct_helpcode_enabled && g_shuangpin_direct_helpcode_end_trigger &&
-           GetConfiguredInputScheme() == SchemeType::Shuangpin;
-}
-
-bool IsConfiguredDirectHelpcodeEndTriggerKey(wchar_t ch)
-{
-    if (!IsConfiguredDirectHelpcodeEndTriggerActive())
-    {
-        return false;
-    }
-    return ch == L'`' ? g_shuangpin_helpcode_trigger_backtick : ch == L';' && g_shuangpin_helpcode_trigger_semicolon;
-}
-
-std::wstring FormatDirectHelpcodeEndTriggerWorkerPayload()
-{
-    return std::wstring(1,
-                        FanyImeEndHelpcode::PayloadFor<wchar_t>(IsConfiguredDirectHelpcodeEndTriggerKey(L'`'),
-                                                                IsConfiguredDirectHelpcodeEndTriggerKey(L';'), false));
-}
-
-std::wstring FormatDirectHelpcodeWorkerPayload()
-{
-    const bool enabled = g_shuangpin_direct_helpcode_enabled && GetConfiguredInputScheme() == SchemeType::Shuangpin;
-    return std::wstring(1, FanyImeDirectHelpcode::PayloadFor(enabled, g_shuangpin_direct_helpcode_slash));
-}
-
-bool IsConfiguredMidSentenceHelpcodeTrigger(wchar_t ch)
-{
-    // 直接辅助码开着时引擎不收反引号段（两套辅码会把同一个音节约束两遍），触发键跟着失效。
-    if (!g_shuangpin_mid_sentence_helpcode_enabled || g_shuangpin_direct_helpcode_enabled)
-    {
-        return false;
-    }
-    return (ch == L'`' && g_shuangpin_mid_sentence_helpcode_backtick) ||
-           (ch == L';' && g_shuangpin_mid_sentence_helpcode_semicolon);
-}
-
-std::wstring FormatMidSentenceHelpcodeWorkerPayload()
-{
-    // TSF 只需要知道反引号此刻有没有可能是编码键：开关开着、勾了反引号且正在用双拼。
-    return IsConfiguredMidSentenceHelpcodeTrigger(L'`') && GetConfiguredInputScheme() == SchemeType::Shuangpin ? L"1"
-                                                                                                               : L"0";
-}
-
-std::wstring FormatMidSentenceHelpcodeSemicolonWorkerPayload()
-{
-    return IsConfiguredMidSentenceHelpcodeTrigger(L';') && GetConfiguredInputScheme() == SchemeType::Shuangpin ? L"1"
-                                                                                                               : L"0";
-}
-
-const std::string &GetConfiguredShuangpinHelpcodeSchema()
-{
-    return g_shuangpin_helpcode_schema;
-}
-
-bool SetConfiguredShuangpinHelpcodeSchema(const std::string &schema)
-{
-    if (!IsHelpcodeSchemaAvailable(schema))
-        return false;
-    if (!WriteConfiguredValue("helpcode", "shuangpin_helpcode_schema", EscapeTomlBasicString(schema)))
-        return false;
-    g_shuangpin_helpcode_schema = schema;
-    return true;
-}
 
 bool GetConfiguredQuanpinHelpcodeEnabled()
 {
@@ -881,29 +444,6 @@ std::vector<CustomHelpcodeSchemaInfo> GetCustomHelpcodeSchemas()
 std::string GetCustomHelpcodeDirectory()
 {
     return metasequoia::path_to_utf8(HelpcodeUtils::custom_helpcode_directory(metasequoia::data_directory()));
-}
-
-bool GetConfiguredShowShuangpinHelpcodeInCandidateWindow()
-{
-    return g_show_shuangpin_helpcode_in_candidate_window;
-}
-
-bool SetConfiguredShowShuangpinHelpcodeInCandidateWindow(bool enabled)
-{
-    if (!WriteConfiguredValue("helpcode", "show_sp_helpcode_in_candidate_window", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_show_shuangpin_helpcode_in_candidate_window = enabled;
-    return true;
-}
-
-bool IsConfiguredShuangpinHelpcodeHintShown()
-{
-    // shuangpin_helpcode 只管末尾辅助码；只开句中辅助码（引导键或直接）时同样要在候选上看辅码。
-    return g_show_shuangpin_helpcode_in_candidate_window &&
-           (g_shuangpin_helpcode_enabled || g_shuangpin_mid_sentence_helpcode_enabled ||
-            g_shuangpin_direct_helpcode_enabled);
 }
 
 bool GetConfiguredShowQuanpinHelpcodeInCandidateWindow()

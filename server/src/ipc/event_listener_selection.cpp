@@ -84,8 +84,7 @@ void LearnEnglishSlot(const WordItem &selected, size_t absolute_index, uint64_t 
 {
     const auto &items = Global::candidate_ui.items;
     if (!g_inputSession || g_english_input_mode || IsYModeInput(g_inputSession->get_pinyin_sequence_with_cases()) ||
-        (g_inputSession->current_scheme_type() != SchemeType::Quanpin &&
-         g_inputSession->current_scheme_type() != SchemeType::Shuangpin) ||
+        g_inputSession->current_scheme_type() != SchemeType::Quanpin ||
         absolute_index >= items.size())
         return;
     const auto english_index = FanyImeIpc::SlottedEnglishIndex(items);
@@ -256,21 +255,11 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         // First-page first slot is already the default commit; space/mouse/digit
         // should only learn when the user picked something else.
         const bool is_first_page_first = Global::candidate_ui.page_index == 0 && index == 0;
-        // 句中辅助码筛过的候选页不能当调频的参照：选中的词在这一页里往往已经排第一，而用户下次
-        // 不敲辅助码时看到的是没筛过的那份排序。改用去掉约束后的候选给它挪位置，所以选的是第一个
-        // 也照样调（空格、数字键、鼠标点选都走这里）。要在推进组合之前取，推进后输入串就短了。
-        std::vector<WordItem> mid_sentence_ranking_candidates;
-        if ((curWordItem.source == CandidateSource::Database || curWordItem.source == CandidateSource::UserDatabase) &&
-            g_inputSession->has_mid_sentence_helpcode())
-        {
-            mid_sentence_ranking_candidates = g_inputSession->candidates_without_mid_sentence_helpcode();
-        }
-        const bool mid_sentence_ranking = !mid_sentence_ranking_candidates.empty();
         // 字母词（T恤）也不调频：拼音分表里没有它的行，调频改不到，只会白记选择计数（#1340）。
         // 长词前缀补全（#1343）的键比首选长，和同页候选不是一个读音，不按排位挪位置，选中时只在它自己的
         // 键下加权（见下面 EnqueueBumpPinyinWeightTask）。
         isNeedUpdateWeight =
-            !curWordItem.latin_word && !curWordItem.prefix_completion && (mid_sentence_ranking || !is_first_page_first);
+            !curWordItem.latin_word && !curWordItem.prefix_completion && !is_first_page_first;
         if (curWordItem.prefix_completion && !curWordItem.canonical_pinyin.empty())
         {
             EnqueueBumpPinyinWeightTask(curWordItem.canonical_pinyin, curWordItem.word, client_id, activation_epoch);
@@ -439,7 +428,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             GlobalIme::composition.creating_word.active = true;
             Global::MsgTypeToTsf = Global::DataFromServerMsgType::NeedToCreateWord;
             GlobalIme::composition.segmented_pinyin = selection_transition.current_segmentation_with_cases;
-            SyncShuangpinPreeditForms();
 
             PrepareCandidateList(client_id, activation_epoch);
         }
@@ -556,8 +544,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // the new order; a lookup that lands before the write finishes still shows the old
             // one.
             EnqueueAdjustCandidateRankingTask(/*english=*/false, ranking_context_key, ranking_entry_key, curWord,
-                                              client_id, activation_epoch,
-                                              mid_sentence_ranking ? &mid_sentence_ranking_candidates : nullptr);
+                                              client_id, activation_epoch, nullptr);
         }
     }
     else

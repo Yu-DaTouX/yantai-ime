@@ -30,9 +30,7 @@
 #include "engine/local_modes/emoji_query.h"
 #include "engine/local_modes/kaomoji_query.h"
 #include "engine/local_modes/symbol_query.h"
-#include "engine/local_modes/jianpin_query.h"
 #include "engine/local_modes/v_mode_query.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 #include "mixed/date_time_candidates.h"
 #include "log/candidate_diag_log.h"
 
@@ -40,15 +38,6 @@ using namespace event_listener_detail;
 
 namespace
 {
-// The engine's local mode queries take a resolved ShuangpinProfile and default it to Xiaohe. The
-// modules this file used to call resolved the *configured* scheme instead, so every call site here
-// has to pass this explicitly: letting the default through would silently decode J mode, emoji and
-// kaomoji as Xiaohe for anyone on Ziranma, Shoudao or Microsoft shuangpin.
-const ShuangpinProfile &ConfiguredShuangpinProfile()
-{
-    return GetShuangpinProfile(GetConfiguredShuangpinSchema());
-}
-
 std::string BuildCurrentCandidatePage();
 void PrepareCandidateTranslationRequest();
 
@@ -115,19 +104,17 @@ bool IsQuickPhraseInput(const std::string &raw)
            std::all_of(raw.begin() + 1, raw.end(), [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; });
 }
 
-// 快捷短语混进全拼/双拼的普通候选（Shift+K 模式另走
+// 快捷短语混进全拼的普通候选（Shift+K 模式另走
 // IsQuickPhraseInput）：按整串编码精确匹配，只在输入是纯小写字母、不在造词、光标前缀
 // 没截断时出现。整组插在第 slot 个普通候选之前，槽位由调频学出来，最大是每页候选数减一：
 // 组前面最多有这么多个普通候选。放置在繁体写法展开之前，按候选个数数；前面的候选展开出多种写法时，
 // 组在显示上随之后移，可能落到第二页。
-// 不看辅助码：双拼开着辅助码时，任何「完整音节 + 一个字母」的奇数长编码（dia = di + a）
-// 都会被认成带辅助码，按辅助码拦掉就等于这类编码永远出不来。整串精确等于用户自定义的
-// 编码时，按短语处理。
+// 不看辅助码：整串精确等于用户自定义的编码时，按短语处理。
 void PlaceQuickPhrases(std::vector<WordItem> &items, const std::string &current_input)
 {
     const SchemeType scheme = g_inputSession->current_scheme_type();
     if (!GetConfiguredMixedCandidatesEnabled() || !GetConfiguredQuickPhraseCandidatesEnabled() ||
-        (scheme != SchemeType::Quanpin && scheme != SchemeType::Shuangpin) ||
+        scheme != SchemeType::Quanpin ||
         GlobalIme::composition.creating_word.active || g_inputSession->prefix_end() != current_input.size() ||
         current_input.empty() || !std::all_of(current_input.begin(), current_input.end(), [](unsigned char ch) {
             return ch >= 'a' && ch <= 'z';
@@ -147,44 +134,23 @@ void PlaceQuickPhrases(std::vector<WordItem> &items, const std::string &current_
 }
 
 // 日期时间混入普通候选的唤醒词，与 Shift+T 模式同一套（rq / riqi / date、sj / shijian / time、
-// xq / xingqi / week）。整串精确匹配才算：全拼直接认原始输入；双拼的整拼要按方案换算，shijian 在
-// 小鹤里打成 uijm，所以再拿换算出的全拼认一次。
-std::string DateTimeMixedKeyword(const std::string &current_input, SchemeType scheme)
+// xq / xingqi / week）。整串精确匹配才算。
+std::string DateTimeMixedKeyword(const std::string &current_input)
 {
     if (current_input.empty() || !std::all_of(current_input.begin(), current_input.end(),
                                               [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; }))
         return {};
-    if (metasequoia::local_modes::is_date_time_keyword(current_input))
-        return current_input;
-    if (scheme != SchemeType::Shuangpin)
-        return {};
-    std::string quanpin = g_inputSession->get_quanpin();
-    quanpin.erase(std::remove_if(quanpin.begin(), quanpin.end(), [](char ch) { return ch == '\'' || ch == ' '; }),
-                  quanpin.end());
-    return metasequoia::local_modes::is_date_time_keyword(quanpin) ? quanpin : std::string{};
+    return metasequoia::local_modes::is_date_time_keyword(current_input) ? current_input : std::string{};
 }
 
-// 符号混输按整串编码查。双拼的按键串是音节码，用户要的是它读出来的全拼（小鹤 sj 是 san → ③），
-// 所以先查换算出的全拼；全拼查不到再查原始按键，alpha 这类不是音节的编码在双拼下照样能混。
-std::vector<std::string> SymbolMixedCodes(const std::string &current_input, SchemeType scheme)
+// 符号混输按整串编码查。
+std::vector<std::string> SymbolMixedCodes(const std::string &current_input)
 {
     if (current_input.empty() || !std::all_of(current_input.begin(), current_input.end(),
                                               [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; }))
         return {};
-    std::vector<std::string> codes;
-    if (scheme == SchemeType::Shuangpin)
-    {
-        std::string quanpin = g_inputSession->get_quanpin();
-        quanpin.erase(std::remove_if(quanpin.begin(), quanpin.end(), [](char ch) { return ch == '\'' || ch == ' '; }),
-                      quanpin.end());
-        if (!quanpin.empty() && quanpin != current_input)
-            codes.push_back(std::move(quanpin));
-    }
-    codes.push_back(current_input);
-    return codes;
+    return {current_input};
 }
-
-// U 模式（部件拆字反查）：唤醒键 U 之后已经输入了至少一个部件字母才算一次可查询的输入。
 bool IsRadicalInput(const std::string &raw)
 {
     return IsRadicalCompositionActive(raw) && raw.size() > 1;
@@ -212,12 +178,6 @@ bool IsSymbolInput(const std::string &raw)
     return IsSymbolCompositionActive(raw) && raw.size() > 1;
 }
 
-bool IsJianpinInput(const std::string &raw)
-{
-    return IsJianpinCompositionActive(raw) && raw.size() > 1 &&
-           std::all_of(raw.begin() + 1, raw.end(),
-                       [](unsigned char ch) { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'); });
-}
 } // namespace
 
 namespace event_listener_detail
@@ -272,9 +232,8 @@ std::string BuildCurrentCandidatePage()
     // 而且 g_candidate_translation_glosses 还留着原候选的译文，照常查会把译文再标注一遍。
     const bool translation_page = g_translation_candidates_active;
     const bool show_helpcodes =
-        !translation_page && ((current_scheme == SchemeType::Shuangpin && IsConfiguredShuangpinHelpcodeHintShown()) ||
-                              (current_scheme == SchemeType::Quanpin && GetConfiguredQuanpinHelpcodeEnabled() &&
-                               GetConfiguredShowQuanpinHelpcodeInCandidateWindow()));
+        !translation_page && current_scheme == SchemeType::Quanpin && GetConfiguredQuanpinHelpcodeEnabled() &&
+        GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
     // U 模式（部件拆字反查）：候选上反显该字的注音。annotation 在这个模式下专属注音，辅助码
     // 提示不在该模式出现（候选来源是 Generated，本来也不走辅助码的整句规则）。
     const bool radical_mode = IsRadicalCandidateListActive();
@@ -528,13 +487,6 @@ namespace FanyNamedPipe
 {
 std::string CurrentRankingContextKey()
 {
-    if (g_inputSession)
-    {
-        const std::string raw = g_inputSession->get_pinyin_sequence_with_cases();
-        if (IsJianpinCompositionActive(raw) && raw.size() > 1)
-            return metasequoia::local_modes::jianpin_ranking_context(
-                raw.substr(1), g_inputSession->current_scheme_type(), ConfiguredShuangpinProfile());
-    }
     std::string converted = g_inputSession->get_quanpin();
     if (converted.empty())
         converted = g_inputSession->get_pinyin_segmentation();
@@ -543,9 +495,8 @@ std::string CurrentRankingContextKey()
     std::string plain = converted;
     plain.erase(std::remove(plain.begin(), plain.end(), '\''), plain.end());
     // 与引擎侧 InputSession::position_context 同一规则（quanpin::correction_aliases_enabled 只看
-    // 换位、邻键两个开关）：全拼跟纠错开关走，双拼保持原样。
-    const bool correction_aliases = g_inputSession->current_scheme_type() == SchemeType::Shuangpin ||
-                                    GetConfiguredQuanpinAutocorrectTransposition() ||
+    // 换位、邻键两个开关）。
+    const bool correction_aliases = GetConfiguredQuanpinAutocorrectTransposition() ||
                                     GetConfiguredQuanpinAutocorrectNeighbor();
     const auto cuts = quanpin::cut_pinyin_by_mode(plain, "correction", correction_aliases);
     return cuts.empty() ? converted : quanpin::join_segments(cuts.front());
@@ -790,35 +741,19 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     else if (IsEmojiInput(current_input))
     {
         items = metasequoia::local_modes::query_emoji(current_input.substr(1), g_inputSession->current_scheme_type(),
-                                                      10, ConfiguredShuangpinProfile())
+                                                      10)
                     .candidates;
     }
     else if (IsKaomojiInput(current_input))
     {
         items = metasequoia::local_modes::query_kaomoji(current_input.substr(1), g_inputSession->current_scheme_type(),
-                                                        10, ConfiguredShuangpinProfile())
+                                                        10)
                     .candidates;
     }
     else if (IsSymbolInput(current_input))
     {
         // 一个分组可以有上百个符号（jt 箭头 148 个），整组都放进列表，靠翻页看全。
         items = metasequoia::local_modes::query_symbols(current_input.substr(1)).candidates;
-    }
-    else if (IsJianpinInput(current_input))
-    {
-        const int limit = current_input.size() == 2 ? 24 : 100;
-        items = metasequoia::local_modes::query_jianpin(current_input.substr(1), g_inputSession->current_scheme_type(),
-                                                        limit, ConfiguredShuangpinProfile())
-                    .candidates;
-        const std::string typed = g_inputSession->get_pinyin_sequence();
-        for (auto &item : items)
-            item.pinyin = typed;
-        queryMs = segment.Split();
-        user_dictionary::apply_fixed_positions(user_dictionary::default_user_db_path(), CurrentRankingContextKey(),
-                                               items, false);
-        fixedPosMs = segment.Split();
-        items = WithTraditionalVariantsFor(std::move(items), character_set);
-        spelled_by_character_set = true;
     }
     else if (IsYModeInput(current_input))
     {
@@ -908,7 +843,7 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     // 快捷短语不在这里：它要跟着翻页扩展重新放置，已经在上面同步混进去了。
     MixedCandidates::Request mixed;
     if (!g_english_input_mode && !IsSpecialModeCompositionActive(current_input) &&
-        GetConfiguredMixedCandidatesEnabled() && (scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin) &&
+        GetConfiguredMixedCandidatesEnabled() && scheme == SchemeType::Quanpin &&
         !GlobalIme::composition.creating_word.active)
     {
         mixed.english = GetConfiguredEnglishCandidatesEnabled();
@@ -918,9 +853,9 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
         mixed.emoji = GetConfiguredEmojiMixedInputEnabled() && g_inputSession->prefix_end() == current_input.size();
         mixed.kaomoji = GetConfiguredKaomojiMixedInputEnabled();
         if (GetConfiguredSymbolMixedInputEnabled() && g_inputSession->prefix_end() == current_input.size())
-            mixed.symbol_codes = SymbolMixedCodes(current_input, scheme);
+            mixed.symbol_codes = SymbolMixedCodes(current_input);
         if (GetConfiguredDateTimeCandidatesEnabled() && g_inputSession->prefix_end() == current_input.size())
-            mixed.date_time_keyword = DateTimeMixedKeyword(current_input, scheme);
+            mixed.date_time_keyword = DateTimeMixedKeyword(current_input);
         if (mixed.english || mixed.emoji || mixed.kaomoji || !mixed.symbol_codes.empty() ||
             !mixed.date_time_keyword.empty())
         {

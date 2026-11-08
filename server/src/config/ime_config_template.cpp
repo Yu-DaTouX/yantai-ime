@@ -74,7 +74,6 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
         MakeTomlAssignmentId("input", "default_ime_mode"),
         MakeTomlAssignmentId("appearance", "candidate_window_layout"),
         MakeTomlAssignmentId("appearance", "candidate_skin"),
-        MakeTomlAssignmentId("helpcode", "shuangpin_helpcode"),
         MakeTomlAssignmentId("helpcode", "quanpin_helpcode"),
         MakeTomlAssignmentId("utility", "emoji_mode"),
         MakeTomlAssignmentId("utility", "kaomoji_mode"),
@@ -98,8 +97,13 @@ std::string MergeTomlIntoTemplate(const std::string &template_text, std::map<std
         user_values[MakeTomlAssignmentId("input", "schema")] = "\"quanpin\"";
     const auto schema_id = MakeTomlAssignmentId("input", "schema");
     const auto schema = user_values.find(schema_id);
-    if (schema != user_values.end() && UnquoteTomlScalar(schema->second) == "wubi")
-        user_values[schema_id] = "\"quanpin\"";
+    if (schema != user_values.end())
+    {
+        const std::string value = UnquoteTomlScalar(schema->second);
+        if (value == "wubi" || value == "shuangpin" || value == "japanese" || value == "romaji" ||
+            value == "japanese-romaji")
+            user_values[schema_id] = "\"quanpin\"";
+    }
     const auto fallback_id = MakeTomlAssignmentId("appearance", "fallback_fonts");
     if (!user_values.empty() && user_values.find(fallback_id) == user_values.end())
     {

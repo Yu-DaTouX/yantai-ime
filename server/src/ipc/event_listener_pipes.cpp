@@ -799,30 +799,9 @@ void RegisteredPipeMonitorThread(HANDLE clientPipe, UINT pipeRole, uint64_t hand
             SendToTsfWorkerThreadClientViaNamedpipe(
                 hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::HorizontalArrowSelectionChanged,
                 FormatHorizontalArrowSelectionWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::MicrosoftShuangpinChanged,
-                IsConfiguredShuangpinSemicolonFinal() ? L"1" : L"0");
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged,
-                FormatMidSentenceHelpcodeWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged,
-                FormatMidSentenceHelpcodeSemicolonWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged,
-                FormatDirectHelpcodeWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged,
-                FormatDirectHelpcodeEndTriggerWorkerPayload());
             SendToTsfWorkerThreadClientViaNamedpipe(hello.client_id,
                                                     Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged,
                                                     FormatVModeWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged,
-                FormatMidSentenceHelpcodeUppercaseWorkerPayload());
-            SendToTsfWorkerThreadClientViaNamedpipe(
-                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged,
-                FormatEndHelpcodeTriggersWorkerPayload());
             SendToTsfWorkerThreadClientViaNamedpipe(hello.client_id,
                                                     Global::DataFromServerMsgTypeToTsfWorkerThread::CapsLockChanged,
                                                     GetServerCapsLockState() != 0 ? L"1" : L"0");

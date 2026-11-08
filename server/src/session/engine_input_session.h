@@ -20,8 +20,7 @@ std::string ResolveLatticeLanguageModelPath();
 class EngineInputSession : public IInputSession
 {
   public:
-    explicit EngineInputSession(SchemeType scheme_type = SchemeType::Shuangpin,
-                                const ShuangpinProfile &shuangpin_profile = GetXiaoheShuangpinProfile());
+    explicit EngineInputSession(SchemeType scheme_type = SchemeType::Quanpin);
 
     void handle_key(UINT vk, UINT modifiers_down, WCHAR wch) override;
     void recompute_candidates() override;
@@ -45,19 +44,11 @@ class EngineInputSession : public IInputSession
     const std::string &get_pure_pinyin_sequence() const override;
     const std::string &get_pinyin_segmentation() const override;
     std::string get_pinyin_segmentation_with_cases() const override;
-    ShuangpinPreeditForms get_shuangpin_preedit_forms() const override;
     std::vector<std::size_t> segment_raw_boundaries() const override;
     std::string get_quanpin() const override;
     bool is_all_complete_pure_pinyin() const override;
     bool reads_as_pinyin() const override;
     bool has_active_helpcode() const override;
-    bool accepts_mid_sentence_helpcode_marker(std::size_t caret) const override;
-    bool accepts_end_helpcode_marker(std::size_t caret) const override;
-    bool accepts_direct_helpcode_slash(std::size_t caret) const override;
-    std::optional<std::string> direct_helpcode_end_trigger_prefix(const std::string &typed) override;
-    bool has_mid_sentence_helpcode() const override;
-    std::vector<WordItem> candidates_without_mid_sentence_helpcode() override;
-
     void set_rescoring_context(std::string context) override;
     void set_pinyin_sequence(const std::string &pinyin_sequence) override;
     void set_pinyin_sequence_with_cases(const std::string &pinyin_sequence) override;

@@ -241,8 +241,6 @@ candidate_skin = "fluent"
 #   pinyin -> 显示分词预编辑（与候选框当前行为一致）
 #   empty  -> 隐藏顶部预编辑行
 candidate_window_preedit_style = "pinyin"
-# 双拼方案下候选窗预编辑显示转换后的全拼分词（ni'hao），关闭时显示双拼原串
-candidate_window_preedit_shuangpin_quanpin = false
 # 固定排位候选词是否显示徽标
 candidate_fixed_badge = true
 # 固定排位候选词徽标样式，可选："paperclip", "pushpin", "dot"
@@ -256,8 +254,6 @@ candidate_ai_badge_style = "robot"
 tsf_preedit_style = "raw"
 # tsf_preedit_style = "pinyin"
 # tsf_preedit_style = "empty"
-# 双拼方案下行内预编辑显示转换后的全拼：raw 显示不带分词符号的全拼（nihao），pinyin 显示带分词符号的全拼（ni'hao）
-tsf_preedit_shuangpin_quanpin = false
 
 #
 # Language bar
@@ -306,30 +302,16 @@ punctuation_lock = "follow"
 # Vim 模式：在列出的应用里，交给应用的无修饰键 Esc 同时把输入法切到英文。按可执行文件名匹配，不区分大小写，
 # 例如 ["Code.exe", "gvim.exe"]；终端里的 Vim 需填终端宿主，同一终端内的其他程序也会受影响
 vim_mode_apps = []
-# 组合说明：
-#   legacy + shuangpin -> 使用旧版双拼会话实现（当前最稳定）
-#   legacy + quanpin   -> 自动切换为新版引擎全拼会话
-#   engine + shuangpin -> 使用新版引擎双拼会话
-#   engine + quanpin   -> 使用新版引擎全拼会话
-# 会话后端，可选："legacy", "engine"
+# 会话后端，可选："legacy", "engine"；两者都指向同一个全拼引擎会话
 # session_backend = "legacy"
 session_backend = "engine"
-# 输入方案，可选："quanpin", "shuangpin"
+# 输入方案，目前只支持 "quanpin"；旧配置里的 "shuangpin" 等值会静默回退全拼
 schema = "quanpin"
-# schema = "quanpin"
-# engine + shuangpin 时的 preedit 显示方式，可选："quanpin", "shuangpin"
-#   quanpin   -> 预编辑显示转换后的全拼分词
-#   shuangpin -> 预编辑显示原始双拼输入串
-shuangpin_preedit_mode = "shuangpin"
-# 双拼方案，可选："xiaohe", "ziranma", "shoudao", "microsoft", "sogou", "ziguang", "zhinengabc", "guobiao", "pinyinjiajia"
-# 或 "custom/<文件名>"（数据目录 shuangpin\custom\<文件名>.toml 中的自定义方案，写法见 docs/custom-shuangpin.example.toml）
-# shuangpin_schema = "xiaohe"
-shuangpin_schema = "xiaohe"
 # 造词时按 Esc：true 只清掉还没选的拼音、保留已选的词，再按一次才整体取消（小狼毫风格）；false 直接整体取消
 escape_keeps_selected_word = false
 # 回车上屏英文时把该英文单词写入英文词库，下次可作为候选
 enter_learns_english_word = true
-# 模糊音，全拼与双拼均生效；默认全部关闭，升级用户零行为变化
+# 模糊音；默认全部关闭，升级用户零行为变化
 # 总开关：关闭时所有规则不生效，已选规则保留，便于临时停用后恢复
 fuzzy_pinyin = false
 # 播种标记（内部键，勿手改）：首次启用总开关时自动置位；缺失会被升级合并丢弃，导致误重播种
@@ -353,48 +335,6 @@ fuzzy_uan_uang = false
 # 辅助码
 #
 [helpcode]
-# 双拼辅助码
-shuangpin_helpcode = false
-# 双拼辅助码方案，可选："lantian", "ziranma", "shouyou2_0", "shouyouplus", "xiaohe", "jiajia"，
-# 或 "custom/<文件名>"（数据目录 helpcodes\custom\<文件名>.txt 中的自定义方案）
-shuangpin_helpcode_schema = "lantian"
-# 是否在候选窗口中显示双拼辅助码
-show_sp_helpcode_in_candidate_window = true
-# 双拼末尾辅助码直接触发：音节后直接接辅码，完整音节后多一个键是单码（如 ulpbx），末尾两键带大写是
-# 双码（如 ulpbxY）。关闭后改由下面的触发键引导（间接），不敲触发键时末尾的字母一律按拼音读
-shuangpin_helpcode_direct = true
-# 末尾辅助码间接触发时的触发键，可多选：反引号（`）、分号（;）和大写字母。触发键后接一到两个辅码，
-# 大小写均可（如 ulpb;xy）；大写字母触发时第一码敲成大写（如 ulpbXy）。辅码要在输入串末尾，一码重排、
-# 两码筛选。与句中辅助码的触发键互斥：设置页勾上一边的某个键会取消另一边的同一个键，另一边因此一个
-# 不剩时它的引导键不生效；两边都写成 true 时归句中辅助码
-shuangpin_helpcode_trigger_backtick = false
-shuangpin_helpcode_trigger_semicolon = true
-shuangpin_helpcode_trigger_uppercase = false
-# 双拼句中辅助码：在完整音节后敲反引号（`），后面的字母筛这个音节上的字。第一码大小写均可，
-# 第二码要用大写才参与筛选（如 ulpb`xY），之后可以接着打。整句候选会带着锁住的字重新打分
-shuangpin_mid_sentence_helpcode = false
-# 句中辅助码的触发键，可多选：反引号（`）和分号（;）。微软/搜狗/紫光双拼里分号还是 ing 韵母，
-# 只有在完整音节后才当触发键。与末尾辅助码（间接）的触发键互斥，见上
-shuangpin_mid_sentence_helpcode_backtick = true
-shuangpin_mid_sentence_helpcode_semicolon = false
-# 第三种触发键：完整音节后的大写字母，相当于「反引号 + 这个字母」（如 ulpbXihfa ≡ ulpb`xihfa），
-# 第二码仍要大写（ulpbXYih ≡ ulpb`xYih）。开启后这个位置的大写字母不再当末尾双码辅助
-shuangpin_mid_sentence_helpcode_uppercase = false
-# 双拼直接辅助码（万象式）：不要引导键，音节后直接接辅码。三码（双拼 + 第一位辅码，如 uia）自动识别、
-# 整句断句；四码（双拼 + 两位辅码）单独敲时直接定字，句中要在后面补一个 /（如 uiab/）。与上面的句中
-# 辅助码互斥：设置页开启其中一个会自动关闭另一个；两个都写成 true 时按直接辅助码生效。开启后末尾辅助码
-# 也让位给它
-shuangpin_direct_helpcode = false
-# 直接辅助码句中四码的结束方式，可多选、至少留一个：两位辅码后补 /（如 uiab/），或把第二位辅码敲成大写
-# （如 uiaB）。开启大写后大写字母只当四码的第二位辅码；都写成 false 时按补 / 生效
-shuangpin_direct_helpcode_slash = true
-shuangpin_direct_helpcode_uppercase = false
-# 直接辅助码下用引导键进入末尾辅助码：引导键是上面末尾辅助码勾了的反引号、分号（大写字母在直接辅助码里
-# 本身是辅码，不算）。前面每一节都能看成「完整双拼 + 0~2 个辅码」时，在输入末尾敲引导键会把各音节上的辅码
-# 删掉、整理成纯双拼（如 uixulpb 敲 ; 变成 uiulpb;），后面接一到两个辅码按末尾辅助码筛候选（一码重排、两码
-# 筛选）；退格删掉这个引导键时恢复整理前的输入。只在直接辅助码开着时生效。微软/搜狗/紫光双拼里分号跟在字母
-# 后面时是 ing 韵母，这些方案请用反引号
-shuangpin_direct_helpcode_end_trigger = false
 # 全拼辅助码
 quanpin_helpcode = false
 # 全拼辅助码方案，可选："lantian", "ziranma", "shouyou2_0", "shouyouplus", "xiaohe", "jiajia"，
@@ -437,7 +377,7 @@ toggle_english_candidates = "Ctrl+Shift+KeyE"
 toggle_full_width = "Ctrl+Shift+Space"
 toggle_punctuation = "Ctrl+Period"
 toggle_character_set_ctrl_shift_f = true
-# 双拼方案下 Shift + Enter 提交转换后的全拼；关闭后 Shift + Enter 按 Enter 处理（提交原始输入）
+# Shift + Enter 提交转换后的全拼；关闭后 Shift + Enter 按 Enter 处理（提交原始输入）
 commit_pinyin_shift_enter = true
 
 #
@@ -552,22 +492,21 @@ commit_mode = "tsf"
 clipboard_history = false # 剪贴板历史，仅记录文本；关闭后立即清空。默认关闭：它记录用户复制的内容，属于需要用户主动开启的功能
 study_english_word = "false" # 背单词功能，开启后可以在候选项旁边显示英文
 quick_phrase = true # Shift+K 进入快捷短语模式
-quick_phrase_candidates = false # 全拼/双拼下把编码精确匹配的快捷短语混进候选，排在固定位置候选之后的首位
+quick_phrase_candidates = false # 全拼下把编码精确匹配的快捷短语混进候选，排在固定位置候选之后的首位
 quick_phrase_frequency = true # 快捷短语参与调频：常越过它选别的候选时整组后退，最多退到首页末位
 # 候选混输总开关：关闭后英文（general.cn_en_mixed_input）、emoji（general.emoji_mixed_input）、
 # 颜文字（general.kaomoji_mixed_input）、符号（general.symbol_mixed_input）、快捷短语（quick_phrase_candidates）、
 # 日期时间（date_time_candidates）都不再混进候选，各自的开关值保留
 mixed_candidates = true
-date_time_candidates = false # 全拼/双拼下输入 rq / riqi / date、sj / shijian / time、xq / xingqi / week 时，把当前日期、时间、星期混进候选
+date_time_candidates = false # 全拼下输入 rq / riqi / date、sj / shijian / time、xq / xingqi / week 时，把当前日期、时间、星期混进候选
 date_time_menu = true # 日期时间混入候选时，在第三位放一个「📅日期」入口，选中后候选框换成全部日期格式（与 Shift+T 模式相同）
 radical_mode = true # Shift+U 进入 U 模式（部件拆字反查）：输入部件拼音连写，候选出汉字并反显注音
-date_time_mode = true # Shift+T 进入日期与时间快捷输入模式（全拼/双拼）
-emoji_mode = false # Shift+E 进入 Emoji 快捷输入模式（支持全拼/简拼/双拼/英文）；默认关闭，避免截走大写 E 开头的英文
-kaomoji_mode = false # Shift+M 进入颜文字快捷输入模式（支持全拼/简拼/双拼/英文）
+date_time_mode = true # Shift+T 进入日期与时间快捷输入模式（全拼）
+emoji_mode = false # Shift+E 进入 Emoji 快捷输入模式（支持全拼/简拼/英文）；默认关闭，避免截走大写 E 开头的英文
+kaomoji_mode = false # Shift+M 进入颜文字快捷输入模式（支持全拼/简拼/英文）
 symbol_mode = true # Shift+S 进入符号快捷输入模式：输入分组码（xl 希腊字母、sx 数学、szq 带圈数字、jt 箭头）或符号名（alpha、infinity）
-jianpin_mode = true # Shift+J 进入超级简拼模式（仅双拼生效；全拼直接输入声母即为简拼，无需该模式）
 y_mode = true # Shift+Y 进入临时英文模式（中文状态下直接打英文，上屏后回到中文）
-v_mode = true # V 模式：V 后接数字转中文（V123 → 一百二十三，V123.45 → 壹佰贰拾叁元肆角伍分）或计算算式（V1+2*3 → 7）；双拼用大写 V，全拼大小写均可
+v_mode = true # V 模式：V 后接数字转中文（V123 → 一百二十三，V123.45 → 壹佰贰拾叁元肆角伍分）或计算算式（V1+2*3 → 7）；全拼大小写均可
 
 #
 # AI Assistant

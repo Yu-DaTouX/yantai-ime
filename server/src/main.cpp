@@ -75,8 +75,6 @@ const char *SchemeTypeToString(SchemeType scheme_type)
     {
     case SchemeType::Quanpin:
         return "quanpin";
-    case SchemeType::Shuangpin:
-        return "shuangpin";
     default:
         return "unknown";
     }

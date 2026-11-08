@@ -42,7 +42,7 @@ std::string g_session_backend = "legacy";
 
 namespace ime_config_detail
 {
-SchemeType g_input_scheme = SchemeType::Shuangpin;
+SchemeType g_input_scheme = SchemeType::Quanpin;
 std::string g_character_set = "simplified";
 std::string g_default_ime_mode = "chinese";
 std::string g_ime_mode_scope = "app";
@@ -68,33 +68,13 @@ int g_candidate_window_preedit_font_size = 16;
 std::atomic_bool g_diagnostic_log_enabled{false};
 std::atomic_bool g_tsf_diagnostic_log_enabled{false};
 std::string g_candidate_text_color = "auto";
-std::string g_shuangpin_schema = "xiaohe";
 // 造词时 Esc 只清掉还没选的拼音、保留已选的词（小狼毫风格），第二次 Esc 才整体取消。默认关闭。
 bool g_escape_keeps_selected_word = false;
 // 回车上屏英文时顺带写入英文词库。默认开启，保持原有行为。
 bool g_enter_learns_english_word = true;
-std::string g_shuangpin_preedit_mode = "quanpin";
 std::string g_tsf_preedit_style = "raw";
-// 双拼方案下行内 / 候选窗预编辑显示转换后的全拼（原始按键去掉分词符号），默认关闭。
-bool g_tsf_preedit_shuangpin_quanpin = false;
-bool g_candidate_window_preedit_shuangpin_quanpin = false;
-bool g_shuangpin_helpcode_enabled = true;
-bool g_shuangpin_helpcode_direct = true;
-bool g_shuangpin_helpcode_trigger_backtick = false;
-bool g_shuangpin_helpcode_trigger_semicolon = true;
-bool g_shuangpin_helpcode_trigger_uppercase = false;
-bool g_shuangpin_mid_sentence_helpcode_enabled = false;
-bool g_shuangpin_mid_sentence_helpcode_backtick = true;
-bool g_shuangpin_mid_sentence_helpcode_semicolon = false;
-bool g_shuangpin_mid_sentence_helpcode_uppercase = false;
-bool g_shuangpin_direct_helpcode_enabled = false;
-bool g_shuangpin_direct_helpcode_slash = true;
-bool g_shuangpin_direct_helpcode_uppercase = false;
-bool g_shuangpin_direct_helpcode_end_trigger = false;
 bool g_quanpin_helpcode_enabled = true;
-std::string g_shuangpin_helpcode_schema = "lantian";
 std::string g_quanpin_helpcode_schema = "lantian";
-bool g_show_shuangpin_helpcode_in_candidate_window = true;
 bool g_show_quanpin_helpcode_in_candidate_window = true;
 // The legacy single "quanpin.autocorrect" key is deliberately not read anymore:
 // all four correction types default to off and users opt in from the settings page.
@@ -169,7 +149,6 @@ bool g_date_time_mode_enabled = true;
 bool g_emoji_mode_enabled = false;
 bool g_kaomoji_mode_enabled = false;
 bool g_symbol_mode_enabled = true;
-bool g_jianpin_mode_enabled = true;
 bool g_y_mode_enabled = true;
 bool g_v_mode_enabled = true;
 bool g_clipboard_history_enabled = false;
@@ -477,7 +456,7 @@ bool LoadImeConfig()
             g_candidate_text_color = color.empty() ? "auto" : color;
         }
         g_session_backend = tbl["input"]["session_backend"].value_or(std::string("legacy"));
-        g_input_scheme = ParseScheme(tbl["input"]["schema"].value_or(std::string("shuangpin")));
+        g_input_scheme = ParseScheme(tbl["input"]["schema"].value_or(std::string("quanpin")));
         // Removed Japanese preferences fall back to full pinyin.
         if (tbl["input"]["mode"].value_or(std::string("chinese")) == "japanese")
             g_input_scheme = SchemeType::Quanpin;
@@ -491,56 +470,15 @@ bool LoadImeConfig()
             const std::string scope = tbl["input"]["ime_mode_scope"].value_or(std::string("app"));
             g_ime_mode_scope = scope == "global" ? "global" : "app";
         }
-        {
-            // 自定义方案每次加载配置都重读文件；文件删了或写错就回落小鹤，而不是带着半张表输入。
-            const std::string schema = tbl["input"]["shuangpin_schema"].value_or(std::string("xiaohe"));
-            g_shuangpin_schema = LoadShuangpinSchema(schema) ? schema : "xiaohe";
-        }
         g_escape_keeps_selected_word = tbl["input"]["escape_keeps_selected_word"].value_or(false);
         g_enter_learns_english_word = tbl["input"]["enter_learns_english_word"].value_or(true);
-        g_shuangpin_preedit_mode = tbl["input"]["shuangpin_preedit_mode"].value_or(std::string("quanpin"));
-        g_shuangpin_helpcode_enabled = tbl["helpcode"]["shuangpin_helpcode"].value_or(true);
-        g_shuangpin_helpcode_direct = tbl["helpcode"]["shuangpin_helpcode_direct"].value_or(true);
-        g_shuangpin_helpcode_trigger_backtick = tbl["helpcode"]["shuangpin_helpcode_trigger_backtick"].value_or(false);
-        g_shuangpin_helpcode_trigger_semicolon = tbl["helpcode"]["shuangpin_helpcode_trigger_semicolon"].value_or(true);
-        g_shuangpin_helpcode_trigger_uppercase =
-            tbl["helpcode"]["shuangpin_helpcode_trigger_uppercase"].value_or(false);
-        // 三个都关是合法状态（句中辅助码把最后一个键拿走了），不补默认：补出来的键可能正被句中辅助码占着。
-        g_shuangpin_mid_sentence_helpcode_enabled = tbl["helpcode"]["shuangpin_mid_sentence_helpcode"].value_or(false);
-        g_shuangpin_mid_sentence_helpcode_backtick =
-            tbl["helpcode"]["shuangpin_mid_sentence_helpcode_backtick"].value_or(true);
-        g_shuangpin_mid_sentence_helpcode_semicolon =
-            tbl["helpcode"]["shuangpin_mid_sentence_helpcode_semicolon"].value_or(false);
-        g_shuangpin_mid_sentence_helpcode_uppercase =
-            tbl["helpcode"]["shuangpin_mid_sentence_helpcode_uppercase"].value_or(false);
-        g_shuangpin_direct_helpcode_enabled = tbl["helpcode"]["shuangpin_direct_helpcode"].value_or(false);
-        g_shuangpin_direct_helpcode_slash = tbl["helpcode"]["shuangpin_direct_helpcode_slash"].value_or(true);
-        g_shuangpin_direct_helpcode_uppercase = tbl["helpcode"]["shuangpin_direct_helpcode_uppercase"].value_or(false);
-        g_shuangpin_direct_helpcode_end_trigger =
-            tbl["helpcode"]["shuangpin_direct_helpcode_end_trigger"].value_or(false);
-        // 至少留一个（设置页取消不掉最后一个）；手改成两个都关时按默认的 / 生效，不改写配置文件。
-        if (!g_shuangpin_direct_helpcode_slash && !g_shuangpin_direct_helpcode_uppercase)
-        {
-            g_shuangpin_direct_helpcode_slash = true;
-        }
-        // 两者互斥（设置页开一个会关另一个）。互斥之前存下的配置可能两个都开着，那时实际生效的本来就是
-        // 直接辅助码；这里只在内存里把句中辅助码视为关闭，让设置页显示与行为一致，不改写用户的配置文件。
-        if (g_shuangpin_direct_helpcode_enabled)
-        {
-            g_shuangpin_mid_sentence_helpcode_enabled = false;
-        }
         g_quanpin_helpcode_enabled = tbl["helpcode"]["quanpin_helpcode"].value_or(true);
-        const std::string shuangpin_helpcode_schema =
-            tbl["helpcode"]["shuangpin_helpcode_schema"].value_or(std::string("lantian"));
-        g_shuangpin_helpcode_schema =
-            IsHelpcodeSchemaAvailable(shuangpin_helpcode_schema) ? shuangpin_helpcode_schema : "lantian";
         const std::string quanpin_helpcode_schema =
             tbl["helpcode"]["quanpin_helpcode_schema"].value_or(std::string("lantian"));
         g_quanpin_helpcode_schema =
             IsHelpcodeSchemaAvailable(quanpin_helpcode_schema) ? quanpin_helpcode_schema : "lantian";
-        g_show_shuangpin_helpcode_in_candidate_window =
-            tbl["helpcode"]["show_sp_helpcode_in_candidate_window"].value_or(true);
         g_show_quanpin_helpcode_in_candidate_window =
+            tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
             tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
         g_quanpin_autocorrect_transposition = tbl["quanpin"]["autocorrect_transposition"].value_or(false);
         g_quanpin_autocorrect_neighbor = tbl["quanpin"]["autocorrect_neighbor"].value_or(false);
@@ -659,7 +597,6 @@ bool LoadImeConfig()
         g_emoji_mode_enabled = tbl["utility"]["emoji_mode"].value_or(false);
         g_kaomoji_mode_enabled = tbl["utility"]["kaomoji_mode"].value_or(false);
         g_symbol_mode_enabled = tbl["utility"]["symbol_mode"].value_or(true);
-        g_jianpin_mode_enabled = tbl["utility"]["jianpin_mode"].value_or(true);
         g_y_mode_enabled = tbl["utility"]["y_mode"].value_or(true);
         g_v_mode_enabled = tbl["utility"]["v_mode"].value_or(true);
         {
@@ -774,8 +711,6 @@ bool LoadImeConfig()
                 tbl["appearance"]["candidate_window_preedit_style"].value_or(std::string("pinyin"));
             g_candidate_window_preedit_style = preedit_style == "empty" ? "empty" : "pinyin";
         }
-        g_candidate_window_preedit_shuangpin_quanpin =
-            tbl["appearance"]["candidate_window_preedit_shuangpin_quanpin"].value_or(false);
         g_candidate_fixed_badge = tbl["appearance"]["candidate_fixed_badge"].value_or(true);
         {
             // 非法样式一律回退到默认徽标，避免手改配置后出现无法删除的畸形标记
@@ -817,7 +752,6 @@ bool LoadImeConfig()
             const std::string tsf_preedit_style = tbl["appearance"]["tsf_preedit_style"].value_or(
                 tbl["input"]["tsf_preedit_style"].value_or(std::string("raw")));
             g_tsf_preedit_style = GlobalSettings::normalizeTsfPreeditStyle(tsf_preedit_style);
-            g_tsf_preedit_shuangpin_quanpin = tbl["appearance"]["tsf_preedit_shuangpin_quanpin"].value_or(false);
             RefreshEffectiveTsfPreeditStyle();
         }
         // Parse into a local and publish it in one step, so readers never observe half-rewritten strings or maps.
@@ -1163,13 +1097,10 @@ namespace ime_config_detail
 {
 SchemeType ParseScheme(const std::string &value)
 {
-    // 已删除的方案（japanese / romaji / wubi）静默回退全拼，升级用户的旧配置不会卡在
-    // 一个不存在的方案上。
-    if (value == "quanpin" || value == "japanese" || value == "romaji" || value == "japanese-romaji" || value == "wubi")
-    {
-        return SchemeType::Quanpin;
-    }
-    return SchemeType::Shuangpin;
+    // 只保留全拼：已删除的 japanese / romaji / wubi / shuangpin 等旧配置一律静默回退
+    // 全拼，升级用户不会卡在一个不存在的方案上。
+    (void)value;
+    return SchemeType::Quanpin;
 }
 } // namespace ime_config_detail
 

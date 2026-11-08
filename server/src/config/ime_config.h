@@ -4,7 +4,6 @@
 #include "engine/core/fuzzy_pinyin_options.h"
 #include "engine/core/prefix_completion_options.h"
 #include "engine/core/scheme_type.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 #include "engine/contracts/input_state_shortcuts.h"
 #include <toml++/toml.h>
 #include <filesystem>
@@ -273,8 +272,8 @@ const std::string &GetConfiguredCharacterSet();
 bool SetConfiguredCharacterSet(const std::string &character_set);
 bool GetConfiguredCharacterSetShortcutEnabled();
 bool SetConfiguredCharacterSetShortcutEnabled(bool enabled);
-// Shift+Enter commits the converted spelling under the Shuangpin scheme. Turning it off
-// leaves the chord to the plain Enter path, which commits the raw input.
+// Shift+Enter commits the converted spelling. Turning it off leaves the chord to the
+// plain Enter path, which commits the raw input.
 bool GetConfiguredPinyinCommitShortcutEnabled();
 bool SetConfiguredPinyinCommitShortcutEnabled(bool enabled);
 // "chinese" | "english" — default CN/EN when activating this IME.
@@ -301,115 +300,13 @@ inline FanyImeInputStateShortcuts::Values InputStateShortcutViews(const InputSta
 }
 const InputStateShortcutValues &GetConfiguredInputStateShortcuts();
 bool SetConfiguredInputStateShortcut(std::size_t index, const std::string &binding);
-const std::string &GetConfiguredShuangpinSchema();
-// 当前双拼方案是否把 ing 放在分号键上（微软、搜狗、紫光），此时分号在音节第二位是输入键。
-bool IsConfiguredShuangpinSemicolonFinal();
-// 内置方案名，或 custom/<文件名> 形式的自定义方案；自定义方案要能解析通过才会写入。
-bool SetConfiguredShuangpinSchema(const std::string &schema);
-// 用户放在 <数据目录>/shuangpin/custom/*.toml 的自定义双拼，每次调用都重新扫描和解析。
-// 解析失败的文件也列出来，error 写明原因，设置页据此把它显示成不可选。
-struct CustomShuangpinSchemaInfo
-{
-    std::string schema;
-    std::string name;
-    std::string name_en;
-    std::string error;
-};
-std::vector<CustomShuangpinSchemaInfo> GetCustomShuangpinSchemas();
-// UTF-8 path of the folder GetCustomShuangpinSchemas scans.
-std::string GetCustomShuangpinDirectory();
-// 把一份自定义双拼 TOML 文本解析成 profile（profile.name 取 schema）。errors 为空才算成功。
-struct ParsedCustomShuangpin
-{
-    std::string name;
-    std::string name_en;
-    ShuangpinProfile profile;
-    std::vector<std::string> errors;
-};
-ParsedCustomShuangpin ParseCustomShuangpinSchema(const std::string &toml_text, const std::string &schema);
 // 造词时 Esc 只清未选拼音、保留已选词（小狼毫风格）；关闭时 Esc 直接整体取消。
 bool GetConfiguredEscapeKeepsSelectedWord();
 bool SetConfiguredEscapeKeepsSelectedWord(bool enabled);
 bool GetConfiguredEnterLearnsEnglishWord();
 bool SetConfiguredEnterLearnsEnglishWord(bool enabled);
-const std::string &GetConfiguredShuangpinPreeditMode();
 const std::string &GetConfiguredTsfPreeditStyle();
 bool SetConfiguredTsfPreeditStyle(const std::string &style);
-// 双拼方案下行内预编辑显示转换后的全拼：原始按键样式不带分词符号，拼音分词样式带。
-// 开启后原始按键样式在双拼下由 Server 回包驱动，TSF 实际收到的样式见 GlobalSettings。
-bool GetConfiguredTsfPreeditShuangpinQuanpin();
-bool SetConfiguredTsfPreeditShuangpinQuanpin(bool enabled);
-bool GetConfiguredShuangpinHelpcodeEnabled();
-bool SetConfiguredShuangpinHelpcodeEnabled(bool enabled);
-// 双拼末尾辅助码直接触发（helpcode.shuangpin_helpcode_direct，默认开）：按输入形状认辅码。关掉后改由引导键
-// 触发（间接），触发键见下。
-bool GetConfiguredShuangpinHelpcodeDirect();
-bool SetConfiguredShuangpinHelpcodeDirect(bool enabled);
-// 双拼末尾辅助码（间接）的触发键，可多选：反引号（helpcode.shuangpin_helpcode_trigger_backtick，默认关）、
-// 分号（..._semicolon，默认开）和大写字母（..._uppercase，默认关）。取消不掉最后一个（返回 false）。与句中
-// 辅助码的触发键互斥：勾上一边的某个键会取消另一边的同一个键，哪怕那是另一边最后一个键。
-bool GetConfiguredShuangpinHelpcodeTriggerBacktick();
-bool SetConfiguredShuangpinHelpcodeTriggerBacktick(bool enabled);
-bool GetConfiguredShuangpinHelpcodeTriggerSemicolon();
-bool SetConfiguredShuangpinHelpcodeTriggerSemicolon(bool enabled);
-bool GetConfiguredShuangpinHelpcodeTriggerUppercase();
-bool SetConfiguredShuangpinHelpcodeTriggerUppercase(bool enabled);
-// 字符 ch（'`' 或 ';'）此刻是不是一个生效的末尾辅助码（间接）触发键：双拼辅助码开着、关着直接、没开直接
-// 辅助码、勾了这个键，且句中辅助码没占着它（手改配置两边都勾时句中辅助码优先）。
-bool IsConfiguredEndHelpcodeTrigger(wchar_t ch);
-// 末尾辅助码（间接）的大写触发此刻是否生效，条件同上。
-bool IsConfiguredEndHelpcodeUppercaseTrigger();
-// EndHelpcodeTriggersChanged 的载荷（FanyImeEndHelpcode::PayloadFor）：当前方案是双拼时上面三项生效的位。
-std::wstring FormatEndHelpcodeTriggersWorkerPayload();
-// 双拼句中辅助码（helpcode.shuangpin_mid_sentence_helpcode），默认关闭。
-bool GetConfiguredShuangpinMidSentenceHelpcodeEnabled();
-bool SetConfiguredShuangpinMidSentenceHelpcodeEnabled(bool enabled);
-// 句中辅助码的触发键，可多选：反引号（helpcode.shuangpin_mid_sentence_helpcode_backtick，默认开）
-// 和分号（helpcode.shuangpin_mid_sentence_helpcode_semicolon，默认关）。与末尾辅助码（间接）的触发键互斥，
-// 规则同 SetConfiguredShuangpinHelpcodeTriggerBacktick。
-bool GetConfiguredShuangpinMidSentenceHelpcodeBacktick();
-bool SetConfiguredShuangpinMidSentenceHelpcodeBacktick(bool enabled);
-bool GetConfiguredShuangpinMidSentenceHelpcodeSemicolon();
-bool SetConfiguredShuangpinMidSentenceHelpcodeSemicolon(bool enabled);
-// 第三种触发：完整音节后的大写字母（helpcode.shuangpin_mid_sentence_helpcode_uppercase，默认关），相当于
-// 「反引号 + 这个字母」，第二码仍要大写。规则见 engine/contracts/mid_sentence_helpcode.h。
-bool GetConfiguredShuangpinMidSentenceHelpcodeUppercase();
-bool SetConfiguredShuangpinMidSentenceHelpcodeUppercase(bool enabled);
-// 大写触发此刻是否生效：句中辅助码开着、勾了大写、没开直接辅助码。
-bool IsConfiguredMidSentenceHelpcodeUppercaseTrigger();
-// MidSentenceHelpcodeUppercaseChanged 的载荷："1" 表示大写触发生效且当前方案是双拼。
-std::wstring FormatMidSentenceHelpcodeUppercaseWorkerPayload();
-// 字符 ch（'`' 或 ';'）此刻是不是一个开着的句中辅助码触发键：总开关开着且勾了这个键。
-bool IsConfiguredMidSentenceHelpcodeTrigger(wchar_t ch);
-// MidSentenceHelpcodeChanged 的载荷："1" 表示开关开着、勾了反引号且当前方案是双拼。
-std::wstring FormatMidSentenceHelpcodeWorkerPayload();
-// MidSentenceHelpcodeSemicolonChanged 的载荷：同上，换成分号。
-std::wstring FormatMidSentenceHelpcodeSemicolonWorkerPayload();
-// 双拼直接辅助码（helpcode.shuangpin_direct_helpcode，万象式，不要引导键），默认关闭。开着时句中辅助码的
-// 触发键一律不生效（IsConfiguredMidSentenceHelpcodeTrigger 返回 false），末尾单码/双码辅助也让位给它。
-bool GetConfiguredShuangpinDirectHelpcodeEnabled();
-bool SetConfiguredShuangpinDirectHelpcodeEnabled(bool enabled);
-// 直接辅助码在句中用什么结束四码，可多选、至少留一个：补 /（helpcode.shuangpin_direct_helpcode_slash，默认开）
-// 和第二位辅码大写（helpcode.shuangpin_direct_helpcode_uppercase，默认关）。
-bool GetConfiguredShuangpinDirectHelpcodeSlash();
-bool SetConfiguredShuangpinDirectHelpcodeSlash(bool enabled);
-bool GetConfiguredShuangpinDirectHelpcodeUppercase();
-bool SetConfiguredShuangpinDirectHelpcodeUppercase(bool enabled);
-// DirectHelpcodeChanged 的载荷（FanyImeDirectHelpcode::PayloadFor）："0" 表示开关关着或当前方案不是双拼，
-// "1" 开着且勾了 /，"2" 开着但没勾 /。
-std::wstring FormatDirectHelpcodeWorkerPayload();
-// 直接辅助码下用 ; 进入末尾辅助码（helpcode.shuangpin_direct_helpcode_end_trigger，默认关），规则见
-// FanyImeDirectHelpcode::AcceptsEndTriggerAt。
-bool GetConfiguredShuangpinDirectHelpcodeEndTrigger();
-bool SetConfiguredShuangpinDirectHelpcodeEndTrigger(bool enabled);
-// 此刻是否生效：直接辅助码和这个开关都开着，且当前方案是双拼。引导键是末尾辅助码设置里勾了的反引号、分号。
-bool IsConfiguredDirectHelpcodeEndTriggerActive();
-// 字符 ch（'`' 或 ';'）此刻是不是直接辅助码下进入末尾辅助码的引导键：上面生效，且末尾辅助码设置里勾了这个键。
-bool IsConfiguredDirectHelpcodeEndTriggerKey(wchar_t ch);
-// DirectHelpcodeEndTriggerChanged 的载荷（FanyImeEndHelpcode::PayloadFor，不带大写位）：此刻生效的引导键。
-std::wstring FormatDirectHelpcodeEndTriggerWorkerPayload();
-const std::string &GetConfiguredShuangpinHelpcodeSchema();
-bool SetConfiguredShuangpinHelpcodeSchema(const std::string &schema);
 bool GetConfiguredQuanpinHelpcodeEnabled();
 bool SetConfiguredQuanpinHelpcodeEnabled(bool enabled);
 bool GetConfiguredQuanpinAutocorrectTransposition();
@@ -454,10 +351,6 @@ struct CustomHelpcodeSchemaInfo
 std::vector<CustomHelpcodeSchemaInfo> GetCustomHelpcodeSchemas();
 // UTF-8 path of the folder GetCustomHelpcodeSchemas scans.
 std::string GetCustomHelpcodeDirectory();
-bool GetConfiguredShowShuangpinHelpcodeInCandidateWindow();
-bool SetConfiguredShowShuangpinHelpcodeInCandidateWindow(bool enabled);
-// 双拼候选此刻是否带辅码提示：勾了显示，且末尾、句中（引导键或直接）任意一种辅助码开着。
-bool IsConfiguredShuangpinHelpcodeHintShown();
 bool GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
 bool SetConfiguredShowQuanpinHelpcodeInCandidateWindow(bool enabled);
 bool GetConfiguredFloatingToolbarEnabled();
@@ -512,7 +405,7 @@ bool GetConfiguredEmojiMixedInputEnabled();
 bool SetConfiguredEmojiMixedInputEnabled(bool enabled);
 bool GetConfiguredKaomojiMixedInputEnabled();
 bool SetConfiguredKaomojiMixedInputEnabled(bool enabled);
-// 全拼/双拼里输入恰好等于某个符号编码（alpha、szq、xl）时，把符号混进候选。
+// 全拼里输入恰好等于某个符号编码（alpha、szq、xl）时，把符号混进候选。
 bool GetConfiguredSymbolMixedInputEnabled();
 bool SetConfiguredSymbolMixedInputEnabled(bool enabled);
 bool GetConfiguredCloudCandidatesEnabled();
@@ -556,7 +449,7 @@ bool SetConfiguredRadicalModeEnabled(bool enabled);
 // Shift+K 快捷短语模式。
 bool GetConfiguredQuickPhraseEnabled();
 bool SetConfiguredQuickPhraseEnabled(bool enabled);
-// 全拼/双拼里把编码精确匹配的快捷短语混进候选，与 K 模式各自开关。
+// 全拼里把编码精确匹配的快捷短语混进候选，与 K 模式各自开关。
 bool GetConfiguredQuickPhraseCandidatesEnabled();
 bool SetConfiguredQuickPhraseCandidatesEnabled(bool enabled);
 // 快捷短语参与调频：关掉后快捷短语组固定在首位，选择也不再学习。
@@ -565,7 +458,7 @@ bool SetConfiguredQuickPhraseFrequencyEnabled(bool enabled);
 // 候选混输总开关：关掉后英文、emoji、颜文字、快捷短语、日期时间都不再混进候选，各自的开关值保留。
 bool GetConfiguredMixedCandidatesEnabled();
 bool SetConfiguredMixedCandidatesEnabled(bool enabled);
-// 全拼/双拼里输入 rq / sj / xq 等唤醒词时，把当前日期、时间、星期混进候选。
+// 全拼里输入 rq / sj / xq 等唤醒词时，把当前日期、时间、星期混进候选。
 bool GetConfiguredDateTimeCandidatesEnabled();
 bool SetConfiguredDateTimeCandidatesEnabled(bool enabled);
 // 日期时间混入候选时，第三位的「📅日期」入口：选中后候选框换成全部日期格式。依附 date_time_candidates。
@@ -580,15 +473,13 @@ bool SetConfiguredKaomojiModeEnabled(bool enabled);
 // Shift+S 符号快捷输入模式。
 bool GetConfiguredSymbolModeEnabled();
 bool SetConfiguredSymbolModeEnabled(bool enabled);
-bool GetConfiguredJianpinModeEnabled();
-bool SetConfiguredJianpinModeEnabled(bool enabled);
 bool GetConfiguredYModeEnabled();
 bool SetConfiguredYModeEnabled(bool enabled);
-// V 模式：数字转中文、算式计算。双拼按大写 V 触发，全拼大小写 V 都可以，规则见
+// V 模式：数字转中文、算式计算。全拼大小写 V 都可以，规则见
 // engine/contracts/v_mode_input.h。
 bool GetConfiguredVModeEnabled();
 bool SetConfiguredVModeEnabled(bool enabled);
-// VModeChanged 的载荷："0" 关着，"1" 双拼（只认大写 V），"2" 全拼（V、v 都认）。
+// VModeChanged 的载荷："0" 关着，"2" 全拼（V、v 都认）。
 std::wstring FormatVModeWorkerPayload();
 bool GetConfiguredClipboardHistoryEnabled();
 bool SetConfiguredClipboardHistoryEnabled(bool enabled);
@@ -689,9 +580,6 @@ const std::string &GetConfiguredCandidateSkin();
 bool SetConfiguredCandidateSkin(const std::string &skin);
 const std::string &GetConfiguredCandidateWindowPreeditStyle();
 bool SetConfiguredCandidateWindowPreeditStyle(const std::string &style);
-// 双拼方案下候选窗预编辑显示转换后的全拼分词。
-bool GetConfiguredCandidateWindowPreeditShuangpinQuanpin();
-bool SetConfiguredCandidateWindowPreeditShuangpinQuanpin(bool enabled);
 const std::string &GetConfiguredThemeMode();
 bool SetConfiguredThemeMode(const std::string &mode);
 const std::string &GetConfiguredThemeSettings();

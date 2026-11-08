@@ -196,17 +196,6 @@ static nlohmann::json CustomHelpcodeSchemasJson()
     return schemas;
 }
 
-static nlohmann::json CustomShuangpinSchemasJson()
-{
-    nlohmann::json schemas = nlohmann::json::array();
-    for (const auto &schema : GetCustomShuangpinSchemas())
-    {
-        schemas.push_back(
-            {{"id", schema.schema}, {"name", schema.name}, {"name_en", schema.name_en}, {"error", schema.error}});
-    }
-    return schemas;
-}
-
 // The provider registry as sent to the settings page: one entry per user-defined service. Built-in
 // ids stay config.toml-authoritative, so their endpoint/model come from the parsed config rather
 // than a possibly-stale store copy. Every token comes from config.toml; the store holds none.
@@ -349,7 +338,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"character_set", GetConfiguredCharacterSet()},
             {"default_ime_mode", GetConfiguredDefaultImeMode()},
             {"ime_mode_scope", GetConfiguredImeModeScope()},
-            {"shuangpin_schema", GetConfiguredShuangpinSchema()},
             {"escape_keeps_selected_word", GetConfiguredEscapeKeepsSelectedWord()},
             {"enter_learns_english_word", GetConfiguredEnterLearnsEnglishWord()},
             {"word_to_character", GetConfiguredWordToCharacterEnabled()},
@@ -481,7 +469,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"emoji_mode", GetConfiguredEmojiModeEnabled()},
             {"kaomoji_mode", GetConfiguredKaomojiModeEnabled()},
             {"symbol_mode", GetConfiguredSymbolModeEnabled()},
-            {"jianpin_mode", GetConfiguredJianpinModeEnabled()},
             {"y_mode", GetConfiguredYModeEnabled()},
             {"v_mode", GetConfiguredVModeEnabled()},
             {"clipboard_history", GetConfiguredClipboardHistoryEnabled()}}},
@@ -500,12 +487,10 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_window_single_line", GetConfiguredCandidateWindowSingleLine()},
             {"candidate_skin", GetConfiguredCandidateSkin()},
             {"candidate_window_preedit_style", GetConfiguredCandidateWindowPreeditStyle()},
-            {"candidate_window_preedit_shuangpin_quanpin", GetConfiguredCandidateWindowPreeditShuangpinQuanpin()},
             {"candidate_fixed_badge", GetConfiguredCandidateFixedBadge()},
             {"candidate_fixed_badge_style", GetConfiguredCandidateFixedBadgeStyle()},
             {"candidate_ai_badge_style", GetConfiguredCandidateAiBadgeStyle()},
             {"tsf_preedit_style", GetConfiguredTsfPreeditStyle()},
-            {"tsf_preedit_shuangpin_quanpin", GetConfiguredTsfPreeditShuangpinQuanpin()},
             {"theme_mode", GetConfiguredThemeMode()},
             {"theme_settings", GetConfiguredThemeSettings()},
             {"theme_cand", GetConfiguredThemeCand()},
@@ -602,23 +587,8 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
           {"translation", {{"provider", translation->provider}}},
           {"network", {{"proxy_mode", network_proxy.mode}, {"proxy_server", network_proxy.server}}},
           {"helpcode",
-           {{"shuangpin_helpcode", GetConfiguredShuangpinHelpcodeEnabled()},
-            {"shuangpin_helpcode_direct", GetConfiguredShuangpinHelpcodeDirect()},
-            {"shuangpin_helpcode_trigger_backtick", GetConfiguredShuangpinHelpcodeTriggerBacktick()},
-            {"shuangpin_helpcode_trigger_semicolon", GetConfiguredShuangpinHelpcodeTriggerSemicolon()},
-            {"shuangpin_helpcode_trigger_uppercase", GetConfiguredShuangpinHelpcodeTriggerUppercase()},
-            {"shuangpin_mid_sentence_helpcode", GetConfiguredShuangpinMidSentenceHelpcodeEnabled()},
-            {"shuangpin_mid_sentence_helpcode_backtick", GetConfiguredShuangpinMidSentenceHelpcodeBacktick()},
-            {"shuangpin_mid_sentence_helpcode_semicolon", GetConfiguredShuangpinMidSentenceHelpcodeSemicolon()},
-            {"shuangpin_mid_sentence_helpcode_uppercase", GetConfiguredShuangpinMidSentenceHelpcodeUppercase()},
-            {"shuangpin_direct_helpcode", GetConfiguredShuangpinDirectHelpcodeEnabled()},
-            {"shuangpin_direct_helpcode_slash", GetConfiguredShuangpinDirectHelpcodeSlash()},
-            {"shuangpin_direct_helpcode_uppercase", GetConfiguredShuangpinDirectHelpcodeUppercase()},
-            {"shuangpin_direct_helpcode_end_trigger", GetConfiguredShuangpinDirectHelpcodeEndTrigger()},
-            {"shuangpin_helpcode_schema", GetConfiguredShuangpinHelpcodeSchema()},
-            {"quanpin_helpcode", GetConfiguredQuanpinHelpcodeEnabled()},
+           {{"quanpin_helpcode", GetConfiguredQuanpinHelpcodeEnabled()},
             {"quanpin_helpcode_schema", GetConfiguredQuanpinHelpcodeSchema()},
-            {"show_sp_helpcode_in_candidate_window", GetConfiguredShowShuangpinHelpcodeInCandidateWindow()},
             {"show_qp_helpcode_in_candidate_window", GetConfiguredShowQuanpinHelpcodeInCandidateWindow()}}},
           {"quanpin",
            {{"autocorrect_transposition", GetConfiguredQuanpinAutocorrectTransposition()},
@@ -630,8 +600,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
     payload["data"]["voice_input"]["polish_presets"] = std::move(polish_presets);
     payload["data"]["helpcode"]["custom_schemas"] = CustomHelpcodeSchemasJson();
     payload["data"]["helpcode"]["custom_directory"] = GetCustomHelpcodeDirectory();
-    payload["data"]["input"]["custom_shuangpin_schemas"] = CustomShuangpinSchemasJson();
-    payload["data"]["input"]["custom_shuangpin_directory"] = GetCustomShuangpinDirectory();
     payload["protocolVersion"] = metasequoia::webview::Version;
     const std::string serialized = payload.dump();
     if (!metasequoia::webview::Validate(json::parse(serialized), "server"))
@@ -684,8 +652,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredDefaultImeMode(json::value_to<std::string>(data.at("value")));
     if (path == "input.ime_mode_scope")
         return SetConfiguredImeModeScope(json::value_to<std::string>(data.at("value")));
-    if (path == "input.shuangpin_schema")
-        return SetConfiguredShuangpinSchema(json::value_to<std::string>(data.at("value")));
     if (path == "input.escape_keeps_selected_word")
         return SetConfiguredEscapeKeepsSelectedWord(json::value_to<bool>(data.at("value")));
     if (path == "input.enter_learns_english_word")
@@ -722,8 +688,6 @@ bool ApplyConfigUpdate(const json::object &data)
                                             json::value_to<bool>(data.at("value")));
     if (path == "appearance.tsf_preedit_style")
         return SetConfiguredTsfPreeditStyle(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.tsf_preedit_shuangpin_quanpin")
-        return SetConfiguredTsfPreeditShuangpinQuanpin(json::value_to<bool>(data.at("value")));
     if (path == "appearance.settings_window_linger")
         return SetConfiguredSettingsWindowLinger(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.settings_launch_animation")
@@ -742,8 +706,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCandidateSkin(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.candidate_window_preedit_style")
         return SetConfiguredCandidateWindowPreeditStyle(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.candidate_window_preedit_shuangpin_quanpin")
-        return SetConfiguredCandidateWindowPreeditShuangpinQuanpin(json::value_to<bool>(data.at("value")));
     if (path == "appearance.candidate_fixed_badge")
         return SetConfiguredCandidateFixedBadge(json::value_to<bool>(data.at("value")));
     if (path == "appearance.candidate_fixed_badge_style")
@@ -870,8 +832,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredKaomojiModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.symbol_mode")
         return SetConfiguredSymbolModeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "utility.jianpin_mode")
-        return SetConfiguredJianpinModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.y_mode")
         return SetConfiguredYModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.v_mode")
@@ -1003,36 +963,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return value.is_string() && SetConfiguredNetworkString(path.substr(std::string("network.").size()),
                                                                json::value_to<std::string>(value));
     }
-    if (path == "helpcode.show_sp_helpcode_in_candidate_window")
-        return SetConfiguredShowShuangpinHelpcodeInCandidateWindow(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_helpcode")
-        return SetConfiguredShuangpinHelpcodeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_helpcode_direct")
-        return SetConfiguredShuangpinHelpcodeDirect(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_helpcode_trigger_backtick")
-        return SetConfiguredShuangpinHelpcodeTriggerBacktick(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_helpcode_trigger_semicolon")
-        return SetConfiguredShuangpinHelpcodeTriggerSemicolon(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_helpcode_trigger_uppercase")
-        return SetConfiguredShuangpinHelpcodeTriggerUppercase(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_mid_sentence_helpcode")
-        return SetConfiguredShuangpinMidSentenceHelpcodeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_mid_sentence_helpcode_backtick")
-        return SetConfiguredShuangpinMidSentenceHelpcodeBacktick(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_mid_sentence_helpcode_semicolon")
-        return SetConfiguredShuangpinMidSentenceHelpcodeSemicolon(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_mid_sentence_helpcode_uppercase")
-        return SetConfiguredShuangpinMidSentenceHelpcodeUppercase(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_direct_helpcode")
-        return SetConfiguredShuangpinDirectHelpcodeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_direct_helpcode_slash")
-        return SetConfiguredShuangpinDirectHelpcodeSlash(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_direct_helpcode_uppercase")
-        return SetConfiguredShuangpinDirectHelpcodeUppercase(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_direct_helpcode_end_trigger")
-        return SetConfiguredShuangpinDirectHelpcodeEndTrigger(json::value_to<bool>(data.at("value")));
-    if (path == "helpcode.shuangpin_helpcode_schema")
-        return SetConfiguredShuangpinHelpcodeSchema(json::value_to<std::string>(data.at("value")));
     if (path == "helpcode.quanpin_helpcode")
         return SetConfiguredQuanpinHelpcodeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "helpcode.quanpin_helpcode_schema")
@@ -1137,14 +1067,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
         else if (type == "openHelpcodeDirectory")
         {
             const std::filesystem::path directory = metasequoia::path_from_utf8(GetCustomHelpcodeDirectory().c_str());
-            std::error_code ec;
-            std::filesystem::create_directories(directory, ec);
-            if (!ec)
-                ShellExecuteW(hwnd, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-        }
-        else if (type == "openShuangpinDirectory")
-        {
-            const std::filesystem::path directory = metasequoia::path_from_utf8(GetCustomShuangpinDirectory().c_str());
             std::error_code ec;
             std::filesystem::create_directories(directory, ec);
             if (!ec)

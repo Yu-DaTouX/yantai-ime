@@ -179,7 +179,7 @@ TEST_CASE(config_round_trips_under_non_ascii_profile_path)
         REQUIRE(SetConfiguredInputStateShortcut(2, "Ctrl+Period"));
         REQUIRE(SetConfiguredInputStateShortcut(1, "Ctrl+Shift+Space"));
 
-        REQUIRE(SetConfiguredInputScheme("shuangpin"));
+        REQUIRE(!SetConfiguredInputScheme("shuangpin"));
         for (const std::string &position : {"top-left", "top", "top-right", "bottom-left", "bottom", "bottom-right"})
         {
             REQUIRE(SetConfiguredCaretStateIndicatorPosition(position));
@@ -198,7 +198,7 @@ TEST_CASE(config_round_trips_under_non_ascii_profile_path)
         REQUIRE_EQ(GetConfiguredCaretStateIndicatorPosition(), std::string("bottom-right"));
 
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("shuangpin"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
 
         const std::vector<std::string> fonts = {"SimSun", "Font#1", "Font]2", "Font\\\"3", "微软雅黑"};
         REQUIRE(SetConfiguredCandidateFallbackFonts(fonts));
@@ -378,15 +378,15 @@ TEST_CASE(config_reload_detects_a_change_that_keeps_the_same_timestamp)
         REQUIRE(GetConfiguredInputScheme() == SchemeType::Quanpin);
         const auto stamp = fs::last_write_time(config_path);
 
-        // 模拟「两次写入落在同一个时间刻度」：内容换成双拼，但修改时间保持原样。
+        // 模拟「两次写入落在同一个时间刻度」：内容换成繁体，但修改时间保持原样。
         // 服务端的 300ms 轮询靠 ReloadImeConfigIfChanged 判断有没有变，这时如果只看时间戳
-        // 就会认为没变，表现为切换输入方案要重启才生效。
-        WriteText(config_path, "[input]\nschema = \"shuangpin\"\n");
+        // 就会认为没变，表现为切换字形要重启才生效。
+        WriteText(config_path, "[input]\nschema = \"quanpin\"\ncharacter_set = \"traditional\"\n");
         fs::last_write_time(config_path, stamp);
         REQUIRE(fs::last_write_time(config_path) == stamp);
 
         REQUIRE(ReloadImeConfigIfChanged());
-        REQUIRE(GetConfiguredInputScheme() == SchemeType::Shuangpin);
+        REQUIRE_EQ(GetConfiguredCharacterSet(), std::string("traditional"));
 
         // 内容确实没再变时不能每次都当成变了，否则轮询会退化成每次全量重载。
         REQUIRE(!ReloadImeConfigIfChanged());
@@ -768,7 +768,7 @@ TEST_CASE(config_migrates_legacy_acp_mangled_path)
     {
         ScopedConfigLocation local_app_data_env(local_app_data);
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("shuangpin"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
         REQUIRE(SetConfiguredInputScheme("quanpin"));
         InitImeConfig();
         REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));

@@ -86,11 +86,7 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_fault_slot_jianpin.cpp"
     "${CMAKE_SOURCE_DIR}/src/clipboard/clipboard_history.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_kaomoji_sql.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_shuangpin_scheme.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_custom_shuangpin.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_quanpin_scheme.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_shuangpin_query.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_engine_shuangpin_session.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_caret_prefix_input_session.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_english_dictionary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_mixed_english_placement.cpp"
@@ -142,8 +138,6 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_input_cadence.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_sentence_association_options.cpp"
     "${CMAKE_SOURCE_DIR}/src/session/input_cadence.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_shuangpin_preedit_display.cpp"
-    "${CMAKE_SOURCE_DIR}/src/utils/shuangpin_preedit_display.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_wheel_paging.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_view_model.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_text_policy.cpp"
@@ -209,7 +203,6 @@ set(TEST_SOURCE_FILES
     "${CMAKE_SOURCE_DIR}/src/config/ime_config_input.cpp"
     "${CMAKE_SOURCE_DIR}/src/config/ime_config_keys.cpp"
     "${CMAKE_SOURCE_DIR}/src/config/ime_config_services.cpp"
-    "${CMAKE_SOURCE_DIR}/src/config/ime_config_shuangpin.cpp"
     "${CMAKE_SOURCE_DIR}/src/config/ime_config_template.cpp"
     "${CMAKE_SOURCE_DIR}/src/config/ime_config_theme.cpp"
     "${CMAKE_SOURCE_DIR}/src/config/ime_config_toml.cpp"
@@ -253,15 +246,12 @@ target_include_directories(${TEST_EXECUTABLE_NAME}
 
 # test_default_config_credentials reads the config the installer actually ships, so the check is
 # against the shipped file rather than a restatement of today's placeholder spellings.
-# test_custom_shuangpin parses the example users are told to copy, so the documentation cannot drift
-# from what the parser accepts.
 # test_dictionary_replay_non_ascii_path launches the real replay tool, because the path handling it
 # guards lives in that executable's main() and cannot be linked into the test binary.
 target_compile_definitions(${TEST_EXECUTABLE_NAME}
     PRIVATE
     MSIME_AI_ASSISTANT_TEST
     "MSIME_DEFAULT_CONFIG_PATH=\"${CMAKE_SOURCE_DIR}/../installer/default_config/config.default.toml\""
-    "MSIME_CUSTOM_SHUANGPIN_EXAMPLE_PATH=\"${CMAKE_SOURCE_DIR}/../docs/custom-shuangpin.example.toml\""
     "MSIME_DICTIONARY_REPLAY_EXE=\"$<TARGET_FILE:${DICTIONARY_REPLAY_EXECUTABLE_NAME}>\""
 )
 

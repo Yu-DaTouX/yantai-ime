@@ -1594,7 +1594,7 @@ VisualPtr BuildInputPage(PageContext &context)
         s->fuzzyRules = {std::make_shared<Dimmable>(initialList), std::make_shared<Dimmable>(finalList)};
         s->fuzzyHint = std::make_shared<Hideable>(DisabledHint(), false);
         auto details =
-            Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词；全拼与双拼均生效", 0.0f),
+            Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词", 0.0f),
                  Padded(MakeSubTitle(L"声母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[0],
                  Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
         auto section = MakeToggleSection(L"模糊音", details);
@@ -1918,7 +1918,7 @@ VisualPtr BuildInputPage(PageContext &context)
              // 这一节里唯一联网的一项。它跟 AI 联想无关：不要 Token，也不用选服务商，
              // 默认还开着，所以必须留一个能点得到的地方。
              FrequencyRow(SubBlock(L"云候选",
-                                   L"联网，把当前的全拼（双拼会先还原成全拼）发送到 Google 的 inputtools "
+                                   L"联网，把当前的全拼发送到 Google 的 inputtools "
                                    L"服务换取一个候选。对方会收到拼音、你的 IP 地址和请求元数据，不会收到已上屏的文字、"
                                    L"词库或设置。默认开启，无需账号；需要走代理时在「帮助」页设置，详见 PRIVACY.md"),
                           Toggle(context, "general.cloud_candidates"))});

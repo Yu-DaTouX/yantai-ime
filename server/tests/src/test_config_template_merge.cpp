@@ -262,31 +262,6 @@ TEST_CASE(shipped_tsf_diagnostic_log_survives_template_upgrade)
     REQUIRE(!toml::parse(installed)["general"]["tsf_diagnostic_log"].value_or(true));
 }
 
-TEST_CASE(shipped_shuangpin_helpcode_triggers_default_and_survive_template_upgrade)
-{
-    std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
-    REQUIRE(static_cast<bool>(input));
-    const std::string installed((std::istreambuf_iterator<char>(input)), {});
-    const auto fresh = toml::parse(installed);
-    REQUIRE(fresh["helpcode"]["shuangpin_helpcode_direct"].value_or(false));
-    REQUIRE(!fresh["helpcode"]["shuangpin_helpcode_trigger_backtick"].value_or(true));
-    REQUIRE(fresh["helpcode"]["shuangpin_helpcode_trigger_semicolon"].value_or(false));
-    REQUIRE(!fresh["helpcode"]["shuangpin_helpcode_trigger_uppercase"].value_or(true));
-
-    const std::string configured = "[helpcode]\nshuangpin_helpcode_direct = false\n"
-                                   "shuangpin_helpcode_trigger_backtick = true\n"
-                                   "shuangpin_helpcode_trigger_semicolon = false\n"
-                                   "shuangpin_helpcode_trigger_uppercase = true\n";
-    for (const auto &baseline : {std::string(), installed})
-    {
-        const auto merged = toml::parse(MergeConfigIntoTemplate(installed, configured, baseline));
-        REQUIRE(!merged["helpcode"]["shuangpin_helpcode_direct"].value_or(true));
-        REQUIRE(merged["helpcode"]["shuangpin_helpcode_trigger_backtick"].value_or(false));
-        REQUIRE(!merged["helpcode"]["shuangpin_helpcode_trigger_semicolon"].value_or(true));
-        REQUIRE(merged["helpcode"]["shuangpin_helpcode_trigger_uppercase"].value_or(false));
-    }
-}
-
 TEST_CASE(shipped_vim_mode_apps_survive_template_upgrade)
 {
     // Only the TSF DLL reads this list; the template is what keeps it across upgrades.
@@ -329,7 +304,7 @@ TEST_CASE(config_merge_keeps_customized_values_and_adds_new_keys)
                                       "cloud_candidates = true\n"
                                       "\n"
                                       "[input]\n"
-                                      "schema = \"shuangpin\" # 可选：quanpin/shuangpin\n";
+                                      "schema = \"quanpin\" # 可选：quanpin\n";
     const std::string user_text = "[general]\n"
                                   "floating_toolbar = false\n"
                                   "\n"
@@ -339,7 +314,7 @@ TEST_CASE(config_merge_keeps_customized_values_and_adds_new_keys)
                                       "floating_toolbar = true\n"
                                       "\n"
                                       "[input]\n"
-                                      "schema = \"shuangpin\"\n";
+                                      "schema = \"quanpin\"\n";
 
     const std::string expected = "[general]\n"
                                  "# 悬浮工具栏\n"
@@ -347,7 +322,7 @@ TEST_CASE(config_merge_keeps_customized_values_and_adds_new_keys)
                                  "cloud_candidates = true\n"
                                  "\n"
                                  "[input]\n"
-                                 "schema = \"quanpin\" # 可选：quanpin/shuangpin\n";
+                                 "schema = \"quanpin\" # 可选：quanpin\n";
     REQUIRE_EQ(MergeConfigIntoTemplate(template_text, user_text, baseline_text), expected);
 }
 
@@ -375,7 +350,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
                                           "[input]\ndefault_ime_mode = \"english\"\n"
                                           "[appearance]\ncandidate_window_layout = \"vertical\"\n"
                                           "candidate_skin = \"acrylic\"\n"
-                                          "[helpcode]\nshuangpin_helpcode = true\nquanpin_helpcode = true\n"
+                                          "[helpcode]\nquanpin_helpcode = true\n"
                                           "[utility]\nemoji_mode = true # Shift+E\nkaomoji_mode = true\n"
                                           "[voice_input]\nvoice_input = true\ndoubao_enable_ddc = true\n"
                                           "[ai_assistant]\nenabled = true\n"
@@ -391,7 +366,6 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     REQUIRE_EQ(upgraded["input"]["default_ime_mode"].value_or(std::string()), std::string("english"));
     REQUIRE_EQ(upgraded["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("vertical"));
     REQUIRE_EQ(upgraded["appearance"]["candidate_skin"].value_or(std::string()), std::string("acrylic"));
-    REQUIRE(upgraded["helpcode"]["shuangpin_helpcode"].value_or(false));
     REQUIRE(upgraded["helpcode"]["quanpin_helpcode"].value_or(false));
     REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));
     REQUIRE(upgraded["utility"]["kaomoji_mode"].value_or(false));
@@ -404,7 +378,6 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     // 新装用户拿到的是模板本身。
     const auto fresh = toml::parse(installed);
     REQUIRE_EQ(fresh["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("horizontal"));
-    REQUIRE(!fresh["helpcode"]["shuangpin_helpcode"].value_or(true));
     REQUIRE(!fresh["association"]["sentence_wordlattice"].value_or(true));
     // 新装不把任何输入内容发出去：云候选和旧版翻译门禁都必须是关。
     REQUIRE(!fresh["general"]["cloud_candidates"].value_or(true));
@@ -464,19 +437,21 @@ TEST_CASE(config_merge_ignores_assignments_inside_multiline_strings)
 
 TEST_CASE(config_merge_ignores_commented_out_keys)
 {
-    const std::string template_text = "[input]\n# schema = \"shuangpin\"\nschema = \"quanpin\"\n";
-    const std::string user_text = "[input]\n# schema = \"quanpin\"\nschema = \"shuangpin\"\n";
+    const std::string template_text = "[input]\n# schema = \"wubi\"\nschema = \"quanpin\"\n";
+    const std::string user_text = "[input]\n# schema = \"quanpin\"\nschema = \"quanpin\"\n";
 
     REQUIRE_EQ(MergeConfigIntoTemplate(template_text, user_text, std::string()),
-               "[input]\n# schema = \"shuangpin\"\nschema = \"shuangpin\"\n");
+               "[input]\n# schema = \"wubi\"\nschema = \"quanpin\"\n");
 }
 
 // 已删除的方案在升级时静默回退全拼，不把用户留在不存在的方案上。
 TEST_CASE(config_merge_falls_back_from_retired_schemes_to_quanpin)
 {
     const std::string template_text = "[input]\nschema = \"quanpin\"\n";
-    REQUIRE_EQ(MergeConfigIntoTemplate(template_text, "[input]\nschema = \"wubi\"\n", std::string()),
-               "[input]\nschema = \"quanpin\"\n");
+    for (const char *retired : {"wubi", "shuangpin", "japanese", "romaji"})
+        REQUIRE_EQ(MergeConfigIntoTemplate(template_text, std::string("[input]\nschema = \"") + retired + "\"\n",
+                                           std::string()),
+                   "[input]\nschema = \"quanpin\"\n");
 }
 
 TEST_CASE(configured_voice_input_is_handed_out_as_a_snapshot)

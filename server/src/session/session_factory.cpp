@@ -2,7 +2,6 @@
 
 #include "config/ime_config.h"
 #include "engine_input_session.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "utils/common_utils.h"
 #include <algorithm>
@@ -18,21 +17,15 @@ std::string ToLowerAscii(std::string value)
     return value;
 }
 
-std::string ResolveEffectiveBackend(std::string configured_backend, SchemeType scheme)
+std::string ResolveEffectiveBackend(std::string configured_backend)
 {
-    // Old installations may still persist "legacy". It is a configuration alias
-    // for the shared engine now; keeping a second composition owner is unsafe.
-    if (configured_backend.empty() || configured_backend == "legacy" || configured_backend == "engine")
+    // Old installations may still persist "legacy" or a per-scheme backend name.
+    // They are configuration aliases for the shared engine now; keeping a second
+    // composition owner is unsafe.
+    if (configured_backend.empty() || configured_backend == "legacy" || configured_backend == "engine" ||
+        configured_backend == "engine-quanpin" || configured_backend == "engine-shuangpin")
     {
-        switch (scheme)
-        {
-        case SchemeType::Shuangpin:
-            return "engine-shuangpin";
-        case SchemeType::Quanpin:
-            return "engine-quanpin";
-        default:
-            throw std::runtime_error("Unknown input scheme.");
-        }
+        return "engine-quanpin";
     }
 
     throw std::runtime_error("Unsupported input session backend: " + configured_backend);
@@ -47,11 +40,6 @@ std::shared_ptr<IInputSession> CreateInputSessionFromConfig()
     // so this runs at every session creation, not once.
     (void)user_dictionary::enable_write_ahead_log(CommonUtils::get_ime_data_path() + "\\msime.db");
     const std::string backend = DescribeEffectiveInputSessionBackendFromConfig();
-    const ShuangpinProfile &shuangpin_profile = GetShuangpinProfile(GetConfiguredShuangpinSchema());
-    if (backend == "engine-shuangpin")
-    {
-        return std::make_shared<EngineInputSession>(SchemeType::Shuangpin, shuangpin_profile);
-    }
     if (backend == "engine-quanpin")
     {
         return std::make_shared<EngineInputSession>(SchemeType::Quanpin);
@@ -67,5 +55,5 @@ std::string DescribeConfiguredInputSessionBackendFromConfig()
 
 std::string DescribeEffectiveInputSessionBackendFromConfig()
 {
-    return ResolveEffectiveBackend(DescribeConfiguredInputSessionBackendFromConfig(), GetConfiguredInputScheme());
+    return ResolveEffectiveBackend(DescribeConfiguredInputSessionBackendFromConfig());
 }

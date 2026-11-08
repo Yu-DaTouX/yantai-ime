@@ -1795,21 +1795,6 @@ void SendToTsfWorkerThreadViaNamedpipe(UINT msg_type, const std::wstring &pipeDa
 
 void BroadcastConfiguredKeyPolicies()
 {
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged,
-                                           FormatMidSentenceHelpcodeWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(
-        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged,
-        FormatMidSentenceHelpcodeSemicolonWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged,
-                                           FormatDirectHelpcodeWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(
-        Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged,
-        FormatDirectHelpcodeEndTriggerWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(
-        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged,
-        FormatMidSentenceHelpcodeUppercaseWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged,
-                                           FormatEndHelpcodeTriggersWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged,
                                            FormatVModeWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged,
