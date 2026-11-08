@@ -57,13 +57,8 @@ cn_en_mixed_input = true
 cn_en_mixed_input_min_chars = 5
 # 首页最多展示的英文候选数，范围 1–3；保留中文首选，小候选页会减少英文项
 cn_en_mixed_input_first_page_count = 1
-# 在竖排候选窗口中显示中英文互译（每项最多两个简短释义）
-candidate_translations = false
-# 在候选译文中显示 n.、v. 等词性标记，关闭后仅显示释义
-candidate_translation_show_pos = true
-# 候选译文只显示第一条释义，关闭时最多显示两条
-candidate_translation_single_sense = false
 # 候选词英文行：候选条下面固定一行，显示当前高亮候选的第一个英文词义（词性小号灰字跟随）。
+# 释义来源依次是：随包覆盖表 zh_en_gloss.tsv、english.db、本地翻译模型（已安装时后台补查，缓存后显示）。
 # 默认打开；关闭后 Ctrl+Enter / Ctrl+Shift+Enter 仍可用。
 english_line = true
 # 中文输入状态下输入恰好等于 emoji 关键词时显示 emoji 候选（最匹配的一个排在首选之后，不做前缀匹配）
@@ -319,8 +314,6 @@ commit_pinyin_shift_enter = true
 # 键位只支持 Ctrl / Ctrl+Shift + 一个键名（如 Ctrl+Enter、Ctrl+Shift+Enter、Ctrl+Period）；空字符串表示关闭。
 commit_english = "Ctrl+Enter"
 english_senses = "Ctrl+Shift+Enter"
-# 翻译模式快捷键，默认关闭（从悬浮工具栏「译」进入）。填 "Ctrl+T" 等即启用：只在组字中或已在翻译模式时拦截。
-translate_mode = ""
 
 #
 # Dictionary

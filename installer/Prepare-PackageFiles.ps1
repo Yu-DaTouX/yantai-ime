@@ -69,6 +69,8 @@ $settingsAssets = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\settin
 # 区域旗帜 emoji 用的 Twemoji Mozilla：Segoe UI Emoji 没有国旗图案，候选窗把它当私有字体集加载。
 # 版本、来源与 SHA256 见该目录的 README.md；下面的摘要核对防止替换时漏掉。
 $fontAssets = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\fonts')
+# 候选词英文行的随包释义覆盖表，装到数据目录的 assets\dictionary\zh_en_gloss.tsv。
+$glossTable = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\dictionary\zh_en_gloss.tsv')
 $flagFont = Join-Path $fontAssets 'Twemoji.Mozilla.ttf'
 $flagFontSha256 = '6d90152ee0d29e82fe2a87793af5aa4b7ad13e6538360889e141e81ed299ee8e'
 $defaultSkinsSource = Join-Path $RepoRoot 'skins\default'
@@ -119,6 +121,7 @@ Assert-PathExists -LiteralPath $tipIcon -Description '输入法语言配置图�
 Assert-PathExists -LiteralPath $thirdPartyNotices -Description '第三方声明 THIRD_PARTY_NOTICES.txt'
 Assert-PathExists -LiteralPath $license -Description '许可证 LICENSE'
 Assert-PathExists -LiteralPath $settingsAssets -Description '设置窗口图片资源目录'
+Assert-PathExists -LiteralPath $glossTable -Description '英文行释义覆盖表 zh_en_gloss.tsv'
 Assert-PathExists -LiteralPath $flagFont -Description '区域旗帜 emoji 字体 Twemoji.Mozilla.ttf'
 if ((Get-FileHash -LiteralPath $flagFont -Algorithm SHA256).Hash.ToLowerInvariant() -ne $flagFontSha256) {
     throw "区域旗帜 emoji 字体与记录的 SHA256 不一致（见 server/assets/fonts/README.md）：$flagFont"
@@ -248,6 +251,10 @@ if (Test-Path -LiteralPath $targetAssets) {
 Copy-DirectoryContents -Source $settingsAssets -Destination $targetSettingsAssets
 # 区域旗帜字体随包到数据目录的 assets\fonts（轻量包也要，候选窗在任何打包形态下都用到它）。
 Copy-DirectoryContents -Source $fontAssets -Destination (Join-Path $targetAssets 'fonts')
+# 英文行释义覆盖表（轻量包也要）。
+$targetGlossDir = Join-Path $targetAssets 'dictionary'
+New-Item -ItemType Directory -Force -Path $targetGlossDir | Out-Null
+Copy-Item -LiteralPath $glossTable -Destination (Join-Path $targetGlossDir 'zh_en_gloss.tsv') -Force
 
 # 内置皮肤的出厂清单（开关与完整外观，含 canvas 基底）。安装脚本每次都整份覆盖到数据目录的
 # skins\default，用户在那里的改动升级后不保留。
