@@ -141,6 +141,13 @@ target_include_directories(test_aux_pipe PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_features(test_aux_pipe PRIVATE cxx_std_17)
 add_test(NAME aux_pipe COMMAND test_aux_pipe)
 
+find_package(Threads REQUIRED)
+add_executable(test_tsf_preedit_style tsf_preedit_style.cpp)
+target_include_directories(test_tsf_preedit_style PRIVATE ../src)
+target_compile_features(test_tsf_preedit_style PRIVATE cxx_std_17)
+target_link_libraries(test_tsf_preedit_style PRIVATE Threads::Threads)
+add_test(NAME tsf_preedit_style COMMAND test_tsf_preedit_style)
+
 # Exercise both production extent handlers with clipped and collapsed host rectangles
 set(caret_layout_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Tf/TfTextLayoutSink.cpp")
 set(caret_edit_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Edit/GetTextExtentEditSession.cpp")
