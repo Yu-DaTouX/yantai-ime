@@ -43,6 +43,11 @@ target_compile_features(test_virtual_key_need_policy PRIVATE cxx_std_17)
 add_test(NAME virtual_key_need_policy COMMAND test_virtual_key_need_policy)
 
 # Which layer owns a chord before the local classifier: Server candidate keys vs. the application.
+add_executable(test_translation_mode_key_policy translation_mode_key_policy.cpp)
+target_include_directories(test_translation_mode_key_policy PRIVATE ../src)
+target_compile_features(test_translation_mode_key_policy PRIVATE cxx_std_17)
+add_test(NAME translation_mode_key_policy COMMAND test_translation_mode_key_policy)
+
 add_executable(test_key_route_policy key_route_policy.cpp)
 target_include_directories(test_key_route_policy PRIVATE ../src)
 target_compile_features(test_key_route_policy PRIVATE cxx_std_17)

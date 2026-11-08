@@ -20,6 +20,10 @@ set(SERVER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 add_executable(portable_tests
     "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
     "${SERVER_ROOT}/tests/src/test_input_key_policy.cpp"
+    "${SERVER_ROOT}/tests/src/test_translation_state.cpp"
+    "${SERVER_ROOT}/tests/src/test_translation_worker.cpp"
+    "${SERVER_ROOT}/src/translation/translation_state.cpp"
+    "${SERVER_ROOT}/src/translation/translation_worker.cpp"
     "${SERVER_ROOT}/tests/src/test_task_classes.cpp"
     "${SERVER_ROOT}/src/ipc/event_listener_task_class.cpp"
     "${SERVER_ROOT}/tests/src/test_candidate_view_model.cpp"
