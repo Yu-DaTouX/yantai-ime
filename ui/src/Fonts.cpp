@@ -1,6 +1,8 @@
 #include "msimeui/Fonts.h"
 
+#include <cstdint>
 #include <dwrite_2.h>
+#include <dwrite_3.h>
 #include <map>
 #include <mutex>
 #include <utility>
@@ -240,6 +242,39 @@ void ApplyUiFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format)
     }
 }
 
+std::shared_ptr<IDWriteFontCollection> LoadPrivateFontCollection(const std::wstring &path)
+{
+    IDWriteFactory *factory = SharedFactory();
+    if (!factory || path.empty())
+        return {};
+    ComPtr<IDWriteFactory5> factory5;
+    if (FAILED(factory->QueryInterface(IID_PPV_ARGS(&factory5))))
+        return {};
+    ComPtr<IDWriteFontFile> file;
+    if (FAILED(factory5->CreateFontFileReference(path.c_str(), nullptr, file.GetAddressOf())))
+        return {};
+
+    ComPtr<IDWriteFontSetBuilder> builder;
+    if (FAILED(factory5->CreateFontSetBuilder(builder.GetAddressOf())))
+        return {};
+    ComPtr<IDWriteFontSetBuilder1> builder1;
+    if (FAILED(builder->QueryInterface(IID_PPV_ARGS(&builder1))))
+        return {};
+    // 字体文件里的所有字面一次加进字体集，元数据由 CreateFontSet 从文件里读。
+    if (FAILED(builder1->AddFontFile(file.Get())))
+        return {};
+    ComPtr<IDWriteFontSet> fontSet;
+    if (FAILED(builder->CreateFontSet(fontSet.GetAddressOf())))
+        return {};
+    ComPtr<IDWriteFontCollection1> collection;
+    if (FAILED(factory5->CreateFontCollectionFromFontSet(fontSet.Get(), collection.GetAddressOf())))
+        return {};
+    IDWriteFontCollection *base = nullptr;
+    if (FAILED(collection->QueryInterface(IID_PPV_ARGS(&base))))
+        return {};
+    return std::shared_ptr<IDWriteFontCollection>(base, [](IDWriteFontCollection *value) { value->Release(); });
+}
+
 void ApplyFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format, const std::vector<std::wstring> &families)
 {
     if (!factory || !format)
@@ -265,5 +300,112 @@ void ApplyFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format, const
     ComPtr<IDWriteFontFallback> fallback;
     if (SUCCEEDED(builder->CreateFontFallback(&fallback)))
         format1->SetFontFallback(fallback.Get());
+}
+
+namespace
+{
+// 第一个非空白的码位：候选文字或序号的第一个字决定它的墨迹中线。
+std::uint32_t FirstTextCodePoint(const std::wstring &text)
+{
+    for (std::size_t index = 0; index < text.size(); ++index)
+    {
+        const std::uint32_t first = static_cast<std::uint32_t>(text[index]);
+        if (first >= 0xD800 && first <= 0xDBFF && index + 1 < text.size())
+        {
+            const std::uint32_t second = static_cast<std::uint32_t>(text[index + 1]);
+            if (second >= 0xDC00 && second <= 0xDFFF)
+                return 0x10000 + ((first - 0xD800) << 10) + (second - 0xDC00);
+        }
+        if (first > 0x20)
+            return first;
+    }
+    return 0;
+}
+
+bool HasCharacter(IDWriteFont *font, std::uint32_t codepoint)
+{
+    BOOL exists = FALSE;
+    return font && SUCCEEDED(font->HasCharacter(codepoint, &exists)) && exists;
+}
+} // namespace
+
+TextVerticalMetrics ResolveTextVerticalMetrics(const std::wstring &fontFamily,
+                                               const std::vector<std::wstring> &fallbackFamilies,
+                                               const std::wstring &text)
+{
+    // 拿不到字体数据时的缺省值：常见中文字体的墨迹中线大约在基线上方 0.38 em。
+    constexpr float kDefaultInkCenterEm = 0.38f;
+    TextVerticalMetrics metrics;
+    metrics.inkCenterEm = kDefaultInkCenterEm;
+    IDWriteFactory *factory = SharedFactory();
+    if (!factory)
+        return metrics;
+
+    const std::uint32_t codepoint = FirstTextCodePoint(text);
+    std::wstring key = fontFamily;
+    key.push_back(L'\0');
+    key.append(std::to_wstring(codepoint));
+    for (const auto &family : fallbackFamilies)
+    {
+        key.push_back(L'\0');
+        key.append(family);
+    }
+    static std::mutex cacheMutex;
+    static std::map<std::wstring, TextVerticalMetrics> cache;
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex);
+        const auto found = cache.find(key);
+        if (found != cache.end())
+            return found->second;
+    }
+
+    // 行距取自实际能画这个字的字体：主字体缺字时按回退字体列表依次找。
+    ComPtr<IDWriteFont> font = FindFont(factory, fontFamily.c_str());
+    if (!HasCharacter(font.Get(), codepoint))
+    {
+        for (const auto &fallback : fallbackFamilies)
+        {
+            ComPtr<IDWriteFont> candidate = FindFont(factory, fallback.c_str());
+            if (HasCharacter(candidate.Get(), codepoint))
+            {
+                font = candidate;
+                break;
+            }
+        }
+    }
+    ComPtr<IDWriteFontFace> face;
+    if (font && SUCCEEDED(font->CreateFontFace(face.GetAddressOf())))
+    {
+        DWRITE_FONT_METRICS fontMetrics{};
+        face->GetMetrics(&fontMetrics);
+        if (fontMetrics.designUnitsPerEm > 0)
+        {
+            const float em = static_cast<float>(fontMetrics.designUnitsPerEm);
+            metrics.ascentEm = static_cast<float>(fontMetrics.ascent) / em;
+            metrics.lineHeightEm =
+                static_cast<float>(fontMetrics.ascent + fontMetrics.descent + fontMetrics.lineGap) / em;
+            UINT16 glyph = 0;
+            if (codepoint != 0 && SUCCEEDED(face->GetGlyphIndices(&codepoint, 1, &glyph)) && glyph != 0)
+            {
+                DWRITE_GLYPH_METRICS glyphMetrics{};
+                if (SUCCEEDED(face->GetDesignGlyphMetrics(&glyph, 1, &glyphMetrics, TRUE)))
+                {
+                    const float inkTop = static_cast<float>(glyphMetrics.verticalOriginY - glyphMetrics.topSideBearing);
+                    const float inkBottom =
+                        inkTop - static_cast<float>(glyphMetrics.advanceHeight - glyphMetrics.topSideBearing -
+                                                    glyphMetrics.bottomSideBearing);
+                    metrics.inkCenterEm = (inkTop + inkBottom) * 0.5f / em;
+                }
+            }
+        }
+    }
+    if (!(metrics.inkCenterEm > 0.0f))
+        metrics.inkCenterEm = kDefaultInkCenterEm;
+
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    if (cache.size() >= 256)
+        cache.clear();
+    cache.emplace(std::move(key), metrics);
+    return metrics;
 }
 } // namespace msimeui

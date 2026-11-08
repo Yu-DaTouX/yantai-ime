@@ -34,6 +34,10 @@ dependencies are installed beside it as DLLs rather than linked into it.
   zlib                    zlib          https://github.com/madler/zlib
   SQLite                  public domain https://www.sqlite.org/
   Boost                   BSL-1.0       https://www.boost.org/
+  Twemoji Mozilla (font)  CC-BY-4.0     https://github.com/mozilla/twemoji-colr
+                          (art) and
+                          Apache-2.0
+                          (font build)
 
 Interface resources
 -------------------
@@ -1116,3 +1120,26 @@ Sources of radical/decomposition.txt, the U-mode radical-reverse-lookup table:
                                GPL-3.0 terms
 
 Unresolved: CustomPinyinDictionary and rime-jp_sela publish no license, and the English word list in english.db includes word forms extracted from a commercial dictionary, whose rights belong to its publisher. Redistributors who need an explicit grant for those parts should raise it with the Metasequoia IME maintainers rather than assume one. This notice will be updated as those terms are clarified.
+
+------------------------------------------------------------------------------
+14. Twemoji Mozilla - CC-BY-4.0 (emoji art) and Apache-2.0 (font build)
+------------------------------------------------------------------------------
+
+The installer writes Twemoji.Mozilla.ttf (v0.7.0, built from the Twemoji
+v14.0.1 artwork) into the data directory under assets\fonts. The candidate
+window loads it as a private DirectWrite font collection for regional-indicator
+flags only; it is not installed into the system font collection. Windows' own
+Segoe UI Emoji has no flag glyphs, so without this file a flag such as
+U+1F1E8 U+1F1F3 would be drawn as two boxed letters.
+
+The emoji artwork comes from Twemoji, copyright Twitter, Inc and other
+contributors, and is used under Creative Commons Attribution 4.0 International
+(https://creativecommons.org/licenses/by/4.0/). The font build is copyright
+2016-2018 Mozilla Foundation and licensed under the Apache License 2.0
+(https://www.apache.org/licenses/LICENSE-2.0). The font is redistributed
+unmodified; the file's size and SHA256 are recorded in
+server/assets/fonts/README.md.
+
+Sources:
+  https://github.com/mozilla/twemoji-colr/releases/tag/v0.7.0
+  https://github.com/twitter/twemoji (v14.0.1 artwork)

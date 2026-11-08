@@ -155,9 +155,13 @@ Source: "{#MySourceRoot}\bundled_skins\*"; \
 Source: "{#MySourceRoot}\bundled_skins.manifest"; Flags: dontcopy
 
 #ifdef LightPackage
-; 轻量包只覆盖设置窗口的图片资源，不带词库/出厂配置。
+; 轻量包只覆盖设置窗口的图片资源与区域旗帜字体，不带词库/出厂配置。
 Source: "{#MySourceRoot}\app_data\assets\settings\*"; \
     DestDir: "{code:GetDataDir}\assets\settings"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+; 候选窗把区域旗帜交给这份 Twemoji Mozilla（Segoe UI Emoji 没有国旗图案）。
+Source: "{#MySourceRoot}\app_data\assets\fonts\*"; \
+    DestDir: "{code:GetDataDir}\assets\fonts"; \
     Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 #else
 ; 包内故意不带 config.toml。通配复制再排除一次，防止以后又把用户配置打进包内。

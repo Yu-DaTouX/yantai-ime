@@ -186,6 +186,11 @@ class CandidateSkinScene
         std::string textColor = "auto";
         // 预编辑行隐藏（preedit_style = empty）。
         bool preeditHidden = false;
+        // 区域旗帜 emoji（两个区域指示符）用的私有字体：Windows 自带的 Segoe UI Emoji 没有国旗
+        // 图案，宿主从数据目录加载 Twemoji Mozilla（不装进系统字体）后传进来。为空时旗帜退回
+        // Segoe UI Emoji，会画成两个方框字母。
+        std::wstring flagFontFamily;
+        std::shared_ptr<IDWriteFontCollection> flagFontCollection;
         // 设置里强制收紧宽度；皮肤自己也可以开。
         bool fitContent = false;
         int pageSize = 6;

@@ -23,6 +23,7 @@
 
 #include "msimeui/Controls.h"
 #include "msimeui/DeviceResources.h"
+#include "msimeui/Fonts.h"
 #include "msimeui/Layout.h"
 #include "msimeui/Scene.h"
 #include "msimeui/Theme.h"
@@ -260,6 +261,8 @@ void CandidatePresenter::ApplySkin()
                 << GetConfiguredCandidateWindowPreeditFontSize() << '|' << GetConfiguredCandidateWindowLayout() << '|'
                 << GetConfiguredCandidateTextColor() << '|' << GetConfiguredCandidateWindowPreeditStyle();
     fingerprint << '|' << GetConfiguredCandidateEnglishFont() << '|' << GetConfiguredCandidateWindowFitContent();
+    // 英文词义清单页换成固定竖排、带页眉的另一种场景；不换皮肤就不能沿用上一页的外观。
+    fingerprint << '|' << (sensesPage_ ? 'S' : 's');
     // 卷轴展开网格的列数上限跟每页候选数走。
     fingerprint << '|' << GetConfiguredCandidatePageSize();
     // 同一个外部皮肤的 skin.toml 或图片改了，只有强制重载能看出来；带上重载代数让 D2D 也重读 manifest。
@@ -280,7 +283,13 @@ void CandidatePresenter::ApplySkin()
     animationClockRunning_ = false;
     impl_->resources.ClearImageCaches();
 
+    // 区域旗帜要用 Segoe UI Emoji 里没有的图案，随包装了一份 Twemoji Mozilla（COLRv0）。
+    // 只作为私有字体集加载给候选窗，不安装到系统；文件缺失时旗帜退回方框字母，不影响其他候选。
+    static const std::shared_ptr<IDWriteFontCollection> flagFont = msimeui::LoadPrivateFontCollection(
+        (std::filesystem::path(AssetRoot()) / L"assets" / L"fonts" / L"Twemoji.Mozilla.ttf").wstring());
     CandidateSkinScene::Settings settings;
+    settings.flagFontFamily = L"Twemoji Mozilla";
+    settings.flagFontCollection = flagFont;
     settings.skinsRoot = std::filesystem::path(AssetRoot()) / L"skins";
     settings.skinId = skinId;
     settings.light = candLight;
@@ -365,8 +374,6 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         {
             impl_->header->SetText(L"");
             impl_->header->SetHeight(0.0f);
-            // 隐藏时把 body 的两处 2 DIP 行距一起抵掉，平时候选框和没有这一行时一模一样。
-            impl_->header->SetMargin({0.0f, -kCandidateBodyRowSpacingDip, 0.0f, -kCandidateBodyRowSpacingDip});
         }
     }
     std::vector<msimeui::CandidateList::Item> items;
