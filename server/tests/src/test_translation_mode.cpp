@@ -7,6 +7,7 @@
 #include "utils/common_utils.h"
 #include "engine/contracts/key_chord.h"
 #include <chrono>
+#include <atomic>
 #include <thread>
 
 namespace
@@ -158,6 +159,39 @@ TEST_CASE(translation_controller_composing_default_ctrl_t_replies_without_waitin
     Global::Keycode = 'T';
     Global::ModifiersDown = FanyImeKeyChord::Control;
     REQUIRE(!translation_mode::HandleKey(7, 9, 4)); // Idle chord belongs to Chrome.
+}
+
+TEST_CASE(translation_controller_toggle_and_toolbar_never_wait_for_slow_cold_inference)
+{
+    // The fake cold engine is deliberately blocked, not merely a fast missing-model path.
+    // Session is destroyed before the latch, so even an assertion failure can safely join.
+    std::atomic<bool> started{false};
+    Session session;
+    translation_mode_test_inference = [&](const translation::Request &request,
+                                          const translation::Worker::Cancelled &cancelled) {
+        started.store(true);
+        while (!cancelled())
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        return translation::Result{request.generation, translation::Status::Missing, {}};
+    };
+    session.Spell("jintiandehuiyi");
+    session.Key('T', FanyImeKeyChord::Control);
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    translation_mode::Poll();
+    for (int n = 0; n < 100 && !started.load(); ++n)
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    REQUIRE(started.load());
+    const auto start = std::chrono::steady_clock::now();
+    session.Key('T', FanyImeKeyChord::Control);
+    REQUIRE(!translation_mode::Active());
+    translation_mode::Toggle(7, 9, true); // Idle floating-toolbar entry uses the same owner.
+    REQUIRE(translation_mode::Active());
+    translation_mode::Toggle(7, 9, true);
+    REQUIRE(!translation_mode::Active());
+    session.Spell("jintiandehuiyi");
+    session.Key('T', FanyImeKeyChord::Control);
+    REQUIRE(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(250));
+    REQUIRE(translation_mode::Active());
 }
 
 TEST_CASE(translation_controller_keeps_selected_chinese_out_of_composition_and_uses_local_fallback)

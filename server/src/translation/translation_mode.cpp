@@ -8,7 +8,9 @@
 #include "utils/common_utils.h"
 #include "config/ime_config.h"
 #include "engine/contracts/key_chord.h"
-#include "engine/english/english_dictionary.h"
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+translation::Worker::Infer translation_mode_test_inference;
+#endif
 #include <atomic>
 #include <mutex>
 #include <cwctype>
@@ -32,7 +34,6 @@ struct PendingCommit
     translation::CommitKind kind;
 };
 std::optional<PendingCommit> pending_commit;
-std::unique_ptr<EnglishDictionary> dictionary;
 
 void Notify()
 {
@@ -70,9 +71,7 @@ void Publish()
         break;
     }
     if (next->english.empty())
-        next->english = translation_model::ResolveDirectory().empty()
-                            ? L"需要下载翻译模型（约 81 MB）· 点击英文行打开设置"
-                            : L"英文会显示在这里";
+        next->english = L"英文会显示在这里 · 未安装模型可点击打开设置";
     if (next->hint.empty())
         next->hint = L"Enter 上屏 · Shift+Enter 中文 · Ctrl+Enter 上屏并退出";
     std::atomic_store(&view, std::shared_ptr<const View>(next));
@@ -94,13 +93,9 @@ void SyncRaw()
 }
 void Append(std::string word)
 {
-    if (!dictionary)
-        dictionary = std::make_unique<EnglishDictionary>(
-            metasequoia::path_to_utf8(metasequoia::data_directory() / "english.db"), false);
-    const auto gloss = dictionary->query_english_gloss(word);
     if (worker)
         worker->Cancel();
-    state.Append(std::move(word), gloss, translation::Clock::now());
+    state.Append(std::move(word), {}, translation::Clock::now());
 }
 bool AcceptHighlighted()
 {
@@ -195,7 +190,9 @@ void Shutdown()
 {
     Reset();
     worker.reset();
-    dictionary.reset();
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+    translation_mode_test_inference = {};
+#endif
 }
 
 void Toggle(uint64_t client, uint64_t activation, bool toolbar)
@@ -217,13 +214,7 @@ void Toggle(uint64_t client, uint64_t activation, bool toolbar)
     owner = client;
     epoch = activation;
     state.Enter();
-    if (!worker)
-        worker = std::make_unique<translation::Worker>(translation::LocalInference(translation_model::Directory()),
-                                                       [](translation::Result value) {
-                                                           std::lock_guard lock(results_mutex);
-                                                           result = std::move(value);
-                                                       });
-    Notify();
+    Notify(); // No thread creation, engine/model/english.db I/O on the toggle path.
     const bool had_raw = !g_inputSession->get_pinyin_sequence().empty();
     if (toolbar && !had_raw)
     {
@@ -415,6 +406,18 @@ void Poll()
     }
     if (auto request = state.TakeDueRequest(translation::Clock::now()))
     {
+        if (!worker)
+        {
+            auto infer = translation::LocalInference(translation_model::Directory());
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+            if (translation_mode_test_inference)
+                infer = translation_mode_test_inference;
+#endif
+            worker = std::make_unique<translation::Worker>(std::move(infer), [](translation::Result value) {
+                std::lock_guard lock(results_mutex);
+                result = std::move(value);
+            });
+        }
         worker->Submit(std::move(*request));
         changed = true;
     }
