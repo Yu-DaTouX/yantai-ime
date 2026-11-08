@@ -7,8 +7,9 @@
 | 目录 | 名称 | 说明 |
 | --- | --- | --- |
 | [`acrylic`](acrylic/) | 亚克力 Acrylic | 候选卡片背后垫系统亚克力，模糊后面的窗口（`base = "fluent"`，深浅主题各一套） |
+| [`mac`](mac/) | Mac 亚克力 | 照 macOS 候选窗的圆角、系统蓝选中项与半透明卡片做的亚克力皮肤（`base = "fluent"`，深浅主题各一套） |
 
-内置外观只有 `fluent`（原装）；可选外观是随安装包分发的 `acrylic`。两者都支持横排 / 竖排布局以及深色 / 浅色主题。
+内置外观只有 `fluent`（原装）；可选外观是随安装包分发的 `acrylic` 和 `mac`。它们都支持横排 / 竖排布局以及深色 / 浅色主题。
 
 所有皮肤的悬浮工具栏拖动条（`[toolbar.*].handle`）都与同一主题的 `accent` 同色，没写 `handle` 时自动取 `accent`；`examples/skin-examples/tests/test_manifests.py` 会检查写了的两者是否一致。
 

@@ -1,0 +1,58 @@
+# Mac 亚克力：按 macOS 候选窗的样子画浅色 / 深色的半透明卡片，背后垫系统亚克力模糊后面的窗口。
+#
+# 与 acrylic 一样是 base = "fluent" 的外部皮肤，只写与内置外观不同的键：
+#   - 圆角、内边距、序号（字号 0.72 倍、与候选留 5 DIP）照 macOS 的候选窗收紧，卡片按文字宽度 shrink-to-fit。
+#   - surface 是色调颜色，只取 RGB；backdrop_opacity 是色调的不透明度，越高越接近纯色；
+#     backdrop_luminosity 是亮度层的不透明度，越高文字对比度越不受后面画面影响。
+# 系统关闭「透明效果」（设置 → 个性化 → 颜色）或不支持亚克力时，surface 按不透明画。
+# 选中项用 macOS 的系统蓝，白字，不画左侧选中竖条。
+
+schema_version = 1
+id = "mac"
+name = "Mac 亚克力"
+version = "0.1.0"
+author = "Metasequoia IME contributors"
+description = "照 macOS 候选窗的圆角与配色做的亚克力皮肤：系统蓝选中项、半透明卡片，深浅主题各一套。"
+base = "fluent"
+
+[supports]
+layouts = ["horizontal", "vertical"]
+themes = ["dark", "light"]
+
+[candidate_window]
+corner_radius_dip = 9
+item_corner_radius_dip = 6
+border_width_dip = 1
+shadow = "soft"
+backdrop = "acrylic"
+padding = 4
+item_gap = 2
+number_gap = 5
+number_scale = 0.72
+fit_content = true
+
+[candidate.light]
+surface = "#f6f6f8"
+backdrop_opacity = 0.72
+backdrop_luminosity = 0.85
+border = "rgba(0, 0, 0, 0.10)"
+accent = "#007aff"
+selected = "#007aff"
+selected_text = "#ffffff"
+selected_number = "rgba(255, 255, 255, 0.78)"
+text = "#1d1d1f"
+number = "#8e8e93"
+show_selected_bar = false
+
+[candidate.dark]
+surface = "#28282c"
+backdrop_opacity = 0.70
+backdrop_luminosity = 0.96
+border = "rgba(255, 255, 255, 0.12)"
+accent = "#0a84ff"
+selected = "#0a84ff"
+selected_text = "#ffffff"
+selected_number = "rgba(255, 255, 255, 0.80)"
+text = "#f2f2f7"
+number = "#98989f"
+show_selected_bar = false
