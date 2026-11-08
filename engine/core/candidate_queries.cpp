@@ -169,6 +169,14 @@ std::vector<WordItem> CandidateQueries::mixed(std::vector<WordItem> candidates, 
     };
     insert_leading(english_candidates);
 
+    // 命中的 emoji 插在候选第 2 位（首选之后），被挤的普通候选顺延；候选不足 2 个时没有可让的位置，
+    // 和其余 emoji 一起排在末尾。与 Server 的 NormalizeMixedCandidateOrder 同一规则。
+    if (!emoji_candidates.empty() && candidates.size() >= 2)
+    {
+        candidates.insert(candidates.begin() + 1, std::move(emoji_candidates.front()));
+        emoji_candidates.erase(emoji_candidates.begin());
+    }
+
     for (auto *source : {&english_candidates, &emoji_candidates, &kaomoji_candidates})
     {
         candidates.insert(candidates.end(), std::make_move_iterator(source->begin()),

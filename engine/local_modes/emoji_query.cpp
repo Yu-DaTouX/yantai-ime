@@ -32,6 +32,29 @@ LocalQueryResult query_failure(const char *diagnostic)
     return {{}, std::string(diagnostic)};
 }
 
+// 国旗 emoji 是两个区域指示符（U+1F1E6–U+1F1FF）拼成的：Windows 的 Segoe UI Emoji 把单个区域指示符
+// 画成带框的字母，候选窗里 🇨🇳 这样的国旗因此显示成「CN」两个方框字母。只收由区域指示符组成的串，
+// 🏳️ 这类由其它码位画出来的旗照常保留。
+bool is_regional_indicator_flag(const std::string &text)
+{
+    if (text.size() < 8 || text.size() % 4 != 0)
+    {
+        return false;
+    }
+    for (std::size_t index = 0; index < text.size(); index += 4)
+    {
+        const auto first = static_cast<unsigned char>(text[index]);
+        const auto second = static_cast<unsigned char>(text[index + 1]);
+        const auto third = static_cast<unsigned char>(text[index + 2]);
+        const auto fourth = static_cast<unsigned char>(text[index + 3]);
+        if (first != 0xF0 || second != 0x9F || third != 0x87 || fourth < 0xA6 || fourth > 0xBF)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 LocalQueryResult run_emoji_query(const std::string &code, SchemeType /*scheme*/,
                                  const std::filesystem::path &database_path, int limit, bool exact_only)
 {
@@ -64,12 +87,21 @@ LocalQueryResult run_emoji_query(const std::string &code, SchemeType /*scheme*/,
     {
         return query_failure("Emoji database could not be queried.");
     }
-    const std::size_t count = entries->size();
+    std::vector<std::string> visible;
+    visible.reserve(entries->size());
+    for (const auto &entry : *entries)
+    {
+        if (!is_regional_indicator_flag(entry))
+        {
+            visible.push_back(entry);
+        }
+    }
+    const std::size_t count = visible.size();
     LocalQueryResult result;
     result.candidates.reserve(count);
     for (std::size_t index = 0; index < count; ++index)
     {
-        result.candidates.emplace_back(lower, (*entries)[index], static_cast<std::int64_t>(count - index),
+        result.candidates.emplace_back(lower, visible[index], static_cast<std::int64_t>(count - index),
                                        CandidateSource::Emoji);
     }
     return result;

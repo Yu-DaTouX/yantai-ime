@@ -144,14 +144,14 @@ inline std::optional<size_t> SlottedEnglishIndex(const std::vector<WordItem> &it
 // Keep asynchronous mixed-input candidates in stable priority slots regardless
 // of the order in which their workers finish. English keeps its legacy slotting
 // (promoted ahead of AI unless a cloud result forces it behind cloud+AI), and
-// emoji/kaomoji are placed at the end of the candidate list so they do not
-// displace normal Chinese candidates:
-//   no cloud:         Chinese..., English, AI, ..., emoji, kaomoji, symbols
-//   cloud:            Chinese..., cloud, AI, English, ..., emoji, kaomoji, symbols
-//   cloud only:       Chinese..., cloud, English, ..., emoji, kaomoji, symbols
-//   base:             Chinese..., English, ..., emoji, kaomoji, symbols
-// 知道每页候选数（page_size）时，最匹配的那个 emoji 单独放在首页末位，其余 emoji 仍在末尾；
-// 补全词的默认位置和学到的英文槽位相应让到首页倒数第二位，两者都留在首页。
+// the best emoji hit is placed right after the first candidate; the remaining
+// emoji/kaomoji stay at the end of the candidate list:
+//   no cloud:         Chinese, emoji, English, AI, ..., kaomoji, symbols
+//   cloud:            Chinese, emoji, cloud, AI, English, ..., kaomoji, symbols
+//   cloud only:       Chinese, emoji, cloud, English, ..., kaomoji, symbols
+//   base:             Chinese, emoji, English, ..., kaomoji, symbols
+// 知道每页候选数（page_size）时，最匹配的那个 emoji 插在第 2 位（首选之后），被挤的普通候选顺延；
+// 每页不足两个时没有可让的位置，和其余 emoji 一起排末尾，两者都留在首页。
 // 日期时间只在 rq / sj / xq 这类唤醒词上出现，用户打它就是要日期，所以它排在所有异步候选前面，
 // 紧跟首个中文候选，展开全部格式的入口紧跟在它后面：Chinese, date/time, 📅日期, cloud, ...
 // 字母词（WordItem::latin_word）与首个混输符号最后放：字母词按传进来的先后在前，首个符号在后，只占普通候选的
@@ -246,6 +246,16 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const Eng
         items.insert(items.begin() + offset, std::move(candidate));
     };
 
+    // 首个 emoji 是查询里最匹配的，插在第一候选之后（第 2 位），被挤的普通候选顺延；每页不足两个时
+    // 没有可让的位置，和其余 emoji 一起排末尾。先放它，后面的异步槽位从它之后算起。
+    bool emoji_took_second_slot = false;
+    if (english_placement.page_size >= 2 && !emoji_candidates.empty())
+    {
+        insert_at(IndexAfterLocalCandidates(items, 1), std::move(emoji_candidates.front()));
+        emoji_candidates.erase(emoji_candidates.begin());
+        emoji_took_second_slot = true;
+    }
+
     // 能读成拼音的输入优先让精确匹配占槽位：把它挪到英文组最前；没有精确匹配时占槽位的是补全词。
     const bool english_takes_slot = !english_candidates.empty();
     bool completion_takes_slot = false;
@@ -261,7 +271,7 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const Eng
 
     // 没有云候选时 AI 紧跟在英文后面，它和英文前面的候选一样不该被额外的英文挤出首页。
     const bool ai_follows_english = !cloud_candidate && ai_candidate;
-    size_t slot = IndexAfterLocalCandidates(items, 1);
+    size_t slot = IndexAfterLocalCandidates(items, emoji_took_second_slot ? 2 : 1);
     if (!date_time_candidates.empty())
     {
         insert_at(slot++, std::move(date_time_candidates.front()));
@@ -285,14 +295,7 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const Eng
     if (!cloud_candidate && ai_candidate)
         insert_at(slot++, std::move(*ai_candidate));
 
-    // 首个 emoji 是查询里最匹配的，占首页末位；每页不足两个时没有可让的位置，和其余 emoji 一起排末尾。
-    std::optional<WordItem> first_page_emoji;
-    if (english_placement.page_size >= 2 && !emoji_candidates.empty())
-    {
-        first_page_emoji = std::move(emoji_candidates.front());
-        emoji_candidates.erase(emoji_candidates.begin());
-    }
-    // 落在首页的固定英文占首页英文数，也占首页的位置；排在首页 emoji 前面的那些插回时会把 emoji 往后挤。
+    // 落在首页的固定英文占首页英文数，也占首页的位置；它们在最后插回，占住了第 1、2 位时 emoji 让到后面。
     const size_t page_size = english_placement.page_size;
     const auto fixed_within = [&](size_t positions) {
         return static_cast<size_t>(
@@ -300,8 +303,8 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const Eng
                           [&](const WordItem &item) { return static_cast<size_t>(item.fixed_position) <= positions; }));
     };
     const size_t fixed_on_first_page = fixed_within(page_size);
-    const size_t fixed_before_emoji = first_page_emoji ? fixed_within(page_size - 1) : 0;
-    const size_t reserved = (first_page_emoji ? 1 : 0) + fixed_on_first_page;
+    // emoji 已经占在首页的位置上，不再另算保留位。
+    const size_t reserved = fixed_on_first_page;
 
     // 额外英文也从已经排好序的真实词库结果取，不生成词形。默认位置在英文前面的候选（中文首选、日期、
     // 云、AI）、首页 emoji 和首页上的固定英文都留在首页；每页太小时回到单个英文的原有行为。
@@ -343,7 +346,7 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const Eng
     for (auto &candidate : date_time_candidates)
         items.push_back(std::move(candidate));
 
-    // 把英文从默认位置挪到学到的槽位；没学过的补全词挪到首页末位（首页末位给了 emoji 时是倒数第二位）。
+    // 把英文从默认位置挪到学到的槽位；没学过的补全词挪到首页末位（首页末位给了固定英文时是倒数第二位）。
     // 槽位 0 排在最前，但仍在首位的快捷短语组后面。后面插入的 AI 候选与末尾追加的 emoji/颜文字都在
     // english_index 之后，下标仍然有效。
     std::optional<size_t> target = english_placement.slot;
@@ -367,10 +370,7 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, const Eng
             insert_at(next++, std::move(candidate));
     }
 
-    // 英文挪完再放 emoji，英文的下标不会被它挤动；列表不满一页时它就落在末尾。用户固定了位置的英文
-    // 在下面最后插入：排在它前面的那些插回后 emoji 正好回到首页末位，同位时 emoji 让位。
-    if (first_page_emoji)
-        insert_at(page_size - 1 - fixed_before_emoji, std::move(*first_page_emoji));
+    // 英文挪完再放固定位置的英文，它们最后插入、优先级最高；占住了第 1、2 位时 emoji 让到后面。
 
     std::stable_sort(
         fixed_english_candidates.begin(), fixed_english_candidates.end(),
