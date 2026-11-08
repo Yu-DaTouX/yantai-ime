@@ -5,6 +5,7 @@
 #include "session/engine_input_session.h"
 #include "global/globals.h"
 #include "utils/common_utils.h"
+#include "engine/contracts/key_chord.h"
 #include <chrono>
 #include <thread>
 
@@ -136,6 +137,29 @@ bool SendCurrentDataToClient(uint64_t, uint64_t, uint64_t)
     return true;
 }
 } // namespace FanyNamedPipe
+TEST_CASE(translation_controller_composing_default_ctrl_t_replies_without_waiting_for_inference)
+{
+    Session session;
+    session.Spell("jintiandehuiyi");
+    REQUIRE(!g_inputSession->get_candidates().empty());
+    const auto expected = string_to_wstring(g_inputSession->get_candidates().front().word);
+    replyType = FanyImeReplyType::TransportUnavailable;
+    const auto start = std::chrono::steady_clock::now();
+    session.Key('T', FanyImeKeyChord::Control); // Use actual key entry, not Toggle().
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    REQUIRE(elapsed < std::chrono::milliseconds(250)); // Well below TSF's 1500 ms timeout.
+    REQUIRE_EQ(replyType, FanyImeReplyType::CompositionRestored);
+    REQUIRE(translation_mode::Active());
+    REQUIRE_EQ(translation_mode::Snapshot()->draft, expected);
+    REQUIRE_EQ(translation_mode::Snapshot()->english, L"翻译中…");
+    REQUIRE(g_inputSession->get_pinyin_sequence().empty());
+    session.Key('T', FanyImeKeyChord::Control);
+    REQUIRE(!translation_mode::Active());
+    Global::Keycode = 'T';
+    Global::ModifiersDown = FanyImeKeyChord::Control;
+    REQUIRE(!translation_mode::HandleKey(7, 9, 4)); // Idle chord belongs to Chrome.
+}
+
 TEST_CASE(translation_controller_keeps_selected_chinese_out_of_composition_and_uses_local_fallback)
 {
     Session session;

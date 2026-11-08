@@ -278,8 +278,8 @@ bool HandleKey(uint64_t client, uint64_t activation, uint64_t request)
     const auto key = Global::Keycode;
     const auto modifiers = Global::ModifiersDown & 7;
     FanyImeKeyChord::Binding binding;
-    const bool toggle = FanyImeKeyChord::Parse(GetConfiguredTranslateModeBinding(), binding) && binding.key &&
-                        binding.Matches(key, modifiers);
+    const bool toggle = FanyImeKeyChord::ParseTranslationMode(GetConfiguredTranslateModeBinding(), binding) &&
+                        binding.key && binding.Matches(key, modifiers);
     if (toggle && (state.active() || !g_inputSession->get_pinyin_sequence().empty()))
     {
         Toggle(client, activation);

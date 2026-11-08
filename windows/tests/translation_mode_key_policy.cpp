@@ -1,6 +1,8 @@
 #include "Key/TranslationModeKeyPolicy.h"
+#include "../../engine/contracts/key_chord.h"
 
 #include <cstdio>
+#include <initializer_list>
 
 using namespace translation_mode_key_policy;
 
@@ -14,8 +16,24 @@ int main()
             ++failures;
         }
     };
+    FanyImeKeyChord::Binding binding;
+    for (const auto value : {"Ctrl+T", "Ctrl+KeyT"})
+    {
+        if (!FanyImeKeyChord::ParseTranslationMode(value, binding) || !binding.Matches('T', 2))
+            ++failures;
+    }
+    if (!FanyImeKeyChord::ParseTranslationMode("Ctrl+Shift+G", binding) || !binding.Matches('G', 3))
+        ++failures;
+    for (const auto value : {"Alt+T", "Ctrl+t", "!invalid", "Ctrl+TT"})
+        if (FanyImeKeyChord::ParseTranslationMode(value, binding) || binding.key)
+            ++failures;
+    if (!FanyImeKeyChord::ParseTranslationMode("", binding) || binding.key)
+        ++failures;
+    if (FanyImeKeyChord::Parse("Ctrl+T", binding))
+        ++failures; // Do not widen other keybindings' accepted syntax.
     Context context;
-    context.toggleBindingMatches = true;
+    FanyImeKeyChord::ParseTranslationMode("Ctrl+T", binding);
+    context.toggleBindingMatches = binding.Matches('T', 2);
     check("idle Ctrl+T belongs to browser", Classify('T', 2, context), Route::Existing);
     context.composing = true;
     check("composing Ctrl+T enters", Classify('T', 2, context), Route::Toggle);
