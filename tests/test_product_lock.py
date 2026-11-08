@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -16,7 +17,7 @@ spec.loader.exec_module(lock)
 
 class ProductLockTests(unittest.TestCase):
     def setUp(self):
-        self.data = lock.load(ROOT / "product-lock.json")
+        self.data = lock.load(ROOT / "tests/data/product-lock-legacy.json")
 
     def test_mutable_refs_and_missing_components_are_rejected(self):
         # REPOSITORIES is empty now that the engine is vendored in-tree, so this loop guards a rule
@@ -232,11 +233,11 @@ class ProductLockTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "manifest.json"
             commit = "1" * 40
-            subprocess.run(["python3", str(ROOT / "scripts/product_lock.py"), "manifest",
+            subprocess.run([sys.executable, str(ROOT / "scripts/product_lock.py"), "manifest",
                             "--windows-commit", commit, "--output", str(output)], check=True)
             manifest = json.loads(output.read_text())
             self.assertEqual(manifest["repositories"]["windows"]["commit"], commit)
-            self.assertEqual(manifest["dictionary"], self.data["dictionary"])
+            self.assertEqual(manifest["dictionary"], lock.load(ROOT / "product-lock.json")["dictionary"])
             self.assertEqual(manifest["lock_sha256"], lock.sha256(ROOT / "product-lock.json"))
 
 

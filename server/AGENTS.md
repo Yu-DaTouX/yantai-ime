@@ -20,7 +20,7 @@ CI 现在会真的跑它：根 `.github/workflows/ci.yml` 的 Server job 在 Bui
 
 **关键在于这些测试依赖真实词库，不是 fixture。**引擎从数据根目录读数据，解析顺序是 `METASEQUOIA_IME_DATA_DIR` 环境变量 → 注册表 `HKLM\Software\Metasequoia\MetasequoiaIME` 的 `DataDir`（安装时用户选的位置）→ `%LOCALAPPDATA%\metasequoiaime`。装了正式版的机器上第二项会生效，所以本地跑测试必须用环境变量覆盖，否则会读到安装目录。另有 `METASEQUOIA_IME_CONFIG_DIR` 只改 `config.toml` 的位置、不搬词库，给那些既要真实词库又要隔离配置的测试用。`scripts/ci/test-server.ps1` 往那里放了四样东西，本地跑测试要凑齐同样的：
 
-- `msime.db`、`others.db`、`english.db`——从产品锁指定的 `dict-*` release 下载，CI 逐个核对 `SHA256SUMS.txt`。词库损坏要立刻失败，而不是拖到测试里表现成「候选为空」这种难查的样子
+- `msime.db`、`others.db`、`english.db`——`product_lock.py fetch-dictionaries` 从固定白霜源配方构建中文库，逐源验 SHA256、验规范词条摘要；英文/杂项资源独立按摘要复用。测试后还运行真实词库重建/日志回放升级用例。词库损坏必须在测试前失败。
 - `assets/tables/*` 和 `assets/config/config.toml`
 
 数据不全时的典型症状是候选查询返回空集，断言信息看起来像逻辑错误，实际是缺数据。排查测试失败前先确认数据根目录是齐的。

@@ -4,7 +4,7 @@
 
 **这里是一等代码，不是 vendored 第三方。** 需要为 Windows 改引擎就直接改，和改 `server/` 一样评审和测试，不要为了"保持和上游一致"而绕路。唯一例外是 `ngram/kenlm/`、`ngram/octagram/darts.h`和 `utfcpp/`：那几个确实是上游副本，保留其格式与许可，别去重排版；其中 `darts.h` 是按精确路径单独排除的，同目录的 `octagram_gram.{h,cpp}` 是我们的代码，仍受 `format.sh` 管。`googlepinyinime-rev/` 已与上游解绑，需要时直接改，但沿用它原有的排版、不进 `format.sh`，许可不变，本地改动登记在 [UPSTREAM.md](UPSTREAM.md)。
 
-语音模块与辅助码都已移除。词库不在本目录内，由 `product-lock.json` 钉住的发布产物在构建时下载。
+语音模块与辅助码都已移除。词库不在本目录内；本地与 CI 从 `product-lock.json` 钉住的全量白霜配方构建，逐源 SHA256 和规范内容摘要在 `scripts/dictionary_build/frost.lock.json`。
 
 ## 构建与测试
 
@@ -63,7 +63,7 @@ ctest --test-dir build --output-on-failure --timeout 20
 
 ## 数据
 
-`msime.db`、`english.db`、`others.db`、`dict_japanese.dat` 都来自 `product-lock.json` 钉住的词库 Release，构建时下载；建库流水线不在本仓库内。查询侧用的格式契约是 `contracts/dictionary/format.json`，改它等于改一个已经发布的词库的读法，务必确认锁住的那一版词库仍然符合新规则。
+`msime.db` 来自锁定的全量白霜源构建，`english.db`、`others.db` 独立按 SHA256 复用非中文资源；不再生成五笔/日语表或 `dict_japanese.dat`。构建入口是仓根 `scripts/build-dictionary.py`，本地与 CI 共用。查询格式契约仍是 `contracts/dictionary/format.json`，变更必须同时验证建库、查询、用户回放及七/八/九音节回归。
 
 候选窗的中英翻译除 `english.db` 的大表外还有一层人工覆盖：`english.db` 同目录的 `custom_translations.txt`，格式 `源<Tab>释义`，优先级高于大表（`english/english_dictionary.cpp`）。要纠正个别释义改这里，不要动 ECDICT 生成的大表。
 
