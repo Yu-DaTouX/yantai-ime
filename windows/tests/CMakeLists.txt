@@ -148,6 +148,18 @@ target_compile_features(test_tsf_preedit_style PRIVATE cxx_std_17)
 target_link_libraries(test_tsf_preedit_style PRIVATE Threads::Threads)
 add_test(NAME tsf_preedit_style COMMAND test_tsf_preedit_style)
 
+set(candidate_page_generator "${CMAKE_CURRENT_SOURCE_DIR}/generate_candidate_page_fixture.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${focus_activation_ipc_source}" "${candidate_page_generator}")
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -B "${candidate_page_generator}"
+        "${focus_activation_ipc_source}" "${CMAKE_CURRENT_BINARY_DIR}/candidate_page_source.h"
+    COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_shared_candidate_page shared_candidate_page.cpp)
+target_include_directories(test_shared_candidate_page PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(test_shared_candidate_page PRIVATE cxx_std_17)
+add_test(NAME shared_candidate_page COMMAND test_shared_candidate_page)
+
 # Exercise both production extent handlers with clipped and collapsed host rectangles
 set(caret_layout_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Tf/TfTextLayoutSink.cpp")
 set(caret_edit_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Edit/GetTextExtentEditSession.cpp")

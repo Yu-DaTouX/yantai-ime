@@ -899,7 +899,16 @@ bool TryReadCandidatePageFromSharedMemory(std::wstring *candidatePage)
     {
         return false;
     }
-    candidatePage->assign(sharedData->candidate_string);
+    const wchar_t *begin = sharedData->candidate_string;
+    const wchar_t *end = begin + _countof(sharedData->candidate_string);
+    const wchar_t *terminator = std::find(begin, end, L'\0');
+    if (terminator == end)
+    {
+        // This legacy mapping is writable by another process. Never let a
+        // malformed page make a UILess host scan beyond the fixed ABI field.
+        return false;
+    }
+    candidatePage->assign(begin, terminator);
     return !candidatePage->empty();
 }
 
