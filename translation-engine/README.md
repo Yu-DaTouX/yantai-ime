@@ -1,7 +1,8 @@
-# 本地翻译组件（实现底座）
+# 本地翻译组件
 
-当前已完成引擎、组件下载、草稿状态机与纯函数测试，**尚未完成翻译模式的实际输入链路**。
-不能把这些提交当作已经可用的 Ctrl+T 翻译模式：按键、工具栏、候选窗与状态角标仍待接线。
+Server、TSF、候选窗、工具栏和设置入口已完成接线；操作说明与真机回归清单见
+[docs/translation-mode.md](../docs/translation-mode.md)。已通过构建/自动测试及真实后台模型推理冒烟，
+未部署到已安装输入法，尚未进行真实宿主人工验收。
 
 ## 已验证
 
@@ -20,10 +21,10 @@
   `Today's meeting has been rescheduled to 3 p.m.`。非 ASCII 模型目录实测：加载 275 ms，
   翻译 55 ms，峰值工作集 118,599,680 字节。这是一次冷启动冒烟，不是延迟分位数基准。
 - `State`：词级草稿/标点、退格、Esc 两阶段、三种 Enter、100 ms 去抖、1 s 超时、代际隔离；
-  词级释义由调用者从 english.db 提供。等待/失败时 Enter 保留中文，返回需要提示的标记。
+  控制器从 english.db 取得词级释义。翻译中按 Enter 会异步等待当前请求，超时/失败才上屏中文并提示。
   不包含任何调频、词库写入或用户文本日志。
 - `Worker`：单运行请求 + 单覆盖待处理请求，代际取消、迟到结果丢弃、超时与析构 join。
-  完成回调在后台线程，**必须经过 Server 现有 owner/focus token 校验与任务队列才能修改 UI**。
+  完成回调只写单槽结果，Server 任务线程每约 20 ms 在模式中轮询，经 client/epoch 校验后发布不可变界面快照。
 - 已用实际 ZIP 跑设置组件 SHA256→导入→解包→删除测试；所有测试只使用隔离临时 DataDir。
 
 ## 构建与发布资产
@@ -40,7 +41,7 @@ python translation-engine/package.py --build E:/yantai-wt/translate-deps/engine-
 中间文件。CT2 v4.8.1 的 GPU thrust 子模块引用已失效，因此脚本只获取 CPU 所需的两个子模块。
 SentencePiece 的 Windows port 强制静态库，脚本保留其 protobuf-lite/Abseil 的传递链接依赖。
 
-待人工上传到 `Yu-DaTouX/yantai-ime` 的 `translate-model-v1` Release：
+组件已由维护者上传到 `Yu-DaTouX/yantai-ime` 的 `translate-model-v1` Release，代码固定指向该资产：
 
 - `translate-zh-en-v1.zip`：**81,237,882 字节**；
   SHA256 **c18b9d8b9962c1a1eea9b365b70b21d5f559299f35a8a35cec517f6507fe4cf1**。
@@ -54,17 +55,18 @@ SentencePiece 的 Windows port 强制静态库，脚本保留其 protobuf-lite/A
 **重编译会改变 DLL 和 ZIP 的摘要**：重打包后须同步本目录 lock 与
 `server/src/settings/translation_model.cpp` 的固定大小/摘要，再上传对应的原文件；不要仅重压 ZIP。
 
-## 待完成（不是已实现功能）
+## 输入链路与兼容性
 
-1. `HandleImeKey`、`ProcessSelectionKey` 接入 State/Worker，翻译选词在任何调频/造词前截断；
-   空格/数字/鼠标/标点均只进草稿，正在组字进入时接受当前候选；退出、失焦、重置取消旧请求。
-2. IPC 末尾追加模式通知；TSF TestKeyDown/实际派发共用 `TranslationModeKeyPolicy.h`。
-   此纯策略目前**仅在测试中使用**，未改变 TSF 实际行为。默认 Ctrl+T 仅组字/已在模式时接管，
-   空闲必须给宿主；Enter、Shift+Enter、Ctrl+Enter、Backspace、Esc 交 Server。
-3. `[keybindings] translate_mode = "Ctrl+T"`、出厂模板、设置读写映射；悬浮工具栏可隐藏的「译」按钮，
-   空闲点击进入/退出；模式角标。未改现有配置格式/默认值。
-4. 候选窗的草稿行/最新词下划线/前段省略，360 DIP 最小宽与两行英文省略、完整译文提交；
-   Missing/等待/超时文案及跳设置动作。目前没有改候选绘制、ui/、skins/，避免与并行排版工作冲突。
-5. 主线程每帧或定时 `TakeDueRequest`/`Tick`，后台完成经 owner/focus 校验后 `Apply`；
-   初始化先调用 `translation_model::ResolveDirectory()` 处理待删除组件，再给 `LocalInference` 实际目录。
-6. 真机 TSF/浏览器冲突、候选窗 DPI/主题/长句回归仍需完成；本次未部署、未向前台发键、未触碰运行中进程。
+- `server/src/translation/translation_mode.cpp` 是控制器；所有按键和鼠标选词在调频/造词前进草稿，
+  Enter 经现有 TSF 非阻塞提交轮询返回，失焦/重置取消请求。右键词库变更在模式中禁用。
+- 新增可选协议能力 `TranslationMode`（bit 9），旧客户端不会进入此模式；旧字段和帧大小不变。
+  模式/鼠标组合恢复通知追加在 Worker opcode 43/44；长译文按回复 opcode 16/17 分片，
+  TSF 完整拼接后只做一次 edit session 提交，不受候选窗两行省略或 199 UTF-16 码元单帧限制。
+- 空闲 Ctrl+T 交宿主，工具栏「译」进入/退出；键位和按钮可在设置页改动。
+- 独立附加行放在 `candidate_translation_panel.h`，未更改通用 ui/ 或皮肤清单；主线的
+  `contentPadRight = contentPadLeft + textPadLeft` 及 emoji 字体/候选对齐回归均保持通过。
+- `translation_worker_smoke` 用真实组件验证后台加载、中文路径、INT8 输出、deadline 和 shutdown。
+  `test_translation_mode.cpp` 使用真实引擎/词典/控制器，仅替换 IPC/窗口边界，不启动 Server。
+
+真机 TSF/浏览器冲突、不同 DPI 实际绘制和宿主接受 edit session 的行为仍须由维护者部署后验收；
+本次没有部署、没有向前台发键、没有触碰运行中输入法进程或用户数据目录。
