@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$ServerRoot,
     [Parameter(Mandatory = $true)][string]$StagingRoot,
-    [string]$BuildDir = 'build'
+    [string]$BuildDir = 'build',
+    [switch]$SkipProbe
 )
 $ErrorActionPreference = 'Stop'
 $automationRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -17,6 +18,9 @@ $verified = (Resolve-Path (Join-Path $StagingRoot 'MetasequoiaImeDict/out')).Pat
 # cross-platform engine under the same root so no installed dictionary is used.
 $env:LOCALAPPDATA = Join-Path (Resolve-Path $StagingRoot).Path 'user-local'
 $data = Join-Path $env:LOCALAPPDATA 'metasequoiaime'
+# This is the private staging profile, never the installed profile. Reject stale
+# WAL/learning left by an earlier test run when switching factory generations.
+if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $data | Out-Null
 Copy-Item (Join-Path $verified '*') -Destination $data -Force
 # U 模式的拆字表按 assets 清单的 radical/decomposition.txt 相对路径部署。
@@ -27,4 +31,6 @@ Copy-Item (Join-Path $server 'assets/config/config.toml') -Destination $data -Fo
 $env:METASEQUOIA_IME_DATA_DIR = $data
 ctest --test-dir (Join-Path $server $BuildDir) -C Release --output-on-failure --timeout 120
 if ($LASTEXITCODE -ne 0) { throw 'Server integration tests failed for the locked product' }
-& (Join-Path $PSScriptRoot 'probe-server.ps1') -ServerRoot $server -BuildDir $BuildDir
+python (Join-Path $automationRoot 'tests/test_frost_upgrade.py') --replay (Join-Path $server "$BuildDir/bin/Release/MetasequoiaImeDictionaryReplay.exe") --factory $verified
+if ($LASTEXITCODE -ne 0) { throw 'Frost dictionary upgrade/replay test failed' }
+if (-not $SkipProbe) { & (Join-Path $PSScriptRoot 'probe-server.ps1') -ServerRoot $server -BuildDir $BuildDir }

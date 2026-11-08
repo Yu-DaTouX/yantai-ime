@@ -185,7 +185,11 @@ TEST_CASE(QuanpinDictionaryUsesSyllableGraphAlternativeSegmentations)
                                             [](const WordItem &item) { return item.word == "西安"; });
     REQUIRE(xian_solution != xian_candidates.end());
     REQUIRE_EQ(xian_solution->canonical_pinyin, std::string("xi'an"));
-    REQUIRE(static_cast<size_t>(std::distance(xian_candidates.begin(), xian_solution)) <= static_cast<size_t>(1));
+    // Full frost puts 西安 naturally behind 先/线. Alternatives already on the first
+    // page retain their earned rank; the fixture below separately requires slot 2
+    // when the protection rule promotes an off-page alternative. Do not bake the
+    // old dictionary's frequency order into this graph-recall integration test.
+    REQUIRE(static_cast<size_t>(std::distance(xian_candidates.begin(), xian_solution)) < static_cast<size_t>(5));
 }
 
 TEST_CASE(QuanpinDictionaryRequiresCompletePrimarySegmentsBeforeTryingAlternatives)

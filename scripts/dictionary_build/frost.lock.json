@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "repository": "gaboolic/rime-frost",
+  "commit": "af267b67162ca4098c7f8d48b77bbfc8222a10e5",
+  "profile": "full",
+  "format_version": 1,
+  "weight_scale": 5,
+  "expected_content_sha256": "2e4c5cc77cab601800d214559bc508d6283d75246c51bba6fd3dabeab6ad9344",
+  "sources": [
+    {
+      "path": "cn_dicts/8105.dict.yaml",
+      "sha256": "5a6bb545d07140406208728aeed70706e84279daeee132f10b069cd6387a042a",
+      "size": 99367,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts/41448.dict.yaml",
+      "sha256": "b2115eae3aea58190424c22825f6aea12f781ae23ea82b62cd951c41f6d576d5",
+      "size": 452149,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts/GB18030-2022.dict.yaml",
+      "sha256": "cb1b9cb35eeb06dd04264b87d1312be7141209b118ba811e5298a9fd70e77acd",
+      "size": 1418895,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts/base.dict.yaml",
+      "sha256": "db5825b653107eb349627d39ae74833208e06d52eb0231ce10c3bb59b94e4f86",
+      "size": 9937947,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts/ext.dict.yaml",
+      "sha256": "44b78e4feb8a3b302298844061626aa4e2194901b8ed4ee6acec84261b6aa90d",
+      "size": 7711375,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts/others.dict.yaml",
+      "sha256": "3ddbb36c6e0863f23226accebb38c81df7e7606110a1a19c79731a44de1dafbb",
+      "size": 90037,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/medication.dict.yaml",
+      "sha256": "f58f41c6167aac2c34fe73f6eeacc00693d27d5adb16b8d977acfd33fa76172f",
+      "size": 5522609,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/industry_product.dict.yaml",
+      "sha256": "83bac41f9c637d5653772a4a20665cd10f73ac1762cc3a979b236a65a6c8d8e0",
+      "size": 108977,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/exthot.dict.yaml",
+      "sha256": "d5f8bda70bb621f82ed85e4e8dbe8386c81effb856ff82ebb5c708d18ae993c1",
+      "size": 50277,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/chess.dict.yaml",
+      "sha256": "2233505702dd3223fa7c73ead8f15da3541cd9047516fa834e1e5d7c022b6568",
+      "size": 4107,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/chess2.dict.yaml",
+      "sha256": "94c37cc0ace9c67caed6f30866eb06f765aa5a6df31bff8d4f1599ce5b33073f",
+      "size": 97902,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/animal.dict.yaml",
+      "sha256": "c57169a197638b25dc550496418ba3e1732ea3fdba981eb566f4b6b98a306479",
+      "size": 18797,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/game.dict.yaml",
+      "sha256": "4deffd47bebe8a41066c53cec4a8e7142680203c990080c6705edb94e7ef82dd",
+      "size": 5328482,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/idiom.dict.yaml",
+      "sha256": "341d777d4fd077ddb534e47f8ba27a8dd80d085fd0b847548a97a6666d644113",
+      "size": 1665339,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/sport.dict.yaml",
+      "sha256": "4e48defd9ab1cd99e1a439af7a8e75b95a05a148411f5b8dd2120eaddfed19e4",
+      "size": 436265,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/media.dict.yaml",
+      "sha256": "028f3513a33290f1d8b97b215775238294a0086af0e7d675a449ba220609f220",
+      "size": 317,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/shulihua.dict.yaml",
+      "sha256": "87fd06c33065443f68a16ab2faa3f12ec0c42b4cd582a1b18001bc5b599d008e",
+      "size": 1328820,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/food.dict.yaml",
+      "sha256": "1423b4aa5a421145454dff855c0c3a4b2a8540ec3e45dea95ace3870f2996cd7",
+      "size": 4573505,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/inputmethod.dict.yaml",
+      "sha256": "20008c6997112c269061d45572d353df5b9bd83c47bbd1c5bc35ccf64c7855f6",
+      "size": 4067,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/history.dict.yaml",
+      "sha256": "ef2a7e08e9d2729d36d1e24cbd3f3444cca1b0eb4fae11cc0e0f925cf1525305",
+      "size": 465641,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/place.dict.yaml",
+      "sha256": "38dd1c72c4119f47a607fc542c528b54ead9c819cfbd5f7f508f8b4be1aae88b",
+      "size": 162265,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/geography.dict.yaml",
+      "sha256": "f78cec3f88f6bbcb8970c6174d68819df16d0f1a7731fa8ecf30f7e15602b956",
+      "size": 85547,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/name2.dict.yaml",
+      "sha256": "556cf9fa06032a6b41fb0727eed1e93dd739a6fde6c48a4d90b00a9a9272e5b4",
+      "size": 588787,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/literature.dict.yaml",
+      "sha256": "80d0c4fe33384c2b42f131a6ef464cb3ef7e2523b7e141412bc7afa5ca997e75",
+      "size": 1397724,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/music.dict.yaml",
+      "sha256": "0b5822b6ca5ce738b50bdb524cebc86b74a733cc0afe47426c24ec97b6d65c33",
+      "size": 697,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/computer.dict.yaml",
+      "sha256": "a92fe61d48b53d1d20f1e66be4ca83ac2e8be0caa1fa3f383c5c15de6cb7d5ea",
+      "size": 1030,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/composite.dict.yaml",
+      "sha256": "a5f872f95f07028b5085667dc6ededfd02215e5431d6dfec0efa197e6f6445a3",
+      "size": 21171671,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/luna.dict.yaml",
+      "sha256": "23a6706dfae9cc6cd850735ef5fbc36a6c3fb20221f47384ca889c5e17a28744",
+      "size": 2248452,
+      "role": "dictionary"
+    },
+    {
+      "path": "cn_dicts_cell/name.dict.yaml",
+      "sha256": "ae862932114b3ac2d8d2a48f9c4902a6e6a56c5f198cb10255dbf887de36b94b",
+      "size": 33010,
+      "role": "dictionary"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "size": 35149,
+      "role": "notice"
+    },
+    {
+      "path": "README.md",
+      "sha256": "f517a2043b3321e13b1f44bad37ba60c9fd4d202bf7a74cb2800651f8b6e8fac",
+      "size": 8575,
+      "role": "notice"
+    }
+  ],
+  "excluded": [
+    "cn_dicts/tencent.dict.yaml (commented out in pinned default, not in measured 152 MiB profile)",
+    "cn_dicts/corrections.dict.yaml (deliberately incorrect reading aliases)",
+    "Rime Lua/configuration, Latin/mixed entries"
+  ],
+  "filters": [
+    {
+      "key": "de'ba",
+      "value": "的吧",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    },
+    {
+      "key": "de'le",
+      "value": "的了",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    },
+    {
+      "key": "wo'wo",
+      "value": "我我",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    },
+    {
+      "key": "ni'ni",
+      "value": "你你",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    },
+    {
+      "key": "yu'de",
+      "value": "鱼的",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    },
+    {
+      "key": "shi'jian'he",
+      "value": "时间和",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    },
+    {
+      "key": "ba'a",
+      "value": "吧啊",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志"
+    }
+  ],
+  "support": {
+    "repository": "metasequoiaime/MSIME-Engine",
+    "tag": "dict-v1.0.0",
+    "source_commit": "d0dc0c2b594b5540b5de99ad12085c786410626e",
+    "files": {
+      "english.db": "e43df2418699fa2eac2d7a0cb49d500eb37e4873752e96946518cc1b03517727",
+      "others.db": "501bdd6619963bdce79374cd6b7c9ccafe1bf539c59a32cc5311b1fd93c5c8fb"
+    }
+  }
+}

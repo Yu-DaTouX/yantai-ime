@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Maintain and consume the reviewed Windows product dependency lock.
 
-Only `refresh` resolves upstream refs. All build commands are offline except fetching
-the exact dictionary assets, whose bytes must match the committed SHA256 values.
+The default dictionary is built from the reviewed full-frost source recipe. Every
+raw file/support asset is SHA256-pinned and canonical pinyin records are locked.
+Historical release readers remain only for archived-product regression tests.
 """
 
 from __future__ import annotations
@@ -59,6 +60,18 @@ def validate(data: dict) -> dict:
         if entry.get("repository") != repository or not SHA.fullmatch(entry.get("commit", "")):
             raise ValueError(f"{name}: expected {repository} and a full immutable commit SHA")
     dictionary = data.get("dictionary", {})
+    if dictionary.get("mode") == "frost-source":
+        from dictionary_build import frost
+        config = frost.recipe()
+        if (dictionary.get("repository") != config["repository"] or
+                dictionary.get("source_commit") != config["commit"] or
+                dictionary.get("source_lock") != "scripts/dictionary_build/frost.lock.json" or
+                dictionary.get("recipe_sha256") != sha256(frost.LOCK) or
+                dictionary.get("assets") != config["support"]["files"] or
+                not TAG.fullmatch(dictionary.get("tag", "")) or
+                not DIGEST.fullmatch(config.get("expected_content_sha256", ""))):
+            raise ValueError("Frost product lock does not match the reviewed source recipe")
+        return data
     # The dictionary source and build entry point moved into the engine. The published MSIME-Dict
     # releases stay valid as immutable historical artefacts, so the old repository is still accepted
     # for the tag that shipped from it, and for nothing else: moving the publishing source is a
@@ -95,6 +108,11 @@ def sha256(path: Path) -> str:
 
 
 def verify_assets(directory: Path, data: dict) -> None:
+    if data["dictionary"].get("mode") == "frost-source":
+        from dictionary_build import frost
+        frost.verify(directory)
+        shared.verify_digests(directory, data["dictionary"]["assets"])
+        return
     shared.verify_digests(directory, data["dictionary"]["assets"])
 
     if PRODUCT_MANIFEST in data["dictionary"]["assets"]:
@@ -116,6 +134,10 @@ def verify_published(data: dict) -> None:
     dictionary = data["dictionary"]
     entries = {**data["repositories"],
                "dictionary": {"repository": dictionary["repository"], "commit": dictionary["source_commit"]}}
+    if dictionary.get("mode") == "frost-source":
+        from dictionary_build import frost
+        support = frost.recipe()["support"]
+        entries["dictionary-support"] = {"repository": support["repository"], "commit": support["source_commit"]}
     for name, entry in entries.items():
         repository, commit = entry["repository"], entry["commit"]
         try:
@@ -126,7 +148,8 @@ def verify_published(data: dict) -> None:
             # artefact that validate still accepts, and an archived or deleted repository answers
             # nothing about its default branch. Being unable to re-check that history is not the same
             # as finding it unmerged, so it is reported rather than turned into a release failure.
-            if name == "dictionary" and repository != DICTIONARY_REPOSITORY:
+            if (name == "dictionary" and repository == "metasequoiaime/MSIME-Dict" and
+                    dictionary.get("tag") == LEGACY_DICTIONARY_TAG):
                 print(f"{name}: {commit[:12]} predates {DICTIONARY_REPOSITORY} and {repository} no longer answers")
                 continue
             raise ValueError(f"{name}: cannot resolve {commit} in {repository}") from error
@@ -143,6 +166,11 @@ def github_outputs(data: dict) -> str:
 
 
 def fetch_dictionaries(staging: Path, data: dict) -> None:
+    if data["dictionary"].get("mode") == "frost-source":
+        from dictionary_build import frost
+        frost.build(staging / "MetasequoiaImeDict/out", frost.CACHE, if_stale=True)
+        verify_assets(staging / "MetasequoiaImeDict/out", data)
+        return
     target = staging / "MetasequoiaImeDict" / "out"
     target.parent.mkdir(parents=True, exist_ok=True)
     # Verify the complete set before replacing any usable files in the staging tree.
@@ -174,6 +202,8 @@ def api(endpoint: str) -> dict:
 
 
 def refresh(tag: str, refs: list[str]) -> dict:
+    if (ROOT / "product-lock.json").is_file() and json.loads((ROOT / "product-lock.json").read_text(encoding="utf-8")).get("dictionary", {}).get("mode") == "frost-source":
+        raise ValueError("Frost uses reviewed source hashes: update frost.lock.json and its recipe_sha256; never switch back to a legacy release")
     if not TAG.fullmatch(tag):
         raise ValueError("refresh requires an explicit dict-* release tag")
     # Nothing is resolved from a floating ref any more. Every first-party source, the engine

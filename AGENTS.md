@@ -73,10 +73,10 @@ cmake -S ui      -B ui/build -A x64                # GUI 框架
 
 ## 产品输入清单
 
-`product-lock.json` 只记录仍来自仓外的东西，现在只剩一项：词库 Release 的 tag、source commit 和每个产物的 SHA256。**引擎、Server、GUI 框架和安装器都不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。
+`product-lock.json` 只记录仍来自仓外的词库输入：全量白霜的固定提交、`scripts/dictionary_build/frost.lock.json` 配方摘要，以及独立锁定的英文/杂项资源摘要。白霜逐包 SHA256、过滤规则和规范词条摘要在配方里；本地与 CI 使用同一个标准库构建器。**引擎、Server、GUI 框架和安装器都不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。
 
 - 引擎没有 `repositories` 条目，这是有意的。它不再有 gitlink，锁里写一个上游 commit 就等于声称这棵树仍等于上游——第一个 Windows 专门化的改动落地时这句话就假了，而且没有任何 CI 能发现。来源改记在 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
-- `refresh` 不解析任何浮动源码引用，词库取自指定 tag。词库清单里记录了构建它的 commit 和当时工作树是否干净，`verify-assets` 一并校验——摘要只能证明字节是评审过的字节，证明不了它来自一个能重建的源。
+- 白霜不能用 `refresh --dictionary-tag` 切回旧 Release。更新先评审逐包哈希、分包与过滤 diff，重建并更新规范词条摘要，再刷新产品锁中的配方摘要。产物记录源提交、配方和构建器摘要；SQLite 跨版本页布局可能不同，必须校验锁定的规范词条内容。
 - 发布门禁 `verify-published` 要求清单里每个提交都能从各自仓库默认分支到达，只在发布路径执行，不进 CI。理由见 [docs/product-release.md](docs/product-release.md)。
 
 ## 正式发布（CI）
@@ -128,7 +128,7 @@ release workflow 里的每一段 shell 都抽在 `scripts/ci/` 下，workflow �
 | `check-server-binaries.ps1` | 提前拦住 Server 产物缺文件 |
 | `embed-server-manifest.ps1` | 在上传和签名之前把 `uiAccess=true` manifest 注入 Server PE，并读回验证 |
 | `check-tsf-dll.ps1` | 确认 TSF DLL 产出 |
-| `download-dictionaries.sh` | 从产品锁指定仓库的 `dict-*` release 拉词库并校验 SHA256 |
+| `download-dictionaries.sh` | 按产品锁构建全量白霜，校验逐包 SHA256 及规范内容；只复用锁定的英文/杂项数据 |
 | `detect-release-signing.ps1` | 判定签名模式（`WINDOWS_SIGNING_PROVIDER=signpath` 走 SignPath，未设置走证书），决定产物后缀 |
 | `sign-binaries.ps1` | 用仓库 secret 里的真证书签名 uiAccess Server 和最终安装包 |
 | `signpath-files.ps1` | SignPath 路径用：只把本项目自己的 EXE/DLL 暂存成签名请求的 artifact，签完校验签名后放回；清单与 `installer/signpath/` 下的 artifact configuration 保持一致 |
@@ -140,7 +140,7 @@ release workflow 里的每一段 shell 都抽在 `scripts/ci/` 下，workflow �
 
 合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -NoticesDirectory .`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
 
-词库不在 CI 里现建，从产品锁指定仓库的 `dict-*` release 下载并校验 SHA256。**建库流水线不在本仓**——它随引擎的专门化一并裁掉了（见 [engine/UPSTREAM.md](engine/UPSTREAM.md)），现有 MSIME-Dict release 作为不可变旧产物保留；换发布源要在 `product_lock.py` 里明确评审，不是改个 tag 就能悄悄完成的事。词库改了要先在上游把新词库发布出来，再发 Windows 版本；通过 `scripts/product_lock.py refresh --dictionary-tag <tag>` 更新产品锁并评审摘要变更；发布构建不能临时覆盖词库版本。
+词库现在在 CI 与本地从同一份锁定白霜原料构建：`scripts/build-dictionary.py` → `scripts/dictionary_build/frost.py`，发布旧文件名入口 `download-dictionaries.sh` 也委派给它。不读取兄弟工作树，不下载旧中文 msime.db、五笔或日语资产；独立英文/杂项数据仍按固定摘要复用。旧 Release 兼容读法仅供历史回归夹具。更新与真机部署见 [docs/dictionary-frost.md](docs/dictionary-frost.md)，来源/许可见 [docs/dictionary-frost-sources.md](docs/dictionary-frost-sources.md)。
 
 签名沿用「有证书就签、没有就发未签名版」的策略：配置了 `WINDOWS_SIGNING_CERTIFICATE_BASE64` 和 `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` 两个 secret，或 runner 用户证书存储中配置的 thumbprint 可用时，用 `signtool` 签 uiAccess Server 和最终安装包；没配置时产物名带 `-unsigned` 后缀，并在 release 说明里写明 `uiAccess` 不会生效。Server 的 `uiAccess=true` manifest 必须在上传和签名之前由 `scripts/ci/embed-server-manifest.ps1` 注入并验证；`Sign-PackageBinaries-Local.ps1` 使用本机自签名证书，只用于本地验证，CI 不会调用它。
 
