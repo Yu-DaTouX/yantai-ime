@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ngram/octagram/octagram_gram.h"
+#include "phrase_bonus_defaults.h"
 
 #include <string>
 
@@ -41,6 +42,11 @@ struct SentenceAssociationOptions
     // octagram 六参数，由配置驱动（默认对齐万象现行，见 GrammarConfig）。
     gram::GrammarConfig collocation_grammar;
 
+    // 词格里高权重多音节整词的边加成（log10，0 = 关闭）与它的词库权重门槛，含义见
+    // quanpin::WordLatticeOptions::phrase_bonus。
+    double phrase_bonus = kDefaultPhraseBonus;
+    std::int64_t phrase_bonus_min_weight = kDefaultPhraseBonusMinWeight;
+
     // 任一整句来源开着。纠错的上下文消解（quanpin_dictionary.cpp）用它而不是只看
     // word_lattice：只开万象重排或神经模型时词格照样在内部解码，判断用户想打哪个读音
     // 不该跟着「显示不显示 Trigram 整句」这个开关走。
@@ -56,7 +62,8 @@ struct SentenceAssociationOptions
                show_next_on_duplicate == other.show_next_on_duplicate &&
                neural_desktop_model == other.neural_desktop_model && language_model == other.language_model &&
                collocation_model == other.collocation_model && collocation_weight == other.collocation_weight &&
-               collocation_rerank == other.collocation_rerank && collocation_grammar == other.collocation_grammar;
+               collocation_rerank == other.collocation_rerank && collocation_grammar == other.collocation_grammar &&
+               phrase_bonus == other.phrase_bonus && phrase_bonus_min_weight == other.phrase_bonus_min_weight;
     }
     bool operator!=(const SentenceAssociationOptions &other) const
     {

@@ -134,6 +134,52 @@ int run_test()
     }
 
     {
+        // 高权重多音节整词的边加成：只给跨度 >= 2 个音节、权重不低于门槛的词条；0 或负值 = 关闭。
+        // 「该到」在词库里只有 1（Google 兜底造的行），不能因为是双字词就得分。
+        quanpin::WordLatticeOptions bonus;
+        bonus.phrase_bonus = 1.0;
+        bonus.phrase_bonus_min_weight = 1000;
+        const auto bonus_of = [&](std::int64_t weight, size_t syllables) {
+            return quanpin::phrase_bonus(weight, syllables, bonus);
+        };
+        if (bonus_of(2500, 2) != 1.0 || bonus_of(1000, 2) != 1.0 || bonus_of(69435, 4) != 1.0)
+            throw std::runtime_error("Multi-syllable words at or above the weight floor must get the phrase bonus.");
+        if (bonus_of(2500, 1) != 0.0 || bonus_of(999, 2) != 0.0 || bonus_of(1, 2) != 0.0 || bonus_of(0, 3) != 0.0)
+            throw std::runtime_error("Single syllables and low-weight rows must not get the phrase bonus.");
+        bonus.phrase_bonus = 0.0;
+        if (bonus_of(2500, 2) != 0.0)
+            throw std::runtime_error("A zero phrase bonus must switch the feature off.");
+        bonus.phrase_bonus = -1.0;
+        if (bonus_of(2500, 2) != 0.0)
+            throw std::runtime_error("A negative phrase bonus must not penalize words.");
+
+        // 没有语言模型时走启发式（它自带 phrase_length_bonus），加成不得改变路径分。
+        std::unordered_map<std::string, std::vector<quanpin::LatticeLexeme>> table;
+        table["gai'dao"] = {{"gai'dao", "改到", 2500}, {"gai'dao", "该到", 1}};
+        table["gai"] = {{"gai", "该", 339830}, {"gai", "改", 56880}};
+        table["dao"] = {{"dao", "到", 1611270}};
+        const auto lookup = [&](const quanpin::Segments &span) {
+            std::string key;
+            for (const std::string &syllable : span)
+            {
+                if (!key.empty())
+                    key.push_back('\'');
+                key += syllable;
+            }
+            const auto found = table.find(key);
+            return found == table.end() ? std::vector<quanpin::LatticeLexeme>{} : found->second;
+        };
+        quanpin::WordLatticeOptions off;
+        quanpin::WordLatticeOptions on;
+        on.phrase_bonus = 5.0;
+        const auto plain = quanpin::decode_word_lattice({"gai", "dao"}, lookup, off);
+        const auto boosted = quanpin::decode_word_lattice({"gai", "dao"}, lookup, on);
+        if (plain.empty() || boosted.size() != plain.size() || boosted[0].sentence != plain[0].sentence ||
+            boosted[0].log_prob != plain[0].log_prob)
+            throw std::runtime_error("The phrase bonus must not change heuristic (model-less) lattice scores.");
+    }
+
+    {
         // Neural-only mode still asks the lattice for twelve internal alternatives, but it must not
         // expose the lattice's own pick while the asynchronous neural result is pending.
         std::unordered_map<std::string, std::vector<quanpin::LatticeLexeme>> table;

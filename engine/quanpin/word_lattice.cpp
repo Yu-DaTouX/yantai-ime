@@ -170,7 +170,8 @@ std::vector<std::vector<LatticeEdge>> build_graph(const Segments &syllables, con
                 {
                     edge.index = model->index(edge.word);
                     edge.base_score = dictionary_tiebreak(edge.weight, options) +
-                                      reading_prior(edge.weight, reading_totals[row.key], options);
+                                      reading_prior(edge.weight, reading_totals[row.key], options) +
+                                      phrase_bonus(edge.weight, end - start, options);
                 }
                 else
                 {
@@ -254,6 +255,13 @@ size_t generated_sentence_insert_position(const std::vector<WordItem> &candidate
     while (insert_at < candidates.size() && is_exact_full_key_hit(candidates[insert_at]))
         ++insert_at;
     return insert_at;
+}
+
+double phrase_bonus(std::int64_t weight, size_t syllables, const WordLatticeOptions &options)
+{
+    if (options.phrase_bonus <= 0.0 || syllables < 2 || weight < options.phrase_bonus_min_weight)
+        return 0.0;
+    return options.phrase_bonus;
 }
 
 std::vector<LatticePath> decode_word_lattice(const Segments &syllables, const WordLatticeLookup &lookup,

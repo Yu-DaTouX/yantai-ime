@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../core/phrase_bonus_defaults.h"
 #include "../core/word_item.h"
 #include "engine/ngram/language_model.h"
 #include "quanpin_utils.h"
@@ -116,6 +117,19 @@ struct WordLatticeOptions
     // words the model scores identically (in practice, two unknown words that
     // both took the -7.78 penalty).
     double dictionary_tiebreak = 0.01;
+    // 高权重多音节整词的边加成（log10 单位，0 = 关闭）。词格的路径分几乎全来自 sc.lm 的词级
+    // 三元分，而 sc.lm 对单字的一元频率远高于对双字词，且整词之后的下一个词常常退到一元，
+    // 于是「拆成两个高频单字」的路径会压过「词库里有整词、权重也高」的路径：gaidaoxiawusandian
+    // 出「该到下午三点」（该/到，-11.38）而不是「改到下午三点」（-11.85），其中「改到」在词库里
+    // 权重 2500，「该到」只有 1。这里给跨度 >= 2 个音节、且词库权重不低于
+    // phrase_bonus_min_weight 的词条边加一个固定分，抵消拆分路径靠单字高频占的便宜。
+    // 只在有语言模型时生效；无模型的启发式已经有 phrase_length_bonus。权重门槛挡住 1、2 这类
+    // Google 兜底造出的低权重行，它们不该因为「是多字词」就得分。
+    // 默认关闭：它是一把钝刀。门槛上下的同音词会被它拆开（不良 13820 / 不亮 910、两万 / 两晚），
+    // 320 句集里 Trigram+效果优先 首选 91.88% 掉到 90.94%（加成 0.5~1.0），Trigram+速度优先
+    // 反而升到 91.25%（加成 1.0）；测量与取舍见 quanpin_sentence_eval_300.results.md。
+    double phrase_bonus = kDefaultPhraseBonus;
+    std::int64_t phrase_bonus_min_weight = kDefaultPhraseBonusMinWeight;
     // 生僻读音惩罚的权重（log10 单位）。语言模型只看汉字，分不出「卷」读 gun、
     // 「而」读 neng 这种词库里权重为 0 的多音字读音，于是 gun'qi 出「卷七」、
     // neng'fa'sheng 出「而发生」。每一行按「自己的权重 / 该拼音跨度的权重和」
@@ -177,6 +191,10 @@ size_t generated_sentence_insert_position(const std::vector<WordItem> &candidate
 
 std::vector<LatticePath> decode_word_lattice(const Segments &syllables, const WordLatticeLookup &lookup,
                                              const WordLatticeOptions &options = {});
+
+// 一条覆盖 `syllables` 个音节、词库权重为 `weight` 的词条边得到的整词加成（log10）。
+// 单音节、权重低于门槛、或 phrase_bonus <= 0 时为 0。单独导出是为了不靠真实词库就能测门槛。
+double phrase_bonus(std::int64_t weight, size_t syllables, const WordLatticeOptions &options);
 
 // 容错槽位词格的一条边：覆盖槽区间 [start, end)，读音与词条由调用方查好——key 是覆盖
 // 区间的完整合法读音（可展开槽已代入具体音节），penalty 是该读音相对字面槽的手误代价

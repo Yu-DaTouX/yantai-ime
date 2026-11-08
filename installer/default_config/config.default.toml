@@ -116,6 +116,11 @@ sentence_collocation_model = ""
 # 搭配项的标定系数（log10 域；scorer 已把 .gram 的自然对数换算过来）。1.0 = librime 的同
 # 相对量级，0 = 关闭加成。不进设置页，供配置文件高级调参。
 sentence_collocation_weight = 1.0
+# 词格里「词库权重 >= min_weight 的多音节整词」每条边加的分（log10），0 = 关闭（默认）。用来抵消
+# 「拆成两个高频单字」的路径压过整词的偏差（gaidao 出「该到」而非「改到」）；开了会改变同音词
+# 的取舍，打开前请用 engine/tests 的 eval_quanpin_sentence 对照。不进设置页，供配置文件高级调参。
+sentence_phrase_bonus = 0.0
+sentence_phrase_bonus_min_weight = 1000
 # octagram 六参数，默认对齐万象现行（wanxiang.schema.yaml）：max/min 是搭配上下文与词的
 # 码点长度上限/下限，penalty 是命中搭配、non/weak 是未命中/弱命中的惩罚，rear 是句尾项惩罚。
 # 不进设置页，供配置文件高级调参。

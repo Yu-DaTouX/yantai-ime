@@ -19,6 +19,7 @@
 #include "global/globals.h"
 #include "clipboard/clipboard_history.h"
 #include "engine/contracts/input_state_shortcuts.h"
+#include "engine/core/phrase_bonus_defaults.h"
 
 using namespace ime_config_detail;
 
@@ -113,6 +114,9 @@ bool g_assoc_sentence_show_next_on_duplicate = false;
 bool g_assoc_sentence_collocation_enabled = false;
 std::string g_assoc_sentence_collocation_model;
 double g_assoc_sentence_collocation_weight = 1.0;
+// 词格高权重多音节整词的边加成（log10）与词库权重门槛，同样只供配置文件调参。
+double g_assoc_sentence_phrase_bonus = kDefaultPhraseBonus;
+long long g_assoc_sentence_phrase_bonus_min_weight = kDefaultPhraseBonusMinWeight;
 int g_assoc_sentence_collocation_max_length = 6;
 int g_assoc_sentence_collocation_min_length = 2;
 double g_assoc_sentence_collocation_penalty = -14.0;
@@ -460,6 +464,9 @@ bool LoadImeConfig()
         g_assoc_sentence_collocation_enabled = tbl["association"]["sentence_collocation_enabled"].value_or(false);
         g_assoc_sentence_collocation_model = tbl["association"]["sentence_collocation_model"].value_or(std::string());
         g_assoc_sentence_collocation_weight = tbl["association"]["sentence_collocation_weight"].value_or(1.0);
+        g_assoc_sentence_phrase_bonus = tbl["association"]["sentence_phrase_bonus"].value_or(kDefaultPhraseBonus);
+        g_assoc_sentence_phrase_bonus_min_weight = static_cast<long long>(
+            tbl["association"]["sentence_phrase_bonus_min_weight"].value_or(kDefaultPhraseBonusMinWeight));
         g_assoc_sentence_collocation_max_length = tbl["association"]["sentence_collocation_max_length"].value_or(6);
         g_assoc_sentence_collocation_min_length = tbl["association"]["sentence_collocation_min_length"].value_or(2);
         g_assoc_sentence_collocation_penalty = tbl["association"]["sentence_collocation_penalty"].value_or(-14.0);

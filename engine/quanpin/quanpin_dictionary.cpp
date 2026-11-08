@@ -1054,6 +1054,8 @@ std::vector<WordItem> QuanpinDictionary::query_series(const std::string &raw_inp
         lattice_options.include_collocation_best = sentence_association_.collocation_rerank && has_collocation;
         lattice_options.show_next_on_duplicate = sentence_association_.show_next_on_duplicate;
         lattice_options.language_model = language_model_;
+        lattice_options.phrase_bonus = sentence_association_.phrase_bonus;
+        lattice_options.phrase_bonus_min_weight = sentence_association_.phrase_bonus_min_weight;
         lattice_options.allow_latin_segments = latin_segments;
         // 万象语法模型的搭配项：逐边叠加字级搭配分，与三元模型在同一 Viterbi 里竞争。
         // query() 是自然对数域，乘 kLnToLog10 换到词格的 log10 域；六参数来自配置。
