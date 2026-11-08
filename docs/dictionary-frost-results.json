@@ -1,0 +1,170 @@
+{
+  "recipe_sha256": "7a5cc4a6f9dad65dd2773ec25d12220e78d1873433c59ad5434de9d2de204d5f",
+  "builder_sha256": "c6ec217fc06da247eed398d51d4f00dc94cbfe20bb74119a9a073678084cf8a7",
+  "evaluator_sha256": "83793617d30372b899b031d8013f4f6d878ecc95a9666624a4c25b599c9638a3",
+  "sc_lm_sha256": "3588b3942c8fd62e1a6bd3bae8c7cadc0faf928c175b245224ed475862218387",
+  "rounds": 3,
+  "warmup_rounds": 1,
+  "execution": "BelowNormal priority, serial; CPU not exclusive",
+  "datasets": {
+    "sentences320": {
+      "sha256": "ac8ff3fb0fb9b77f03b3dd6ca47ee404c0b8964efa74f637d0be20dc4e823bfc",
+      "file": "quanpin_sentence_eval_300.tsv"
+    },
+    "newwords268": {
+      "sha256": "91e3257d4e689e520aa65e4fe5f19c25d2509981dcef20389fbcb41de7464fa6",
+      "file": "newwords-eval.tsv"
+    },
+    "commonwords100": {
+      "sha256": "f0973b562bfa4d6699528d5d297fb2453d233796b2f5b973600f61234e3da699",
+      "file": "frost-commonwords.tsv"
+    }
+  },
+  "dictionaries": {
+    "unfiltered": {
+      "bytes": 159899648,
+      "sha256": "c3d73b28465558b63b459c4e01e320db703ac3031e854f721324dc7bd555224d",
+      "covered": 112,
+      "total": 268,
+      "evaluations": {
+        "sentences320": {
+          "mode": "trigram",
+          "cases": "320",
+          "top1": "85.94",
+          "top3": "85.94",
+          "sent1": "85.62",
+          "key_mean": "1.9165",
+          "key_p95": "4.8736",
+          "key_median": "1.4568",
+          "ready_ms": "0.0",
+          "ws_mb": "51.9",
+          "peak_ws_mb": "61.6",
+          "empty": "0",
+          "not_full_pinyin": "0"
+        },
+        "newwords268": {
+          "mode": "off",
+          "cases": "268",
+          "top1": "37.31",
+          "top3": "40.67",
+          "sent1": "0.00",
+          "key_mean": "0.6486",
+          "key_p95": "1.6863",
+          "key_median": "0.4257",
+          "ready_ms": "0.0",
+          "ws_mb": "19.5",
+          "peak_ws_mb": "24.6",
+          "empty": "0",
+          "not_full_pinyin": "0"
+        },
+        "commonwords100": {
+          "mode": "off",
+          "cases": "100",
+          "top1": "97.00",
+          "top3": "100.00",
+          "sent1": "0.00",
+          "key_mean": "0.7836",
+          "key_p95": "3.1702",
+          "key_median": "0.4813",
+          "ready_ms": "0.0",
+          "ws_mb": "17.4",
+          "peak_ws_mb": "19.6",
+          "empty": "0",
+          "not_full_pinyin": "0"
+        }
+      }
+    },
+    "filtered": {
+      "bytes": 159899648,
+      "sha256": "58ec3baf2a564e98efaedd2e8d264fbd4bc645da477ccaf36ab698a87f2bb31b",
+      "covered": 112,
+      "total": 268,
+      "evaluations": {
+        "sentences320": {
+          "mode": "trigram",
+          "cases": "320",
+          "top1": "85.94",
+          "top3": "85.94",
+          "sent1": "85.62",
+          "key_mean": "1.8150",
+          "key_p95": "4.6989",
+          "key_median": "1.3942",
+          "ready_ms": "0.0",
+          "ws_mb": "51.1",
+          "peak_ws_mb": "60.1",
+          "empty": "0",
+          "not_full_pinyin": "0"
+        },
+        "newwords268": {
+          "mode": "off",
+          "cases": "268",
+          "top1": "37.31",
+          "top3": "40.67",
+          "sent1": "0.00",
+          "key_mean": "0.6266",
+          "key_p95": "1.5640",
+          "key_median": "0.4150",
+          "ready_ms": "0.0",
+          "ws_mb": "20.0",
+          "peak_ws_mb": "24.6",
+          "empty": "0",
+          "not_full_pinyin": "0"
+        },
+        "commonwords100": {
+          "mode": "off",
+          "cases": "100",
+          "top1": "97.00",
+          "top3": "100.00",
+          "sent1": "0.00",
+          "key_mean": "0.8375",
+          "key_p95": "3.2593",
+          "key_median": "0.5181",
+          "ready_ms": "0.0",
+          "ws_mb": "16.8",
+          "peak_ws_mb": "19.3",
+          "empty": "0",
+          "not_full_pinyin": "0"
+        }
+      }
+    }
+  },
+  "filtered_rows": 2027140,
+  "filtered_fragments": [
+    {
+      "key": "de'ba",
+      "value": "的吧",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志",
+      "raw_weight": 0
+    },
+    {
+      "key": "de'le",
+      "value": "的了",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志",
+      "raw_weight": 0
+    },
+    {
+      "key": "wo'wo",
+      "value": "我我",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志",
+      "raw_weight": 0
+    },
+    {
+      "key": "ni'ni",
+      "value": "你你",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志",
+      "raw_weight": 0
+    },
+    {
+      "key": "yu'de",
+      "value": "鱼的",
+      "maximum_raw_weight": 1,
+      "reason": "审计确认的语法碎片/机械重复；仅过滤出厂长尾，不作用于用户日志",
+      "raw_weight": 0
+    }
+  ],
+  "sentence_head_changes": 0
+}
