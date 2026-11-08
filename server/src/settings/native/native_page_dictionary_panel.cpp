@@ -76,6 +76,15 @@ void DrawCell(msimeui::DeviceResources &dr, const std::wstring &text, const Text
                                D2D1_DRAW_TEXT_OPTIONS_CLIP | D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
 }
 
+// 多行短语在表格里只露首行，末尾补 ↵，与候选窗一致。
+std::wstring DisplayPhraseCell(const std::wstring &text)
+{
+    const auto newline = text.find(L'\n');
+    if (newline == std::wstring::npos)
+        return text;
+    return text.substr(0, newline) + L" \u21B5";
+}
+
 msimeui::ScrollViewer::Appearance TableScrollbar()
 {
     const Palette &p = CurrentPalette();
@@ -238,6 +247,14 @@ void DictInput::SetOnSubmit(std::function<void()> handler)
     box_->SetOnSubmit(std::move(handler));
 }
 
+void DictInput::SetMultiline(bool multiline)
+{
+    box_->SetMultiline(multiline);
+    height_ = multiline ? 96.0f : 42.0f;
+    box_->SetPreferredHeight(height_);
+    InvalidateMeasure();
+}
+
 void DictInput::ApplyAppearance(bool focused)
 {
     const Palette &p = CurrentPalette();
@@ -264,7 +281,7 @@ void DictInput::ApplyAppearance(bool focused)
 SizeF DictInput::Measure(const SizeF &availableSize)
 {
     box_->MeasureInLayout(availableSize);
-    return {availableSize.width, 42.0f};
+    return {availableSize.width, height_};
 }
 
 void DictInput::Render(msimeui::DeviceResources &dr)
@@ -824,7 +841,9 @@ void DictionaryPanel::SetDictionary(const std::string &dictionary)
                     L"Rime userdb.txt / dict.yaml，全拼可用空格或 ' 分音节；含英文字母的词自动按字母词导入）"
         : latin ? L"字母词由英文字母和汉字组成（T恤、卡拉OK），字母照原样敲、汉字敲全拼；内置字母词只能查询。"
                   L"读音写成 t'xu 或 T xu，留空则自动注音；批量导入格式为：词语[<Tab>读音[<Tab>权重]]"
-                : L"管理快捷短语编码与内容；批量导入格式为：编码<Tab>内容<Tab>权重");
+                : L"管理快捷短语编码与内容；批量导入格式为：编码<Tab>内容<Tab>权重，"
+                  L"短语里的换行写成 \\n、Tab 写成 \\t。换行能否生效取决于目标输入框，"
+                  L"单行输入框会忽略换行");
     header_->SetLabels(HeaderLabels());
     rows_.clear();
     body_->SetEmpty(L"输入查询条件后查看词条");
@@ -942,8 +961,10 @@ void DictionaryPanel::OpenDialog(const Entry *row)
     dialogCode_ = std::make_shared<DictInput>(kFontBody, L"");
     dialogWord_ = std::make_shared<DictInput>(kFontBody, L"");
     dialogWeight_ = std::make_shared<DictInput>(kFontBody, L"");
+    if (quick)
+        dialogWord_->SetMultiline(true);
     std::wstring codeLabel = L"编码";
-    std::wstring wordLabel = quick ? L"快捷短语" : L"词条";
+    std::wstring wordLabel = quick ? L"快捷短语（Enter 换行，Ctrl+Enter 保存）" : L"词条";
     if (!quick)
     {
         codeLabel = english                    ? L"单词"
@@ -993,7 +1014,8 @@ void DictionaryPanel::SaveDialog()
     if (!dialogOpen_)
         return;
     const std::wstring code = Trim(dialogCode_->GetText());
-    const std::wstring word = Trim(dialogWord_->GetText());
+    // 快捷短语保留首尾换行：模板类短语常以空行结尾（#826），Trim 会把它们吃掉。
+    const std::wstring word = kind_ == Kind::Quick ? dialogWord_->GetText() : Trim(dialogWord_->GetText());
     const auto weight = ParseWeight(dialogWeight_->GetText());
     if (kind_ == Kind::Quick && word.size() > 199)
     {
@@ -1041,6 +1063,8 @@ void DictionaryPanel::RenderRows()
         const std::wstring weight = std::to_wstring(row.weight);
         if (english)
             cells.push_back({Widen(row.word), Widen(row.display.empty() ? row.word : row.display), weight});
+        else if (kind_ == Kind::Quick)
+            cells.push_back({Widen(row.code), DisplayPhraseCell(Widen(row.word)), weight});
         else
             cells.push_back({Widen(row.code), Widen(row.word), weight});
     }
