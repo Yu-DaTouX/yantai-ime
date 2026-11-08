@@ -27,7 +27,8 @@ int ConfiguredFloatingToolbarWidth()
 {
     const FloatingToolbarItemsConfig &items = GetConfiguredFloatingToolbarItems();
     const int optional_item_count = static_cast<int>(items.fullwidth) + static_cast<int>(items.punctuation) +
-                                    static_cast<int>(items.character_set) + static_cast<int>(items.settings);
+                                    static_cast<int>(items.character_set) + static_cast<int>(items.settings) +
+                                    static_cast<int>(items.translate);
     // 59 DIPs covers the drag handle, divider, borders, mandatory CN/EN button and
     // container padding. Each optional button adds 24 DIPs plus the 6-DIP gap.
     // User scale/font_size multiply the design size independently of system DPI.
@@ -46,7 +47,8 @@ int ConfiguredFloatingToolbarHeight()
 bool FloatingToolbarItemsEqual(const FloatingToolbarItemsConfig &left, const FloatingToolbarItemsConfig &right)
 {
     return left.fullwidth == right.fullwidth && left.punctuation == right.punctuation &&
-           left.character_set == right.character_set && left.settings == right.settings;
+           left.character_set == right.character_set && left.settings == right.settings &&
+           left.translate == right.translate;
 }
 } // namespace ime_windows_detail
 
@@ -764,6 +766,11 @@ LRESULT CALLBACK WndProcFtbWindow(HWND hwnd, UINT message, WPARAM wParam, LPARAM
         UpdateFtbCnEnAndDoubleSingleAndPuncState(cnEnState, doubleSingleByteState, puncState, capsLockState);
         break;
     }
+
+    case UPDATE_FTB_TRANSLATION_MODE:
+        RestartFloatingToolbarAutoHide(L"translation-mode");
+        FloatingToolbarPresenter::Instance().ApplyAppearance();
+        break;
 
     case UPDATE_FTB_ENGLISH_INPUT_MODE:
         UpdateFtbEnglishInputModeState(wParam != 0 ? 1 : 0);

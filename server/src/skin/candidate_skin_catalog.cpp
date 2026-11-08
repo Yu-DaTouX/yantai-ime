@@ -1256,6 +1256,11 @@ const std::vector<std::string> *ToolbarButtonStates(const std::string &key)
         return &punctuation;
     if (key == "character_set")
         return &characterSet;
+    if (key == "translate")
+    {
+        static const std::vector<std::string> translate = {"off", "on"};
+        return &translate;
+    }
     if (key == "settings")
         return &stateless;
     return nullptr;

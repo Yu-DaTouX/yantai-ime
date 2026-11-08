@@ -2,6 +2,7 @@
 // 配置同步定时器，以及候选上的鼠标动作。
 #include "window/ime_windows_internal.h"
 #include "global/globals.h"
+#include "translation/translation_mode.h"
 #include "config/ime_config.h"
 #include "conversion/chinese_converter.h"
 #include "ipc/ipc.h"
@@ -295,8 +296,11 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         const std::wstring signaturePreedit = showPreedit ? preedit : std::wstring{};
         const CandidateFramePageState pageState{candidatePage->selected_index_in_page, candidatePage->page_index,
                                                 candidatePage->has_previous_page, candidatePage->has_next_page};
-        const std::wstring frameSignature = CandidateFrameSignature(signaturePreedit, candidatePage->page_views,
-                                                                    layoutCaret.x, layoutCaret.y, pageState);
+        const auto translation = translation_mode::Snapshot();
+        const std::wstring translationSignature = translation->draft + translation->english;
+        const std::wstring frameSignature =
+            translationSignature + CandidateFrameSignature(signaturePreedit, candidatePage->page_views, layoutCaret.x,
+                                                           layoutCaret.y, pageState);
         if (::is_global_wnd_cand_shown && !g_candidate_force_layout.load() &&
             frameSignature == g_last_rendered_candidate_signature &&
             updateStartedTick - g_last_rendered_candidate_tick < kCandidateShowDedupWindowMs)
