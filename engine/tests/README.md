@@ -6,12 +6,13 @@
 |---|---|---|
 | `imetest` | `src/test_pinyin.cpp` | 引擎测试：全拼会话、退格、词典增删与查询时序；注册源只有 `test_pinyin.cpp`，CI 不执行，仅作本地跑测试的入口 |
 | `eval_quanpin_autocorrect` | `src/eval_quanpin_autocorrect.cpp` | 全拼纠错离线评测：采样真实 msime.db 注错，测召回（R@1/R@3）、读音还原与温态延迟 |
+| `eval_quanpin_sentence` | `src/eval_quanpin_sentence.cpp` | 全拼整句方案评测：设置页「整句」各开关（Unigram/Trigram/神经/上文/octagram）逐模式的首选率、前 3 命中率、每键耗时与内存占用 |
 
 ## 构建
 
 ```powershell
 cmake --preset default
-cmake --build build --config Release --target <imetest | eval_quanpin_autocorrect>
+cmake --build build --config Release --target <imetest | eval_quanpin_autocorrect | eval_quanpin_sentence>
 ```
 
 两个目标共用同一份引擎库，只多编各自的 main。日常改代码跑 `imetest` 即可，按需单独构建评测目标。
@@ -49,3 +50,10 @@ cmake --build build --config Release --target <imetest | eval_quanpin_autocorrec
 产品默认开着词格整句联想，纠错的上下文消解（同档消解、结构性贵档读法按整句分领衔）只在词格开启时生效。要量产品实际的排序，加 `--word-lattice`，并让 `--resource` 指向带 `sc.lm` 的目录；不加时测到的是纯静态排序，与历史基线口径一致。
 
 参数细节与报告分节说明见 `src/eval_quanpin_autocorrect.cpp` 文件头注释。
+
+## eval_quanpin_sentence：整句方案横向对照
+
+`--mode` 选方案（`unigram` / `trigram` / `neural_desktop` / `neural_keyboard` / `context` /
+`octagram:<模型 id>`，用 `+` 组合），句子集用 `data/quanpin_sentence_eval_300.tsv`，上文重排用
+`data/quanpin_context_rerank_cases.tsv`（第 4 列是上文）。一个进程只跑一个模式，内存峰值才是该模式的独占值。
+2026-11 的实测结果与推荐配置在 `data/quanpin_sentence_eval_300.results.md`。

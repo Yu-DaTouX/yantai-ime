@@ -28,3 +28,9 @@ target_link_libraries(imetest PRIVATE MetasequoiaIme::Engine)
 add_executable(eval_quanpin_autocorrect "./src/eval_quanpin_autocorrect.cpp")
 target_compile_options(eval_quanpin_autocorrect PRIVATE /Zc:__cplusplus)
 target_link_libraries(eval_quanpin_autocorrect PRIVATE MetasequoiaIme::Engine)
+
+# 全拼整句方案评测（设置页「整句」各开关的横向对照）：逐模式报告首选/前3命中、每键耗时与
+# 内存占用，靠 --mode 选方案，见 src/eval_quanpin_sentence.cpp 的文件头。同属评测工具，不进 ctest。
+add_executable(eval_quanpin_sentence "./src/eval_quanpin_sentence.cpp")
+target_compile_options(eval_quanpin_sentence PRIVATE /Zc:__cplusplus)
+target_link_libraries(eval_quanpin_sentence PRIVATE MetasequoiaIme::Engine)
