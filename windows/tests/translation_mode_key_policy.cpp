@@ -41,6 +41,10 @@ int main()
     check("stale active flag offline cannot claim Enter", Classify(0x0D, 0, context), Route::Existing);
     context.serverAvailable = true;
     context.active = false;
+    check("mode punctuation", Classify(0xBE, 0, Context{true}), Route::DraftKey);
+    check("mode digit", Classify('2', 0, Context{true}), Route::DraftKey);
+    check("mode space", Classify(0x20, 0, Context{true}), Route::DraftKey);
+    check("letter remains composition input", Classify('A', 0, Context{true}), Route::Existing);
     check("normal Enter unchanged", Classify(0x0D, 0, context), Route::Existing);
     check("normal Backspace unchanged", Classify(0x08, 0, context), Route::Existing);
     check("normal Escape unchanged", Classify(0x1B, 0, context), Route::Existing);

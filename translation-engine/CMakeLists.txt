@@ -48,3 +48,9 @@ add_executable(translation_engine_smoke smoke.cpp ../server/src/translation/loca
 target_compile_definitions(translation_engine_smoke PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(translation_engine_smoke PRIVATE /utf-8 /W4)
 target_include_directories(translation_engine_smoke PRIVATE ../server/src)
+add_executable(translation_worker_smoke worker_smoke.cpp
+    ../server/src/translation/translation_worker.cpp ../server/src/translation/local_inference.cpp
+    ../server/src/translation/local_engine.cpp)
+target_include_directories(translation_worker_smoke PRIVATE ../server/src)
+target_compile_definitions(translation_worker_smoke PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_options(translation_worker_smoke PRIVATE /utf-8 /W4)

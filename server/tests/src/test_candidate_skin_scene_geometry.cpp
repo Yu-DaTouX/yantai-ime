@@ -126,6 +126,44 @@ TEST_CASE(candidate_skin_scene_fluent_vertical_highlight_is_centred)
     RequireHighlightFillsContent(geometry);
 }
 
+TEST_CASE(candidate_skin_scene_translation_rows_keep_minimum_width_and_selected_padding)
+{
+    for (const std::string skin : {"fluent", "mac", "acrylic"})
+    {
+        for (const bool horizontal : {false, true})
+        {
+            for (const float scale : {1.0f, 1.25f, 1.5f, 2.0f})
+            {
+                CandidateSkinScene scene;
+                CandidateSkinScene::Settings settings;
+                settings.skinsRoot = std::filesystem::u8path(MSIME_SKINS_PATH);
+                settings.skinId = skin;
+                settings.horizontal = horizontal;
+                settings.fontSize = 16 * scale;
+                settings.preeditHidden = true;
+                settings.framePadding = {};
+                scene.Apply(settings);
+                scene.Preedit()->SetHeight(0);
+                scene.List()->SetItems({{L"1", L"你好", L"", L"", {}}});
+                scene.TranslationDraft()->SetContent(true, std::wstring(1000, L'中'), L"中文", L"");
+                scene.TranslationEnglish()->SetContent(true, std::wstring(3000, L'x'), L"", L"Enter 上屏");
+                const auto english = scene.TranslationEnglish()->Measure({600, 1000});
+                REQUIRE(english.width >= 360.0f);
+                const auto size = scene.Root()->MeasureInLayout({1200, 1200});
+                scene.Root()->ArrangeInLayout({0, 0, size.width, size.height});
+                REQUIRE(scene.CardVisual()->GetBounds().width >= 360.0f);
+                const auto &appearance = scene.List()->GetAppearance();
+                if (appearance.fitContent)
+                    REQUIRE(std::fabs(appearance.contentPadRight -
+                                      (appearance.contentPadLeft + appearance.textPadLeft)) < 0.02f);
+                // Two-line English height must not grow with a 3000-character sentence.
+                scene.TranslationEnglish()->SetContent(true, L"Hello.", L"", L"Enter 上屏");
+                REQUIRE_EQ(scene.TranslationEnglish()->Measure({600, 1000}).height, english.height);
+            }
+        }
+    }
+}
+
 // 预编辑行显示时，高亮块与卡片顶边之间由预编辑行占据，末项仍贴着内容底边。
 TEST_CASE(candidate_skin_scene_visible_preedit_keeps_the_last_row_flush)
 {
