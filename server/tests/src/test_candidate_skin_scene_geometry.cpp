@@ -108,14 +108,14 @@ TEST_CASE(candidate_skin_scene_row_edges_touch_the_card_content)
     REQUIRE(std::fabs((last.y + last.height) - (geometry.content.y + geometry.content.height)) < 0.02f);
 }
 
-// fit_content 下行的左右内边距相等，卡片两侧留白才对得上（此前右侧多加了一份 textPadLeft）。
+// fit_content 下高亮块里序号左侧的留白与文字右侧的留白相等（文字不贴高亮块右边）。
 TEST_CASE(candidate_skin_scene_fit_content_keeps_row_padding_even)
 {
     CandidateSkinScene scene;
     LayOutScene(scene, "mac", true, true, {L"\u4e00"});
     const msimeui::CandidateList::Appearance &appearance = scene.List()->GetAppearance();
     REQUIRE(appearance.fitContent);
-    REQUIRE(std::fabs(appearance.contentPadRight - appearance.contentPadLeft) < 0.02f);
+    REQUIRE(std::fabs(appearance.contentPadRight - (appearance.contentPadLeft + appearance.textPadLeft)) < 0.02f);
 }
 
 // 原装 fluent 皮肤（默认竖排）在隐藏预编辑行时同样要上下等距，修复不能只照顾横排。

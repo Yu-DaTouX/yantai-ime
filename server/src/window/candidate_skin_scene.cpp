@@ -751,11 +751,11 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     appearance.textPadLeft = kCandidateNumberTextPad;
     appearance.labelGap = tokens.labelGap;
     appearance.minItemWidth = tokens.minItemWidth;
-    // 收紧宽度时卡片只比文字宽出卡片内边距：行的右边留白与左边相同，高亮块正好铺满卡片内容区。
-    // 多出来的 textPadLeft 会把序号左侧的空再补一份到右边，末项的右侧留白因此明显偏大。
+    // contentPad* 是每个候选块（高亮块）自己的内边距，不是卡片边距。收紧宽度时块右侧留白要等于
+    // 序号左侧的留白（contentPadLeft + textPadLeft），高亮块里的文字才左右对称。
     appearance.fitContent = fitContent;
     if (fitContent)
-        appearance.contentPadRight = appearance.contentPadLeft;
+        appearance.contentPadRight = appearance.contentPadLeft + appearance.textPadLeft;
     appearance.selectedBarWidth = tokens.selectedBarWidth;
     appearance.selectedBarHeight = fontSize * tokens.selectedBarHeightEm;
     appearance.selectedBarInside = tokens.selectedBarInside;
