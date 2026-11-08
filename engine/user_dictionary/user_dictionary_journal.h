@@ -50,6 +50,19 @@ bool record_weight_edit(const std::string &user_db_path, DictionaryKind kind, co
                         const std::string &value, std::int64_t weight, const std::string &display = {});
 bool record_user_insert(const std::string &user_db_path, DictionaryKind kind, const std::string &key,
                         const std::string &value, std::int64_t weight, const std::string &display = {});
+// 用户词库的衰减打分学习（算法与参数见 learning_dynamics.h）。
+// 一次上屏：全局上屏计数 +1，这一行的 commits / dee / tick 更新，按衰减后的 dee 换算成权重与出厂词频
+// 合并，写进词库与日志（同一个跨库事务）。直接上屏首选也算。词库里没有这一行、用户手动加的词、
+// 设置页改过权重的词、删除过的词都不学习（前两者不记 tick 或原样保留权重）。每隔
+// dynamics::kSweepIntervalTicks 次上屏顺带对全部学习条目结算一遍，遗忘过期的。
+bool learn_pinyin_commit(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
+                         const std::string &value, bool *ranking_changed = nullptr);
+// 立刻对全部学习条目做一遍衰减结算：dee 衰减到阈值以下的遗忘（学来的整句从词库删掉，出厂词回到出厂词频），
+// 其余把权重刷新到此刻的衰减值。
+bool sweep_learned_entries(const std::string &main_db_path, const std::string &user_db_path);
+// 整句、分段造词落库（与词库里的 insert 同时调用）：记成学习条目，commits = 1、dee = 1，并推进全局上屏计数。
+// 与 record_user_insert 的区别：后者是用户手动加的词，永不遗忘。已被删除的词再次造出来时从头累积。
+bool record_learned_phrase(const std::string &user_db_path, const std::string &key, const std::string &value);
 bool record_delete(const std::string &user_db_path, DictionaryKind kind, const std::string &key,
                    const std::string &value);
 bool is_user_inserted(const std::string &user_db_path, DictionaryKind kind, const std::string &key,
@@ -165,6 +178,10 @@ struct ReplayResult
     int failed = 0;
     // 出厂词库换过时，日志里低于新出厂权重、因而保留新权重并改记进日志的自动调频行数。
     int rebased = 0;
+    // 衰减打分学习：写回的学习条目数、其中由旧调频/整句造词记录迁移来的、以及因衰减过期而不写回的。
+    int learned = 0;
+    int migrated = 0;
+    int forgotten = 0;
     std::string error;
 };
 

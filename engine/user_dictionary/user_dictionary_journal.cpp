@@ -1,5 +1,6 @@
 #include "../contracts/assets/assets.h"
 #include "../contracts/dictionary/format.h"
+#include "learning_dynamics.h"
 #include "user_dictionary_journal.h"
 #include <metasequoia/personal_dictionary.h>
 
@@ -8,6 +9,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -167,7 +169,8 @@ Stmt prepare_upsert_journal(sqlite3 *db)
     return prepare(db, "INSERT INTO user_dictionary_operations(dictionary,key,value,operation,weight,display)"
                        " VALUES(?1,?2,?3,'upsert',?4,?5)"
                        " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='upsert',weight=excluded.weight,"
-                       " display=excluded.display,weight_edited=0,updated_at=unixepoch()");
+                       " display=excluded.display,weight_edited=0,commits=0,dee=0,tick=0,base_weight=0,"
+                       " updated_at=unixepoch()");
 }
 
 bool write_upsert_journal(sqlite3_stmt *stmt, DictionaryKind kind, const std::string &key, const std::string &value,
@@ -212,6 +215,10 @@ bool ensure_schema(sqlite3 *db)
         "display TEXT NOT NULL DEFAULT '',"
         "user_inserted INTEGER NOT NULL DEFAULT 0,"
         "weight_edited INTEGER NOT NULL DEFAULT 0,"
+        "commits INTEGER NOT NULL DEFAULT 0,"
+        "dee REAL NOT NULL DEFAULT 0,"
+        "tick INTEGER NOT NULL DEFAULT 0,"
+        "base_weight INTEGER NOT NULL DEFAULT 0,"
         "updated_at INTEGER NOT NULL DEFAULT(unixepoch()),"
         "PRIMARY KEY(dictionary,key,value));"
         "CREATE TABLE IF NOT EXISTS personal_dictionary_receipts( request_id TEXT PRIMARY KEY, payload TEXT NOT NULL);"
@@ -251,13 +258,25 @@ bool ensure_schema(sqlite3 *db)
                      "ADD COLUMN weight_edited INTEGER NOT NULL DEFAULT 0",
                      nullptr, nullptr, nullptr) != SQLITE_OK)
         return false;
+    // 衰减打分的学习状态（见 learning_dynamics.h）。commits > 0 的行归衰减管：权重由出厂词频 base_weight、
+    // dee、tick 算出来，每次上屏刷新；commits = 0 的行是用户手动加的、设置页改过权重的，或还没迁移的旧调频记录，
+    // 权重原样保留。旧日志没有这几列，缺了就补，旧版本读日志时不认识它们也不受影响。
+    for (const char *column : {"commits INTEGER NOT NULL DEFAULT 0", "dee REAL NOT NULL DEFAULT 0",
+                               "tick INTEGER NOT NULL DEFAULT 0", "base_weight INTEGER NOT NULL DEFAULT 0"})
+    {
+        const std::string name(column, std::strchr(column, ' '));
+        if (!has_column(db, "user_dictionary_operations", name) &&
+            sqlite3_exec(db, (std::string("ALTER TABLE user_dictionary_operations ADD COLUMN ") + column).c_str(),
+                         nullptr, nullptr, nullptr) != SQLITE_OK)
+            return false;
+    }
     // Setting user_version is a write, even to the same value. Skip it when it is
     // already current, so opening a connection never waits for another writer.
     auto version = prepare(db, "PRAGMA user_version");
-    if (version && sqlite3_step(version.get()) == SQLITE_ROW && sqlite3_column_int(version.get(), 0) == 3)
+    if (version && sqlite3_step(version.get()) == SQLITE_ROW && sqlite3_column_int(version.get(), 0) == 4)
         return true;
     version.reset();
-    return sqlite3_exec(db, "PRAGMA user_version=3", nullptr, nullptr, nullptr) == SQLITE_OK;
+    return sqlite3_exec(db, "PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK;
 }
 
 std::vector<std::string> pinyin_segments(const std::string &key)
@@ -657,7 +676,8 @@ bool record_weight_edit(const std::string &user_db_path, DictionaryKind kind, co
                           "dictionary,key,value,operation,weight,display,weight_edited)"
                           " VALUES(?1,?2,?3,'upsert',?4,?5,1)"
                           " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='upsert',weight=excluded.weight,"
-                          " display=excluded.display,weight_edited=1,updated_at=unixepoch()");
+                          " display=excluded.display,weight_edited=1,commits=0,dee=0,tick=0,base_weight=0,"
+                          " updated_at=unixepoch()");
     return stmt && bind_text(stmt.get(), 1, kind_name(kind)) && bind_text(stmt.get(), 2, key) &&
            bind_text(stmt.get(), 3, value) && sqlite3_bind_int64(stmt.get(), 4, weight) == SQLITE_OK &&
            bind_text(stmt.get(), 5, display) && sqlite3_step(stmt.get()) == SQLITE_DONE;
@@ -674,7 +694,8 @@ bool record_user_insert(const std::string &user_db_path, DictionaryKind kind, co
                           "dictionary,key,value,operation,weight,display,user_inserted)"
                           " VALUES(?1,?2,?3,'upsert',?4,?5,1)"
                           " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='upsert',weight=excluded.weight,"
-                          " display=excluded.display,user_inserted=1,updated_at=unixepoch()");
+                          " display=excluded.display,user_inserted=1,commits=0,dee=0,tick=0,base_weight=0,"
+                          " updated_at=unixepoch()");
     return stmt && bind_text(stmt.get(), 1, kind_name(kind)) && bind_text(stmt.get(), 2, key) &&
            bind_text(stmt.get(), 3, value) && sqlite3_bind_int64(stmt.get(), 4, weight) == SQLITE_OK &&
            bind_text(stmt.get(), 5, display) && sqlite3_step(stmt.get()) == SQLITE_DONE;
@@ -690,7 +711,7 @@ bool record_delete(const std::string &user_db_path, DictionaryKind kind, const s
         prepare(db.get(), "INSERT INTO user_dictionary_operations(dictionary,key,value,operation)"
                           " VALUES(?1,?2,?3,'delete')"
                           " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='delete',weight=0,display='',"
-                          " updated_at=unixepoch()");
+                          " commits=0,dee=0,tick=0,base_weight=0,updated_at=unixepoch()");
     return stmt && bind_text(stmt.get(), 1, kind_name(kind)) && bind_text(stmt.get(), 2, key) &&
            bind_text(stmt.get(), 3, value) && sqlite3_step(stmt.get()) == SQLITE_DONE;
 }
@@ -921,7 +942,7 @@ bool delete_dictionary_candidate(const std::string &dictionary_db_path, const st
                            "INSERT INTO candidate_journal.user_dictionary_operations(dictionary,key,value,operation)"
                            " VALUES(?1,?2,?3,'delete')"
                            " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='delete',weight=0,display='',"
-                           " updated_at=unixepoch()");
+                           " commits=0,dee=0,tick=0,base_weight=0,updated_at=unixepoch()");
     if (!journal || !bind_text(journal.get(), 1, kind_name(kind)) || !bind_text(journal.get(), 2, entry_key) ||
         !bind_text(journal.get(), 3, value) || sqlite3_step(journal.get()) != SQLITE_DONE)
         return rollback();
@@ -939,62 +960,356 @@ bool delete_english_candidate(const std::string &english_db_path, const std::str
 
 namespace
 {
-// 选中的词升到它自己那个码组的首位（组内最高权重 + 1），新权重与日志的 upsert 在同一个挂库事务里写。
-// 只改已有的行：(key, value) 不存在时返回 false，不造行。
-bool bump_weight_in_table(const std::string &main_db_path, const std::string &user_db_path, const std::string &table,
-                          DictionaryKind kind, const std::string &key, const std::string &value)
+constexpr const char *kLearnTickState = "learn_tick";
+constexpr std::int64_t kLearnedPhraseWeight = 10000;
+
+// 一行日志里和学习有关的字段。
+struct LearnedRow
 {
-    if (key.empty() || value.empty() || table.empty())
+    bool exists = false;
+    bool deleted = false;
+    bool user_inserted = false;
+    bool weight_edited = false;
+    std::int64_t weight = 0;
+    std::int64_t commits = 0;
+    double dee = 0;
+    std::int64_t tick = 0;
+    std::int64_t base_weight = 0;
+
+    // 用户亲手加的词、设置页改过权重的词：不归衰减管，权重原样保留。
+    bool user_owned() const
+    {
+        return exists && !deleted && commits == 0 && (user_inserted || weight_edited);
+    }
+    bool learned() const
+    {
+        return exists && !deleted && commits > 0;
+    }
+    // 置顶写下的权重（commits = -1）：用户明确的指令，权重原样保留，不再学习。
+    bool frozen() const
+    {
+        return exists && !deleted && commits < 0;
+    }
+};
+
+std::int64_t read_learn_tick(sqlite3 *db, const std::string &schema)
+{
+    auto stmt = prepare(db, "SELECT value FROM " + schema + ".dictionary_state WHERE name=?1");
+    if (!stmt || !bind_text(stmt.get(), 1, kLearnTickState) || sqlite3_step(stmt.get()) != SQLITE_ROW)
+        return 0;
+    const unsigned char *text = sqlite3_column_text(stmt.get(), 0);
+    if (text == nullptr)
+        return 0;
+    const long long tick = std::strtoll(reinterpret_cast<const char *>(text), nullptr, 10);
+    return tick > 0 ? tick : 0;
+}
+
+bool write_learn_tick(sqlite3 *db, const std::string &schema, std::int64_t tick)
+{
+    auto stmt = prepare(db, "INSERT INTO " + schema +
+                                ".dictionary_state(name,value) VALUES(?1,?2)"
+                                " ON CONFLICT(name) DO UPDATE SET value=excluded.value");
+    return stmt && bind_text(stmt.get(), 1, kLearnTickState) && bind_text(stmt.get(), 2, std::to_string(tick)) &&
+           sqlite3_step(stmt.get()) == SQLITE_DONE;
+}
+
+bool read_learned_row(sqlite3 *db, const std::string &schema, const std::string &key, const std::string &value,
+                      LearnedRow &row)
+{
+    auto stmt =
+        prepare(db, "SELECT operation,user_inserted,weight_edited,weight,commits,dee,tick,base_weight FROM " + schema +
+                        ".user_dictionary_operations WHERE dictionary='pinyin' AND key=?1 AND value=?2");
+    if (!stmt || !bind_text(stmt.get(), 1, key) || !bind_text(stmt.get(), 2, value))
         return false;
-    // Initialize the journal before attaching it; every operation owns its connections.
-    if (!ensure_user_database(user_db_path))
+    row = {};
+    const int status = sqlite3_step(stmt.get());
+    if (status == SQLITE_DONE)
+        return true;
+    if (status != SQLITE_ROW)
         return false;
-    auto database = open_database(main_db_path, SQLITE_OPEN_READWRITE);
-    auto attach = database ? prepare(database.get(), "ATTACH DATABASE ?1 AS candidate_journal") : Stmt{};
-    if (!attach || !bind_text(attach.get(), 1, user_db_path) || sqlite3_step(attach.get()) != SQLITE_DONE)
-        return false;
-    attach.reset();
-    if (!execute_sql(database.get(), "BEGIN IMMEDIATE"))
-        return false;
-    const auto rollback = [&]() {
-        (void)execute_sql(database.get(), "ROLLBACK");
-        return false;
-    };
-    // 增量语义对齐全拼侧 build_sql_for_updating_word：新权重 = 同码组当前最高权重 + 1，
-    // 选中候选升到组内首位，而不是固定 +1（同码组有更高权重行时固定 +1 不会改变排序）。
-    auto current = prepare(database.get(), "SELECT MAX(weight) FROM main.\"" + table + "\" WHERE \"key\"=?1");
-    if (!current || !bind_text(current.get(), 1, key) || sqlite3_step(current.get()) != SQLITE_ROW)
-        return rollback();
-    const std::int64_t new_weight = clamp_managed_weight(sqlite3_column_int64(current.get(), 0) + 1);
-    current.reset();
-    auto bump =
-        prepare(database.get(), "UPDATE main.\"" + table + "\" SET weight=?1 WHERE \"key\"=?2 AND \"value\"=?3");
-    // changes()==0 表示目标行不存在：与 update_pinyin_weight 一致，不造行。
-    if (!bump || sqlite3_bind_int64(bump.get(), 1, new_weight) != SQLITE_OK || !bind_text(bump.get(), 2, key) ||
-        !bind_text(bump.get(), 3, value) || sqlite3_step(bump.get()) != SQLITE_DONE ||
-        sqlite3_changes(database.get()) == 0)
-        return rollback();
-    bump.reset();
-    auto journal =
-        prepare(database.get(), "INSERT INTO candidate_journal.user_dictionary_operations(dictionary,key,value,"
-                                "operation,weight,display) VALUES(?1,?2,?3,'upsert',?4,'')"
-                                " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='upsert',"
-                                "weight=excluded.weight,display='',updated_at=unixepoch()");
-    if (!journal || !bind_text(journal.get(), 1, kind_name(kind)) || !bind_text(journal.get(), 2, key) ||
-        !bind_text(journal.get(), 3, value) || sqlite3_bind_int64(journal.get(), 4, new_weight) != SQLITE_OK ||
-        sqlite3_step(journal.get()) != SQLITE_DONE)
-        return rollback();
-    journal.reset();
-    if (!execute_sql(database.get(), "COMMIT"))
-        return rollback();
+    row.exists = true;
+    const unsigned char *operation = sqlite3_column_text(stmt.get(), 0);
+    row.deleted = operation != nullptr && std::strcmp(reinterpret_cast<const char *>(operation), "delete") == 0;
+    row.user_inserted = sqlite3_column_int(stmt.get(), 1) != 0;
+    row.weight_edited = sqlite3_column_int(stmt.get(), 2) != 0;
+    row.weight = sqlite3_column_int64(stmt.get(), 3);
+    row.commits = sqlite3_column_int64(stmt.get(), 4);
+    row.dee = sqlite3_column_double(stmt.get(), 5);
+    row.tick = sqlite3_column_int64(stmt.get(), 6);
+    row.base_weight = sqlite3_column_int64(stmt.get(), 7);
     return true;
 }
+
+// 整句造词时该记的出厂词频：让刚落库的条目（dee = 1）权重恰好是 kLearnedPhraseWeight，
+// 之后随 dee 涨落，到遗忘阈值时回落到它的 1/boost(1) 再被遗忘。
+std::int64_t learned_phrase_base_weight(std::int64_t now)
+{
+    return (std::max)(static_cast<std::int64_t>(
+                          std::llround(static_cast<double>(kLearnedPhraseWeight) / dynamics::boost(1.0, 1, now))),
+                      std::int64_t{1});
+}
+
+bool write_learned_row(sqlite3 *db, const std::string &schema, const std::string &key, const std::string &value,
+                       std::int64_t weight, std::int64_t commits, double dee, std::int64_t tick,
+                       std::int64_t base_weight)
+{
+    auto stmt = prepare(db, "INSERT INTO " + schema +
+                                ".user_dictionary_operations(dictionary,key,value,operation,weight,commits,dee,tick,"
+                                "base_weight) VALUES('pinyin',?1,?2,'upsert',?3,?4,?5,?6,?7)"
+                                " ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='upsert',"
+                                "weight=excluded.weight,weight_edited=0,commits=excluded.commits,dee=excluded.dee,"
+                                "tick=excluded.tick,base_weight=excluded.base_weight,updated_at=unixepoch()");
+    return stmt && bind_text(stmt.get(), 1, key) && bind_text(stmt.get(), 2, value) &&
+           sqlite3_bind_int64(stmt.get(), 3, weight) == SQLITE_OK &&
+           sqlite3_bind_int64(stmt.get(), 4, commits) == SQLITE_OK &&
+           sqlite3_bind_double(stmt.get(), 5, dee) == SQLITE_OK &&
+           sqlite3_bind_int64(stmt.get(), 6, tick) == SQLITE_OK &&
+           sqlite3_bind_int64(stmt.get(), 7, base_weight) == SQLITE_OK && sqlite3_step(stmt.get()) == SQLITE_DONE;
+}
+
+// 对日志里全部学习条目做一遍衰减结算：过期的遗忘（学来的整句从词库里删掉；出厂词回到出厂词频），
+// 其余把权重刷新到此刻的衰减值。db 是挂了日志（schema 名 journal_schema）的词库连接，调用方开着事务。
+bool sweep_learned_rows(sqlite3 *db, const std::string &journal_schema, std::int64_t now)
+{
+    struct Entry
+    {
+        std::string key;
+        std::string value;
+        bool user_inserted;
+        std::int64_t weight;
+        std::int64_t commits;
+        double dee;
+        std::int64_t tick;
+        std::int64_t base_weight;
+    };
+    std::vector<Entry> entries;
+    {
+        auto rows =
+            prepare(db, "SELECT key,value,user_inserted,weight,commits,dee,tick,base_weight FROM " + journal_schema +
+                            ".user_dictionary_operations WHERE dictionary='pinyin' AND operation='upsert' "
+                            "AND commits>0");
+        if (!rows)
+            return false;
+        int status = SQLITE_ROW;
+        while ((status = sqlite3_step(rows.get())) == SQLITE_ROW)
+        {
+            const auto *key = sqlite3_column_text(rows.get(), 0);
+            const auto *value = sqlite3_column_text(rows.get(), 1);
+            if (key == nullptr || value == nullptr)
+                continue;
+            entries.push_back({reinterpret_cast<const char *>(key), reinterpret_cast<const char *>(value),
+                               sqlite3_column_int(rows.get(), 2) != 0, sqlite3_column_int64(rows.get(), 3),
+                               sqlite3_column_int64(rows.get(), 4), sqlite3_column_double(rows.get(), 5),
+                               sqlite3_column_int64(rows.get(), 6), sqlite3_column_int64(rows.get(), 7)});
+        }
+        if (status != SQLITE_DONE)
+            return false;
+    }
+    for (const auto &entry : entries)
+    {
+        const std::string table = pinyin_table(entry.key);
+        if (table.empty())
+            continue;
+        const double current_dee = dynamics::decayed_dee(entry.dee, entry.tick, now);
+        if (dynamics::forgotten(current_dee))
+        {
+            // 学来的整句没有出厂行，直接删；出厂词回到出厂词频。两种都不留日志行，回放时不会再被写回。
+            const std::string statement = entry.user_inserted
+                                              ? "DELETE FROM main.\"" + table + "\" WHERE key=?1 AND value=?2"
+                                              : "UPDATE main.\"" + table + "\" SET weight=?3 WHERE key=?1 AND value=?2";
+            auto stmt = prepare(db, statement);
+            if (!stmt || !bind_text(stmt.get(), 1, entry.key) || !bind_text(stmt.get(), 2, entry.value) ||
+                (!entry.user_inserted &&
+                 sqlite3_bind_int64(stmt.get(), 3, clamp_managed_weight(entry.base_weight)) != SQLITE_OK) ||
+                sqlite3_step(stmt.get()) != SQLITE_DONE)
+                return false;
+            auto drop =
+                prepare(db, "DELETE FROM " + journal_schema +
+                                ".user_dictionary_operations WHERE dictionary='pinyin' AND key=?1 AND value=?2");
+            if (!drop || !bind_text(drop.get(), 1, entry.key) || !bind_text(drop.get(), 2, entry.value) ||
+                sqlite3_step(drop.get()) != SQLITE_DONE)
+                return false;
+            continue;
+        }
+        const std::int64_t target = clamp_managed_weight(
+            dynamics::effective_weight(entry.base_weight, current_dee, entry.commits, now, kManagedWeightCeiling));
+        const double change = std::abs(static_cast<double>(target - entry.weight)) /
+                              static_cast<double>((std::max)(entry.weight, std::int64_t{1}));
+        if (change < dynamics::kSweepRewriteRatio)
+            continue;
+        auto stmt = prepare(db, "UPDATE main.\"" + table + "\" SET weight=?3 WHERE key=?1 AND value=?2");
+        auto note = prepare(db, "UPDATE " + journal_schema +
+                                    ".user_dictionary_operations SET weight=?3 WHERE dictionary='pinyin' AND key=?1 "
+                                    "AND value=?2");
+        if (!stmt || !note)
+            return false;
+        for (sqlite3_stmt *update : {stmt.get(), note.get()})
+        {
+            if (!bind_text(update, 1, entry.key) || !bind_text(update, 2, entry.value) ||
+                sqlite3_bind_int64(update, 3, target) != SQLITE_OK || sqlite3_step(update) != SQLITE_DONE)
+                return false;
+        }
+    }
+    return true;
+}
+
+// 打开词库、挂上日志，开一个跨两边的事务。
+struct LearningTransaction
+{
+    Db database;
+    bool open = false;
+
+    bool begin(const std::string &main_db_path, const std::string &user_db_path)
+    {
+        // Initialize the journal before attaching it; every operation owns its connections.
+        if (!ensure_user_database(user_db_path))
+            return false;
+        database = open_database(main_db_path, SQLITE_OPEN_READWRITE);
+        auto attach = database ? prepare(database.get(), "ATTACH DATABASE ?1 AS candidate_journal") : Stmt{};
+        if (!attach || !bind_text(attach.get(), 1, user_db_path) || sqlite3_step(attach.get()) != SQLITE_DONE)
+            return false;
+        attach.reset();
+        open = execute_sql(database.get(), "BEGIN IMMEDIATE");
+        return open;
+    }
+    bool commit()
+    {
+        if (!execute_sql(database.get(), "COMMIT"))
+            return false;
+        open = false;
+        return true;
+    }
+    bool rollback()
+    {
+        if (open)
+            (void)execute_sql(database.get(), "ROLLBACK");
+        open = false;
+        return false;
+    }
+    ~LearningTransaction()
+    {
+        rollback();
+    }
+};
 } // namespace
+
+bool learn_pinyin_commit(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
+                         const std::string &value, bool *ranking_changed)
+{
+    if (ranking_changed)
+        *ranking_changed = false;
+    const std::string table = pinyin_table(key);
+    if (key.empty() || value.empty() || table.empty())
+        return false;
+    LearningTransaction transaction;
+    if (!transaction.begin(main_db_path, user_db_path))
+        return false;
+    sqlite3 *db = transaction.database.get();
+    auto current = prepare(db, "SELECT MAX(weight) FROM main.\"" + table + "\" WHERE key=?1 AND value=?2");
+    if (!current || !bind_text(current.get(), 1, key) || !bind_text(current.get(), 2, value) ||
+        sqlite3_step(current.get()) != SQLITE_ROW)
+        return transaction.rollback();
+    // 词库里没有这一行（整句候选、繁体写法、日文残留等）没有可学的，不记 tick，也不造行。
+    if (sqlite3_column_type(current.get(), 0) == SQLITE_NULL)
+    {
+        current.reset();
+        (void)transaction.rollback();
+        return true;
+    }
+    const std::int64_t current_weight = sqlite3_column_int64(current.get(), 0);
+    current.reset();
+
+    LearnedRow row;
+    if (!read_learned_row(db, "candidate_journal", key, value, row))
+        return transaction.rollback();
+    const std::int64_t now = read_learn_tick(db, "candidate_journal") + 1;
+    if (!write_learn_tick(db, "candidate_journal", now))
+        return transaction.rollback();
+    if (row.deleted || row.user_owned() || row.frozen())
+        return transaction.commit() || transaction.rollback();
+
+    // commits > 0 的行接着衰减累积；没有学习记录的（出厂词，或还没迁移的旧调频记录）以此刻的权重为出厂词频起步。
+    const bool continuing = row.learned() && row.base_weight > 0;
+    const std::int64_t base_weight = continuing ? row.base_weight : (std::max)(current_weight, std::int64_t{1});
+    const std::int64_t commits = continuing ? row.commits + 1 : 1;
+    const double dee =
+        continuing ? dynamics::formula_d(1.0, static_cast<double>(now), row.dee, static_cast<double>(row.tick)) : 1.0;
+    const std::int64_t weight =
+        clamp_managed_weight(dynamics::effective_weight(base_weight, dee, commits, now, kManagedWeightCeiling));
+    if (weight != current_weight)
+    {
+        auto update = prepare(db, "UPDATE main.\"" + table + "\" SET weight=?1 WHERE key=?2 AND value=?3");
+        if (!update || sqlite3_bind_int64(update.get(), 1, weight) != SQLITE_OK || !bind_text(update.get(), 2, key) ||
+            !bind_text(update.get(), 3, value) || sqlite3_step(update.get()) != SQLITE_DONE)
+            return transaction.rollback();
+    }
+    if (!write_learned_row(db, "candidate_journal", key, value, weight, commits, dee, now, base_weight))
+        return transaction.rollback();
+    if (now % dynamics::kSweepIntervalTicks == 0 && !sweep_learned_rows(db, "candidate_journal", now))
+        return transaction.rollback();
+    if (!transaction.commit())
+        return transaction.rollback();
+    if (ranking_changed)
+        *ranking_changed = true;
+    return true;
+}
+
+bool sweep_learned_entries(const std::string &main_db_path, const std::string &user_db_path)
+{
+    LearningTransaction transaction;
+    if (!transaction.begin(main_db_path, user_db_path))
+        return false;
+    const std::int64_t now = read_learn_tick(transaction.database.get(), "candidate_journal");
+    if (!sweep_learned_rows(transaction.database.get(), "candidate_journal", now) || !transaction.commit())
+        return transaction.rollback();
+    return true;
+}
+
+bool record_learned_phrase(const std::string &user_db_path, const std::string &key, const std::string &value)
+{
+    UserDatabase db(user_db_path);
+    if (key.empty() || value.empty() || !db || !execute_sql(db.get(), "BEGIN IMMEDIATE"))
+        return false;
+    const auto rollback = [&]() {
+        (void)execute_sql(db.get(), "ROLLBACK");
+        return false;
+    };
+    LearnedRow row;
+    if (!read_learned_row(db.get(), "main", key, value, row))
+        return rollback();
+    const std::int64_t now = read_learn_tick(db.get(), "main") + 1;
+    if (!write_learn_tick(db.get(), "main", now))
+        return rollback();
+    // 手动加的词（commits = 0）不转成学习条目；删除过的、学过的（再次落库）按新的或接着累积的学习条目记。
+    if (row.user_owned() || row.frozen())
+        return execute_sql(db.get(), "COMMIT") || rollback();
+    const bool continuing = row.learned() && row.base_weight > 0;
+    const std::int64_t commits = continuing ? row.commits + 1 : 1;
+    const double dee =
+        continuing ? dynamics::formula_d(1.0, static_cast<double>(now), row.dee, static_cast<double>(row.tick)) : 1.0;
+    const std::int64_t base_weight = continuing ? row.base_weight : learned_phrase_base_weight(now);
+    const std::int64_t weight =
+        clamp_managed_weight(dynamics::effective_weight(base_weight, dee, commits, now, kManagedWeightCeiling));
+    auto stmt = prepare(db.get(), "INSERT INTO user_dictionary_operations(dictionary,key,value,operation,weight,"
+                                  "user_inserted,commits,dee,tick,base_weight) VALUES('pinyin',?1,?2,'upsert',?3,1,"
+                                  "?4,?5,?6,?7) ON CONFLICT(dictionary,key,value) DO UPDATE SET operation='upsert',"
+                                  "weight=excluded.weight,user_inserted=1,weight_edited=0,commits=excluded.commits,"
+                                  "dee=excluded.dee,tick=excluded.tick,base_weight=excluded.base_weight,"
+                                  "updated_at=unixepoch()");
+    if (!stmt || !bind_text(stmt.get(), 1, key) || !bind_text(stmt.get(), 2, value) ||
+        sqlite3_bind_int64(stmt.get(), 3, weight) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt.get(), 4, commits) != SQLITE_OK ||
+        sqlite3_bind_double(stmt.get(), 5, dee) != SQLITE_OK || sqlite3_bind_int64(stmt.get(), 6, now) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt.get(), 7, base_weight) != SQLITE_OK || sqlite3_step(stmt.get()) != SQLITE_DONE)
+        return rollback();
+    stmt.reset();
+    return execute_sql(db.get(), "COMMIT") || rollback();
+}
 
 bool bump_pinyin_weight(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
                         const std::string &value)
 {
-    return bump_weight_in_table(main_db_path, user_db_path, pinyin_table(key), DictionaryKind::Pinyin, key, value);
+    return learn_pinyin_commit(main_db_path, user_db_path, key, value);
 }
 
 namespace
@@ -1782,6 +2097,10 @@ bool adjust_candidate_ranking(const std::string &main_db_path, const std::string
         return false;
     if (!force_top && mode == "disabled")
         return true;
+    // 自动学习：每次上屏（含直接上屏首选）记一次，按衰减打分换算权重（见 learning_dynamics.h），
+    // 不再按排位挪位置，也不数选择次数。置顶（force_top）是用户明确的指令，仍走下面按排位写权重的路径。
+    if (!force_top)
+        return learn_pinyin_commit(main_db_path, user_db_path, entry_key, value, ranking_changed);
     UserDatabase user_db(user_db_path);
     if (!user_db)
         return false;
@@ -1791,30 +2110,6 @@ bool adjust_candidate_ranking(const std::string &main_db_path, const std::string
     if (!execute_sql(user_db.get(), "BEGIN IMMEDIATE"))
         return false;
     const auto rollback_user = [&]() { (void)execute_sql(user_db.get(), "ROLLBACK"); };
-    trigger_count = (std::max)(1, (std::min)(10, trigger_count));
-    if (!force_top)
-    {
-        auto counter = prepare(
-            user_db.get(),
-            "INSERT INTO candidate_selection_state(context_key,entry_key,value,selection_count) VALUES(?1,?2,?3,1)"
-            " ON CONFLICT(context_key,entry_key,value) DO UPDATE SET selection_count=selection_count+1"
-            " RETURNING selection_count");
-        if (!counter || !bind_text(counter.get(), 1, context_key) || !bind_text(counter.get(), 2, entry_key) ||
-            !bind_text(counter.get(), 3, value) || sqlite3_step(counter.get()) != SQLITE_ROW)
-        {
-            rollback_user();
-            return false;
-        }
-        if (sqlite3_column_int(counter.get(), 0) < trigger_count)
-        {
-            counter.reset();
-            const bool committed = execute_sql(user_db.get(), "COMMIT");
-            if (!committed)
-                rollback_user();
-            return committed;
-        }
-    }
-
     // One list mixes several entry keys: single-letter and jianpin contexts show
     // 一/yi next to 有/you, and a re-segmentation shows 吉安 (ji'an) inside the jian list. All of them have to
     // share one scale, because the user's 调频 is "move this above what I can see".
@@ -1987,6 +2282,18 @@ bool adjust_candidate_ranking(const std::string &main_db_path, const std::string
         rollback_user();
         return false;
     }
+    // 置顶的权重是用户明确的指令：commits 记 -1，衰减学习不再碰它，升级回放也不把它当旧调频去换算。
+    {
+        auto freeze = prepare(user_db.get(), "UPDATE user_dictionary_operations SET commits=-1 WHERE "
+                                             "dictionary='pinyin' AND key=?1 AND value=?2 AND operation='upsert'");
+        if (!freeze || !bind_text(freeze.get(), 1, entry_key) || !bind_text(freeze.get(), 2, value) ||
+            sqlite3_step(freeze.get()) != SQLITE_DONE)
+        {
+            rollback_main();
+            rollback_user();
+            return false;
+        }
+    }
     auto reset = prepare(user_db.get(),
                          "DELETE FROM candidate_selection_state WHERE context_key=?1 AND entry_key=?2 AND value=?3");
     const bool reset_ok = reset && bind_text(reset.get(), 1, context_key) && bind_text(reset.get(), 2, entry_key) &&
@@ -2071,10 +2378,22 @@ struct RebasedOperation
     std::int64_t weight = 0;
 };
 
+// 回放时算出的学习条目新状态：旧调频记录迁移成衰减条目，或出厂词库换过后改记新的出厂词频。
+struct LearnedReplayUpdate
+{
+    std::string key;
+    std::string value;
+    std::int64_t weight = 0;
+    std::int64_t commits = 0;
+    double dee = 0;
+    std::int64_t tick = 0;
+    std::int64_t base_weight = 0;
+};
+
 // 把改记到新词库上的调频写回日志，并记下这次回放到的词库。写不成只是下次回放再改记一遍，
 // 不影响已经提交的 msime.db，所以不算回放失败。
-bool save_rebased_journal(const std::string &user_db_path, const std::string &dictionary_identity,
-                          const std::vector<RebasedOperation> &rebased)
+bool save_rebased_journal(const std::string &user_db_path, const std::optional<std::string> &dictionary_identity,
+                          const std::vector<RebasedOperation> &rebased, const std::vector<LearnedReplayUpdate> &learned)
 {
     UserDatabase user_db(user_db_path);
     if (!user_db || !execute_sql(user_db.get(), "BEGIN IMMEDIATE"))
@@ -2094,12 +2413,33 @@ bool save_rebased_journal(const std::string &user_db_path, const std::string &di
             return false;
     }
     update.reset();
-    auto state = prepare(user_db.get(), "INSERT INTO dictionary_state(name,value) VALUES(?1,?2)"
-                                        " ON CONFLICT(name) DO UPDATE SET value=excluded.value");
-    if (!state || !bind_text(state.get(), 1, kReplayedDictionaryState) ||
-        !bind_text(state.get(), 2, dictionary_identity) || sqlite3_step(state.get()) != SQLITE_DONE)
+    auto learned_update = prepare(user_db.get(), "UPDATE user_dictionary_operations SET weight=?3,commits=?4,dee=?5,"
+                                                 "tick=?6,base_weight=?7 WHERE dictionary='pinyin' AND key=?1 AND "
+                                                 "value=?2 AND operation='upsert'");
+    if (!learned_update)
         return false;
-    state.reset();
+    for (const auto &entry : learned)
+    {
+        sqlite3_reset(learned_update.get());
+        if (!bind_text(learned_update.get(), 1, entry.key) || !bind_text(learned_update.get(), 2, entry.value) ||
+            sqlite3_bind_int64(learned_update.get(), 3, entry.weight) != SQLITE_OK ||
+            sqlite3_bind_int64(learned_update.get(), 4, entry.commits) != SQLITE_OK ||
+            sqlite3_bind_double(learned_update.get(), 5, entry.dee) != SQLITE_OK ||
+            sqlite3_bind_int64(learned_update.get(), 6, entry.tick) != SQLITE_OK ||
+            sqlite3_bind_int64(learned_update.get(), 7, entry.base_weight) != SQLITE_OK ||
+            sqlite3_step(learned_update.get()) != SQLITE_DONE)
+            return false;
+    }
+    learned_update.reset();
+    if (dictionary_identity)
+    {
+        auto state = prepare(user_db.get(), "INSERT INTO dictionary_state(name,value) VALUES(?1,?2)"
+                                            " ON CONFLICT(name) DO UPDATE SET value=excluded.value");
+        if (!state || !bind_text(state.get(), 1, kReplayedDictionaryState) ||
+            !bind_text(state.get(), 2, *dictionary_identity) || sqlite3_step(state.get()) != SQLITE_DONE)
+            return false;
+        state.reset();
+    }
     return execute_sql(user_db.get(), "COMMIT");
 }
 
@@ -2193,8 +2533,18 @@ ReplayResult replay(const std::string &user_db_path, const std::string &main_db_
     const bool rebase =
         dictionary_identity.has_value() && replayed_dictionary_identity(journal.get()) != dictionary_identity;
     std::vector<RebasedOperation> rebased;
-    auto rows = prepare(journal.get(), "SELECT dictionary,key,value,operation,weight,display," + learned_kana + ",(" +
-                                           user_owned + ") FROM user_dictionary_operations ORDER BY updated_at,rowid");
+    std::vector<LearnedReplayUpdate> learned_updates;
+    // 衰减打分学习的状态（见 learning_dynamics.h）。旧日志没有这几列：整句造词和调频留下的旧记录在这里
+    // 迁移成衰减条目；出厂词库在回放前已是新装的，shipped_weight 就是它的出厂词频。
+    const bool has_learning = has_column(journal.get(), "user_dictionary_operations", "commits");
+    const std::string learning_columns = has_learning ? "commits,dee,tick,base_weight" : "0,0,0,0";
+    const std::int64_t learn_now = read_learn_tick(journal.get(), "main");
+    auto rows =
+        prepare(journal.get(),
+                "SELECT dictionary,key,value,operation,weight,display," + learned_kana + ",(" + user_owned + ")," +
+                    learning_columns + "," + (has_user_inserted ? "user_inserted" : "0") + "," +
+                    (has_column(journal.get(), "user_dictionary_operations", "weight_edited") ? "weight_edited" : "0") +
+                    " FROM user_dictionary_operations ORDER BY updated_at,rowid");
     if (!rows)
     {
         result.error = "invalid user dictionary database";
@@ -2222,12 +2572,75 @@ ReplayResult replay(const std::string &user_db_path, const std::string &main_db_
             ++result.skipped;
             continue;
         }
-        if (rebase && operation == "upsert" && !user_owned_row && kind == "pinyin")
+        const std::int64_t commits = sqlite3_column_int64(rows.get(), 8);
+        const double dee = sqlite3_column_double(rows.get(), 9);
+        const std::int64_t row_tick = sqlite3_column_int64(rows.get(), 10);
+        const std::int64_t base_weight = sqlite3_column_int64(rows.get(), 11);
+        const bool user_inserted_row = sqlite3_column_int(rows.get(), 12) != 0;
+        const bool weight_edited_row = sqlite3_column_int(rows.get(), 13) != 0;
+        if (kind == "pinyin" && operation == "upsert")
+        {
+            const auto shipped = shipped_weight(main_db.get(), key, value);
+            std::optional<LearnedReplayUpdate> state;
+            if (commits > 0)
+            {
+                // 已是衰减条目：同一份出厂词库上用日志里记的出厂词频（词库里这一行可能已经是写入过的权重，
+                // 不能当出厂词频，否则重复回放会越乘越大）；换了词库才取新词库里这一行的；两边都没有
+                // （整句造词）按造词的起始词频。
+                const std::int64_t base = (base_weight > 0 && !rebase) ? base_weight
+                                          : shipped                    ? *shipped
+                                          : base_weight > 0            ? base_weight
+                                                                       : learned_phrase_base_weight(learn_now);
+                state = LearnedReplayUpdate{key, value, 0, commits, dee, row_tick, base};
+            }
+            else if (!weight_edited_row && user_inserted_row && weight == kLearnedPhraseWeight &&
+                     pinyin_segments(key).size() > dynamics::kMaxLearnedPhraseSyllables)
+            {
+                // 旧版整句/分段造词落库的长条目（权重固定 10000、记成用户词，超过现在的造词上限）：迁移成学习条目，
+                // 从 dee = 1 起随衰减自然淘汰。旧日志里分不出 10000 的短词是整句造的还是设置页手动加的（设置页
+                // 的缺省权重也是 10000），所以不超过上限的一律按用户手动加的保留，不会被遗忘。
+                state = LearnedReplayUpdate{key, value, 0, 1, 1.0, learn_now, learned_phrase_base_weight(learn_now)};
+                ++result.migrated;
+            }
+            else if (!user_owned_row && commits == 0 && shipped && weight > *shipped)
+            {
+                // 旧版调频留下的绝对权重：比出厂词频高多少倍，就换算成多少热度，不丢。
+                const double ratio = static_cast<double>(weight) / static_cast<double>(*shipped);
+                state = LearnedReplayUpdate{key,       value,   0, 1, dynamics::dee_for_boost(ratio, 1, learn_now),
+                                            learn_now, *shipped};
+                ++result.migrated;
+            }
+            if (state)
+            {
+                const double current_dee = dynamics::decayed_dee(state->dee, state->tick, learn_now);
+                if (dynamics::forgotten(current_dee))
+                {
+                    ++result.skipped; // 已遗忘：出厂词保持出厂词频，整句不写回
+                    ++result.forgotten;
+                    continue;
+                }
+                state->weight = clamp_managed_weight(dynamics::effective_weight(
+                    state->base_weight, current_dee, state->commits, learn_now, kManagedWeightCeiling));
+                if (!apply_pinyin(main_db.get(), key, value, operation, state->weight))
+                {
+                    ++result.failed;
+                    continue;
+                }
+                ++result.applied;
+                ++result.learned;
+                if (commits == 0 || state->base_weight != base_weight || state->weight != weight)
+                    learned_updates.push_back(*state);
+                continue;
+            }
+        }
+        // 旧调频留下的、不高于出厂词频的权重（给提升的词让位的邻居，或换了词库后旧量级的权重）：
+        // 衰减学习接手后它们没有意义，保留出厂词频。换了词库时顺带把日志改记成新出厂词频。
+        if (operation == "upsert" && !user_owned_row && commits <= 0 && kind == "pinyin")
         {
             const auto shipped = shipped_weight(main_db.get(), key, value);
             if (shipped && *shipped >= weight)
             {
-                if (*shipped != weight)
+                if (rebase && *shipped != weight)
                     rebased.push_back({kind, key, value, *shipped});
                 ++result.applied;
                 continue;
@@ -2259,10 +2672,12 @@ ReplayResult replay(const std::string &user_db_path, const std::string &main_db_
                                ? "cannot commit replay transaction; changes were rolled back"
                                : "cannot commit or roll back replay transaction";
         }
-        else if (rebase)
+        else if (rebase || !learned_updates.empty())
         {
             journal.reset();
-            if (save_rebased_journal(user_db_path, *dictionary_identity, rebased))
+            if (save_rebased_journal(user_db_path, rebase ? dictionary_identity : std::nullopt, rebased,
+                                     learned_updates) &&
+                rebase)
                 result.rebased = static_cast<int>(rebased.size());
         }
     }
@@ -2316,7 +2731,8 @@ bool apply_personal_edit(sqlite3 *db, const PersonalDictionaryEntry &entry, bool
         db, "INSERT INTO "
             "personal_journal.user_dictionary_operations(dictionary,key,value,operation,weight,display,user_inserted)"
             " VALUES(?1,?2,?3,?4,?5,?6,1) ON CONFLICT(dictionary,key,value) DO UPDATE SET operation=excluded.operation,"
-            " weight=excluded.weight,display=excluded.display,user_inserted=1,updated_at=unixepoch()");
+            " weight=excluded.weight,display=excluded.display,user_inserted=1,commits=0,dee=0,tick=0,base_weight=0,"
+            " updated_at=unixepoch()");
     return journal && bind_text(journal.get(), 1, kind_name(journal_kind(entry.kind))) &&
            bind_text(journal.get(), 2, entry.key) && bind_text(journal.get(), 3, entry.value) &&
            bind_text(journal.get(), 4, operation) &&

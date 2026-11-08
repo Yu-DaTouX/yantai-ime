@@ -969,7 +969,8 @@ std::optional<std::string> InputSession::learn_candidate(std::size_t index)
         }
         return std::nullopt;
     }
-    if (frequency_adjustment_.mode == FrequencyAdjustmentMode::Disabled || index == 0)
+    // 衰减打分学习下，直接上屏首选也要记一次（强化它不被遗忘），所以不再跳过 index == 0。
+    if (frequency_adjustment_.mode == FrequencyAdjustmentMode::Disabled)
     {
         return std::nullopt;
     }

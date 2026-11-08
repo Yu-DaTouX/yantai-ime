@@ -17,6 +17,13 @@ struct DictionaryStateEntry
     std::string display;
     bool deleted = false;
     bool user_inserted = false;
+    // 衰减打分学习的状态（commits > 0 的条目权重由 base_weight、dee、tick 与全局上屏计数算出，见
+    // user_dictionary/learning_dynamics.h）。全局上屏计数不单独导出：导入时取各条目 tick 的最大值。
+    // 旧版导出没有这几项，按 0（不是学习条目）读入。
+    std::int64_t commits = 0;
+    double dee = 0;
+    std::int64_t tick = 0;
+    std::int64_t base_weight = 0;
 };
 struct DictionaryStatePosition
 {

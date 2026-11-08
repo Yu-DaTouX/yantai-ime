@@ -5,6 +5,7 @@
 #include <sqlite3.h>
 #include <utf8.h>
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -100,8 +101,19 @@ void stream_dictionary_state(const RuntimePaths &paths, const std::function<bool
     execute(db.get(), "PRAGMA query_only=ON");
     execute(db.get(), "BEGIN");
     {
-        auto rows = prepare(db.get(), "SELECT dictionary,key,value,weight,display,operation,user_inserted FROM "
-                                      "user_dictionary_operations ORDER BY dictionary,key,value");
+        // 旧日志还没有学习状态那几列（打开它的一方会补，只读导出不动它）。
+        bool has_learning = false;
+        {
+            auto columns = prepare(db.get(), "PRAGMA table_info(user_dictionary_operations)");
+            while (sqlite3_step(columns.get()) == SQLITE_ROW)
+                has_learning = has_learning || text(columns.get(), 1) == "base_weight";
+        }
+        auto rows = prepare(db.get(), has_learning ? "SELECT dictionary,key,value,weight,display,operation,"
+                                                     "user_inserted,commits,dee,tick,base_weight FROM "
+                                                     "user_dictionary_operations ORDER BY dictionary,key,value"
+                                                   : "SELECT dictionary,key,value,weight,display,operation,"
+                                                     "user_inserted,0,0,0,0 FROM "
+                                                     "user_dictionary_operations ORDER BY dictionary,key,value");
         int status;
         while ((status = sqlite3_step(rows.get())) == SQLITE_ROW)
         {
@@ -113,7 +125,11 @@ void stream_dictionary_state(const RuntimePaths &paths, const std::function<bool
                                        sqlite3_column_int64(rows.get(), 3),
                                        text(rows.get(), 4),
                                        text(rows.get(), 5) == "delete",
-                                       sqlite3_column_int(rows.get(), 6) != 0};
+                                       sqlite3_column_int(rows.get(), 6) != 0,
+                                       sqlite3_column_int64(rows.get(), 7),
+                                       sqlite3_column_double(rows.get(), 8),
+                                       sqlite3_column_int64(rows.get(), 9),
+                                       sqlite3_column_int64(rows.get(), 10)};
             require(emit(entry));
         }
         require(status == SQLITE_DONE);
@@ -160,8 +176,8 @@ RuntimePaths stage_dictionary_state(const std::filesystem::path &resources, cons
             execute(db.get(), "BEGIN IMMEDIATE");
             auto entry = prepare(
                 db.get(),
-                "INSERT INTO user_dictionary_operations(dictionary,key,value,operation,weight,display,user_inserted) "
-                "VALUES(?1,?2,?3,?4,?5,?6,?7)");
+                "INSERT INTO user_dictionary_operations(dictionary,key,value,operation,weight,display,user_inserted,"
+                "commits,dee,tick,base_weight) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)");
             auto position = prepare(
                 db.get(),
                 "INSERT INTO fixed_candidate_positions(context_key,entry_key,value,position) VALUES(?1,?2,?3,?4)");
@@ -170,6 +186,7 @@ RuntimePaths stage_dictionary_state(const std::filesystem::path &resources, cons
                                   "VALUES(?1,?2,?3,?4)");
             DictionaryStateRecord record;
             std::size_t count = 0;
+            std::int64_t max_tick = 0;
             while (next(record))
             {
                 require(++count <= maximum_records);
@@ -191,6 +208,15 @@ RuntimePaths stage_dictionary_state(const std::filesystem::path &resources, cons
                             require(sqlite3_bind_int64(stmt, 5, value.weight) == SQLITE_OK);
                             bind(stmt, 6, value.display);
                             require(sqlite3_bind_int(stmt, 7, value.user_inserted) == SQLITE_OK);
+                            require(value.commits >= -1 && value.commits <= 1000000000 && std::isfinite(value.dee) &&
+                                    value.dee >= 0 && value.dee <= 1e9 && value.tick >= 0 &&
+                                    value.tick <= 1000000000000LL && value.base_weight >= 0 &&
+                                    value.base_weight <= 100000000);
+                            require(sqlite3_bind_int64(stmt, 8, value.commits) == SQLITE_OK);
+                            require(sqlite3_bind_double(stmt, 9, value.dee) == SQLITE_OK);
+                            require(sqlite3_bind_int64(stmt, 10, value.tick) == SQLITE_OK);
+                            require(sqlite3_bind_int64(stmt, 11, value.base_weight) == SQLITE_OK);
+                            max_tick = (std::max)(max_tick, value.tick);
                         }
                         else
                         {
@@ -215,6 +241,14 @@ RuntimePaths stage_dictionary_state(const std::filesystem::path &resources, cons
                         require(sqlite3_reset(stmt) == SQLITE_OK);
                     },
                     record);
+            }
+            // 全局上屏计数：条目的 tick 都不会超过它，取最大值作为下限，之后的上屏接着往上数。
+            if (max_tick > 0)
+            {
+                auto tick = prepare(db.get(), "INSERT INTO dictionary_state(name,value) VALUES('learn_tick',?1)"
+                                              " ON CONFLICT(name) DO UPDATE SET value=excluded.value");
+                bind(tick.get(), 1, std::to_string(max_tick));
+                require(sqlite3_step(tick.get()) == SQLITE_DONE);
             }
             execute(db.get(), "COMMIT");
         }

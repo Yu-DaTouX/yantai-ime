@@ -1,5 +1,6 @@
 #include "fuzzy_pinyin.h"
 #include "quanpin_dictionary.h"
+#include "../user_dictionary/learning_dynamics.h"
 #include "../user_dictionary/user_dictionary_journal.h"
 
 #include "../common/string_utils.h"
@@ -2261,6 +2262,11 @@ int QuanpinDictionary::create_word(std::string pinyin, std::string word)
     {
         return ERROR_CODE;
     }
+    // 过长的整句/分段造词只是这一次输入的产物，不再落库（已有的由衰减自然淘汰）。
+    if (cuts.front().size() > user_dictionary::dynamics::kMaxLearnedPhraseSyllables)
+    {
+        return OK;
+    }
 
     pinyin = quanpin::join_segments(cuts.front());
     const std::string jp = quanpin::segments_to_jianpin(cuts.front());
@@ -2278,8 +2284,8 @@ int QuanpinDictionary::create_word(std::string pinyin, std::string word)
     {
         return ERROR_CODE;
     }
-    (void)user_dictionary::record_user_insert(metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)),
-                                              user_dictionary::DictionaryKind::Pinyin, pinyin, word, 10000);
+    (void)user_dictionary::record_learned_phrase(
+        metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)), pinyin, word);
     reset_cache();
     return OK;
 }
@@ -2294,6 +2300,11 @@ int QuanpinDictionary::create_word_from_canonical_pinyin(std::string pinyin, std
         }))
     {
         return ERROR_CODE;
+    }
+    // 过长的整句/分段造词只是这一次输入的产物，不再落库（已有的由衰减自然淘汰）。
+    if (segments.size() > user_dictionary::dynamics::kMaxLearnedPhraseSyllables)
+    {
+        return OK;
     }
 
     pinyin = quanpin::join_segments(segments);
@@ -2310,8 +2321,8 @@ int QuanpinDictionary::create_word_from_canonical_pinyin(std::string pinyin, std
     {
         return ERROR_CODE;
     }
-    (void)user_dictionary::record_user_insert(metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)),
-                                              user_dictionary::DictionaryKind::Pinyin, pinyin, word, 10000);
+    (void)user_dictionary::record_learned_phrase(
+        metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)), pinyin, word);
     reset_cache();
     return OK;
 }
@@ -2335,13 +2346,16 @@ int QuanpinDictionary::update_weight_by_pinyin_and_word(std::string pinyin, std:
     if (segments.size() > han_count)
         segments.resize(han_count);
     const std::string normalized = quanpin::join_segments(segments);
-    if (update_data(build_sql_for_updating_word(normalized, word)) != OK)
+    // 衰减打分学习：上屏一次记一次（见 user_dictionary::learn_pinyin_commit）。词库里没有这一行时什么也不记。
+    bool changed = false;
+    if (!user_dictionary::learn_pinyin_commit(db_path_,
+                                              metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)),
+                                              normalized, word, &changed))
     {
         return ERROR_CODE;
     }
-    (void)user_dictionary::record_pinyin_upsert_from_database(
-        db_path_, normalized, word, metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)));
-    reset_cache();
+    if (changed)
+        reset_cache();
     return OK;
 }
 
