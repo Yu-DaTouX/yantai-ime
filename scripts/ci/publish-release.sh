@@ -5,14 +5,17 @@
 # SIGNING_ENABLED, PRODUCT_MANIFEST, DICTIONARY_TAG, DRY_RUN.
 set -euo pipefail
 
-[[ "$DRY_RUN" == true || "$DRY_RUN" == false ]]
-[[ "$TAG_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-[[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
-[[ "$SIGNING_ENABLED" == true ]] || { echo '::error::Unsigned releases are forbidden'; exit 1; }
-[[ "$ASSET_NAME" == "MetasequoiaIME_Setup_${TAG_NAME}.exe" ]]
-[[ "$ASSET_SHA256" =~ ^[0-9a-f]{64}$ ]]
-actual_sha=$(sha256sum "$ASSET_PATH" | cut -d ' ' -f 1)
-[[ "$actual_sha" == "$ASSET_SHA256" ]]
+fail() { echo "::error::$1"; exit 1; }
+[[ "$DRY_RUN" == true || "$DRY_RUN" == false ]] || fail "DRY_RUN must be true or false"
+[[ "$TAG_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "Bad tag: $TAG_NAME"
+[[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "Bad target SHA: $TARGET_SHA"
+[[ "$SIGNING_ENABLED" == true ]] || fail 'Unsigned releases are forbidden'
+[[ "$ASSET_NAME" == "MetasequoiaIME_Setup_${TAG_NAME}.exe" ]] || fail "Unexpected asset name: $ASSET_NAME"
+[[ "$ASSET_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail "Bad asset SHA256"
+# Read through stdin: for a Windows path with backslashes sha256sum escapes the name and prefixes
+# the digest with "", which would never match.
+actual_sha=$(sha256sum < "$ASSET_PATH" | cut -d ' ' -f 1)
+[[ "$actual_sha" == "$ASSET_SHA256" ]] || fail "Installer SHA256 mismatch: $actual_sha"
 
 mkdir -p release-assets
 cp "$ASSET_PATH" "release-assets/$ASSET_NAME"
