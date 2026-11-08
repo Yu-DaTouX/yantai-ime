@@ -11,8 +11,6 @@ CompileFlags:
       "-I@ENGINE_ROOT@",
       # utfcpp includes
       "-I@UTFCPP@",
-      "-I@VOICE_INCLUDE@",
-      "-I@MINIAUDIO@",
       "-I@GUI_INCLUDE@",
       # Windows Implementation Library includes
       "-I@WIL@",

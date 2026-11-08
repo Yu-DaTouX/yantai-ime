@@ -7,7 +7,6 @@
 #include <cstdint>
 #include "ipc.h"
 #include "conversion/chinese_converter.h"
-#include "ipc/ai_context_policy.h"
 #include "ipc/candidate_render_sync.h"
 #include "ipc/candidate_selection_policy.h"
 #include "ipc/input_key_policy.h"
@@ -84,8 +83,7 @@ void LearnEnglishSlot(const WordItem &selected, size_t absolute_index, uint64_t 
 {
     const auto &items = Global::candidate_ui.items;
     if (!g_inputSession || g_english_input_mode || IsYModeInput(g_inputSession->get_pinyin_sequence_with_cases()) ||
-        g_inputSession->current_scheme_type() != SchemeType::Quanpin ||
-        absolute_index >= items.size())
+        g_inputSession->current_scheme_type() != SchemeType::Quanpin || absolute_index >= items.size())
         return;
     const auto english_index = FanyImeIpc::SlottedEnglishIndex(items);
     if (!english_index)
@@ -258,8 +256,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         // 字母词（T恤）也不调频：拼音分表里没有它的行，调频改不到，只会白记选择计数（#1340）。
         // 长词前缀补全（#1343）的键比首选长，和同页候选不是一个读音，不按排位挪位置，选中时只在它自己的
         // 键下加权（见下面 EnqueueBumpPinyinWeightTask）。
-        isNeedUpdateWeight =
-            !curWordItem.latin_word && !curWordItem.prefix_completion && !is_first_page_first;
+        isNeedUpdateWeight = !curWordItem.latin_word && !curWordItem.prefix_completion && !is_first_page_first;
         if (curWordItem.prefix_completion && !curWordItem.canonical_pinyin.empty())
         {
             EnqueueBumpPinyinWeightTask(curWordItem.canonical_pinyin, curWordItem.word, client_id, activation_epoch);
@@ -305,7 +302,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             }
             // 同理，这条捷径也到不了下面的 AI 上下文累积。造词前缀在它自己被选中的那次
             // ProcessSelectionKey 里已经追加过了，这里只补本次提交的这一段。
-            AppendAiContext(curWord);
+            AppendRescoringContext(curWord);
             if (curWordItem.source == CandidateSource::EnglishDictionary && isNeedUpdateWeight)
             {
                 EnqueueAdjustCandidateRankingTask(/*english=*/true, EnglishRankingContextKey(), curWordItem.pinyin,
@@ -317,66 +314,12 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             {
                 EnqueueLearnDateTimeOrderTask(curWordItem.pinyin, client_id, activation_epoch);
             }
-            UpdateCloudInput("");
             UpdateEnglishInput("");
             UpdateMixedInput({});
             g_inputSession->reset_state();
             GlobalIme::composition.clear();
             ClearSpecialModeTriggers();
             return;
-        }
-        std::string cloudCommittedPinyin;
-        bool cloudCommittedPinyinIsCanonical = false;
-        std::string aiCommittedPinyin;
-        bool aiCommittedPinyinIsCanonical = false;
-        if (curWordItem.source == CandidateSource::CloudSuggestion)
-        {
-            if (!curWordItem.canonical_pinyin.empty())
-            {
-                cloudCommittedPinyin = curWordItem.canonical_pinyin;
-                cloudCommittedPinyinIsCanonical = true;
-            }
-            else if (g_inputSession->is_all_complete_pure_pinyin())
-            {
-                // 与 AI 联想同一个坑：committed_pinyin 走的是 normalized_input，丢掉了音节
-                // 边界，create_word 会用贪心的 "correction" 切分重新断句，qi'e'huan 落成
-                // qie'huan，音节数与字数对不上、do_validate 静默失败而不入库。整串是完整
-                // 拼音时改用带撇号的 normalized_segmentation 作 canonical 键，按用户实际断句
-                // 落库。简拼 / 带 helpcode 等非完整拼音的云候选仍走原来的 committed_pinyin
-                // 路径（见下面的 else），避免回归。
-                cloudCommittedPinyin = g_inputSession->get_pinyin_segmentation();
-                cloudCommittedPinyinIsCanonical = true;
-            }
-            else
-            {
-                cloudCommittedPinyin = g_inputSession->get_cloud_query_state().committed_pinyin;
-            }
-        }
-        if (curWordItem.source == CandidateSource::AiSuggestion)
-        {
-            if (g_inputSession->is_all_complete_pure_pinyin())
-            {
-                if (!curWordItem.canonical_pinyin.empty())
-                {
-                    aiCommittedPinyin = curWordItem.canonical_pinyin;
-                    aiCommittedPinyinIsCanonical = true;
-                }
-                else
-                {
-                    // AI 候选自己不带 canonical_pinyin。committed_pinyin 走的是
-                    // normalized_input，那串已经去掉了音节边界（见 quanpin_scheme 里
-                    // 只往 normalized_input 里塞非撇号字符），create_word 会用贪心的
-                    // "correction" 切分重新断句：qi'e'huan 落成 qie'huan，音节数与字数
-                    // 对不上，do_validate 直接判失败、静默不入库，于是用户再打同样的音
-                    // 时这条 AI 联想仍然要靠现场猜。这里改用带撇号的 normalized_segmentation
-                    // （即屏幕上的分段，is_all_complete_pure_pinyin 已保证它整串是完整音节）
-                    // 作 canonical 键，create_word_from_canonical_pinyin 按撇号 split、不再
-                    // 重新贪心断句，用户实际选的那条读音就能正确落库。
-                    aiCommittedPinyin = g_inputSession->get_pinyin_segmentation();
-                    aiCommittedPinyinIsCanonical = true;
-                }
-            }
-            isNeedUpdateWeight = false;
         }
         // 这次选择之前是否已经在造词。下面的造词收尾会清掉这个标志，之后就问不出来了。
         const bool was_creating_word = GlobalIme::composition.creating_word.active;
@@ -404,12 +347,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         {
             GlobalIme::composition.caret_position = g_inputSession->get_pinyin_sequence_with_cases().size();
         }
-        // A cloud suggestion is an already-composed result returned for the
-        // current query.  It must commit as one candidate even when the
-        // returned query spelling is shorter than the raw input (for example
-        // with an abbreviation or an active help-code suffix).  Treating it
-        // like an ordinary partial candidate enters word-creation mode, while
-        // the cloud branch below still persists the selected word.
         const bool isNeedCreateWord =
             FanyImeIpc::ShouldEnterCreatingWord(curWordItem.source, selection_transition.continues_composition);
         if (isNeedCreateWord)
@@ -491,29 +428,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             EnqueueStoreUserPhraseTask(curWordItem.canonical_pinyin, curWord, /*pinyin_is_canonical=*/true);
         }
 
-        // 看看云联想出来的词是否需要被插入到数据库
-        if (curWordItem.source == CandidateSource::CloudSuggestion && !cloudCommittedPinyin.empty())
-        {
-            EnqueueStoreUserPhraseTask(cloudCommittedPinyin, curWord, cloudCommittedPinyinIsCanonical);
-            // 清理云联想变量状态
-            Global::cloud_candidate.added = false;
-            Global::cloud_candidate.word.clear();
-            Global::cloud_candidate.pinyin.clear();
-        }
-        // AI 候选可能是繁体原文；落库和 AI 上下文共用 SimplifiedAiCandidateText 的结果，
-        // 其余候选的 curWord 本来就是简体底词。
-        const std::string learnedWord =
-            curWordItem.source == CandidateSource::AiSuggestion
-                ? FanyImeIpc::SimplifiedAiCandidateText(curWord, GetConfiguredCharacterSet(),
-                                                        ChineseConverter::ToSimplified, ChineseConverter::ToTraditional)
-                : curWord;
-        if (curWordItem.source == CandidateSource::AiSuggestion && !aiCommittedPinyin.empty())
-        {
-            EnqueueStoreUserPhraseTask(aiCommittedPinyin, learnedWord, aiCommittedPinyinIsCanonical);
-            Global::ai_candidate = {};
-        }
-
-        AppendAiContext(learnedWord);
+        AppendRescoringContext(curWord);
 
         if (!isNeedCreateWord)
         {

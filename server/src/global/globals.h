@@ -496,23 +496,6 @@ inline void ClearCandidatePageSnapshot()
     PublishCandidatePageSnapshot(std::make_shared<const CandidatePageSnapshot>());
 }
 
-//
-// 云候选
-//
-struct CloudCandidate
-{
-    bool added = false;
-    std::string word;
-    std::string pinyin;
-};
-inline CloudCandidate cloud_candidate;
-struct AiCandidate
-{
-    bool added = false;
-    std::string word;
-    std::string pinyin;
-};
-inline AiCandidate ai_candidate;
 } // namespace Global
 
 namespace GlobalSettings

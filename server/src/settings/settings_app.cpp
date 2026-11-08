@@ -4,7 +4,6 @@
 #include "global/globals.h"
 #include "resource/resource.h"
 #include "settings/settings_launcher.h"
-#include "settings/api_credential_test.h"
 #include "settings/collocation_model.h"
 #include "settings/lattice_model.h"
 #include "settings/neural_model.h"
@@ -28,7 +27,6 @@
 #include "window/candidate_skin_layers.h"
 #include "utils/common_utils.h"
 #include "utils/single_instance.h"
-#include "voice-input/voice_providers.h"
 
 #include <boost/json.hpp>
 #include <dwmapi.h>
@@ -196,35 +194,6 @@ static nlohmann::json CustomHelpcodeSchemasJson()
     return schemas;
 }
 
-// The provider registry as sent to the settings page: one entry per user-defined service. Built-in
-// ids stay config.toml-authoritative, so their endpoint/model come from the parsed config rather
-// than a possibly-stale store copy. Every token comes from config.toml; the store holds none.
-nlohmann::json ProviderEntriesJson(const AiAssistantConfig &ai)
-{
-    nlohmann::json array = nlohmann::json::array();
-    for (const auto &entry : ai.providers)
-    {
-        nlohmann::json item = {{"id", entry.id},
-                               {"name", entry.name},
-                               {"endpoint", entry.endpoint},
-                               {"token", ""},
-                               {"model", entry.model}};
-        if (AiAssistant::ProviderStore::IsBuiltinProvider(entry.id))
-        {
-            const auto endpoint = ai.endpoints.find(entry.id);
-            const auto model = ai.models.find(entry.id);
-            if (endpoint != ai.endpoints.end())
-                item["endpoint"] = endpoint->second;
-            if (model != ai.models.end())
-                item["model"] = model->second;
-        }
-        if (const auto token = ai.tokens.find(entry.id); token != ai.tokens.end())
-            item["token"] = token->second;
-        array.push_back(std::move(item));
-    }
-    return array;
-}
-
 // Index of the input-state shortcut written by a config path, or Definitions.size().
 std::size_t InputStateShortcutIndex(const std::string &path)
 {
@@ -275,13 +244,6 @@ nlohmann::json BuildInputStateShortcutMetadata()
 std::wstring BuildConfigMessage(bool refresh_skin_catalog)
 {
 
-    const VoiceInputConfig &voice = GetConfiguredVoiceInput();
-    const AiAssistantConfig &ai = GetConfiguredAiAssistant();
-    const TencentTmtConfig &tencent_tmt = GetConfiguredTencentTmt();
-    const CustomTranslationConfig &custom_translation = GetConfiguredCustomTranslation();
-    const AliyunMtConfig &aliyun_mt = GetConfiguredAliyunMt();
-    const NiuTransConfig &niutrans = GetConfiguredNiuTrans();
-    const auto translation = GetConfiguredTranslation();
     const NetworkProxyConfig network_proxy = GetConfiguredNetworkProxy();
     const FrequencyAdjustmentConfig &frequency = GetConfiguredFrequencyAdjustment();
     const FloatingToolbarItemsConfig &toolbar = GetConfiguredFloatingToolbarItems();
@@ -319,13 +281,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             skin_issues.push_back({{"folder", issue.folder},
                                    {"reason", issue.reason},
                                    {"noticed", issue.kind == CandidateSkinCatalog::Issue::Kind::Noticed}});
-    }
-    nlohmann::json polish_presets = nlohmann::json::array();
-    for (const auto &preset : VoiceInput::BuiltinPolishPromptPresets())
-    {
-        polish_presets.push_back({{"id", std::string(preset.id)},
-                                  {"name", std::string(preset.name)},
-                                  {"prompt", std::string(preset.prompt)}});
     }
     // 规则位取不门控视图：总开关关闭时复选框仍要展示用户已存的勾选；
     // 总开关本身单独下发。
@@ -389,7 +344,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"emoji_mixed_input", GetConfiguredEmojiMixedInputEnabled()},
             {"kaomoji_mixed_input", GetConfiguredKaomojiMixedInputEnabled()},
             {"symbol_mixed_input", GetConfiguredSymbolMixedInputEnabled()},
-            {"cloud_candidates", GetConfiguredCloudCandidatesEnabled()},
             {"paging_minus_equal", GetConfiguredPagingMinusEqualEnabled()},
             {"paging_comma_period", GetConfiguredPagingCommaPeriodEnabled()},
             {"paging_brackets", GetConfiguredPagingBracketsEnabled()},
@@ -489,14 +443,12 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_window_preedit_style", GetConfiguredCandidateWindowPreeditStyle()},
             {"candidate_fixed_badge", GetConfiguredCandidateFixedBadge()},
             {"candidate_fixed_badge_style", GetConfiguredCandidateFixedBadgeStyle()},
-            {"candidate_ai_badge_style", GetConfiguredCandidateAiBadgeStyle()},
             {"tsf_preedit_style", GetConfiguredTsfPreeditStyle()},
             {"theme_mode", GetConfiguredThemeMode()},
             {"theme_settings", GetConfiguredThemeSettings()},
             {"theme_cand", GetConfiguredThemeCand()},
             {"theme_ftb", GetConfiguredThemeFtb()},
             {"theme_menu", GetConfiguredThemeMenu()},
-            {"theme_voice", GetConfiguredThemeVoice()},
             {"page_size", GetConfiguredCandidatePageSize()},
             {"font", GetConfiguredCandidateFont()},
             {"font_css_family", ResolveSystemFontFamilyForCss(GetConfiguredCandidateFont())},
@@ -515,76 +467,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_skin_catalog_scanned", g_candidate_skin_catalog.has_value()},
             {"candidate_skin_catalog_revision", g_candidate_skin_catalog_revision},
             {"candidate_skin_directory", skins_root.u8string()}}},
-          {"voice_input",
-           {{"enabled", voice.enabled},
-            {"hotkey_ralt", voice.hotkey_ralt},
-            {"hotkey_ctrl_f9", voice.hotkey_ctrl_f9},
-            {"hotkey_ctrl_win", voice.hotkey_ctrl_win},
-            {"hotkey_rctrl_ralt", voice.hotkey_rctrl_ralt},
-            {"hotkey_hold_space_lock", voice.hotkey_hold_space_lock},
-            {"asr_provider", voice.asr_provider},
-            {"doubao_auth_mode", voice.doubao_auth_mode},
-            {"asr_app_key", voice.asr_app_key},
-            {"asr_token", voice.asr_token},
-            {"asr_tokens", voice.asr_tokens},
-            {"asr_endpoint", voice.asr_endpoint},
-            {"asr_resource_id", voice.asr_resource_id},
-            {"doubao_enable_itn", voice.doubao_enable_itn},
-            {"doubao_enable_punc", voice.doubao_enable_punc},
-            {"doubao_enable_ddc", voice.doubao_enable_ddc},
-            {"doubao_boosting_table_id", voice.doubao_boosting_table_id},
-            {"asr_model", voice.asr_model},
-            {"polish_provider", voice.polish_provider},
-            {"polish_token", voice.polish_token},
-            {"polish_tokens", voice.polish_tokens},
-            {"polish_endpoint", voice.polish_endpoint},
-            {"polish_model", voice.polish_model},
-            {"polish_thinking", voice.polish_thinking},
-            {"polish_prompt_id", voice.polish_prompt_id},
-            {"polish_prompt", voice.polish_prompt},
-            {"polish_prompt_custom_1", voice.polish_prompt_custom_1},
-            {"polish_prompt_custom_2", voice.polish_prompt_custom_2},
-            {"polish_prompt_custom_3", voice.polish_prompt_custom_3},
-            {"language", voice.language},
-            {"start_sound", voice.start_sound},
-            {"end_sound", voice.end_sound},
-            {"mute_system_audio", voice.mute_system_audio},
-            {"notification_sound", voice.start_sound && voice.end_sound},
-            {"polish_text", voice.polish_text},
-            {"stream_inline_preedit", voice.stream_inline_preedit},
-            {"commit_mode", voice.commit_mode}}},
-          {"ai_assistant",
-           {{"enabled", ai.enabled},
-            {"provider", ai.provider},
-            {"generate_provider", ai.generate_provider},
-            {"token", ai.token},
-            {"tokens", ai.tokens},
-            {"endpoint", ai.endpoint},
-            {"model", ai.model},
-            {"endpoints", ai.endpoints},
-            {"models", ai.models},
-            {"providers", ProviderEntriesJson(ai)},
-            {"candidate_limit", ai.candidate_limit},
-            {"thinking", ai.thinking},
-            {"json_mode", ai.json_mode},
-            {"prompt", ai.prompt},
-            {"prompt_id", ai.prompt_id},
-            {"prompt_custom_1", ai.prompt_custom_1},
-            {"prompt_custom_2", ai.prompt_custom_2},
-            {"prompt_custom_3", ai.prompt_custom_3}}},
-          {"tencent_tmt",
-           {{"secret_id", tencent_tmt.secret_id},
-            {"secret_key", tencent_tmt.secret_key},
-            {"region", tencent_tmt.region},
-            {"target_language", tencent_tmt.target_language}}},
-          {"aliyun_mt", {{"enabled", aliyun_mt.enabled}, {"secret_id", aliyun_mt.secret_id},
-                         {"secret_key", aliyun_mt.secret_key}}},
-          {"custom_translation",
-           {{"enabled", custom_translation.enabled},
-            {"endpoint", custom_translation.endpoint},
-            {"api_key", custom_translation.api_key}}},
-          {"niutrans", {{"enabled", niutrans.enabled}, {"app_id", niutrans.app_id}, {"apikey", niutrans.apikey}}},
-          {"translation", {{"provider", translation->provider}}},
           {"network", {{"proxy_mode", network_proxy.mode}, {"proxy_server", network_proxy.server}}},
           {"helpcode",
            {{"quanpin_helpcode", GetConfiguredQuanpinHelpcodeEnabled()},
@@ -597,7 +479,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"autocorrect_insertion", GetConfiguredQuanpinAutocorrectInsertion()},
             {"autocorrect_marker", GetConfiguredQuanpinAutocorrectMarker()}}},
           }}};
-    payload["data"]["voice_input"]["polish_presets"] = std::move(polish_presets);
     payload["data"]["helpcode"]["custom_schemas"] = CustomHelpcodeSchemasJson();
     payload["data"]["helpcode"]["custom_directory"] = GetCustomHelpcodeDirectory();
     payload["protocolVersion"] = metasequoia::webview::Version;
@@ -710,8 +591,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCandidateFixedBadge(json::value_to<bool>(data.at("value")));
     if (path == "appearance.candidate_fixed_badge_style")
         return SetConfiguredCandidateFixedBadgeStyle(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.candidate_ai_badge_style")
-        return SetConfiguredCandidateAiBadgeStyle(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.page_size")
         return SetConfiguredCandidatePageSize(static_cast<int>(data.at("value").as_int64()));
     if (path == "appearance.font")
@@ -737,8 +616,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredThemeFtb(json::value_to<std::string>(data.at("value")));
     if (path == "appearance.theme_menu")
         return SetConfiguredThemeMenu(json::value_to<std::string>(data.at("value")));
-    if (path == "appearance.theme_voice")
-        return SetConfiguredThemeVoice(json::value_to<std::string>(data.at("value")));
     if (path == "general.floating_toolbar")
         return SetConfiguredFloatingToolbarEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.caret_state_indicator")
@@ -788,8 +665,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredKaomojiMixedInputEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.symbol_mixed_input")
         return SetConfiguredSymbolMixedInputEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "general.cloud_candidates")
-        return SetConfiguredCloudCandidatesEnabled(json::value_to<bool>(data.at("value")));
     if (path == "association.sentence_wordlattice")
         return SetConfiguredAssocSentenceWordLattice(json::value_to<bool>(data.at("value")));
     if (path == "association.sentence_google")
@@ -884,78 +759,6 @@ bool ApplyConfigUpdate(const json::object &data)
         if (value.is_int64())
             return SetConfiguredFrequencyAdjustmentInt(key, static_cast<int>(value.as_int64()));
         return false;
-    }
-    if (path.rfind("voice_input.", 0) == 0)
-    {
-        const std::string key = path.substr(12);
-        const json::value &value = data.at("value");
-        if (value.is_bool())
-        {
-            return SetConfiguredVoiceInputBool(key, json::value_to<bool>(value));
-        }
-        if (value.is_string())
-            return SetConfiguredVoiceInputString(key, json::value_to<std::string>(value));
-        return false;
-    }
-    if (path.rfind("ai_assistant.", 0) == 0)
-    {
-        std::string key = path.substr(13);
-        const json::value &value = data.at("value");
-        // `endpoint@<id>` / `model@<id>`：设置页按服务商写槽位。@ 不会出现在任何配置键名里，
-        // 用它在一条 configUpdate 里指明目标服务商，宿主据此判断单值键要不要跟着改，
-        // 不必拿后端此刻的活动服务商去猜页面在说哪一家。
-        const size_t at = key.find('@');
-        if (at != std::string::npos)
-        {
-            const std::string field = key.substr(0, at);
-            const std::string provider = key.substr(at + 1);
-            if ((field != "endpoint" && field != "model") || provider.empty() || !value.is_string())
-                return false;
-            return SetConfiguredAiAssistantProviderValue(provider, field, json::value_to<std::string>(value));
-        }
-        if (value.is_bool())
-            return SetConfiguredAiAssistantBool(key, json::value_to<bool>(value));
-        if (value.is_string())
-            return SetConfiguredAiAssistantString(key, json::value_to<std::string>(value));
-        if (value.is_int64())
-            return SetConfiguredAiAssistantInt(key, static_cast<int>(value.as_int64()));
-        return false;
-    }
-    if (path.rfind("tencent_tmt.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredTencentTmtString(path.substr(std::string("tencent_tmt.").size()),
-                                                                  json::value_to<std::string>(value));
-    }
-    if (path == "aliyun_mt.enabled")
-        return SetConfiguredAliyunMtBool("enabled", json::value_to<bool>(data.at("value")));
-    if (path.rfind("aliyun_mt.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredAliyunMtString(path.substr(std::string("aliyun_mt.").size()),
-                                                                json::value_to<std::string>(value));
-    }
-    if (path == "custom_translation.enabled")
-        return SetConfiguredCustomTranslationBool("enabled", json::value_to<bool>(data.at("value")));
-    if (path.rfind("custom_translation.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() &&
-               SetConfiguredCustomTranslationString(path.substr(std::string("custom_translation.").size()),
-                                                    json::value_to<std::string>(value));
-    }
-    if (path == "niutrans.enabled")
-        return SetConfiguredNiuTransBool("enabled", json::value_to<bool>(data.at("value")));
-    if (path.rfind("niutrans.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredNiuTransString(path.substr(std::string("niutrans.").size()),
-                                                                json::value_to<std::string>(value));
-    }
-    if (path == "translation.provider")
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredTranslationString("provider", json::value_to<std::string>(value));
     }
     if (path.rfind("network.", 0) == 0)
     {
@@ -1169,105 +972,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
                     if (!saved)
                         MessageBoxW(g_settings_hwnd, L"设置保存失败，请重试。", L"水杉输入法", MB_OK | MB_ICONWARNING);
                 };
-            });
-        }
-        else if (type == "apiCredentialTest")
-        {
-            const auto &data = value.at("data").as_object();
-            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-            ApiCredentialTest::Request request;
-            request.service = json::value_to<std::string>(data.at("service"));
-            for (const auto &[key, item] : data.at("config").as_object())
-            {
-                if (item.is_string())
-                    request.config.emplace(std::string(key), json::value_to<std::string>(item));
-            }
-            g_worker->Submit([request_id, request = std::move(request)]() -> SerialTaskQueue::Completion {
-                ApiCredentialTest::Result result;
-                try
-                {
-                    result = ApiCredentialTest::Run(request);
-                }
-                catch (...)
-                {
-                    result = {false, "测试失败：内部错误。"};
-                }
-                json::value response = {{"type", "apiCredentialTestResult"},
-                                        {"requestId", request_id},
-                                        {"ok", result.ok},
-                                        {"message", result.message},
-                                        {"protocolVersion", metasequoia::webview::Version}};
-                if (!metasequoia::webview::Validate(response, "server"))
-                    throw std::runtime_error("Invalid API credential test response");
-                auto message = string_to_wstring(json::serialize(response));
-                return [message = std::move(message)] { PostToPage(message); };
-            });
-        }
-        else if (type == "apiModelList")
-        {
-            const auto &data = value.at("data").as_object();
-            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-            ApiCredentialTest::Request request;
-            request.service = json::value_to<std::string>(data.at("service"));
-            for (const auto &[key, item] : data.at("config").as_object())
-            {
-                if (item.is_string())
-                    request.config.emplace(std::string(key), json::value_to<std::string>(item));
-            }
-            g_worker->Submit([request_id, request = std::move(request)]() -> SerialTaskQueue::Completion {
-                ApiCredentialTest::ModelListResult result;
-                try
-                {
-                    result = ApiCredentialTest::FetchModels(request);
-                }
-                catch (...)
-                {
-                    result = {false, "获取模型列表失败：内部错误。", {}};
-                }
-                json::array models_array;
-                for (const auto &m : result.models)
-                    models_array.push_back(json::value(m));
-                json::value response = {{"type", "apiModelListResult"},
-                                        {"requestId", request_id},
-                                        {"ok", result.ok},
-                                        {"message", result.message},
-                                        {"models", std::move(models_array)},
-                                        {"protocolVersion", metasequoia::webview::Version}};
-                if (!metasequoia::webview::Validate(response, "server"))
-                    throw std::runtime_error("Invalid API model list response");
-                auto message = string_to_wstring(json::serialize(response));
-                return [message = std::move(message)] { PostToPage(message); };
-            });
-        }
-        else if (type == "aiProviderSync")
-        {
-            const auto &data = value.at("data").as_object();
-            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-            std::vector<AiAssistant::AiProvider> entries;
-            for (const auto &item : data.at("entries").as_array())
-            {
-                const auto &object = item.as_object();
-                AiAssistant::AiProvider entry;
-                entry.id = json::value_to<std::string>(object.at("id"));
-                entry.name = json::value_to<std::string>(object.at("name"));
-                entry.endpoint = json::value_to<std::string>(object.at("endpoint"));
-                entry.token = json::value_to<std::string>(object.at("token"));
-                entry.model = json::value_to<std::string>(object.at("model"));
-                entries.push_back(std::move(entry));
-            }
-            const bool ok = SetAiAssistantProviders(entries);
-            const std::string result_message = ok ? "已保存 " + std::to_string(entries.size()) + " 个服务商"
-                                                  : "保存失败：服务商列表为空或包含无效条目。";
-            json::value response = {{"type", "aiProviderSyncResult"},
-                                    {"requestId", request_id},
-                                    {"ok", ok},
-                                    {"message", result_message},
-                                    {"protocolVersion", metasequoia::webview::Version}};
-            if (!metasequoia::webview::Validate(response, "server"))
-                throw std::runtime_error("Invalid AI provider sync response");
-            auto message = string_to_wstring(json::serialize(response));
-            g_worker->Submit([message = std::move(message)]() -> SerialTaskQueue::Completion {
-                return [message] { PostToPage(message); };
             });
         }
         else if (type == "restartServer")

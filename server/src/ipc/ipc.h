@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ipc_protocol_limits.h"
-#include "voice_composition_pipe.h"
 
 #include <Windows.h>
 #include <cstddef>
@@ -45,7 +44,6 @@ inline HANDLE hToTsfPipe = INVALID_HANDLE_VALUE;
 inline HANDLE hToTsfWorkerThreadPipe = INVALID_HANDLE_VALUE;
 inline HANDLE hAuxPipe = INVALID_HANDLE_VALUE;
 inline HANDLE hTsfDiagnosticPipe = INVALID_HANDLE_VALUE;
-inline HANDLE hVoiceControlPipe = INVALID_HANDLE_VALUE;
 inline bool mainConnected = false;
 inline HANDLE mainPipeThread = NULL;
 inline bool toTsfConnected = false;
@@ -96,7 +94,6 @@ int CloseNamedPipe();
 HANDLE CreateMainNamedPipeInstance();
 HANDLE CreateAuxNamedPipeInstance();
 HANDLE CreateTsfDiagnosticNamedPipeInstance();
-HANDLE CreateVoiceControlNamedPipeInstance();
 HANDLE CreateToTsfNamedPipeInstance();
 HANDLE CreateToTsfWorkerThreadNamedPipeInstance();
 int OpenToTsfNamedPipe();
@@ -177,10 +174,6 @@ bool SendToTsfClientViaNamedpipe(uint64_t client_id, uint64_t activation_epoch, 
 bool SendToTsfWorkerThreadClientViaNamedpipe(uint64_t client_id, UINT msg_type, const std::wstring &pipeData);
 bool SendToTsfWorkerThreadClientViaNamedpipe(uint64_t client_id, uint64_t activation_epoch, UINT msg_type,
                                              const std::wstring &pipeData);
-// Full-snapshot voice composition. Frames are written under one worker lock so
-// the TIP can assemble them before touching ITfComposition.
-bool SendVoiceCompositionToTsfWorker(uint64_t client_id, uint64_t activation_epoch, UINT msg_type,
-                                     const std::wstring &text);
 void SendToTsfViaNamedpipe(UINT msg_type, const std::wstring &pipeData);
 void SendToTsfWorkerThreadViaNamedpipe(UINT msg_type, const std::wstring &pipeData);
 // Config-style notifications must reach every connected TIP, not only the

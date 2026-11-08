@@ -75,107 +75,6 @@ bool ResolveKeyCaretAnchor(CMetasequoiaIME *textService, ITfContext *context, Tf
     return SUCCEEDED(requestResult) && SUCCEEDED(sessionResult) && resolved;
 }
 
-// GUID_PROP_INPUTSCOPE from InputScope.h, spelled out: the header only declares
-// it, and nothing in this DLL defines INITGUID for it.
-constexpr GUID kGuidPropInputScope = {0x1713dd5a, 0x68e7, 0x4a5b, {0x9a, 0xf6, 0x59, 0x2a, 0x59, 0x5c, 0x77, 0x8d}};
-
-bool IsSensitiveInputScope(InputScope scope)
-{
-    switch (scope)
-    {
-    case IS_PASSWORD:
-    case IS_NUMERIC_PASSWORD:
-    case IS_NUMERIC_PIN:
-    case IS_ALPHANUMERIC_PIN:
-    case IS_ALPHANUMERIC_PIN_SET:
-        return true;
-    default:
-        return false;
-    }
-}
-
-// Reads the input scope the host declared at the selection. Hosts that expose
-// none (most Win32 controls) read as not sensitive.
-bool SelectionHasSensitiveInputScope(_In_ ITfContext *context, TfEditCookie ec)
-{
-    ITfProperty *property = nullptr;
-    if (FAILED(context->GetProperty(kGuidPropInputScope, &property)) || property == nullptr)
-    {
-        return false;
-    }
-    bool sensitive = false;
-    TF_SELECTION selection{};
-    ULONG fetched = 0;
-    if (SUCCEEDED(context->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &selection, &fetched)) && fetched == 1 &&
-        selection.range)
-    {
-        VARIANT value;
-        VariantInit(&value);
-        if (SUCCEEDED(property->GetValue(ec, selection.range, &value)) && value.vt == VT_UNKNOWN && value.punkVal)
-        {
-            ITfInputScope *inputScope = nullptr;
-            if (SUCCEEDED(
-                    value.punkVal->QueryInterface(__uuidof(ITfInputScope), reinterpret_cast<void **>(&inputScope))) &&
-                inputScope)
-            {
-                InputScope *scopes = nullptr;
-                UINT count = 0;
-                if (SUCCEEDED(inputScope->GetInputScopes(&scopes, &count)) && scopes)
-                {
-                    for (UINT i = 0; i < count && !sensitive; ++i)
-                    {
-                        sensitive = IsSensitiveInputScope(scopes[i]);
-                    }
-                    CoTaskMemFree(scopes);
-                }
-                inputScope->Release();
-            }
-        }
-        VariantClear(&value);
-    }
-    if (selection.range)
-    {
-        selection.range->Release();
-    }
-    property->Release();
-    return sensitive;
-}
-
-class CSensitiveFieldEditSession : public CEditSessionBase
-{
-  public:
-    CSensitiveFieldEditSession(CMetasequoiaIME *textService, ITfContext *context, bool *sensitive)
-        : CEditSessionBase(textService, context), sensitive_(sensitive)
-    {
-    }
-
-    STDMETHODIMP DoEditSession(TfEditCookie ec) override
-    {
-        *sensitive_ = SelectionHasSensitiveInputScope(_pContext, ec);
-        return S_OK;
-    }
-
-  private:
-    bool *sensitive_;
-};
-
-// A host that refuses the synchronous read session is treated as an ordinary
-// field: failing closed there would silently turn the AI assistant off.
-bool ResolveSensitiveInputField(CMetasequoiaIME *textService, ITfContext *context, TfClientId clientId)
-{
-    if (!context)
-        return false;
-    bool sensitive = false;
-    auto *session = new (std::nothrow) CSensitiveFieldEditSession(textService, context, &sensitive);
-    if (!session)
-        return false;
-    HRESULT sessionResult = E_FAIL;
-    const HRESULT requestResult =
-        context->RequestEditSession(clientId, session, TF_ES_SYNC | TF_ES_READ, &sessionResult);
-    session->Release();
-    return SUCCEEDED(requestResult) && SUCCEEDED(sessionResult) && sensitive;
-}
-
 void ApplyVimModeEscape(CCompositionProcessorEngine *engine, ITfThreadMgr *threadMgr, TfClientId clientId, WPARAM key,
                         LPARAM keyFlags, bool eaten, bool compositionActive, bool deferredKeysPending)
 {
@@ -1281,18 +1180,6 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
                 KeystrokeState.Function =
                     KeystrokeState.Function == FUNCTION_MOVE_LEFT_CANDIDATE ? FUNCTION_MOVE_LEFT : FUNCTION_MOVE_RIGHT;
             }
-        }
-
-        // Password fields keep their text away from the AI assistant. The field
-        // is read only while the assistant uploads context, and only on the key
-        // that starts a composition; the answer holds until the next one.
-        if (!Global::AiContextUploadEnabled.load(std::memory_order_relaxed))
-        {
-            Global::SensitiveInputField = false;
-        }
-        else if (!_IsComposing())
-        {
-            Global::SensitiveInputField = ResolveSensitiveInputField(this, pContext, _tfClientId);
         }
 
         // The character-set shortcut carries the caret anchor for its badge.

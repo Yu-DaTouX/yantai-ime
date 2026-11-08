@@ -538,9 +538,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
         addRow(MakeRow(L"固定候选徽标样式", L"",
                        BindDropdown(context, "appearance.candidate_fixed_badge_style",
                                     Options({{"paperclip", L"回形针"}, {"pushpin", L"图钉"}, {"dot", L"圆点"}}))));
-        addRow(MakeRow(L"AI 联想候选徽标样式", L"AI 联想候选词末尾的来源角标：机器人 🤖 或小鲸鱼 🐳",
-                       BindDropdown(context, "appearance.candidate_ai_badge_style",
-                                    Options({{"robot", L"机器人"}, {"whale", L"小鲸鱼"}}))));
 
         // 候选窗主字体: searchable system font list, each row in its own font.
         Dropdown::Options fontOptions;
@@ -650,7 +647,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
         details->Add(SurfaceRow(context, L"候选窗口主题", "appearance.theme_cand"));
         details->Add(SurfaceRow(context, L"悬浮工具栏主题", "appearance.theme_ftb"));
         details->Add(SurfaceRow(context, L"菜单主题", "appearance.theme_menu"));
-        details->Add(SurfaceRow(context, L"语音输入弹出条主题", "appearance.theme_voice"));
         // .theme-surface-details { margin: 4px 0 0 18px }
         details->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
         auto hideable = std::make_shared<Hideable>(details, false);

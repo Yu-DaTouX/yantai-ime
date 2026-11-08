@@ -9,8 +9,7 @@ set -euo pipefail
 # Ported from MSIME-Linux, which has run this in CI since before the
 # consolidation. Each component keeps its own .clang-format; --style=file picks
 # up the nearest one, so server/, windows/, ui/ and engine/ stay
-# independent -- engine/voice/.clang-format widens the column limit for that
-# subtree alone, and the nearest-file rule is what keeps it that way.
+# independent through the nearest-file rule.
 clang_format_version=18.1.8
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -47,7 +46,7 @@ cd "$project_root"
 #
 #   - googlepinyinime-rev keeps its AOSP formatting, and ngram/kenlm and utfcpp
 #     are upstream copies, so none of them is ours to reformat; same for
-#     */third_party/ (miniaudio).
+#     */third_party/.
 #   - The four generated headers are emitted from JSON by
 #     contracts/{assets,dictionary,punctuation,webview}/generate.py. No CI job
 #     re-runs those generators; after editing the JSON, run each generate.py

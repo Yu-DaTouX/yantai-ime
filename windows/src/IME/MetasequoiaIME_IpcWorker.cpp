@@ -1,5 +1,5 @@
 // Worker pipe side: IpcWorkerThread, which validates and dispatches Server frames, and the
-// token tables that hand its commits, voice snapshots and compartment switches to the TSF thread.
+// token tables that hand its commits and compartment switches to the TSF thread.
 
 #include "Private.h"
 #include "Globals.h"
@@ -36,93 +36,6 @@ bool CMetasequoiaIME::_PostServerCandidateCommit(_In_z_ const WCHAR *candidateTe
 bool CMetasequoiaIME::_PostServerCandidateCommitAndContinue(_In_z_ const WCHAR *payload)
 {
     return _PostServerTextDelivery(WM_CommitCandidateAndContinue, payload);
-}
-
-bool CMetasequoiaIME::_PostServerInsertText(_In_z_ const WCHAR *text)
-{
-    return _PostServerTextDelivery(WM_InsertText, text);
-}
-
-void CMetasequoiaIME::_ResetVoiceCompositionAssemble()
-{
-    _voiceCompositionAssemble.clear();
-    _voiceCompositionAssembleMsg = 0;
-    _voiceCompositionAssembleGeneration = 0;
-    _voiceCompositionAssembleActive = false;
-}
-
-void CMetasequoiaIME::_AssembleVoiceCompositionFrame(const FanyImeNamedpipeDataToTsfWorkerThread &buf)
-{
-    const FanyImeVoiceCompositionPipe::Frame frame = FanyImeVoiceCompositionPipe::ParseFrame(buf.data);
-    if (!frame.valid)
-    {
-        _ResetVoiceCompositionAssemble();
-        return;
-    }
-
-    if (frame.first)
-    {
-        _voiceCompositionAssemble.clear();
-        _voiceCompositionAssembleMsg = buf.msg_type;
-        _voiceCompositionAssembleGeneration = frame.generation;
-        _voiceCompositionAssembleActive = true;
-    }
-    else if (!_voiceCompositionAssembleActive || frame.generation != _voiceCompositionAssembleGeneration ||
-             buf.msg_type != _voiceCompositionAssembleMsg)
-    {
-        _ResetVoiceCompositionAssemble();
-        return;
-    }
-
-    if (_voiceCompositionAssemble.size() + frame.chunk.size() > FanyImeVoiceCompositionPipe::kMaxSnapshotChars)
-    {
-        _ResetVoiceCompositionAssemble();
-        return;
-    }
-    _voiceCompositionAssemble.append(frame.chunk);
-
-    if (!frame.last)
-    {
-        return;
-    }
-
-    const UINT windowMessage = buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitVoiceComposition
-                                   ? WM_CommitVoiceComposition
-                                   : WM_UpdateVoiceComposition;
-    const std::wstring snapshot = std::move(_voiceCompositionAssemble);
-    _ResetVoiceCompositionAssemble();
-    if (_workerCommitReady.load(std::memory_order_acquire))
-    {
-        _PostServerTextDelivery(windowMessage, snapshot.c_str());
-    }
-}
-
-void CMetasequoiaIME::_DispatchUnsolicitedVoiceText(WPARAM wParam, KEYSTROKE_FUNCTION function)
-{
-    WorkerCandidateCommit request;
-    if (!_TakeServerCandidateCommit(static_cast<UINT>(wParam), request))
-    {
-        return;
-    }
-    if (!_IsFocusSessionCurrent(request.focusToken) || !_IsCompositionEpochCurrent(request.compositionEpoch))
-    {
-        return;
-    }
-    ITfDocumentMgr *pDocMgrFocus = nullptr;
-    ITfContext *pContext = nullptr;
-    if (SUCCEEDED(_GetThreadMgr()->GetFocus(&pDocMgrFocus)) && pDocMgrFocus)
-    {
-        if (SUCCEEDED(pDocMgrFocus->GetTop(&pContext)) && pContext)
-        {
-            _KEYSTROKE_STATE KeystrokeState;
-            KeystrokeState.Category = CATEGORY_COMPOSING;
-            KeystrokeState.Function = function;
-            _InvokeKeyHandler(pContext, 0, 0, 0, KeystrokeState, FANY_IME_UNSOLICITED_REQUEST_ID,
-                              std::move(request.text), 0, request.compositionEpoch, request.focusToken);
-            pContext->Release();
-        }
-        pDocMgrFocus->Release();
-    }
 }
 
 bool CMetasequoiaIME::_PostServerTextDelivery(UINT windowMessage, _In_z_ const WCHAR *text)
@@ -264,7 +177,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         // message may be delayed, fail to post, or race a replacement handle.
         pIME->_workerCommitReady.store(false, std::memory_order_release);
         pIME->_acknowledgedWorkerFocusToken.store(0, std::memory_order_release);
-        pIME->_ResetVoiceCompositionAssemble();
         HANDLE expected = disconnectedPipe;
         if (pIME->_hToTsfWorkerThreadPipe.compare_exchange_strong(expected, nullptr))
         {
@@ -352,8 +264,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         bool validFrame = true;
         if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitCurCandidate ||
             buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitCandidateAndContinue ||
-            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::InsertText ||
-            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CancelVoiceComposition ||
             buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged)
         {
             bool hasTerminator = false;
@@ -407,7 +317,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PairedPunctuationChanged ||
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CapsLockChanged ||
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TsfDiagnosticLogChanged ||
-             buf.msg_type == Global::DataToTsfWorkerThreadMsgType::AiContextUploadChanged ||
              buf.msg_type == Global::DataToTsfWorkerThreadMsgType::HorizontalArrowSelectionChanged))
         {
             bool hasTerminator = false;
@@ -439,11 +348,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         if (validFrame && buf.msg_type == Global::DataToTsfWorkerThreadMsgType::EnumerationCommaKeysChanged)
         {
             validFrame = FanyImeEnumerationComma::IsValidPayload(buf.data[0]) && buf.data[1] == L'\0';
-        }
-        if (validFrame && (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateVoiceComposition ||
-                           buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitVoiceComposition))
-        {
-            validFrame = FanyImeVoiceCompositionPipe::ParseFrame(buf.data).valid;
         }
         if (validFrame && buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PipeReady)
         {
@@ -500,12 +404,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
 
         if (!validFrame)
         {
-            if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateVoiceComposition ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitVoiceComposition ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CancelVoiceComposition)
-            {
-                pIME->_ResetVoiceCompositionAssemble();
-            }
             // Soft config/control frames: drop without killing the worker pipe.
             if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PagingCommaPeriodChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::SmartPunctuationChanged ||
@@ -518,14 +416,10 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::HorizontalArrowSelectionChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CapsLockChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TsfDiagnosticLogChanged ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::AiContextUploadChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PunctuationLockChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::VModeChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PipeReady ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::FocusSessionReady ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateVoiceComposition ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitVoiceComposition ||
-                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CancelVoiceComposition ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateInstallerReady)
             {
@@ -537,13 +431,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
             }
             notifyDisconnected(workerPipe, workerGeneration);
             continue;
-        }
-
-        const bool isVoiceSnapshot = buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateVoiceComposition ||
-                                     buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitVoiceComposition;
-        if (!isVoiceSnapshot)
-        {
-            pIME->_ResetVoiceCompositionAssemble();
         }
 
         if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::FocusSessionReady)
@@ -572,25 +459,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
             if (pIME->_workerCommitReady.load(std::memory_order_acquire))
             {
                 pIME->_PostServerCandidateCommitAndContinue(buf.data);
-            }
-        }
-        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::InsertText)
-        {
-            if (pIME->_workerCommitReady.load(std::memory_order_acquire))
-            {
-                pIME->_PostServerInsertText(buf.data);
-            }
-        }
-        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateVoiceComposition ||
-                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitVoiceComposition)
-        {
-            pIME->_AssembleVoiceCompositionFrame(buf);
-        }
-        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CancelVoiceComposition)
-        {
-            if (pIME->_workerCommitReady.load(std::memory_order_acquire))
-            {
-                pIME->_PostServerTextDelivery(WM_CancelVoiceComposition, L"");
             }
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateInstallerReady)
@@ -659,10 +527,6 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::TsfDiagnosticLogChanged)
         {
             Global::TsfDiagnosticLogEnabled.store(buf.data[0] == L'1', std::memory_order_relaxed);
-        }
-        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::AiContextUploadChanged)
-        {
-            Global::AiContextUploadEnabled.store(buf.data[0] == L'1', std::memory_order_relaxed);
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PunctuationLockChanged)
         {

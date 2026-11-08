@@ -3,7 +3,6 @@
 #include "../ipc_negotiation.h"
 #include "../uiless_page.h"
 #include "../v_mode_input.h"
-#include "../voice_composition_pipe.h"
 
 #include <algorithm>
 #include <array>
@@ -150,7 +149,7 @@ int main()
     CHECK(FanyImeWorkerReplyType::Reserved31 == 31);
     CHECK(FanyImeWorkerReplyType::VModeChanged == 32);
     CHECK(FanyImeWorkerReplyType::Reserved33 == 33);
-    CHECK(FanyImeWorkerReplyType::AiContextUploadChanged == 34);
+    // 34 was AiContextUploadChanged, retired with the AI assistant; never reused.
     CHECK(FanyImeWorkerReplyType::UiLessCandidatesChanged == 35);
     CHECK(FanyImeWorkerReplyType::Reserved36 == 36);
     CHECK(FanyImeWorkerReplyType::Reserved37 == 37);
@@ -181,16 +180,17 @@ int main()
         CHECK(FanyImeUiLessPage::IsCurrent(0, 9) && FanyImeUiLessPage::IsCurrent(9, 9));
         CHECK(FanyImeUiLessPage::IsCurrent(10, 9) && !FanyImeUiLessPage::IsCurrent(8, 9));
     }
-    // The sensitive-field flag stays clear of Shift/Ctrl/Alt, every pipe flag and the cycle request bits.
-    CHECK((FanyImePipeFlags::SensitiveField & 7u) == 0);
-    CHECK(
-        (FanyImePipeFlags::SensitiveField & (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
-                                             FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | 0x1C000000u)) == 0);
+    // The retired sensitive-field bit (was FanyImePipeFlags::SensitiveField) stays clear of
+    // Shift/Ctrl/Alt, every pipe flag and the retired language-cycle bits.
+    constexpr std::uint32_t kRetiredSensitiveField = 0x02000000u;
+    CHECK((kRetiredSensitiveField & 7u) == 0);
+    CHECK((kRetiredSensitiveField & (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
+                                     FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | 0x1C000000u)) == 0);
     // Same for the horizontal arrow selection flag, which also stays clear of the sensitive-field bit.
     CHECK((FanyImePipeFlags::HorizontalArrowSelection & 7u) == 0);
     CHECK((FanyImePipeFlags::HorizontalArrowSelection &
            (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
-            FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | 0x1C000000u | FanyImePipeFlags::SensitiveField)) == 0);
+            FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | 0x1C000000u | kRetiredSensitiveField)) == 0);
     // V 模式的形状规则，TSF（WCHAR）与 Server（char）共用。
     {
         using FanyImeVModeInput::Trigger;
@@ -250,29 +250,7 @@ int main()
     CHECK(FanyImeDateTimeInput::MatchComplete("12/", 3).shape == FanyImeDateTimeInput::Shape::None);
     CHECK(FanyImeDateTimeInput::MatchComplete("9:5", 3).shape == FanyImeDateTimeInput::Shape::None);
     static_assert(FanyImeDateTimeInput::AcceptsAt("T2024", 5, 5, '/'), "the date shape must be usable at compile time");
-    const std::wstring voice(1000, L'x');
-    const auto frames = FanyImeVoiceCompositionPipe::EncodeSnapshot(voice, 7);
-    CHECK(FanyImeVoiceCompositionPipe::AssembleFrames(frames) == voice);
-    auto incomplete = frames;
-    incomplete.erase(incomplete.begin());
-    CHECK(FanyImeVoiceCompositionPipe::AssembleFrames(incomplete).empty());
-    // A middle frame legally carries flags 0, so an unterminated packet must be rejected on the chunk, not accepted
-    // because data[0] happens to be a NUL.
-    std::array<wchar_t, FanyImeVoiceCompositionPipe::kPacketChars> packet{};
-    packet.fill(L'x');
-    packet[0] = 0; // middle frame
-    packet[1] = 7; // generation
-    CHECK(!FanyImeVoiceCompositionPipe::ParseFrame(packet.data()).valid);
-    packet[FanyImeVoiceCompositionPipe::kPacketChars - 1] = 0;
-    const auto middle = FanyImeVoiceCompositionPipe::ParseFrame(packet.data());
-    CHECK(middle.valid && !middle.first && !middle.last && middle.generation == 7);
-    CHECK(middle.chunk == std::wstring(FanyImeVoiceCompositionPipe::kMaxChunkChars, L'x'));
-    const auto blank = FanyImeVoiceCompositionPipe::EncodeSnapshot(std::wstring(), 7);
-    CHECK(blank.size() == 1);
-    std::array<wchar_t, FanyImeVoiceCompositionPipe::kPacketChars> header{};
-    std::copy(blank[0].begin(), blank[0].end(), header.begin());
-    const auto empty = FanyImeVoiceCompositionPipe::ParseFrame(header.data());
-    CHECK(empty.valid && empty.first && empty.last && empty.chunk.empty());
+    CHECK((FanyImeProtocol::Capabilities & FanyImeProtocol::FramedVoice) == 0);
 
     // Statistics frames: fixed 28-byte header plus 24-byte events; the Go stats
     // tool mirrors these numbers in internal/frames, so both sides must change
@@ -284,5 +262,5 @@ int main()
     CHECK(offsetof(FanyImeStatsEvent, timestamp_utc_ft) == 0);
     CHECK(offsetof(FanyImeStatsEvent, cjk) == 8);
     CHECK(sizeof(FanyImeStatsBatchHeader) + 256 * sizeof(FanyImeStatsEvent) <= FANY_IME_STATS_MAX_FRAME_BYTES);
-    std::cout << "Windows IPC layout, negotiation, upgrade, voice and stats contracts passed\n";
+    std::cout << "Windows IPC layout, negotiation, upgrade and stats contracts passed\n";
 }

@@ -319,126 +319,6 @@
         "additionalProperties": false
       }
     },
-    "apiCredentialTest": {
-      "surfaces": [
-        "settings"
-      ],
-      "data": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "service": {
-            "type": "string",
-            "enum": [
-              "translation.tencent",
-              "translation.aliyun",
-              "translation.niutrans",
-              "translation.custom",
-              "translation.ai",
-              "voice.asr",
-              "voice.polish",
-              "ai.assistant"
-            ]
-          },
-          "config": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "requestId",
-          "service",
-          "config"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "apiModelList": {
-      "surfaces": [
-        "settings"
-      ],
-      "data": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "service": {
-            "type": "string",
-            "enum": [
-              "ai.assistant",
-              "voice.asr",
-              "voice.polish"
-            ]
-          },
-          "config": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "requestId",
-          "service",
-          "config"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "aiProviderSync": {
-      "surfaces": [
-        "settings"
-      ],
-      "data": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "endpoint": {
-                  "type": "string"
-                },
-                "token": {
-                  "type": "string"
-                },
-                "model": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "endpoint",
-                "token",
-                "model"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "requestId",
-          "entries"
-        ],
-        "additionalProperties": false
-      }
-    },
     "dictionaryRequest": {
       "surfaces": [
         "settings"
@@ -833,11 +713,6 @@
         "menu"
       ]
     },
-    "voiceInput": {
-      "surfaces": [
-        "menu"
-      ]
-    },
     "changeInputScheme": {
       "surfaces": [
         "menu"
@@ -972,25 +847,6 @@
         "additionalProperties": false
       }
     },
-    "apiCredentialTestResult": {
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "ok": {
-          "type": "boolean"
-        },
-        "message": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "requestId",
-        "ok",
-        "message"
-      ],
-      "additionalProperties": false
-    },
     "defaultImeResponse": {
       "properties": {
         "requestId": {
@@ -1050,50 +906,6 @@
       "required": [
         "requestId",
         "action",
-        "ok",
-        "message"
-      ],
-      "additionalProperties": false
-    },
-    "apiModelListResult": {
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "ok": {
-          "type": "boolean"
-        },
-        "message": {
-          "type": "string"
-        },
-        "models": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "requestId",
-        "ok",
-        "message"
-      ],
-      "additionalProperties": false
-    },
-    "aiProviderSyncResult": {
-      "properties": {
-        "requestId": {
-          "type": "string"
-        },
-        "ok": {
-          "type": "boolean"
-        },
-        "message": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "requestId",
         "ok",
         "message"
       ],

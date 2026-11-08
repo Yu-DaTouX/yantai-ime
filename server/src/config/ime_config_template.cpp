@@ -10,7 +10,7 @@
 #include <system_error>
 #include <utility>
 #include <vector>
-#include "voice-input/voice_providers.h"
+#include "config/credential_protection.h"
 
 using namespace ime_config_detail;
 
@@ -36,7 +36,7 @@ bool AssignmentHoldsRealCredential(const std::string &assignment_id, const std::
     {
         return false;
     }
-    return !VoiceInput::IsPlaceholderToken(UnquoteTomlScalar(raw_value));
+    return !CredentialProtection::IsPlaceholderCredential(UnquoteTomlScalar(raw_value));
 }
 
 // 把用户填过真值的凭证逐条重放到 text 上：有键改值，无键则在其分节里插入。幂等——重放已经等于
@@ -62,7 +62,7 @@ std::string ReapplyRealCredentials(std::string text, const std::map<std::string,
 }
 
 // 这些键改过出厂默认值，但新默认只给新装用户：老用户的值哪怕仍等于旧默认，也是他一直在用的行为
-// （辅助码、语音、翻译供应商、横竖排……），升级时按「没动过就跟随新默认」翻掉，等于替他改了设置。
+// （辅助码、翻译供应商、横竖排……），升级时按「没动过就跟随新默认」翻掉，等于替他改了设置。
 // 以后改模板里某个已有键的默认值、又不想推给老用户时，把键加进这里。
 bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
 {
@@ -77,12 +77,6 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
         MakeTomlAssignmentId("helpcode", "quanpin_helpcode"),
         MakeTomlAssignmentId("utility", "emoji_mode"),
         MakeTomlAssignmentId("utility", "kaomoji_mode"),
-        MakeTomlAssignmentId("voice_input", "voice_input"),
-        MakeTomlAssignmentId("voice_input", "doubao_enable_ddc"),
-        MakeTomlAssignmentId("ai_assistant", "enabled"),
-        MakeTomlAssignmentId("tencent_tmt", "enabled"),
-        MakeTomlAssignmentId("aliyun_mt", "enabled"),
-        MakeTomlAssignmentId("niutrans", "enabled"),
     };
     return kIds.count(assignment_id) != 0;
 }

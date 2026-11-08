@@ -31,7 +31,6 @@
 #include "session/session_factory.h"
 #include "log/candidate_diag_log.h"
 #include "log/ftb_diag_log.h"
-#include "voice-input/voice_input_service.h"
 
 using namespace event_listener_detail;
 
@@ -142,19 +141,11 @@ struct Task
     uint64_t activation_epoch = 0;
     std::chrono::steady_clock::time_point enqueued_at{};
     uint64_t enqueue_sequence = 0;
-    std::string cloud_candidate;
-    std::string cloud_pinyin;
-    uint64_t cloud_generation = 0;
-    std::string ai_candidate;
-    std::string ai_identity;
-    uint64_t ai_generation = 0;
-    std::optional<metasequoia::OnlineQuery> online_query;
     std::vector<WordItem> english_candidates;
     std::string english_input;
     uint64_t english_generation = 0;
     std::vector<EnglishIme::TranslationResult> translation_results;
     uint64_t translation_generation = 0;
-    bool translation_merge = false;
     MixedCandidates::Result mixed_result;
     std::string mixed_input;
     uint64_t mixed_generation = 0;
@@ -535,24 +526,13 @@ void WorkerThread()
             break;
         }
 
-        case TaskType::ApplyCloudCandidate: {
-            ApplyCloudCandidate(task.cloud_candidate, task.cloud_pinyin, task.cloud_generation, task.online_query);
-            break;
-        }
-
-        case TaskType::ApplyAiCandidate: {
-            ApplyAiCandidate(task.ai_candidate, task.ai_identity, task.ai_generation, task.online_query);
-            break;
-        }
-
         case TaskType::ApplyEnglishCandidates: {
             ApplyEnglishCandidates(std::move(task.english_candidates), task.english_input, task.english_generation);
             break;
         }
 
         case TaskType::ApplyCandidateTranslations: {
-            ApplyCandidateTranslations(std::move(task.translation_results), task.translation_generation,
-                                       task.translation_merge);
+            ApplyCandidateTranslations(std::move(task.translation_results), task.translation_generation);
             break;
         }
 
@@ -578,7 +558,6 @@ void WorkerThread()
         case TaskType::ClientActivated: {
             CAND_DIAG_LOGF(L"client activated client={} epoch={} hwnd_present={}", task.client_id,
                            task.activation_epoch, ::global_hwnd != nullptr);
-            VoiceInput::SetImeActive(true);
             PostHideCaretState();
             // Activation replaces all composition/candidate state from the
             // previous focus session. A terminal TIP activation also makes
@@ -617,7 +596,6 @@ void WorkerThread()
 
         case TaskType::ClientDeactivated: {
             CAND_DIAG_LOGF(L"client deactivated client={} epoch={}", task.client_id, task.activation_epoch);
-            VoiceInput::SetImeActive(false);
             PostHideCaretState();
             // Unlike a route-only suspension, terminal TIP deactivation means
             // the user switched to another input method. Forget the previous
@@ -1038,7 +1016,7 @@ void WorkerThread()
             }
             // Global::candidate_ui.items 是按键时那份副本，重查后必须重新组页才看得到新的
             // 整句候选；只刷新页面会把旧列表再发一遍。与 ApplyRescoredOrder 共用同一段。
-            (void)RequeryCandidatesPreservingOnline(owner);
+            (void)RequeryCandidatesAfterAsyncMerge(owner);
             break;
         }
         }
@@ -1066,28 +1044,6 @@ void EnqueueTask(TaskType type, const FanyImeNamedpipeData &pipeData, uint64_t a
     pipe_queueCv.notify_one();
 }
 
-void EnqueueCloudCandidate(const std::string &candidate, const std::string &pinyin, uint64_t generation)
-{
-    const AsyncRequestOrigin origin = FindCloudRequestOrigin(pinyin, generation);
-    if (origin.client_id == 0 || origin.activation_epoch == 0)
-    {
-        return;
-    }
-    {
-        std::lock_guard lock(queueMutex);
-        Task task;
-        task.type = TaskType::ApplyCloudCandidate;
-        task.cloud_candidate = candidate;
-        task.cloud_pinyin = pinyin;
-        task.cloud_generation = generation;
-        task.online_query = origin.engine_query;
-        task.client_id = origin.client_id;
-        task.activation_epoch = origin.activation_epoch;
-        PushTaskLocked(std::move(task));
-    }
-    pipe_queueCv.notify_one();
-}
-
 // 后台线程算完了一批整句重排。它不知道自己算的是不是当前这次输入——那要在任务线程上、拿着
 // g_inputSession 才判断得了——所以这里只负责把「去看一眼」排进队列，判断留给 ApplyRescoredOrder。
 void EnqueueRescoredCandidates()
@@ -1099,26 +1055,6 @@ void EnqueueRescoredCandidates()
         rescoreApplyQueued = true;
         Task task;
         task.type = TaskType::ApplyRescoredOrder;
-        PushTaskLocked(std::move(task));
-    }
-    pipe_queueCv.notify_one();
-}
-
-void EnqueueAiCandidate(const std::string &candidate, const std::string &identity, uint64_t generation)
-{
-    const AsyncRequestOrigin origin = FindAiRequestOrigin(identity, generation);
-    if (origin.client_id == 0 || origin.activation_epoch == 0)
-        return;
-    {
-        std::lock_guard lock(queueMutex);
-        Task task;
-        task.type = TaskType::ApplyAiCandidate;
-        task.ai_candidate = candidate;
-        task.ai_identity = identity;
-        task.ai_generation = generation;
-        task.online_query = origin.engine_query;
-        task.client_id = origin.client_id;
-        task.activation_epoch = origin.activation_epoch;
         PushTaskLocked(std::move(task));
     }
     pipe_queueCv.notify_one();
@@ -1145,7 +1081,7 @@ void EnqueueEnglishCandidates(std::vector<WordItem> candidates, const std::strin
     pipe_queueCv.notify_one();
 }
 
-void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation, bool merge)
+void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation)
 {
     {
         std::lock_guard lock(queueMutex);
@@ -1153,7 +1089,6 @@ void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> res
         task.type = TaskType::ApplyCandidateTranslations;
         task.translation_results = std::move(results);
         task.translation_generation = generation;
-        task.translation_merge = merge;
         PushTaskLocked(std::move(task));
     }
     pipe_queueCv.notify_one();

@@ -63,7 +63,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved31, 31u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged, 32u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33, 33u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged, 34u);
+    // Opcode 34 (AiContextUploadChanged) was retired with the AI assistant; never reused.
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged, 35u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved36, 36u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved37, 37u);
@@ -122,10 +122,8 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved31);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged);
+    REQUIRE(34u > Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33);
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged > 34u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved37 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved36);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged >

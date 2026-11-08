@@ -68,8 +68,6 @@ emoji_mixed_input = false
 kaomoji_mixed_input = false
 # 中文输入状态下输入恰好等于符号编码（alpha、infinity、szq、xl，数字读音 yi → ① ⑴ ⒈，标点读音 dian → · 、、shuminghao → 《》 〈〉）时显示符号候选，首个紧跟首选，其余排在颜文字之后
 symbol_mixed_input = false
-# 云候选（默认关闭：开启后每次输入都会把当前拼音发给 Google 的 input-tools 服务）
-cloud_candidates = false
 # TODO: 极简模式。极简模式下，候选窗口使用 d2d 绘制，界面只作展示候选项，无其他功能。
 clean_mode = false
 
@@ -125,57 +123,7 @@ sentence_collocation_weak_penalty = -100.0
 sentence_collocation_rear_penalty = -18.0
 
 #
-# 腾讯云机器翻译（竖排候选项本地词库未命中时的补全）
-# enabled 布尔仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
-#
-[tencent_tmt]
-enabled = false
-# 请自行填写腾讯云密钥，不要把真实密钥写进仓库。
-secret_id = "<YOUR_TENCENT_SECRET_ID>"
-secret_key = "<YOUR_TENCENT_SECRET_KEY>"
-region = "ap-guangzhou"
-# 候选词翻译/背单词目标语种：en / fr / ja / es / ru / de / ko / th / vi / it
-target_language = "en"
-
-#
-# 阿里云机器翻译（通用版）。secret_id / secret_key 填 AccessKey ID 与 AccessKey Secret。
-# enabled 仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
-#
-[aliyun_mt]
-enabled = false
-secret_id = "<YOUR_ALIYUN_ACCESS_KEY_ID>"
-secret_key = "<YOUR_ALIYUN_ACCESS_KEY_SECRET>"
-
-#
-# 自定义 DeepLX 兼容翻译服务。endpoint 必须填写完整的 POST 接口地址。
-# api_key 留空时不发送 Authorization 请求头。
-#
-[custom_translation]
-enabled = false
-endpoint = ""
-api_key = ""
-
-#
-# 小牛翻译（NiuTrans）机器翻译。app_id 与 apikey 在“控制台->API应用”中查看。
-# enabled 布尔仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
-# 默认关闭：联网功能都要用户自己在设置页打开。
-#
-[niutrans]
-enabled = false
-app_id = ""
-apikey = ""
-
-#
-# 候选词翻译当前生效的在线提供方：tencent | aliyun | niutrans | custom | ai。
-# ai 表示复用 AI 辅助当前服务商的接口地址、Token 与模型。
-# 留空表示按 [tencent_tmt]/[aliyun_mt]/[custom_translation]/[niutrans] 的旧 enabled 布尔自动推导，
-# 在设置页选择过一次后会写入具体值。
-#
-[translation]
-provider = ""
-
-#
-# 网络代理：云输入、模型下载、AI 联想、翻译、语音识别等需要联网的功能共用。
+# 网络代理：模型下载、更新检查等需要联网的功能共用。
 # proxy_mode：system 跟随系统代理设置 / none 不使用代理（直连）/ custom 使用下面的 HTTP 代理。
 # proxy_server：custom 模式的 HTTP 代理地址，形如 127.0.0.1:7890；留空时按 system 处理。
 #
@@ -210,7 +158,6 @@ theme_settings = "follow"
 theme_cand = "follow"
 theme_ftb = "follow"
 theme_menu = "follow"
-theme_voice = "follow"
 # 字体（中文）
 font = "Noto Sans SC"
 # 英文字体（拉丁字母优先使用；汉字仍回落到 font）
@@ -245,8 +192,6 @@ candidate_window_preedit_style = "pinyin"
 candidate_fixed_badge = true
 # 固定排位候选词徽标样式，可选："paperclip", "pushpin", "dot"
 candidate_fixed_badge_style = "paperclip"
-# AI 联想候选词的来源徽标样式，可选："robot"（🤖）, "whale"（🐳）
-candidate_ai_badge_style = "robot"
 # TSF 行内预编辑样式，可选："raw", "pinyin", "empty"
 #   raw    -> 原始按键序列
 #   pinyin -> 分词后的拼音序列（Server 回包 Preedit）
@@ -397,94 +342,6 @@ dictionary_path = "./assets/dictionaries/msime.db"
 skin_name = "default"
 
 #
-# Voice Input
-# 语音输入
-#
-[voice_input]
-# 语音输入（默认关闭：未填 Token 时按快捷键只会弹出提示，右 Alt 还会占用 AltGr）
-voice_input = false
-# 全局语音快捷键（可分别启用或关闭）
-hotkey_ralt = true
-hotkey_ctrl_f9 = true
-hotkey_ctrl_win = false
-hotkey_rctrl_ralt = false
-hotkey_hold_space_lock = true
-# ASR 服务: doubao | openai | siliconflow | groq
-# openai / siliconflow / groq 均走 OpenAI 兼容的 /v1/audio/transcriptions。
-asr_provider = "doubao"
-# 豆包鉴权方式: api_key | legacy
-#   api_key：新版控制台，只需一个 API Key，填入 asr_token 即可，asr_app_key 不使用。
-#   legacy：旧版控制台，App ID + Access Token（Secret Key 不使用），两项都要填。
-# 留空表示自动判断：asr_app_key 填了真实值就按 legacy，否则按 api_key。
-# 请自行填写各提供商的密钥，不要把真实密钥写进仓库。
-doubao_auth_mode = "api_key"
-asr_app_key = "<YOUR_ASR_APP_KEY>"
-asr_token = "FAKESECRET_k4l5m6n7o8p9q0r1s2t3"
-# 每个 ASR 提供商单独保存 Token，切换提供商只改当前使用哪一份，不会互相覆盖。
-asr_token_doubao = "<YOUR_ASR_TOKEN_DOUBAO>"
-asr_token_openai = "<YOUR_ASR_TOKEN_OPENAI>"
-asr_token_siliconflow = "<YOUR_ASR_TOKEN_SILICONFLOW>"
-asr_token_groq = "<YOUR_ASR_TOKEN_GROQ>"
-asr_token_zhipu = "<YOUR_ASR_TOKEN_ZHIPU>"
-asr_token_minimax = "<YOUR_ASR_TOKEN_MINIMAX>"
-asr_token_custom = "<YOUR_ASR_TOKEN_CUSTOM>"
-# 豆包流式接口二选一：
-#   .../sauc/bigmodel_nostream 边录边传、返回整句结果，准确率更高，官方推荐用于输入法
-#   .../sauc/bigmodel_async    双向流式，增量结果更密集，实时上屏刷新更频繁
-asr_endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
-# 默认使用豆包流式语音识别模型 2.0 小时版
-asr_resource_id = "volc.seedasr.sauc.duration"
-# 豆包识别选项：数字格式化（ITN）、标点预测默认开启，语义顺滑（DDC）默认关闭。
-doubao_enable_itn = true
-doubao_enable_punc = true
-doubao_enable_ddc = false
-# 在豆包语音控制台“自学习平台 -> 热词管理”创建词表后，将热词 ID 填在这里；留空则不使用。
-doubao_boosting_table_id = ""
-# OpenAI 兼容识别模型。豆包流式不使用此项；留空则按提供商填默认值。
-# SiliconFlow 当前默认使用 FunAudioLLM/SenseVoiceSmall，也可在这里填写其他模型名。
-asr_model = ""
-# 文本润色: siliconflow | openai | deepseek | groq
-# 均走 OpenAI 兼容的 /v1/chat/completions。
-polish_provider = "deepseek"
-# 请自行填写各提供商的 API Token，不要把真实密钥写进仓库。
-polish_token = "FAKESECRET_q2r3s4t5u6v7w8x9y0z1"
-polish_token_siliconflow = "<YOUR_POLISH_TOKEN_SILICONFLOW>"
-polish_token_openai = "<YOUR_POLISH_TOKEN_OPENAI>"
-polish_token_deepseek = "<YOUR_POLISH_TOKEN_DEEPSEEK>"
-polish_token_groq = "<YOUR_POLISH_TOKEN_GROQ>"
-polish_token_minimax = "<YOUR_POLISH_TOKEN_MINIMAX>"
-polish_token_moonshot = "<YOUR_POLISH_TOKEN_MOONSHOT>"
-polish_token_zhipu = "<YOUR_POLISH_TOKEN_ZHIPU>"
-polish_token_dashscope = "<YOUR_POLISH_TOKEN_DASHSCOPE>"
-polish_token_volcengine = "<YOUR_POLISH_TOKEN_VOLCENGINE>"
-polish_token_openrouter = "<YOUR_POLISH_TOKEN_OPENROUTER>"
-polish_token_custom = "<YOUR_POLISH_TOKEN_CUSTOM>"
-polish_endpoint = "https://api.deepseek.com/chat/completions"
-# 留空则按提供商填默认值，例如 Qwen/Qwen3-8B、gpt-4o-mini。
-polish_model = "deepseek-v4-flash"
-# DeepSeek 思考强度: disabled | low | high | max，仅 DeepSeek 生效。开启后润色明显变慢。
-polish_thinking = "disabled"
-# 润色提示词: cleanup | faithful | zh2en | casual | custom_1 | custom_2 | custom_3
-polish_prompt_id = "cleanup"
-# 旧版单槽位提示词，升级时作为“自定义一”的回退值。
-polish_prompt = ""
-polish_prompt_custom_1 = ""
-polish_prompt_custom_2 = ""
-polish_prompt_custom_3 = ""
-language = "zh-cn"
-# 开始和结束录音提示音可分别关闭
-start_sound = true
-end_sound = true
-# 录音时暂时静音其他应用的播放声音，结束后自动恢复
-mute_system_audio = true
-polish_text = true
-# 豆包流式识别时，将已识别文本显示在输入框 inline preedit 中，松开录音键后上屏。
-# 仅在豆包流式识别且 commit_mode = "tsf" 时生效。
-stream_inline_preedit = true
-# 上屏方式: tsf | sendinput | ctrl_v
-commit_mode = "tsf"
-
-#
 # Utility
 # 实用功能
 #
@@ -507,93 +364,3 @@ kaomoji_mode = false # Shift+M 进入颜文字快捷输入模式（支持全拼/
 symbol_mode = true # Shift+S 进入符号快捷输入模式：输入分组码（xl 希腊字母、sx 数学、szq 带圈数字、jt 箭头）或符号名（alpha、infinity）
 y_mode = true # Shift+Y 进入临时英文模式（中文状态下直接打英文，上屏后回到中文）
 v_mode = true # V 模式：V 后接数字转中文（V123 → 一百二十三，V123.45 → 壹佰贰拾叁元肆角伍分）或计算算式（V1+2*3 → 7）；全拼大小写均可
-
-#
-# AI Assistant
-# AI 辅助
-#
-[ai_assistant]
-enabled = false
-provider = "deepseek"
-# 请自行填写各提供商的 API Token，不要把真实密钥写进仓库。
-token = "FAKESECRET_e1f2g3h4i5j6k7l8m9n0"
-token_deepseek = "<YOUR_AI_TOKEN_DEEPSEEK>"
-token_openai = "<YOUR_AI_TOKEN_OPENAI>"
-token_siliconflow = "<YOUR_AI_TOKEN_SILICONFLOW>"
-token_groq = "<YOUR_AI_TOKEN_GROQ>"
-token_custom = "<YOUR_AI_TOKEN_CUSTOM>"
-token_minimax = "<YOUR_AI_TOKEN_MINIMAX>"
-token_moonshot = "<YOUR_AI_TOKEN_MOONSHOT>"
-token_zhipu = "<YOUR_AI_TOKEN_ZHIPU>"
-token_dashscope = "<YOUR_AI_TOKEN_DASHSCOPE>"
-token_volcengine = "<YOUR_AI_TOKEN_VOLCENGINE>"
-token_openrouter = "<YOUR_AI_TOKEN_OPENROUTER>"
-# Jev 从本地候选中选择推荐项，使用 TypeSafe Choice API
-token_jev = "<YOUR_AI_TOKEN_JEV>"
-endpoint ="https://api.deepseek.com/chat/completions"
-model = "deepseek-v4-flash"
-# 空槽位使用提供商默认值，旧版 endpoint/model 只归属于当前提供商
-endpoint_deepseek = ""
-endpoint_openai = ""
-endpoint_siliconflow = ""
-endpoint_groq = ""
-endpoint_custom = ""
-endpoint_minimax = ""
-endpoint_moonshot = ""
-endpoint_zhipu = ""
-endpoint_dashscope = ""
-endpoint_volcengine = ""
-endpoint_openrouter = ""
-endpoint_jev = ""
-# Ollama 连本机服务，不需要 Token，所以没有 token_ollama
-endpoint_ollama = ""
-model_deepseek = ""
-model_openai = ""
-model_siliconflow = ""
-model_groq = ""
-model_custom = ""
-model_minimax = ""
-model_moonshot = ""
-model_zhipu = ""
-model_dashscope = ""
-model_volcengine = ""
-model_openrouter = ""
-model_jev = ""
-model_ollama = ""
-candidate_limit = 3
-# DeepSeek 思考强度: disabled | low | high | max，仅 DeepSeek 生效。开启后联想明显变慢。
-thinking = "disabled"
-# 请求里是否带 response_format={"type":"json_object"}，AI 联想与候选词翻译共用。
-# auto  ：按接口地址判断。本机（localhost/127.x/10.x/192.168.x/172.16-31.x）和未知服务不带，
-#         OpenAI、DeepSeek 等原生实现带上。不确定时保持这一档。
-# force ：一定带。只适合确认支持 JSON 模式的服务商，部分本地部署会因此直接拒绝请求。
-# off   ：一定不带，由 prompt 约束输出，解析侧兼容纯 JSON、代码块包裹和逐行作答。
-# 本机跑 LM Studio、vLLM、Ollama 等服务时若报 400 或不生效，改成 off。
-json_mode = "auto"
-# 生成式模式下最后选过的服务商。provider 切到 jev 时它保持不变，切回生成式时据此恢复；
-# 旧配置没有这个键时跟随 provider。jev 不能填在这里。
-generate_provider = "deepseek"
-prompt_id = "custom_1"
-prompt = """你是一个中文全拼输入法联想引擎。输入为已经切分好的拼音数组、前文上下文和候选数量。
-
-优先生成与拼音严格对应的中文候选：若有 N 段拼音，首选必须尽量为 N 个汉字，每段拼音对应一个汉字，不得随意增删或改变读音。结合上下文、常用程度、语义完整性和固定搭配排序。
-
-若去掉分词后能明显组成更合理的英文单词、缩写、产品名或技术术语，如 `deep + seek → DeepSeek`、`git + hub → GitHub`，可优先返回英文；不要生造英文或做牵强匹配。
-
-只输出合法 JSON，不要解释或输出 Markdown：
-
-{
-"candidates": [
-{
-"text": "候选内容",
-"type": "chinese或english",
-"confidence": 0.98
-}
-]
-}
-
-候选按推荐程度降序排列，数量不超过指定上限；没有合理结果时返回空数组。"""
-# prompt 是旧版“自定义一”；首次修改后会写入下面的独立槽位。
-prompt_custom_1 = ""
-prompt_custom_2 = ""
-prompt_custom_3 = ""

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ai/ai_provider_store.h"
 #include "engine/core/fuzzy_pinyin_options.h"
 #include "engine/core/prefix_completion_options.h"
 #include "engine/core/scheme_type.h"
@@ -13,201 +12,7 @@
 #include <string_view>
 #include <vector>
 
-struct VoiceInputConfig
-{
-    bool enabled = false;
-    bool hotkey_ralt = true;
-    bool hotkey_ctrl_f9 = true;
-    bool hotkey_ctrl_win = false;
-    bool hotkey_rctrl_ralt = false;
-    bool hotkey_hold_space_lock = true;
-    // doubao | openai | siliconflow | groq
-    std::string asr_provider = "doubao";
-    // Doubao console generation: api_key (new console, single API Key) | legacy (App ID + Access Token).
-    // Empty means "infer from asr_app_key", which keeps configs written before this setting working.
-    std::string doubao_auth_mode = "api_key";
-    std::string asr_app_key;
-    std::string asr_token;
-    // Per-provider tokens so switching ASR/polish providers restores the matching key.
-    std::map<std::string, std::string> asr_tokens;
-    std::string asr_endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
-    std::string asr_resource_id = "volc.seedasr.sauc.duration";
-    bool doubao_enable_itn = true;
-    bool doubao_enable_punc = true;
-    bool doubao_enable_ddc = false;
-    std::string doubao_boosting_table_id;
-    // OpenAI-compatible transcriptions model. Unused for doubao streaming.
-    std::string asr_model;
-    // siliconflow | openai | deepseek | groq
-    std::string polish_provider = "siliconflow";
-    std::string polish_token;
-    std::map<std::string, std::string> polish_tokens;
-    std::string polish_endpoint = "https://api.siliconflow.cn/v1/chat/completions";
-    std::string polish_model;
-    // DeepSeek reasoning effort: disabled | low | high | max. Other providers ignore it.
-    std::string polish_thinking = "disabled";
-    // cleanup | faithful | zh2en | casual | custom_1 | custom_2 | custom_3
-    std::string polish_prompt_id = "cleanup";
-    // Legacy single custom prompt. Retained for config compatibility.
-    std::string polish_prompt;
-    std::string polish_prompt_custom_1;
-    std::string polish_prompt_custom_2;
-    std::string polish_prompt_custom_3;
-    std::string language = "zh-cn";
-    bool start_sound = true;
-    bool end_sound = true;
-    // Temporarily mute other apps' playback while the microphone is recording.
-    bool mute_system_audio = false;
-    bool polish_text = false;
-    // When true, Doubao streaming partials are shown as TSF inline preedit.
-    bool stream_inline_preedit = false;
-    // tsf | sendinput | ctrl_v
-    std::string commit_mode = "tsf";
-};
-
-struct AiAssistantConfig
-{
-    bool enabled = false;
-    // Active provider id. The legacy set is deepseek | openai | siliconflow | groq | custom; ids
-    // beyond that come from the provider registry in the data directory.
-    std::string provider = "deepseek";
-    // 生成式模式下最后选过的服务商。provider 切到 jev 时它保持不变，切回生成式时用它恢复。
-    std::string generate_provider = "deepseek";
-    std::string token;
-    std::map<std::string, std::string> tokens;
-    std::string endpoint = "https://api.deepseek.com/chat/completions";
-    std::string model = "deepseek-v4-flash";
-    // The provider registry (ai_providers.json in the data dir): any number of user-defined
-    // OpenAI-compatible services, HanaAgent-style. The legacy maps below keep the config.toml
-    // slots alive for rollback; requests resolve through `active`.
-    std::vector<AiAssistant::AiProvider> providers;
-    AiAssistant::AiProvider active;
-    // 这两份默认值的唯一权威在 ai_provider_store.cpp 的 BuiltinDefaults()，设置页也从那里取。
-    // 结构体默认成员初始化器没法调用函数，只能在这里再写一遍；tests/src/test_ai_provider_store.cpp
-    // 的 ai_provider_store_defaults_match_the_config_struct 用例钉住两份一致。
-    std::map<std::string, std::string> endpoints{
-        {"deepseek", "https://api.deepseek.com/chat/completions"},
-        {"openai", "https://api.openai.com/v1/chat/completions"},
-        {"siliconflow", "https://api.siliconflow.cn/v1/chat/completions"},
-        {"groq", "https://api.groq.com/openai/v1/chat/completions"},
-        {"minimax", "https://api.minimax.cn/v1/chat/completions"},
-        {"moonshot", "https://api.moonshot.cn/v1/chat/completions"},
-        {"zhipu", "https://open.bigmodel.cn/api/paas/v4/chat/completions"},
-        {"dashscope", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"},
-        {"volcengine", "https://ark.cn-beijing.volces.com/api/v3/chat/completions"},
-        {"openrouter", "https://openrouter.ai/api/v1/chat/completions"},
-        {"jev", "https://api.typesafe.ai/v1/systemone"},
-        {"ollama", "http://localhost:11434/v1/chat/completions"},
-        {"custom", ""}};
-    // Groq 已弃用 llama-3.3-70b-versatile，默认模型改用 qwen/qwen3.8-27b。
-    // custom 槽位不预设接口地址和模型，全部由用户填写并单独保存。ollama 不预设模型：本机装了哪些模型因人而异。
-    std::map<std::string, std::string> models{{"deepseek", "deepseek-v4-flash"},
-                                              {"openai", "gpt-4o-mini"},
-                                              {"siliconflow", "Qwen/Qwen3-8B"},
-                                              {"groq", "qwen/qwen3.8-27b"},
-                                              {"minimax", "MiniMax-M3.1-Flash-Preview"},
-                                              {"moonshot", "kimi-k2-0905-preview"},
-                                              {"zhipu", "glm-4-flash"},
-                                              {"dashscope", "qwen-plus"},
-                                              {"volcengine", "doubao-seed-1.6-flash"},
-                                              {"openrouter", "openrouter/auto"},
-                                              {"jev", "jev-1.13.0"},
-                                              {"ollama", ""},
-                                              {"custom", ""}};
-    int candidate_limit = 3;
-    // DeepSeek reasoning effort: disabled | low | high | max. Other providers ignore it.
-    std::string thinking = "disabled";
-    // response_format 策略：auto | force | off，见 ChatCompletions::JsonMode。AI 联想与候选词
-    // 翻译共用这一项，两边对同一个端点的请求形状保持一致。
-    std::string json_mode = "auto";
-    // custom_1 | custom_2 | custom_3
-    std::string prompt_id = "custom_1";
-    std::string prompt_custom_1;
-    std::string prompt_custom_2;
-    std::string prompt_custom_3;
-    // Resolved active prompt. `prompt` is also retained as the legacy slot-one key.
-    std::string prompt =
-        R"PROMPT(你是一个中文全拼输入法联想引擎。输入为已经切分好的拼音数组、前文上下文和候选数量。
-
-优先生成与拼音严格对应的中文候选：若有 N 段拼音，首选必须尽量为 N 个汉字，每段拼音对应一个汉字，不得随意增删或改变读音。结合上下文、常用程度、语义完整性和固定搭配排序。
-
-若去掉分词后能明显组成更合理的英文单词、缩写、产品名或技术术语，如 `deep + seek → DeepSeek`、`git + hub → GitHub`，可优先返回英文；不要生造英文或做牵强匹配。
-
-只输出合法 JSON，不要解释或输出 Markdown：
-
-{
-"candidates": [
-{
-"text": "候选内容",
-"type": "chinese或english",
-"confidence": 0.98
-}
-]
-}
-
-候选按推荐程度降序排列，数量不超过指定上限；没有合理结果时返回空数组。)PROMPT";
-};
-
-struct TencentTmtConfig
-{
-    bool enabled = false;
-    std::string secret_id;
-    std::string secret_key;
-    std::string region = "ap-guangzhou";
-    // Language shown beside Chinese candidates. Tencent TMT language codes:
-    // en / fr / ja / es / ru / de / ko / th / vi / it.
-    std::string target_language = "en";
-};
-
-struct AliyunMtConfig
-{
-    bool enabled = false;
-    // 键名沿用 secret_id / secret_key，才会被 IsCredentialKey 加密保存。
-    std::string secret_id;
-    std::string secret_key;
-};
-
-struct CustomTranslationConfig
-{
-    bool enabled = false;
-    // Full URL of a DeepLX-compatible POST endpoint.
-    std::string endpoint;
-    // Optional bearer token used by private or protected deployments.
-    std::string api_key;
-};
-
-struct NiuTransConfig
-{
-    bool enabled = false;
-    // 控制台->API应用 中的应用唯一标识与 apikey。
-    std::string app_id;
-    std::string apikey;
-};
-
-// 候选词翻译读取的整份配置快照。provider 来自 [translation].provider，旧配置没有这个键时由
-// [tencent_tmt]/[aliyun_mt]/[custom_translation]/[niutrans] 的 enabled 布尔在加载时推导；其余字段是各提供方
-// 配置的副本，ai 复用 AI 辅助当前服务商。配置加载和相关设置写入后整份替换，翻译 worker 与
-// 候选线程只读快照，不直接读会被重载改写的各段全局字符串。
-struct TranslationConfig
-{
-    // tencent | aliyun | niutrans | custom | ai
-    std::string provider = "tencent";
-    TencentTmtConfig tencent;
-    AliyunMtConfig aliyun;
-    CustomTranslationConfig custom;
-    NiuTransConfig niutrans;
-    struct Ai
-    {
-        std::string provider;
-        std::string endpoint;
-        std::string token;
-        std::string model;
-        // 从 [ai_assistant].json_mode 带过来，翻译请求与 AI 联想用同一条策略。
-        std::string json_mode = "auto";
-    } ai;
-};
-
-// [network] 段：云输入、模型下载、AI、翻译、语音等所有出站请求共用的代理设置。
+// [network] 段：模型下载、更新检查等出站请求共用的代理设置。
 struct NetworkProxyConfig
 {
     std::string mode = "system"; // system（跟随系统）| none（直连）| custom（自定义 HTTP 代理）
@@ -408,8 +213,6 @@ bool SetConfiguredKaomojiMixedInputEnabled(bool enabled);
 // 全拼里输入恰好等于某个符号编码（alpha、szq、xl）时，把符号混进候选。
 bool GetConfiguredSymbolMixedInputEnabled();
 bool SetConfiguredSymbolMixedInputEnabled(bool enabled);
-bool GetConfiguredCloudCandidatesEnabled();
-bool SetConfiguredCloudCandidatesEnabled(bool enabled);
 // 整句候选来源与去重补位开关（[association] 段），默认全关。
 bool GetConfiguredAssocSentenceWordLattice();
 bool SetConfiguredAssocSentenceWordLattice(bool enabled);
@@ -561,9 +364,6 @@ bool GetConfiguredCandidateFixedBadge();
 bool SetConfiguredCandidateFixedBadge(bool enabled);
 const std::string &GetConfiguredCandidateFixedBadgeStyle();
 bool SetConfiguredCandidateFixedBadgeStyle(const std::string &style);
-// AI 联想候选词的来源徽标样式（"robot" | "whale"），出厂 "robot"（🤖）。
-const std::string &GetConfiguredCandidateAiBadgeStyle();
-bool SetConfiguredCandidateAiBadgeStyle(const std::string &style);
 // 设置窗口关闭后隐藏驻留多久再退出进程：
 // "off" | "1m" | "5m" | "10m" | "30m" | "60m" | "forever"，默认 "10m"。
 const std::string &GetConfiguredSettingsWindowLinger();
@@ -590,36 +390,10 @@ const std::string &GetConfiguredThemeFtb();
 bool SetConfiguredThemeFtb(const std::string &theme);
 const std::string &GetConfiguredThemeMenu();
 bool SetConfiguredThemeMenu(const std::string &theme);
-const std::string &GetConfiguredThemeVoice();
-bool SetConfiguredThemeVoice(const std::string &theme);
 // Resolve effective "dark" / "light" for a surface override ("follow" | "dark" | "light").
 std::string ResolveConfiguredTheme(const std::string &surface_theme);
 bool IsSystemAppsLightTheme();
-// Returns a snapshot by value: the backing config is rewritten by the IPC worker thread while the voice control thread
-// and the low-level keyboard hook read it, so callers must never hold a reference into it.
-VoiceInputConfig GetConfiguredVoiceInput();
-bool SetConfiguredVoiceInputString(const std::string &key, const std::string &value);
-bool SetConfiguredVoiceInputBool(const std::string &key, bool value);
-const AiAssistantConfig &GetConfiguredAiAssistant();
-// Replaces the whole provider registry (settings page "save providers"). Persists the store,
-// keeps the active provider valid (falls back to the first entry when it disappeared) and
-// re-resolves the active endpoint/model/token.
-bool SetAiAssistantProviders(const std::vector<AiAssistant::AiProvider> &entries);
-const TencentTmtConfig &GetConfiguredTencentTmt();
-bool SetConfiguredTencentTmtString(const std::string &key, const std::string &value);
-const CustomTranslationConfig &GetConfiguredCustomTranslation();
-bool SetConfiguredCustomTranslationBool(const std::string &key, bool value);
-bool SetConfiguredCustomTranslationString(const std::string &key, const std::string &value);
-const AliyunMtConfig &GetConfiguredAliyunMt();
-bool SetConfiguredAliyunMtBool(const std::string &key, bool value);
-bool SetConfiguredAliyunMtString(const std::string &key, const std::string &value);
-const NiuTransConfig &GetConfiguredNiuTrans();
-bool SetConfiguredNiuTransBool(const std::string &key, bool value);
-bool SetConfiguredNiuTransString(const std::string &key, const std::string &value);
-bool IsValidTranslationProvider(const std::string &provider);
-std::shared_ptr<const TranslationConfig> GetConfiguredTranslation();
-bool SetConfiguredTranslationString(const std::string &key, const std::string &value);
-// Snapshot by value: download threads and the cloud worker read it while the settings host rewrites it.
+// Snapshot by value: download threads read it while the settings host rewrites it.
 NetworkProxyConfig GetConfiguredNetworkProxy();
 bool SetConfiguredNetworkString(const std::string &key, const std::string &value);
 // Accepts "host:port" or "http://host:port[/]"; returns the normalized "host:port", or an empty string when the
@@ -628,9 +402,3 @@ std::string NormalizeNetworkProxyServer(const std::string &value);
 const FrequencyAdjustmentConfig &GetConfiguredFrequencyAdjustment();
 bool SetConfiguredFrequencyAdjustmentString(const std::string &key, const std::string &value);
 bool SetConfiguredFrequencyAdjustmentInt(const std::string &key, int value);
-bool SetConfiguredAiAssistantString(const std::string &key, const std::string &value);
-// 按服务商写 endpoint / model：落槽位键 endpoint_<id> / model_<id>，单值键只在目标就是活动服务商时改写。
-// 设置页在多提供商之间切换时用它，免得"写单值键"被当成写给后端此刻的活动服务商。
-bool SetConfiguredAiAssistantProviderValue(std::string_view provider, std::string_view field, const std::string &value);
-bool SetConfiguredAiAssistantBool(const std::string &key, bool value);
-bool SetConfiguredAiAssistantInt(const std::string &key, int value);

@@ -31,9 +31,6 @@ export type ClientMessage =
   | { "type": "windowControl"; "protocolVersion"?: 1; "data": "minimize" | "maximize" | "restore" | "close" }
   | { "type": "maximizeButtonRect"; "protocolVersion"?: 1; "data": { "x": number; "y": number; "width": number; "height": number; "dpr": number } }
   | { "type": "configUpdate"; "protocolVersion"?: 1; "data": { "path": string; "value": string | number | boolean } }
-  | { "type": "apiCredentialTest"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "translation.tencent" | "translation.aliyun" | "translation.niutrans" | "translation.custom" | "translation.ai" | "voice.asr" | "voice.polish" | "ai.assistant"; "config": { [key: string]: unknown } } }
-  | { "type": "apiModelList"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "ai.assistant" | "voice.asr" | "voice.polish"; "config": { [key: string]: unknown } } }
-  | { "type": "aiProviderSync"; "protocolVersion"?: 1; "data": { "requestId": string; "entries": Array<{ "id": string; "name": string; "endpoint": string; "token": string; "model": string }> } }
   | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
@@ -54,7 +51,6 @@ export type ClientMessage =
   | { "type": "floatingToggle"; "protocolVersion"?: 1; "data": boolean }
   | { "type": "settings"; "protocolVersion"?: 1 }
   | { "type": "about"; "protocolVersion"?: 1 }
-  | { "type": "voiceInput"; "protocolVersion"?: 1 }
   | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" }
   | { "type": "inputSchemeSubmenu"; "protocolVersion"?: 1; "data": { "open": boolean; "width": number } }
   | { "type": "ready"; "protocolVersion"?: 1 }
@@ -68,11 +64,8 @@ export type ServerMessage =
   | { "type": "configSnapshot"; "protocolVersion"?: 1; "data": { [key: string]: unknown } }
   | { "type": "windowState"; "protocolVersion"?: 1; "data": { "isMaximized": boolean } }
   | { "type": "maxButtonEvent"; "protocolVersion"?: 1; "data": { "event": "enter" | "leave" | "down" | "up" | "click" } }
-  | { "type": "apiCredentialTestResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string }
   | { "type": "defaultImeResponse"; "protocolVersion"?: 1; "requestId": string; "action": string; "ok": boolean; "message": string; "enabled"?: boolean; "isDefault"?: boolean }
   | { "type": "gameCompatResponse"; "protocolVersion"?: 1; "requestId": string; "action": string; "ok": boolean; "message": string; "enabled"?: boolean; "name"?: string; "registeredName"?: string; "defaultName"?: string }
-  | { "type": "apiModelListResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string; "models"?: Array<string> }
-  | { "type": "aiProviderSyncResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string }
   | { "type": "restartServerDone"; "protocolVersion"?: 1; "ok": boolean }
   | { "type": "userDataBackupDone"; "protocolVersion"?: 1; "action": "export" | "import"; "ok": boolean; "message": string }
   | { "type": "dictionaryResponse"; "protocolVersion"?: 1; "requestId": string; "action"?: string; "dictionary"?: string; "ok": boolean; "message": string; "rows": Array<{ "word": string; "code"?: string; "display"?: string; "weight"?: number }>; "content"?: string; "filename"?: string; "offset"?: number; "hasMore"?: boolean; [key: string]: unknown };
@@ -106,9 +99,6 @@ export type SettingsMessage =
   | { "type": "windowControl"; "protocolVersion"?: 1; "data": "minimize" | "maximize" | "restore" | "close" }
   | { "type": "maximizeButtonRect"; "protocolVersion"?: 1; "data": { "x": number; "y": number; "width": number; "height": number; "dpr": number } }
   | { "type": "configUpdate"; "protocolVersion"?: 1; "data": { "path": string; "value": string | number | boolean } }
-  | { "type": "apiCredentialTest"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "translation.tencent" | "translation.aliyun" | "translation.niutrans" | "translation.custom" | "translation.ai" | "voice.asr" | "voice.polish" | "ai.assistant"; "config": { [key: string]: unknown } } }
-  | { "type": "apiModelList"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "ai.assistant" | "voice.asr" | "voice.polish"; "config": { [key: string]: unknown } } }
-  | { "type": "aiProviderSync"; "protocolVersion"?: 1; "data": { "requestId": string; "entries": Array<{ "id": string; "name": string; "endpoint": string; "token": string; "model": string }> } }
   | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } };

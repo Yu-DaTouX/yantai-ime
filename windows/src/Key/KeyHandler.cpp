@@ -278,23 +278,6 @@ HRESULT CMetasequoiaIME::_HandleToogleIMEMode(TfEditCookie ec, _In_ ITfContext *
     return S_OK;
 }
 
-HRESULT CMetasequoiaIME::_HandleInsertText(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &text)
-{
-    if (text.empty())
-    {
-        return S_OK;
-    }
-
-    CStringRange insertString;
-    insertString.Set(text.c_str(), text.length());
-    HRESULT hr = _AddCharAndFinalize(ec, pContext, &insertString);
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-    return _HandleCompleteCommitFirst(ec, pContext);
-}
-
 HRESULT CMetasequoiaIME::_HandleCommitCandidateAndContinue(TfEditCookie ec, _In_ ITfContext *pContext,
                                                            const std::wstring &payload)
 {
@@ -371,88 +354,6 @@ HRESULT CMetasequoiaIME::_HandleCommitCandidateAndContinue(TfEditCookie ec, _In_
         pCompositionProcessorEngine->AddVirtualKey(ch);
     }
     return _HandleCompositionInputWorker(pCompositionProcessorEngine, ec, pContext, FANY_IME_NO_REQUEST_ID);
-}
-
-HRESULT CMetasequoiaIME::_HandleUpdateVoiceComposition(TfEditCookie ec, _In_ ITfContext *pContext,
-                                                       const std::wstring &text)
-{
-    if (_pComposition != nullptr && !_voiceCompositionActive)
-    {
-        return S_OK; // Keyboard input owns this composition now.
-    }
-    if (text.empty())
-    {
-        return S_OK;
-    }
-
-    if (!_voiceCompositionActive)
-    {
-        if (_pCompositionProcessorEngine)
-        {
-            _pCompositionProcessorEngine->PurgeVirtualKey();
-        }
-        GlobalIme::word_for_creating_word.clear();
-        GlobalIme::pending_create_word_preedit.clear();
-        _DeleteCandidateList(FALSE, pContext);
-        _voiceCompositionActive = true;
-    }
-
-    if (_pComposition == nullptr)
-    {
-        _StartComposition(pContext);
-    }
-
-    CStringRange voiceString;
-    voiceString.Set(text.c_str(), text.length());
-    return _AddComposingAndChar(ec, pContext, &voiceString, true);
-}
-
-HRESULT CMetasequoiaIME::_HandleCommitVoiceComposition(TfEditCookie ec, _In_ ITfContext *pContext,
-                                                       const std::wstring &text)
-{
-    if (_pComposition != nullptr && !_voiceCompositionActive)
-    {
-        return S_OK; // A late final result must not replace keyboard preedit.
-    }
-    _voiceCompositionActive = false;
-    if (_pCompositionProcessorEngine)
-    {
-        _pCompositionProcessorEngine->PurgeVirtualKey();
-    }
-    GlobalIme::word_for_creating_word.clear();
-    GlobalIme::pending_create_word_preedit.clear();
-
-    if (text.empty())
-    {
-        if (_pComposition == nullptr)
-        {
-            return S_OK;
-        }
-        return _HandleCompleteCommitFirst(ec, pContext);
-    }
-
-    CStringRange commitString;
-    commitString.Set(text.c_str(), text.length());
-    HRESULT hr = _AddCharAndFinalize(ec, pContext, &commitString);
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-    return _HandleCompleteCommitFirst(ec, pContext);
-}
-
-HRESULT CMetasequoiaIME::_HandleCancelVoiceComposition(TfEditCookie ec, _In_ ITfContext *pContext)
-{
-    if (!_voiceCompositionActive)
-    {
-        return S_OK;
-    }
-    _voiceCompositionActive = false;
-    if (_pCompositionProcessorEngine)
-    {
-        _pCompositionProcessorEngine->PurgeVirtualKey();
-    }
-    return _HandleCancel(ec, pContext);
 }
 
 //+---------------------------------------------------------------------------

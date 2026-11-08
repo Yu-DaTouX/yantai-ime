@@ -21,8 +21,6 @@
 #include "engine/common/helpcode_utils.h"
 #include "engine/core/data_path.h"
 #include "engine/contracts/input_state_shortcuts.h"
-#include "voice-input/voice_providers.h"
-#include "ai/chat_request_params.h"
 
 using namespace ime_config_detail;
 
@@ -111,8 +109,6 @@ std::atomic_bool g_candidate_translation_show_pos{true};
 std::atomic_bool g_candidate_translation_single_sense{false};
 int g_english_mixed_input_min_chars = kEnglishMixedInputMinCharsDefault;
 int g_english_mixed_input_first_page_count = kEnglishMixedInputFirstPageCountDefault;
-// 云候选默认关闭：新装和缺字段的老配置都不发拼音到云端，必须用户在设置页主动打开。
-bool g_cloud_candidates_enabled = false;
 // 整句候选来源与去重补位开关：词格、Google 和神经速度档默认开，神经效果档与去重补位默认关。
 bool g_assoc_sentence_wordlattice = false;
 bool g_assoc_sentence_google = true;
@@ -185,7 +181,6 @@ std::string g_candidate_skin = "fluent";
 std::string g_candidate_window_preedit_style = "pinyin";
 bool g_candidate_fixed_badge = true;
 std::string g_candidate_fixed_badge_style = "paperclip";
-std::string g_candidate_ai_badge_style = "robot";
 std::string g_settings_window_linger = "off";
 bool g_settings_launch_animation = true;
 // 发现新版本时由后台自动下载安装包并校验。出厂开启：下载完还要用户自己确认安装，
@@ -196,28 +191,10 @@ std::string g_theme_settings = "follow";
 std::string g_theme_cand = "follow";
 std::string g_theme_ftb = "follow";
 std::string g_theme_menu = "follow";
-std::string g_theme_voice = "follow";
-// LoadImeConfig rewrites g_voice_input from the IPC worker thread while the voice control thread and the low-level
-// keyboard hook read it, so every access goes through this process-local lock. Unlike ConfigFileLock it is never held
-// across file I/O or IPC: a hook that blocks on a cross-process wait would stall typing system-wide.
-std::shared_mutex g_voice_input_mutex;
-VoiceInputConfig g_voice_input; // guarded by g_voice_input_mutex
 } // namespace ime_config_detail
-
-namespace
-{
-bool g_persist_asr_token_slot = false;
-bool g_persist_polish_token_slot = false;
-} // namespace
 
 namespace ime_config_detail
 {
-AiAssistantConfig g_ai_assistant;
-TencentTmtConfig g_tencent_tmt;
-AliyunMtConfig g_aliyun_mt;
-CustomTranslationConfig g_custom_translation;
-NiuTransConfig g_niutrans;
-std::string g_translation_provider = "tencent";
 std::mutex g_network_proxy_mutex;
 NetworkProxyConfig g_network_proxy;
 FrequencyAdjustmentConfig g_frequency_adjustment;
@@ -232,27 +209,6 @@ std::optional<std::filesystem::file_time_type> g_config_last_write_time;
 // 那时 last_write_time 相等但内容已经变了。只在时间戳没变时用它补一次判定。
 std::optional<std::uintmax_t> g_config_last_size;
 std::optional<uint64_t> g_config_last_content_hash;
-// ai_providers.json 的修改时间。服务商注册表不在 config.toml 里，只看 config.toml 的修改时间会漏掉它的变化。
-std::optional<std::filesystem::file_time_type> g_provider_store_last_write_time;
-bool g_provider_store_seen = false;
-} // namespace
-
-namespace ime_config_detail
-{
-VoiceInputConfig SnapshotVoiceInput()
-{
-    std::shared_lock<std::shared_mutex> lock(g_voice_input_mutex);
-    return g_voice_input;
-}
-} // namespace ime_config_detail
-
-namespace
-{
-void PublishVoiceInput(VoiceInputConfig voice)
-{
-    std::unique_lock<std::shared_mutex> lock(g_voice_input_mutex);
-    g_voice_input = std::move(voice);
-}
 } // namespace
 
 namespace ime_config_detail
@@ -275,52 +231,12 @@ bool IsValidCandidateFixedBadgeStyle(const std::string &style)
     return style == "paperclip" || style == "pushpin" || style == "dot";
 }
 
-// AI 联想徽标样式白名单，理由同上：存 "robot"/"whale" 而不是字面 emoji。
-// 直接查展示层的映射表，避免两份样式列表各自维护。
-bool IsValidCandidateAiBadgeStyle(const std::string &style)
-{
-    return AiSuggestionBadgeGlyph(style) != nullptr;
-}
-
 bool IsValidSettingsWindowLinger(const std::string &linger)
 {
     return linger == "off" || linger == "1m" || linger == "5m" || linger == "10m" || linger == "30m" ||
            linger == "60m" || linger == "forever";
 }
 
-bool IsValidTranslationTargetLanguage(const std::string &language)
-{
-    static constexpr std::string_view kLanguages[] = {"en", "fr", "ja", "es", "ru", "de", "ko", "th", "vi", "it"};
-    return std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
-}
-} // namespace ime_config_detail
-
-namespace
-{
-const std::vector<std::string_view> &AiAssistantProviders()
-{
-    return AiAssistant::ProviderStore::BuiltinProviderIds();
-}
-
-// 服务商已下线的旧默认模型。用户配置里残留这些值时按空槽位处理，跟随当前默认值。
-bool IsRetiredAiAssistantDefaultModel(std::string_view provider, std::string_view model)
-{
-    return provider == "groq" && model == "llama-3.3-70b-versatile";
-}
-} // namespace
-
-namespace ime_config_detail
-{
-std::string AiAssistantTokenSlotKey(std::string_view provider)
-{
-    const std::string id = VoiceInput::NormalizeProviderId(provider);
-    for (const auto known : AiAssistantProviders())
-    {
-        if (id == known)
-            return "token_" + id;
-    }
-    return {};
-}
 } // namespace ime_config_detail
 
 namespace
@@ -381,17 +297,6 @@ void RememberConfigWriteTime()
     }
 }
 
-void RememberProviderStoreWriteTime()
-{
-    std::error_code error;
-    const auto write_time = std::filesystem::last_write_time(AiAssistant::ProviderStore::StorePath(), error);
-    g_provider_store_last_write_time = error ? std::nullopt : std::optional(write_time);
-    g_provider_store_seen = true;
-}
-} // namespace ime_config_detail
-
-namespace
-{
 bool LoadImeConfig()
 {
     ConfigFileLock lock;
@@ -479,7 +384,7 @@ bool LoadImeConfig()
             IsHelpcodeSchemaAvailable(quanpin_helpcode_schema) ? quanpin_helpcode_schema : "lantian";
         g_show_quanpin_helpcode_in_candidate_window =
             tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
-            tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
+        tbl["helpcode"]["show_qp_helpcode_in_candidate_window"].value_or(true);
         g_quanpin_autocorrect_transposition = tbl["quanpin"]["autocorrect_transposition"].value_or(false);
         g_quanpin_autocorrect_neighbor = tbl["quanpin"]["autocorrect_neighbor"].value_or(false);
         g_quanpin_autocorrect_deletion = tbl["quanpin"]["autocorrect_deletion"].value_or(false);
@@ -552,7 +457,6 @@ bool LoadImeConfig()
                     ? count
                     : kEnglishMixedInputFirstPageCountDefault;
         }
-        g_cloud_candidates_enabled = tbl["general"]["cloud_candidates"].value_or(false);
         g_assoc_sentence_wordlattice = tbl["association"]["sentence_wordlattice"].value_or(false);
         g_assoc_sentence_google = tbl["association"]["sentence_google"].value_or(true);
         g_assoc_sentence_neural_desktop = tbl["association"]["sentence_neural_desktop"].value_or(false);
@@ -719,12 +623,6 @@ bool LoadImeConfig()
             g_candidate_fixed_badge_style = IsValidCandidateFixedBadgeStyle(badge_style) ? badge_style : "paperclip";
         }
         {
-            // 同上：非法值回退到出厂 🤖，AI 候选不会因此失去来源标识
-            const std::string ai_badge_style =
-                tbl["appearance"]["candidate_ai_badge_style"].value_or(std::string("robot"));
-            g_candidate_ai_badge_style = IsValidCandidateAiBadgeStyle(ai_badge_style) ? ai_badge_style : "robot";
-        }
-        {
             const std::string linger = tbl["appearance"]["settings_window_linger"].value_or(std::string("off"));
             g_settings_window_linger = IsValidSettingsWindowLinger(linger) ? linger : "off";
         }
@@ -747,260 +645,12 @@ bool LoadImeConfig()
         g_theme_cand = normalize_surface(tbl["appearance"]["theme_cand"].value_or(std::string("follow")));
         g_theme_ftb = normalize_surface(tbl["appearance"]["theme_ftb"].value_or(std::string("follow")));
         g_theme_menu = normalize_surface(tbl["appearance"]["theme_menu"].value_or(std::string("follow")));
-        g_theme_voice = normalize_surface(tbl["appearance"]["theme_voice"].value_or(std::string("follow")));
         {
             const std::string tsf_preedit_style = tbl["appearance"]["tsf_preedit_style"].value_or(
                 tbl["input"]["tsf_preedit_style"].value_or(std::string("raw")));
             g_tsf_preedit_style = GlobalSettings::normalizeTsfPreeditStyle(tsf_preedit_style);
             RefreshEffectiveTsfPreeditStyle();
         }
-        // Parse into a local and publish it in one step, so readers never observe half-rewritten strings or maps.
-        VoiceInputConfig voice;
-        voice.enabled = tbl["voice_input"]["voice_input"].value_or(false);
-        voice.hotkey_ralt = tbl["voice_input"]["hotkey_ralt"].value_or(true);
-        voice.hotkey_ctrl_f9 = tbl["voice_input"]["hotkey_ctrl_f9"].value_or(true);
-        voice.hotkey_ctrl_win = tbl["voice_input"]["hotkey_ctrl_win"].value_or(false);
-        voice.hotkey_rctrl_ralt = tbl["voice_input"]["hotkey_rctrl_ralt"].value_or(false);
-        voice.hotkey_hold_space_lock = tbl["voice_input"]["hotkey_hold_space_lock"].value_or(true);
-        voice.asr_provider = tbl["voice_input"]["asr_provider"].value_or(std::string("doubao"));
-        voice.asr_app_key = tbl["voice_input"]["asr_app_key"].value_or(std::string());
-        voice.doubao_auth_mode = VoiceInput::NormalizeDoubaoAuthMode(
-            tbl["voice_input"]["doubao_auth_mode"].value_or(std::string()), voice.asr_app_key);
-        voice.asr_token = tbl["voice_input"]["asr_token"].value_or(std::string());
-        for (const auto provider : VoiceInput::AsrProviders())
-        {
-            const std::string id(provider);
-            voice.asr_tokens[id] =
-                VoiceInput::UsableToken(tbl["voice_input"][VoiceInput::AsrTokenSlotKey(id)].value_or(std::string()));
-        }
-        {
-            const std::string provider = VoiceInput::NormalizeProviderId(voice.asr_provider);
-            std::string &stored = voice.asr_tokens[provider];
-            if (VoiceInput::IsPlaceholderToken(stored) && !VoiceInput::IsPlaceholderToken(voice.asr_token))
-            {
-                stored = voice.asr_token;
-                g_persist_asr_token_slot = true;
-            }
-            voice.asr_token = stored;
-        }
-        voice.asr_endpoint = tbl["voice_input"]["asr_endpoint"].value_or(
-            voice.asr_provider == "doubao" ? std::string("wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async")
-                                           : std::string("https://api.siliconflow.cn/v1/audio/transcriptions"));
-        if (voice.asr_provider == "doubao" &&
-            voice.asr_endpoint == "https://api.siliconflow.cn/v1/audio/transcriptions")
-        {
-            voice.asr_endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
-        }
-        voice.asr_resource_id =
-            tbl["voice_input"]["asr_resource_id"].value_or(std::string("volc.seedasr.sauc.duration"));
-        voice.doubao_enable_itn = tbl["voice_input"]["doubao_enable_itn"].value_or(true);
-        voice.doubao_enable_punc = tbl["voice_input"]["doubao_enable_punc"].value_or(true);
-        voice.doubao_enable_ddc = tbl["voice_input"]["doubao_enable_ddc"].value_or(false);
-        voice.doubao_boosting_table_id = tbl["voice_input"]["doubao_boosting_table_id"].value_or(std::string());
-        voice.asr_model = tbl["voice_input"]["asr_model"].value_or(std::string());
-        voice.polish_provider = tbl["voice_input"]["polish_provider"].value_or(std::string("siliconflow"));
-        voice.polish_token = tbl["voice_input"]["polish_token"].value_or(std::string());
-        for (const auto provider : VoiceInput::PolishProviders())
-        {
-            const std::string id(provider);
-            voice.polish_tokens[id] =
-                VoiceInput::UsableToken(tbl["voice_input"][VoiceInput::PolishTokenSlotKey(id)].value_or(std::string()));
-        }
-        {
-            const std::string provider = VoiceInput::NormalizeProviderId(voice.polish_provider);
-            std::string &stored = voice.polish_tokens[provider];
-            if (VoiceInput::IsPlaceholderToken(stored) && !VoiceInput::IsPlaceholderToken(voice.polish_token))
-            {
-                stored = voice.polish_token;
-                g_persist_polish_token_slot = true;
-            }
-            voice.polish_token = stored;
-        }
-        voice.polish_endpoint = tbl["voice_input"]["polish_endpoint"].value_or(
-            std::string("https://api.siliconflow.cn/v1/chat/completions"));
-        voice.polish_model = tbl["voice_input"]["polish_model"].value_or(std::string());
-        voice.polish_thinking = tbl["voice_input"]["polish_thinking"].value_or(std::string("disabled"));
-        if (!VoiceInput::IsValidThinkingLevel(voice.polish_thinking))
-            voice.polish_thinking = "disabled";
-        voice.polish_prompt = tbl["voice_input"]["polish_prompt"].value_or(std::string());
-        voice.polish_prompt_id = tbl["voice_input"]["polish_prompt_id"].value_or(std::string("cleanup"));
-        if (voice.polish_prompt_id == "custom")
-            voice.polish_prompt_id = "custom_1";
-        if (voice.polish_prompt_id != "cleanup" && voice.polish_prompt_id != "faithful" &&
-            voice.polish_prompt_id != "zh2en" && voice.polish_prompt_id != "casual" &&
-            voice.polish_prompt_id != "custom_1" && voice.polish_prompt_id != "custom_2" &&
-            voice.polish_prompt_id != "custom_3")
-        {
-            voice.polish_prompt_id = "cleanup";
-        }
-        voice.polish_prompt_custom_1 = tbl["voice_input"]["polish_prompt_custom_1"].value_or(std::string());
-        if (voice.polish_prompt_custom_1.empty())
-            voice.polish_prompt_custom_1 = voice.polish_prompt;
-        voice.polish_prompt_custom_2 = tbl["voice_input"]["polish_prompt_custom_2"].value_or(std::string());
-        voice.polish_prompt_custom_3 = tbl["voice_input"]["polish_prompt_custom_3"].value_or(std::string());
-        voice.language = tbl["voice_input"]["language"].value_or(std::string("zh-cn"));
-        // notification_sound is retained as a fallback for configs written by older versions.
-        const bool legacy_notification_sound = tbl["voice_input"]["notification_sound"].value_or(true);
-        voice.start_sound = tbl["voice_input"]["start_sound"].value_or(legacy_notification_sound);
-        voice.end_sound = tbl["voice_input"]["end_sound"].value_or(legacy_notification_sound);
-        voice.mute_system_audio = tbl["voice_input"]["mute_system_audio"].value_or(false);
-        voice.polish_text = tbl["voice_input"]["polish_text"].value_or(false);
-        voice.stream_inline_preedit = tbl["voice_input"]["stream_inline_preedit"].value_or(false);
-        voice.commit_mode = tbl["voice_input"]["commit_mode"].value_or(std::string("tsf"));
-        if (voice.commit_mode != "tsf" && voice.commit_mode != "sendinput" && voice.commit_mode != "ctrl_v")
-        {
-            voice.commit_mode = "tsf";
-        }
-        PublishVoiceInput(std::move(voice));
-        g_ai_assistant.enabled = tbl["ai_assistant"]["enabled"].value_or(false);
-        // The provider registry lives in the data directory (ai_providers.json) and has to be read
-        // before the active provider is validated: an id the user added there is not one of the
-        // built-in slots, and checking only those would reset it to deepseek on every load.
-        if (const auto stored = AiAssistant::ProviderStore::Load())
-        {
-            g_ai_assistant.providers = *stored;
-        }
-        else
-        {
-            g_ai_assistant.providers = AiAssistant::ProviderStore::SeedBuiltins();
-            AiAssistant::ProviderStore::Save(g_ai_assistant.providers);
-        }
-        RememberProviderStoreWriteTime();
-        g_ai_assistant.provider =
-            VoiceInput::NormalizeProviderId(tbl["ai_assistant"]["provider"].value_or(std::string("deepseek")));
-        const auto registered = [](const std::string &id) {
-            return std::any_of(g_ai_assistant.providers.begin(), g_ai_assistant.providers.end(),
-                               [&id](const AiAssistant::AiProvider &entry) { return entry.id == id; });
-        };
-        if (AiAssistantTokenSlotKey(g_ai_assistant.provider).empty() && !registered(g_ai_assistant.provider))
-            g_ai_assistant.provider = "deepseek";
-        // 生成式记的上次服务商只在它是合法 id 时才算数，旧配置里没有这个键时跟随当前 provider。
-        g_ai_assistant.generate_provider =
-            VoiceInput::NormalizeProviderId(tbl["ai_assistant"]["generate_provider"].value_or(std::string()));
-        const bool generate_known = AiAssistantTokenSlotKey(g_ai_assistant.generate_provider) != "" ||
-                                    std::any_of(g_ai_assistant.providers.begin(), g_ai_assistant.providers.end(),
-                                                [](const AiAssistant::AiProvider &entry) {
-                                                    return entry.id == g_ai_assistant.generate_provider;
-                                                });
-        if (!generate_known || g_ai_assistant.generate_provider == "jev")
-            g_ai_assistant.generate_provider =
-                g_ai_assistant.provider == "jev" ? std::string("deepseek") : g_ai_assistant.provider;
-        g_ai_assistant.token = tbl["ai_assistant"]["token"].value_or(std::string());
-        g_ai_assistant.tokens.clear();
-        for (const auto provider : AiAssistantProviders())
-        {
-            const std::string id(provider);
-            g_ai_assistant.tokens[id] =
-                VoiceInput::UsableToken(tbl["ai_assistant"][AiAssistantTokenSlotKey(id)].value_or(std::string()));
-        }
-        // Registry providers keep their token in config.toml as well, as token_<id>: that key is
-        // DPAPI-protected and survives template merges as a credential.
-        for (const auto &entry : g_ai_assistant.providers)
-        {
-            if (!AiAssistant::ProviderStore::IsBuiltinProvider(entry.id))
-                g_ai_assistant.tokens[entry.id] =
-                    VoiceInput::UsableToken(tbl["ai_assistant"]["token_" + entry.id].value_or(std::string()));
-        }
-        {
-            std::string &stored = g_ai_assistant.tokens[g_ai_assistant.provider];
-            if (stored.empty())
-                stored = VoiceInput::UsableToken(g_ai_assistant.token);
-            g_ai_assistant.token = stored;
-        }
-        g_ai_assistant.endpoint =
-            tbl["ai_assistant"]["endpoint"].value_or(std::string("https://api.deepseek.com/chat/completions"));
-        g_ai_assistant.model = tbl["ai_assistant"]["model"].value_or(std::string("deepseek-v4-flash"));
-        const AiAssistantConfig ai_defaults;
-        g_ai_assistant.endpoints = ai_defaults.endpoints;
-        g_ai_assistant.models = ai_defaults.models;
-        for (const auto provider : AiAssistantProviders())
-        {
-            const std::string id(provider);
-            const auto load_slot = [&](const std::string &key, const std::string &legacy, std::string &target) {
-                // 空值和服务商已下线的旧默认模型都表示「用默认值」：早于 #610 的版本会把默认值原样写盘。
-                const auto usable = [&](const std::string &value) {
-                    return !value.empty() && !(key == "model" && IsRetiredAiAssistantDefaultModel(id, value));
-                };
-                const std::string stored = tbl["ai_assistant"][key + "_" + id].value_or(std::string());
-                if (usable(stored))
-                    target = stored;
-                else if (id == g_ai_assistant.provider && usable(legacy))
-                    target = legacy;
-            };
-            load_slot("endpoint", g_ai_assistant.endpoint, g_ai_assistant.endpoints[id]);
-            load_slot("model", g_ai_assistant.model, g_ai_assistant.models[id]);
-        }
-        g_ai_assistant.endpoint = g_ai_assistant.endpoints[g_ai_assistant.provider];
-        g_ai_assistant.model = g_ai_assistant.models[g_ai_assistant.provider];
-        // Registry-only providers have no endpoint_/model_ slot that survives an upgrade; their
-        // values come from the store.
-        AiAssistant::ProviderStore::ResolveActive(g_ai_assistant.active, g_ai_assistant.endpoint, g_ai_assistant.model,
-                                                  g_ai_assistant.provider, g_ai_assistant.providers);
-        const int ai_limit = tbl["ai_assistant"]["candidate_limit"].value_or(3);
-        g_ai_assistant.candidate_limit = ai_limit >= 1 && ai_limit <= 10 ? ai_limit : 3;
-        g_ai_assistant.thinking = tbl["ai_assistant"]["thinking"].value_or(std::string("disabled"));
-        if (!VoiceInput::IsValidThinkingLevel(g_ai_assistant.thinking))
-            g_ai_assistant.thinking = "disabled";
-        // 旧配置里没有这个键，缺省按 auto：本机地址与未知服务不带 response_format，
-        // 原生实现照旧带上，升级后行为对已有的云端用户不变。
-        g_ai_assistant.json_mode =
-            ChatCompletions::NormalizeJsonMode(tbl["ai_assistant"]["json_mode"].value_or(std::string("auto")));
-        const std::string legacy_ai_prompt = tbl["ai_assistant"]["prompt"].value_or(g_ai_assistant.prompt);
-        g_ai_assistant.prompt_id = tbl["ai_assistant"]["prompt_id"].value_or(std::string("custom_1"));
-        if (g_ai_assistant.prompt_id != "custom_1" && g_ai_assistant.prompt_id != "custom_2" &&
-            g_ai_assistant.prompt_id != "custom_3")
-            g_ai_assistant.prompt_id = "custom_1";
-        g_ai_assistant.prompt_custom_1 = tbl["ai_assistant"]["prompt_custom_1"].value_or(std::string());
-        if (g_ai_assistant.prompt_custom_1.empty())
-            g_ai_assistant.prompt_custom_1 = legacy_ai_prompt;
-        g_ai_assistant.prompt_custom_2 = tbl["ai_assistant"]["prompt_custom_2"].value_or(std::string());
-        g_ai_assistant.prompt_custom_3 = tbl["ai_assistant"]["prompt_custom_3"].value_or(std::string());
-        g_ai_assistant.prompt = g_ai_assistant.prompt_id == "custom_2"   ? g_ai_assistant.prompt_custom_2
-                                : g_ai_assistant.prompt_id == "custom_3" ? g_ai_assistant.prompt_custom_3
-                                                                         : g_ai_assistant.prompt_custom_1;
-        g_tencent_tmt.enabled = tbl["tencent_tmt"]["enabled"].value_or(false);
-        g_tencent_tmt.secret_id = tbl["tencent_tmt"]["secret_id"].value_or(std::string());
-        g_tencent_tmt.secret_key = tbl["tencent_tmt"]["secret_key"].value_or(std::string());
-        g_tencent_tmt.region = tbl["tencent_tmt"]["region"].value_or(std::string("ap-guangzhou"));
-        if (g_tencent_tmt.region.empty())
-            g_tencent_tmt.region = "ap-guangzhou";
-        g_tencent_tmt.target_language = tbl["tencent_tmt"]["target_language"].value_or(std::string("en"));
-        if (!IsValidTranslationTargetLanguage(g_tencent_tmt.target_language))
-            g_tencent_tmt.target_language = "en";
-        g_aliyun_mt.enabled = tbl["aliyun_mt"]["enabled"].value_or(false);
-        g_aliyun_mt.secret_id = tbl["aliyun_mt"]["secret_id"].value_or(std::string());
-        g_aliyun_mt.secret_key = tbl["aliyun_mt"]["secret_key"].value_or(std::string());
-        g_custom_translation.enabled = tbl["custom_translation"]["enabled"].value_or(false);
-        g_custom_translation.endpoint = tbl["custom_translation"]["endpoint"].value_or(std::string());
-        g_custom_translation.api_key = tbl["custom_translation"]["api_key"].value_or(std::string());
-        g_niutrans.enabled = tbl["niutrans"]["enabled"].value_or(false);
-        g_niutrans.app_id = tbl["niutrans"]["app_id"].value_or(std::string());
-        g_niutrans.apikey = tbl["niutrans"]["apikey"].value_or(std::string());
-        // [translation].provider 是唯一来源；旧配置缺这个键时从各提供方的 enabled 布尔推导，
-        // 再把布尔按 provider 归一，保证旧版读回时选择不丢。
-        g_translation_provider = tbl["translation"]["provider"].value_or(std::string());
-        if (IsValidTranslationProvider(g_translation_provider))
-        {
-            // 用户在设置页明确选过，腾讯云的旧门禁跟着选择走。
-            g_tencent_tmt.enabled = g_translation_provider == "tencent";
-        }
-        else
-        {
-            // 推导出腾讯云时保留 tencent_tmt.enabled 原值：旧版要它为 true 才会发请求，
-            // 升级不能替用户把候选词发给腾讯云。
-            if (g_niutrans.enabled)
-                g_translation_provider = "niutrans";
-            else if (g_aliyun_mt.enabled)
-                g_translation_provider = "aliyun";
-            else if (g_custom_translation.enabled)
-                g_translation_provider = "custom";
-            else
-                g_translation_provider = "tencent";
-        }
-        g_niutrans.enabled = g_translation_provider == "niutrans";
-        g_aliyun_mt.enabled = g_translation_provider == "aliyun";
-        g_custom_translation.enabled = g_translation_provider == "custom";
-        PublishTranslationConfig();
         {
             NetworkProxyConfig proxy;
             proxy.mode = tbl["network"]["proxy_mode"].value_or(std::string("system"));
@@ -1022,76 +672,7 @@ bool LoadImeConfig()
     }
 }
 
-void PersistSeededVoiceInputTokenSlots()
-{
-    VoiceInputConfig voice = SnapshotVoiceInput();
-    if (g_persist_asr_token_slot)
-    {
-        const std::string id = VoiceInput::NormalizeProviderId(voice.asr_provider);
-        const std::string key = VoiceInput::AsrTokenSlotKey(id);
-        if (!key.empty())
-            WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(voice.asr_tokens[id]));
-        g_persist_asr_token_slot = false;
-    }
-    if (g_persist_polish_token_slot)
-    {
-        const std::string id = VoiceInput::NormalizeProviderId(voice.polish_provider);
-        const std::string key = VoiceInput::PolishTokenSlotKey(id);
-        if (!key.empty())
-            WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(voice.polish_tokens[id]));
-        g_persist_polish_token_slot = false;
-    }
-}
-
-void MigrateLegacyVoiceInputConfig()
-{
-    VoiceInputConfig voice = SnapshotVoiceInput();
-    if (!voice.asr_token.empty())
-        return;
-    const std::filesystem::path legacy_path =
-        std::filesystem::path(CommonUtils::get_local_appdata_path_w()) / L"MetasequoiaVoiceInput" / L"config.toml";
-    if (!std::filesystem::exists(legacy_path))
-        return;
-    try
-    {
-        std::ifstream legacy_input(legacy_path, std::ios::binary);
-        const std::string legacy_text((std::istreambuf_iterator<char>(legacy_input)), std::istreambuf_iterator<char>());
-        const toml::table legacy = toml::parse(legacy_text);
-        const std::string asr_token = legacy["asr_api"]["token"].value_or(std::string());
-        if (asr_token.empty())
-            return;
-        const auto migrate_string = [](const std::string &key, const std::string &value, std::string &target) {
-            if (WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(value)))
-                target = value;
-        };
-        const auto migrate_bool = [](const std::string &key, bool value, bool &target) {
-            if (WriteConfiguredValue("voice_input", key, value ? "true" : "false"))
-                target = value;
-        };
-        migrate_string("asr_provider", legacy["asr_api"]["provider"].value_or(std::string("siliconflow")),
-                       voice.asr_provider);
-        migrate_string("asr_token", asr_token, voice.asr_token);
-        migrate_string("asr_endpoint", legacy["asr_api"]["endpoint"].value_or(voice.asr_endpoint), voice.asr_endpoint);
-        migrate_string("polish_provider", legacy["polish_api"]["provider"].value_or(std::string("siliconflow")),
-                       voice.polish_provider);
-        migrate_string("polish_token", legacy["polish_api"]["token"].value_or(std::string()), voice.polish_token);
-        migrate_string("polish_endpoint", legacy["polish_api"]["endpoint"].value_or(voice.polish_endpoint),
-                       voice.polish_endpoint);
-        migrate_string("language", legacy["settings"]["language"].value_or(std::string("zh-cn")), voice.language);
-        const bool notification_sound = legacy["settings"]["notification_sound"].value_or(true);
-        migrate_bool("start_sound", notification_sound, voice.start_sound);
-        migrate_bool("end_sound", notification_sound, voice.end_sound);
-        migrate_bool("polish_text", legacy["settings"]["polish_text"].value_or(false), voice.polish_text);
-        PublishVoiceInput(std::move(voice));
-    }
-    catch (const toml::parse_error &)
-    {
-#ifdef FANY_DEBUG
-        (void)0;
-#endif
-    }
-}
-} // namespace
+} // namespace ime_config_detail
 
 namespace ime_config_detail
 {
@@ -1107,7 +688,6 @@ SchemeType ParseScheme(const std::string &value)
 void InvalidateImeConfigWriteTime()
 {
     g_config_last_write_time.reset();
-    g_provider_store_seen = false;
 }
 
 void InitImeConfig()
@@ -1123,33 +703,6 @@ void InitImeConfig()
     SyncConfigWithInstalledTemplate();
     if (LoadImeConfig())
     {
-        MigrateLegacyVoiceInputConfig();
-        VoiceInputConfig voice = SnapshotVoiceInput();
-        if (VoiceInput::NormalizeProviderId(voice.asr_provider) == "siliconflow" &&
-            voice.asr_model == "TeleAI/TeleSpeechASR")
-        {
-            const std::string model = VoiceInput::DefaultAsrModel("siliconflow");
-            if (WriteConfiguredValue("voice_input", "asr_model", EscapeTomlBasicString(model)))
-                voice.asr_model = model;
-        }
-        {
-            const std::string asr_id = VoiceInput::NormalizeProviderId(voice.asr_provider);
-            if (VoiceInput::IsPlaceholderToken(voice.asr_tokens[asr_id]) &&
-                !VoiceInput::IsPlaceholderToken(voice.asr_token))
-            {
-                voice.asr_tokens[asr_id] = voice.asr_token;
-                g_persist_asr_token_slot = true;
-            }
-            const std::string polish_id = VoiceInput::NormalizeProviderId(voice.polish_provider);
-            if (VoiceInput::IsPlaceholderToken(voice.polish_tokens[polish_id]) &&
-                !VoiceInput::IsPlaceholderToken(voice.polish_token))
-            {
-                voice.polish_tokens[polish_id] = voice.polish_token;
-                g_persist_polish_token_slot = true;
-            }
-        }
-        PublishVoiceInput(std::move(voice));
-        PersistSeededVoiceInputTokenSlots();
         ProtectPlaintextCredentials();
 #ifdef FANY_DEBUG
         (void)0;
@@ -1191,15 +744,7 @@ bool ReloadImeConfigIfChanged()
             config_changed = true;
         }
     }
-    bool store_changed = false;
-    if (!error && !config_changed && g_provider_store_seen)
-    {
-        std::error_code store_error;
-        const auto store_time = std::filesystem::last_write_time(AiAssistant::ProviderStore::StorePath(), store_error);
-        const auto current = store_error ? std::nullopt : std::optional(store_time);
-        store_changed = current != g_provider_store_last_write_time;
-    }
-    if (!config_changed && !store_changed)
+    if (!config_changed)
     {
         return false;
     }

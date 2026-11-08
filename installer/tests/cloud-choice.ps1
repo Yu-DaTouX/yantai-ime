@@ -18,7 +18,7 @@ function Get-FileDigest([string]$Path) {
     [Convert]::ToBase64String([IO.File]::ReadAllBytes($Path))
 }
 
-$root = Join-Path ([IO.Path]::GetTempPath()) ('msime-cloud-choice-' + [Guid]::NewGuid().ToString('N'))
+$root = Join-Path ([IO.Path]::GetTempPath()) ('msime-config-migration-' + [Guid]::NewGuid().ToString('N'))
 $script = Join-Path $PSScriptRoot 'cloud-choice-probe.iss'
 $binary = Join-Path $root 'cloud-choice-probe.exe'
 New-Item -ItemType Directory -Force $root | Out-Null
@@ -26,22 +26,19 @@ New-Item -ItemType Directory -Force $root | Out-Null
 try {
     & (Resolve-Iscc) "/O$root" $script | Out-Null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $binary)) {
-        throw 'Cannot compile cloud-choice probe'
+        throw 'Cannot compile config migration probe'
     }
 
     # SameDir：目标就是原目录（默认位置首次安装或原地升级）。
     # Fail：安装应当停止，两份配置保持原样，日志里有 Message。
     # Lock：安装期间独占打开原目录的 config.toml，让迁移失败。
     $cases = @(
-        @{ Name = 'fresh-default'; SameDir = $true; Previous = ''; Target = ''; Choice = '0'; Expected = 'false' },
-        @{ Name = 'fresh-enabled'; SameDir = $true; Previous = ''; Target = ''; Choice = '1'; Expected = 'true' },
-        @{ Name = 'fresh-moved'; SameDir = $false; Previous = ''; Target = ''; Choice = '0'; Expected = 'false' },
-        @{ Name = 'target-existing'; SameDir = $false; Previous = ''; Target = 'true'; Choice = '0'; Expected = 'true' },
-        @{ Name = 'upgrade-moved'; SameDir = $false; Previous = 'true'; Target = ''; Choice = '0'; Expected = 'true' },
-        @{ Name = 'upgrade-in-place'; SameDir = $true; Previous = 'false'; Target = ''; Choice = '1'; Expected = 'false' },
-        @{ Name = 'migration-retry'; SameDir = $false; Previous = 'false'; Target = 'false'; Choice = '1'; Expected = 'false' },
-        @{ Name = 'migration-conflict'; SameDir = $false; Previous = 'false'; Target = 'true'; Choice = '0'; Fail = '目标数据目录已有 config.toml' },
-        @{ Name = 'migration-locked'; SameDir = $false; Previous = 'false'; Target = ''; Choice = '1'; Fail = '无法把用户配置'; Lock = $true }
+        @{ Name = 'fresh-default'; SameDir = $true; Previous = ''; Target = '' },
+        @{ Name = 'upgrade-moved'; SameDir = $false; Previous = 'note = "old"'; Target = ''; Expected = 'note = "old"' },
+        @{ Name = 'upgrade-in-place'; SameDir = $true; Previous = 'note = "old"'; Target = ''; Expected = 'note = "old"' },
+        @{ Name = 'migration-retry'; SameDir = $false; Previous = 'note = "same"'; Target = 'note = "same"' },
+        @{ Name = 'migration-conflict'; SameDir = $false; Previous = 'note = "old"'; Target = 'note = "new"'; Fail = '目标数据目录已有 config.toml' },
+        @{ Name = 'migration-locked'; SameDir = $false; Previous = 'note = "old"'; Target = ''; Fail = '无法把用户配置'; Lock = $true }
     )
 
     foreach ($case in $cases) {
@@ -52,10 +49,10 @@ try {
         $oldConfig = Join-Path $previous 'config.toml'
         $targetConfig = Join-Path $target 'config.toml'
         if ($case.Previous) {
-            [IO.File]::WriteAllText($oldConfig, "[general]`ncloud_candidates = $($case.Previous)`n")
+            [IO.File]::WriteAllText($oldConfig, "[general]`n$($case.Previous)`n")
         }
         if ($case.Target) {
-            [IO.File]::WriteAllText($targetConfig, "[general]`ncloud_candidates = $($case.Target)`n")
+            [IO.File]::WriteAllText($targetConfig, "[general]`n$($case.Target)`n")
         }
         $app = Join-Path $caseRoot 'app'
         $installLog = Join-Path $caseRoot 'install.log'
@@ -69,7 +66,7 @@ try {
             $lock = [IO.File]::Open($oldConfig, 'Open', 'Read', 'None')
         }
         try {
-            & $binary '/VERYSILENT' '/SUPPRESSMSGBOXES' '/NORESTART' "/DIR=$app" "/TARGET=$target" "/PREVIOUS=$previous" "/CLOUD=$($case.Choice)" "/LOG=$installLog" | Out-Null
+            & $binary '/VERYSILENT' '/SUPPRESSMSGBOXES' '/NORESTART' "/DIR=$app" "/TARGET=$target" "/PREVIOUS=$previous" "/LOG=$installLog" | Out-Null
             $exitCode = $LASTEXITCODE
         }
         finally {
@@ -93,15 +90,19 @@ try {
             throw "$($case.Name): previous config was not moved"
         }
         $config = [IO.File]::ReadAllText($targetConfig)
-        if ($config -notmatch "(?m)^cloud_candidates = $($case.Expected)\r?$") {
-            $found = [regex]::Match($config, '(?m)^cloud_candidates[^\r\n]*').Value
-            throw "$($case.Name): expected $($case.Expected), found [$found]"
+        if ($case.ContainsKey('Expected') -and -not $config.Contains($case.Expected)) {
+            throw "$($case.Name): migrated config lost '$($case.Expected)'"
         }
-        if ($case.Name -like 'fresh-*' -and $config -notmatch '云候选') {
-            throw "$($case.Name): fresh config lost UTF-8 text"
+        if ($case.Name -eq 'fresh-default') {
+            if ($config -notmatch '\[general\]') {
+                throw 'fresh config is not the shipped template'
+            }
+            if ($config -match 'cloud_candidates') {
+                throw 'fresh config still mentions the removed cloud candidate switch'
+            }
         }
     }
-    Write-Host "Cloud choice probe passed $($cases.Count) install scenarios"
+    Write-Host "Config migration probe passed $($cases.Count) install scenarios"
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

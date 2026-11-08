@@ -274,7 +274,6 @@ bool SetConfiguredCandidateWindowPreeditStyle(const std::string &style)
     return true;
 }
 
-
 bool GetConfiguredCandidateFixedBadge()
 {
     return g_candidate_fixed_badge;
@@ -306,25 +305,6 @@ bool SetConfiguredCandidateFixedBadgeStyle(const std::string &style)
         return false;
     }
     g_candidate_fixed_badge_style = style;
-    return true;
-}
-
-const std::string &GetConfiguredCandidateAiBadgeStyle()
-{
-    return g_candidate_ai_badge_style;
-}
-
-bool SetConfiguredCandidateAiBadgeStyle(const std::string &style)
-{
-    if (!IsValidCandidateAiBadgeStyle(style))
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("appearance", "candidate_ai_badge_style", EscapeTomlBasicString(style)))
-    {
-        return false;
-    }
-    g_candidate_ai_badge_style = style;
     return true;
 }
 

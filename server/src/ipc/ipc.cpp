@@ -436,11 +436,6 @@ HANDLE CreateTsfDiagnosticNamedPipeInstance()
                                    static_cast<DWORD>(FANY_IME_TSF_DIAGNOSTIC_MAX_FRAME_BYTES));
 }
 
-HANDLE CreateVoiceControlNamedPipeInstance()
-{
-    return CreateNamedPipeInstance(FANY_IME_VOICE_CONTROL_NAMED_PIPE, 512, 512);
-}
-
 HANDLE CreateToTsfNamedPipeInstance()
 {
     return CreateNamedPipeInstance(
@@ -475,7 +470,6 @@ int InitNamedPipe()
     // Short-lived, batch-only TSF diagnostic transport. It is independent of
     // Aux so logging can never delay lifecycle or settings notifications.
     hTsfDiagnosticPipe = CreateTsfDiagnosticNamedPipeInstance();
-    hVoiceControlPipe = CreateVoiceControlNamedPipeInstance();
 
     // Namedpipe for passing data from this process to TSF process
     hToTsfPipe = CreateToTsfNamedPipeInstance();
@@ -633,11 +627,6 @@ int CloseNamedPipe()
     {
         CloseHandle(hPipe);
         hPipe = INVALID_HANDLE_VALUE;
-    }
-    if (hVoiceControlPipe != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(hVoiceControlPipe);
-        hVoiceControlPipe = INVALID_HANDLE_VALUE;
     }
     return 0;
 }
@@ -842,7 +831,6 @@ bool ClientNegotiatedCaretStateIndicator(uint64_t client_id)
            (it->second.protocol.capabilities & FanyImeProtocol::CaretStateIndicator) != 0;
 }
 
-
 bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
 {
     std::lock_guard lock(g_pipe_clients_mutex);
@@ -850,7 +838,6 @@ bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
     return it != g_pipe_clients.end() && !it->second.protocol.legacy &&
            (it->second.protocol.capabilities & FanyImeProtocol::InputStateShortcuts) != 0;
 }
-
 
 uint64_t RegisterToTsfPipeClient(uint64_t client_id, HANDLE pipe)
 {
@@ -1738,37 +1725,6 @@ bool SendToTsfWorkerThreadClientViaNamedpipe(uint64_t client_id, uint64_t activa
                                              const std::wstring &pipeData)
 {
     return SendWorkerPacket(client_id, activation_epoch, true, msg_type, pipeData);
-}
-
-bool SendVoiceCompositionToTsfWorker(uint64_t client_id, uint64_t activation_epoch, UINT msg_type,
-                                     const std::wstring &text)
-{
-    static std::atomic<unsigned int> generation{1};
-    unsigned int next = generation.fetch_add(1, std::memory_order_relaxed);
-    if (next == 0 || next > 0xFFFFu)
-    {
-        generation.store(1, std::memory_order_relaxed);
-        next = 1;
-    }
-    const std::vector<std::wstring> payloads =
-        FanyImeVoiceCompositionPipe::EncodeSnapshot(text, static_cast<wchar_t>(next));
-    if (payloads.empty())
-    {
-        return false;
-    }
-    std::vector<FanyImeNamedpipeDataToTsfWorkerThread> packets;
-    packets.reserve(payloads.size());
-    for (const std::wstring &payload : payloads)
-    {
-        FanyImeNamedpipeDataToTsfWorkerThread packet = {};
-        packet.msg_type = msg_type;
-        if (!CopyPipeText(packet.data, payload))
-        {
-            return false;
-        }
-        packets.push_back(packet);
-    }
-    return SendWorkerPackets(client_id, activation_epoch, true, packets);
 }
 
 void SendToTsfViaNamedpipe(UINT msg_type, const std::wstring &pipeData)

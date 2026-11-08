@@ -170,9 +170,8 @@ void CMetasequoiaIME::_StartThemeRegistryWatcher()
                 break;
             }
 
-            if (!ResetEvent(_themeRegEvent) ||
-                RegNotifyChangeKeyValue(_themeRegKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, _themeRegEvent, TRUE) !=
-                    ERROR_SUCCESS)
+            if (!ResetEvent(_themeRegEvent) || RegNotifyChangeKeyValue(_themeRegKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET,
+                                                                       _themeRegEvent, TRUE) != ERROR_SUCCESS)
             {
                 break;
             }
@@ -624,44 +623,6 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
         }
         break;
     }
-    case WM_InsertText: {
-        CMetasequoiaIME::WorkerCandidateCommit request;
-        if (!pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request))
-        {
-            break;
-        }
-        if (!pIME->_IsFocusSessionCurrent(request.focusToken) ||
-            !pIME->_IsCompositionEpochCurrent(request.compositionEpoch))
-        {
-            break;
-        }
-        ITfDocumentMgr *pDocMgrFocus = nullptr;
-        ITfContext *pContext = nullptr;
-
-        if (SUCCEEDED(pIME->_GetThreadMgr()->GetFocus(&pDocMgrFocus)) && pDocMgrFocus)
-        {
-            if (SUCCEEDED(pDocMgrFocus->GetTop(&pContext)) && pContext)
-            {
-                _KEYSTROKE_STATE KeystrokeState;
-                KeystrokeState.Category = CATEGORY_COMPOSING;
-                KeystrokeState.Function = FUNCTION_INSERT_TEXT;
-                pIME->_InvokeKeyHandler(pContext, 0, 0, 0, KeystrokeState, FANY_IME_UNSOLICITED_REQUEST_ID,
-                                        std::move(request.text), 0, request.compositionEpoch, request.focusToken);
-                pContext->Release();
-            }
-            pDocMgrFocus->Release();
-        }
-        break;
-    }
-    case WM_UpdateVoiceComposition:
-        pIME->_DispatchUnsolicitedVoiceText(wParam, FUNCTION_UPDATE_VOICE_COMPOSITION);
-        break;
-    case WM_CommitVoiceComposition:
-        pIME->_DispatchUnsolicitedVoiceText(wParam, FUNCTION_COMMIT_VOICE_COMPOSITION);
-        break;
-    case WM_CancelVoiceComposition:
-        pIME->_DispatchUnsolicitedVoiceText(wParam, FUNCTION_CANCEL_VOICE_COMPOSITION);
-        break;
     case WM_ApplyUiLessCandidates: {
         CMetasequoiaIME::WorkerCandidateCommit request;
         if (!pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request))

@@ -4,7 +4,6 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "voice-input/voice_providers.h"
 
 namespace
 {
@@ -15,7 +14,8 @@ std::optional<std::string> UnprotectedCredential(const std::string &literal)
     {
         const toml::table parsed = toml::parse("v = " + literal);
         const auto value = parsed["v"].value<std::string>();
-        if (value && !VoiceInput::IsPlaceholderToken(*value) && !CredentialProtection::IsProtected(*value))
+        if (value && !CredentialProtection::IsPlaceholderCredential(*value) &&
+            !CredentialProtection::IsProtected(*value))
             return value;
     }
     catch (const toml::parse_error &)
@@ -27,19 +27,13 @@ std::optional<std::string> UnprotectedCredential(const std::string &literal)
 
 namespace ime_config_detail
 {
-// 凭证类键：token / api_key / secret 等，以及每个提供商单独保存的 token 槽位
-// （token_<provider> / asr_token[_<provider>] / polish_token[_<provider>]）。这类值一旦丢失，
+// 凭证类键：token / api_key / secret 等。这类值一旦丢失，
 // 用户就得重新去各家控制台申请再填一遍，是升级里代价最高的配置，所以单独兜底：不管模板怎么漂移、
 // 文件是否损坏，只要用户填过真值就一条都不能丢。
 bool IsCredentialKey(const std::string &key)
 {
-    static const std::set<std::string> exact = {"token",  "api_key",     "apikey",    "secret_id",   "secret_key",
-                                                "app_id", "asr_app_key", "asr_token", "polish_token"};
-    if (exact.count(key) != 0)
-    {
-        return true;
-    }
-    return key.rfind("token_", 0) == 0 || key.rfind("asr_token_", 0) == 0 || key.rfind("polish_token_", 0) == 0;
+    static const std::set<std::string> exact = {"token", "api_key", "apikey", "secret_id", "secret_key", "app_id"};
+    return exact.count(key) != 0 || key.rfind("token_", 0) == 0;
 }
 
 std::optional<std::string> ProtectCredentialLiteral(const std::string &key, const std::string &literal)

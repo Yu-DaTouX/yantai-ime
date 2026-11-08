@@ -1,5 +1,32 @@
 [
   {
+    "name": "removed voice menu",
+    "message": { "type": "voiceInput" },
+    "valid": false,
+    "surface": "menu",
+    "direction": "client"
+  },
+  {
+    "name": "removed voice credential test",
+    "message": {
+      "type": "apiCredentialTest",
+      "data": { "requestId": "voice", "service": "voice.asr", "config": {} }
+    },
+    "valid": false,
+    "surface": "settings",
+    "direction": "client"
+  },
+  {
+    "name": "removed voice model list",
+    "message": {
+      "type": "apiModelList",
+      "data": { "requestId": "voice", "service": "voice.polish", "config": {} }
+    },
+    "valid": false,
+    "surface": "settings",
+    "direction": "client"
+  },
+  {
     "name": "legacy settings",
     "message": {
       "type": "configRequest"

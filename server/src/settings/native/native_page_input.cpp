@@ -1,7 +1,4 @@
-#include "settings/native/native_page_voice_fields.h"
 #include "settings/native/native_settings_pages.h"
-
-#include "config/ai_provider.h"
 
 #include "msimeui/DeviceResources.h"
 #include "msimeui/Fonts.h"
@@ -542,108 +539,6 @@ class GhostButton : public msimeui::Visual
     std::function<void()> onClick_;
 };
 
-// `.credential-test-button`: 12px system font, line-height 1.4, padding 4px 10px, 5px radius.
-class TestButton : public msimeui::Visual
-{
-  public:
-    explicit TestButton(std::wstring text) : idle_(text), text_(std::move(text))
-    {
-    }
-
-    void SetOnClick(std::function<void()> handler)
-    {
-        onClick_ = std::move(handler);
-    }
-
-    void SetBusy(bool busy)
-    {
-        busy_ = busy;
-        text_ = busy ? L"测试中…" : idle_;
-        InvalidateMeasure();
-        InvalidateVisual();
-    }
-
-    SizeF Measure(const SizeF &) override
-    {
-        const float width = std::max(64.0f, MeasureTextWidth(text_, Style()) + 20.0f + CssBorder() * 2.0f);
-        return {width, kFontCaption * 1.4f + 8.0f + CssBorder() * 2.0f};
-    }
-
-    void Arrange(const RectF &finalRect) override
-    {
-        bounds_ = finalRect;
-    }
-
-    void Render(msimeui::DeviceResources &dr) override
-    {
-        const Palette &p = CurrentPalette();
-        if (busy_)
-            PushOpacity(dr, 0.65f);
-        FillRounded(dr, bounds_, 5.0f, hovered_ && !busy_ ? p.buttonSecondaryHover : p.buttonSecondaryBg);
-        StrokeRounded(dr, bounds_, 5.0f, p.controlBorder, 1.0f);
-        DrawTextInRect(dr, text_, Style(), bounds_, p.buttonSecondaryText, true);
-        if (busy_)
-            PopOpacity(dr);
-    }
-
-    bool OnMouseDown(const POINT &point, WPARAM) override
-    {
-        pressed_ = !busy_ && HitSelf(window_, *this, point);
-        return pressed_;
-    }
-
-    bool OnMouseUp(const POINT &point, WPARAM) override
-    {
-        if (!pressed_)
-            return false;
-        pressed_ = false;
-        if (HitSelf(window_, *this, point) && onClick_)
-        {
-            // A handler may tear down the visual that owns onClick_ while it runs.
-            const auto handler = onClick_;
-            handler();
-        }
-        return true;
-    }
-
-    void OnMouseEnter() override
-    {
-        hovered_ = true;
-        InvalidateVisual();
-    }
-
-    void OnMouseLeave() override
-    {
-        hovered_ = false;
-        pressed_ = false;
-        InvalidateVisual();
-    }
-
-    HCURSOR GetCursor() const override
-    {
-        return LoadCursor(nullptr, busy_ ? IDC_WAIT : IDC_HAND);
-    }
-
-  private:
-    static TextStyle Style()
-    {
-        TextStyle style = ControlStyle();
-        style.size = kFontCaption;
-        style.lineHeight = 1.4f;
-        return style;
-    }
-
-    std::wstring idle_;
-    std::wstring text_;
-    bool busy_ = false;
-    bool hovered_ = false;
-    bool pressed_ = false;
-    std::function<void()> onClick_;
-};
-
-// A label-less `<input type="radio">` in the model rows. Unlike `.radio-option` the page
-// does not restyle it, so it is Chrome's own 13px radio (margin 3px 3px 0 5px) in the
-// page's color scheme.
 class BareRadio : public msimeui::Visual
 {
   public:
@@ -712,437 +607,6 @@ class BareRadio : public msimeui::Visual
     bool disabled_ = false;
     bool pressed_ = false;
     std::function<void()> onSelected_;
-};
-
-// ---------------------------------------------------------------------------------
-// `.translation-api-field`: label over a Consolas input on --surface-sunken, with the
-// eye toggle for secrets.
-// ---------------------------------------------------------------------------------
-const char *kEyeShow =
-    R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" )"
-    R"(stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">)"
-    R"(<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>)";
-const char *kEyeHide =
-    R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" )"
-    R"(stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">)"
-    R"(<path d="m3 3 18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.2 3"/>)"
-    R"(<path d="M6.2 6.3C3.8 8.1 2.5 12 2.5 12s3.5 6 9.5 6a9 9 0 0 0 3-.5"/></svg>)";
-
-class ApiField : public msimeui::Panel
-{
-  public:
-    ApiField(std::wstring label, std::wstring placeholder, bool password, bool readOnly)
-        : password_(password), readOnly_(readOnly), placeholder_(placeholder)
-    {
-        TextStyle labelStyle;
-        labelStyle.size = kFontCaption;
-        labelStyle.weight = DWRITE_FONT_WEIGHT_MEDIUM;
-        label_ = std::make_shared<Label>(std::move(label), labelStyle, TextRole::Secondary);
-        AddChild(label_);
-        if (!readOnly_)
-        {
-            box_ = std::make_shared<msimeui::TextBox>(InputHeight(), placeholder);
-            box_->SetChromeVisible(false);
-            box_->SetPasswordMode(password_);
-            box_->SetFontSize(13.0f);
-            box_->SetPlaceholderFontSize(13.0f);
-            box_->SetOnFocusChanged([this](bool focused) {
-                if (!focused)
-                    Commit();
-                InvalidateVisual();
-            });
-            box_->SetOnSubmit([this]() { Commit(); });
-            AddChild(box_);
-        }
-    }
-
-    void SetText(const std::wstring &text)
-    {
-        if (box_ && box_->IsFocused())
-            return;
-        value_ = text;
-        committed_ = text;
-        if (box_)
-            box_->SetText(text);
-        InvalidateVisual();
-    }
-
-    // What the input holds: the live text while editing, else the last set/committed value
-    // (the box only takes text once it is attached to the window).
-    std::wstring GetText() const
-    {
-        return box_ && box_->IsFocused() ? box_->GetText() : value_;
-    }
-
-    void SetOnCommit(std::function<void(const std::wstring &)> handler)
-    {
-        onCommit_ = std::move(handler);
-    }
-
-    SizeF Measure(const SizeF &availableSize) override
-    {
-        ApplyAppearance();
-        const SizeF label = label_->MeasureInLayout(availableSize);
-        labelHeight_ = label.height;
-        if (box_)
-            box_->MeasureInLayout({InputWidth(availableSize.width), InputHeight()});
-        return {availableSize.width, labelHeight_ + 7.0f + InputHeight()};
-    }
-
-    void Arrange(const RectF &finalRect) override
-    {
-        bounds_ = finalRect;
-        label_->ArrangeInLayout({finalRect.x, finalRect.y, finalRect.width, labelHeight_});
-        if (box_)
-            box_->ArrangeInLayout({finalRect.x, InputRect().y, InputWidth(finalRect.width), InputHeight()});
-    }
-
-    void Render(msimeui::DeviceResources &dr) override
-    {
-        if (appliedLight_ != CurrentPalette().light)
-            ApplyAppearance();
-        const Palette &p = CurrentPalette();
-        label_->Render(dr);
-        const RectF input = InputRect();
-        const bool focused = box_ && box_->IsFocused();
-        if (focused)
-        {
-            // box-shadow: 0 0 0 2px color-mix(accent 20%)
-            FillRounded(dr, Inflate(input, 2.0f), 8.0f, WithAlpha(p.accent, 0.2f));
-        }
-        FillRounded(dr, input, 6.0f, Over(focused ? p.controlBg : p.surfaceSunken, Over(p.cardBg, p.chromeBg)));
-        StrokeRounded(dr, input, 6.0f, focused ? p.accent : p.controlBorder, 1.0f);
-        if (box_)
-        {
-            box_->Render(dr);
-        }
-        else
-        {
-            const RectF text = {input.x + 12.0f + CssBorder(), input.y, input.width - 24.0f, input.height};
-            if (value_.empty())
-                DrawTextInRect(dr, placeholder_, InputStyle(), text, p.textSubtle);
-            else
-                DrawTextInRect(dr, value_, InputStyle(), text, p.text);
-        }
-        if (password_)
-        {
-            const RectF eye = EyeRect();
-            if (eyeHot_)
-                FillRounded(dr, eye, 5.0f, WithAlpha(p.text, 0.08f));
-            const D2D1_COLOR_F color = eyeHot_ ? p.text : p.textMuted;
-            const std::string markup = TintSvg(revealed_ ? kEyeHide : kEyeShow, color);
-            DrawSvg(dr, markup, {eye.x + 7.0f, eye.y + 7.0f, 18.0f, 18.0f});
-        }
-    }
-
-    msimeui::Visual *FindVisualAt(const PointF &point) override
-    {
-        if (!HitTest(point))
-            return nullptr;
-        if (password_ && Contains(EyeRect(), point))
-            return this;
-        if (box_ && box_->HitTest(point))
-            return box_.get();
-        return this;
-    }
-
-    msimeui::Visual *FindFocusableAt(const PointF &point) override
-    {
-        if (password_ && Contains(EyeRect(), point))
-            return nullptr;
-        return box_ && box_->HitTest(point) ? box_.get() : nullptr;
-    }
-
-    bool OnMouseMove(const POINT &point, WPARAM) override
-    {
-        const bool hot = password_ && window_ && Contains(EyeRect(), window_->ClientPixelsToDips(point));
-        if (hot != eyeHot_)
-        {
-            eyeHot_ = hot;
-            InvalidateVisual();
-        }
-        return true;
-    }
-
-    void OnMouseLeave() override
-    {
-        eyeHot_ = false;
-        InvalidateVisual();
-    }
-
-    bool OnMouseDown(const POINT &point, WPARAM) override
-    {
-        return password_ && window_ && Contains(EyeRect(), window_->ClientPixelsToDips(point));
-    }
-
-    bool OnMouseUp(const POINT &point, WPARAM) override
-    {
-        if (password_ && window_ && Contains(EyeRect(), window_->ClientPixelsToDips(point)))
-        {
-            revealed_ = !revealed_;
-            box_->SetPasswordMode(!revealed_);
-            InvalidateVisual();
-            return true;
-        }
-        return false;
-    }
-
-    HCURSOR GetCursor() const override
-    {
-        return LoadCursor(nullptr, eyeHot_ ? IDC_HAND : IDC_ARROW);
-    }
-
-  private:
-    static TextStyle InputStyle()
-    {
-        TextStyle style;
-        style.size = 13.0f;
-        style.family = L"Consolas";
-        return style;
-    }
-
-    static float InputHeight()
-    {
-        // padding 10px 12px, 13px Consolas, 1px border
-        return LineHeight(InputStyle()) + 20.0f + CssBorder() * 2.0f;
-    }
-
-    // The secret input reserves 42px on the right for the eye button.
-    float InputWidth(float width) const
-    {
-        return std::max(width - (password_ ? 30.0f : 0.0f), 0.0f);
-    }
-
-    RectF InputRect() const
-    {
-        return {bounds_.x, bounds_.y + labelHeight_ + 7.0f, bounds_.width, InputHeight()};
-    }
-
-    RectF EyeRect() const
-    {
-        const RectF input = InputRect();
-        return {input.x + input.width - 5.0f - 32.0f, input.y + (input.height - 32.0f) * 0.5f, 32.0f, 32.0f};
-    }
-
-    void ApplyAppearance()
-    {
-        if (!box_)
-            return;
-        const Palette &p = CurrentPalette();
-        appliedLight_ = p.light;
-        msimeui::TextBox::Appearance appearance;
-        appearance.cornerRadius = 6.0f;
-        appearance.borderWidth = CssBorder();
-        appearance.paddingX = 12.0f;
-        appearance.paddingY = 10.0f;
-        appearance.text = p.text;
-        appearance.selection = WithAlpha(p.accent, 0.45f);
-        appearance.placeholder = p.textSubtle;
-        appearance.fontFamily = L"Consolas";
-        box_->SetAppearance(appearance);
-    }
-
-    void Commit()
-    {
-        std::wstring text = box_->GetText();
-        const auto first = text.find_first_not_of(L" \t\r\n");
-        const auto last = text.find_last_not_of(L" \t\r\n");
-        text = first == std::wstring::npos ? std::wstring() : text.substr(first, last - first + 1);
-        if (text != box_->GetText())
-            box_->SetText(text);
-        value_ = text;
-        if (text == committed_)
-            return;
-        committed_ = text;
-        if (onCommit_)
-        {
-            const auto handler = onCommit_;
-            handler(text);
-        }
-    }
-
-    bool password_ = false;
-    bool readOnly_ = false;
-    bool revealed_ = false;
-    bool eyeHot_ = false;
-    bool appliedLight_ = false;
-    std::wstring placeholder_;
-    std::wstring value_;
-    std::wstring committed_;
-    float labelHeight_ = 0.0f;
-    std::shared_ptr<Label> label_;
-    std::shared_ptr<msimeui::TextBox> box_;
-    std::function<void(const std::wstring &)> onCommit_;
-};
-
-// `.translation-api-grid`: two columns, gap 16px; wide fields span both.
-class FieldGrid : public msimeui::Panel
-{
-  public:
-    void Add(VisualPtr field, bool wide)
-    {
-        wide_.push_back(wide);
-        AddChild(std::move(field));
-    }
-
-    SizeF Measure(const SizeF &availableSize) override
-    {
-        Place(availableSize.width, false, 0.0f, 0.0f);
-        return {availableSize.width, height_};
-    }
-
-    void Arrange(const RectF &finalRect) override
-    {
-        bounds_ = finalRect;
-        Place(finalRect.width, true, finalRect.x, finalRect.y);
-    }
-
-    void Render(msimeui::DeviceResources &dr) override
-    {
-        for (const auto &child : children_)
-            child->Render(dr);
-    }
-
-  private:
-    void Place(float width, bool arrange, float x0, float y0)
-    {
-        const float column = std::max((width - 16.0f) * 0.5f, 0.0f);
-        float y = 0.0f;
-        size_t i = 0;
-        height_ = 0.0f;
-        while (i < children_.size())
-        {
-            if (wide_[i])
-            {
-                const SizeF size = children_[i]->MeasureInLayout({width, kUnbounded});
-                if (arrange)
-                    children_[i]->ArrangeInLayout({x0, y0 + y, width, size.height});
-                y += size.height + 16.0f;
-                ++i;
-                continue;
-            }
-            float rowHeight = 0.0f;
-            size_t count = 0;
-            while (i + count < children_.size() && !wide_[i + count] && count < 2)
-            {
-                rowHeight = std::max(rowHeight, children_[i + count]->MeasureInLayout({column, kUnbounded}).height);
-                ++count;
-            }
-            for (size_t k = 0; k < count && arrange; ++k)
-                children_[i + k]->ArrangeInLayout(
-                    {x0 + static_cast<float>(k) * (column + 16.0f), y0 + y, column, rowHeight});
-            y += rowHeight + 16.0f;
-            i += count;
-        }
-        height_ = std::max(y - 16.0f, 0.0f);
-    }
-
-    std::vector<bool> wide_;
-    float height_ = 0.0f;
-};
-
-// ---------------------------------------------------------------------------------
-// Credential test (credential-test.ts)
-// ---------------------------------------------------------------------------------
-using ConfigMap = std::map<std::string, std::string>;
-
-class CredentialTest
-{
-  public:
-    CredentialTest(PageContext &context, std::function<std::string()> service, std::function<ConfigMap()> config,
-                   std::function<ConfigMap()> snapshot)
-        : context_(context), service_(std::move(service)), config_(std::move(config)), snapshot_(std::move(snapshot))
-    {
-        button_ = std::make_shared<TestButton>(L"测试配置");
-        TextStyle style = CaptionStyle();
-        style.lineHeight = 1.45f;
-        style.wrap = true;
-        status_ = std::make_shared<Label>(L"", style, TextRole::Muted);
-        statusBox_ = std::make_shared<Hideable>(status_, false);
-        auto row = std::make_shared<Row>(12.0f);
-        row->Add(button_);
-        row->Add(statusBox_, 1.0f);
-        row->SetMargin({0.0f, 14.0f, 0.0f, 0.0f});
-        row_ = row;
-        button_->SetOnClick([this]() { Start(); });
-        context.OnMessage("apiCredentialTestResult", [this](const Json &message) { OnResult(message); });
-    }
-
-    VisualPtr View() const
-    {
-        return row_;
-    }
-
-  private:
-    void SetStatus(const std::wstring &text, int kind)
-    {
-        status_->SetText(text);
-        if (kind > 0)
-            status_->SetColor(Hex(0x4CAF72));
-        else if (kind < 0)
-            status_->SetColor(Hex(0xD96767));
-        else
-            status_->SetRole(TextRole::Muted);
-        statusBox_->SetVisible(!text.empty());
-    }
-
-    void Finish()
-    {
-        PageTimers::Stop(timer_);
-        requestId_.clear();
-        button_->SetBusy(false);
-    }
-
-    void Start()
-    {
-        if (!requestId_.empty())
-            return;
-        requestId_ = context_.model.NewRequestId("credential");
-        pendingService_ = service_();
-        pendingSnapshot_ = snapshot_();
-        Json config = Json::object();
-        for (const auto &[key, value] : config_())
-            config[key] = value;
-        const std::string id = requestId_;
-        timer_ = PageTimers::Start(context_.host.Hwnd(), 30000, false, [this, id]() {
-            if (requestId_ != id)
-                return;
-            timer_ = 0;
-            Finish();
-            SetStatus(L"测试超时，请重试", -1);
-        });
-        button_->SetBusy(true);
-        SetStatus(L"正在连接服务，请稍候…", 0);
-        context_.model.Post("apiCredentialTest",
-                            Json{{"requestId", requestId_}, {"service", pendingService_}, {"config", config}});
-    }
-
-    void OnResult(const Json &message)
-    {
-        if (requestId_.empty() || message.value("requestId", std::string()) != requestId_)
-            return;
-        const bool matches = pendingService_ == service_() && pendingSnapshot_ == snapshot_();
-        Finish();
-        if (!matches)
-        {
-            SetStatus(L"配置已变更，请重新测试", 0);
-            return;
-        }
-        SetStatus(Widen(message.value("message", std::string())), message.value("ok", false) ? 1 : -1);
-    }
-
-    PageContext &context_;
-    std::function<std::string()> service_;
-    std::function<ConfigMap()> config_;
-    std::function<ConfigMap()> snapshot_;
-    std::shared_ptr<TestButton> button_;
-    std::shared_ptr<Label> status_;
-    std::shared_ptr<Hideable> statusBox_;
-    VisualPtr row_;
-    std::string requestId_;
-    std::string pendingService_;
-    ConfigMap pendingSnapshot_;
-    UINT_PTR timer_ = 0;
 };
 
 // ---------------------------------------------------------------------------------
@@ -1300,18 +764,8 @@ struct InputPage
     std::shared_ptr<Hideable> smartHint;
 
     // Translation
-    std::string provider = "tencent";
     std::shared_ptr<ToggleSwitch> translationsToggle;
     std::shared_ptr<OpacityBox> translationOptions;
-    std::vector<std::shared_ptr<Dimmable>> translationInputs;
-    std::shared_ptr<Dimmable> showPosBlock;
-    std::shared_ptr<Dimmable> singleSenseBlock;
-    std::map<std::string, std::shared_ptr<Hideable>> providerFields;
-    std::map<std::string, std::shared_ptr<ApiField>> fields;
-    std::shared_ptr<ApiField> aiSummary;
-    std::shared_ptr<Label> warning;
-    std::shared_ptr<Hideable> warningBox;
-    std::unique_ptr<CredentialTest> credentialTest;
 
     // Models
     ModelRow lattice;
@@ -1328,100 +782,6 @@ struct InputPage
     std::vector<ModelRow> collocationRows;
     std::shared_ptr<ToggleSwitch> collocationToggle;
     UINT_PTR collocationPoll = 0;
-
-    // 与「AI 与云联想」页共用同一份解析：分槽优先、单值键只在它就是当前服务商时作数，
-    // 可用性判定与后端 AiTranslation::IsUsableConfig 同一口径。
-    voice_fields::ActiveAiConfig AiState() const
-    {
-        return voice_fields::ReadActiveAiConfig(context->model);
-    }
-
-    std::string Field(const char *key) const
-    {
-        auto it = fields.find(key);
-        if (it == fields.end())
-            return {};
-        std::wstring text = it->second->GetText();
-        const auto first = text.find_first_not_of(L" \t\r\n");
-        const auto last = text.find_last_not_of(L" \t\r\n");
-        return Narrow(first == std::wstring::npos ? std::wstring() : text.substr(first, last - first + 1));
-    }
-
-    ConfigMap TestConfig() const
-    {
-        if (provider == "ai")
-            return {};
-        if (provider == "aliyun")
-            return {{"accessKeyId", Field("aliyunAccessKeyId")}, {"accessKeySecret", Field("aliyunAccessKeySecret")}};
-        if (provider == "niutrans")
-            return {{"appId", Field("niutransAppId")}, {"apiKey", Field("niutransApiKey")}};
-        if (provider == "custom")
-            return {{"endpoint", Field("customTranslationEndpoint")}, {"apiKey", Field("customTranslationApiKey")}};
-        return {{"secretId", Field("tencentTmtSecretId")}, {"secretKey", Field("tencentTmtSecretKey")}};
-    }
-
-    void SyncWarning()
-    {
-        std::wstring text;
-        bool ok = false;
-        if (provider == "ai")
-        {
-            const voice_fields::ActiveAiConfig state = AiState();
-            // 选择器模式下这里的 provider 已经解析成「生成式上次用的那家」，所以不再是 jev。
-            // AI 联想总开关与这里无关，只要凭据齐就能用。
-            text = L"请先在「AI 与云联想」页面填写当前服务商的接口地址、模型和 Token（Ollama 不需要）";
-            ok = state.usable;
-        }
-        else if (provider == "custom")
-        {
-            text = L"请填写以 http:// 或 https:// 开头的完整接口地址";
-            static const std::regex url(R"(^https?://\S+$)", std::regex::icase);
-            ok = std::regex_match(Field("customTranslationEndpoint"), url);
-        }
-        else if (provider == "aliyun")
-        {
-            text = L"请填写 AccessKey ID 和 AccessKey Secret 后使用阿里云翻译";
-            ok = !Field("aliyunAccessKeyId").empty() && !Field("aliyunAccessKeySecret").empty();
-        }
-        else if (provider == "niutrans")
-        {
-            text = L"请填写 APP ID 和 API Key 后使用小牛翻译";
-            ok = !Field("niutransAppId").empty() && !Field("niutransApiKey").empty();
-        }
-        else
-        {
-            text = L"请填写 SecretId 和 SecretKey 后使用云端翻译";
-            ok = !Field("tencentTmtSecretId").empty() && !Field("tencentTmtSecretKey").empty();
-        }
-        warning->SetText(text);
-        warningBox->SetVisible(!ok);
-    }
-
-    void SyncProviderView()
-    {
-        for (auto &[name, box] : providerFields)
-            box->SetVisible(name == provider);
-        const voice_fields::ActiveAiConfig state = AiState();
-        // 摘要用显示名而不是内部 id。
-        if (state.usable)
-            aiSummary->SetText(
-                voice_fields::AiProviderLabel(state.provider, context->model.Find("ai_assistant.providers")) + L" · " +
-                Widen(state.model));
-        else
-            aiSummary->SetText(std::wstring());
-        SyncWarning();
-    }
-
-    // setCandidateTranslationOptionsDisabled: the block greys out, its rows and fields stop
-    // taking input (the test button keeps working), 显示词性 and 只显示单条释义 turn aria-disabled.
-    void SetTranslationsEnabled(bool enabled)
-    {
-        translationOptions->SetDimmed(!enabled);
-        for (auto &dim : translationInputs)
-            dim->SetDisabled(!enabled);
-        showPosBlock->SetDisabled(!enabled);
-        singleSenseBlock->SetDisabled(!enabled);
-    }
 };
 
 // Section card that can be hidden (`hidden` attribute) without leaving its margin behind.
@@ -1593,10 +953,9 @@ VisualPtr BuildInputPage(PageContext &context)
         auto finalList = OptionList(finals);
         s->fuzzyRules = {std::make_shared<Dimmable>(initialList), std::make_shared<Dimmable>(finalList)};
         s->fuzzyHint = std::make_shared<Hideable>(DisabledHint(), false);
-        auto details =
-            Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词", 0.0f),
-                 Padded(MakeSubTitle(L"声母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[0],
-                 Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
+        auto details = Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词", 0.0f),
+                            Padded(MakeSubTitle(L"声母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[0],
+                            Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
         auto section = MakeToggleSection(L"模糊音", details);
         page.AddSection(Col({std::make_shared<SettingRow>(section.expander, master), section.details}));
     }
@@ -1604,144 +963,21 @@ VisualPtr BuildInputPage(PageContext &context)
     // ---- 候选词翻译 ----
     {
         auto master = std::make_shared<ToggleSwitch>(false);
-        auto showPos = BindToggle(context, "general.candidate_translation_show_pos");
-        s->showPosBlock = std::make_shared<Dimmable>(showPos, 1.0f);
-        auto singleSense = BindToggle(context, "general.candidate_translation_single_sense");
-        s->singleSenseBlock = std::make_shared<Dimmable>(singleSense, 1.0f);
-        Dropdown::Options language;
-        language.minWidth = 140.0f;
-        language.menuMinWidth = 140.0f;
-        auto provider = BindDropdown(context, "translation.provider",
-                                     Options({{"tencent", L"腾讯云"},
-                                              {"aliyun", L"阿里云"},
-                                              {"niutrans", L"小牛翻译"},
-                                              {"custom", L"自定义 DeepLX"},
-                                              {"ai", L"AI 辅助"}}),
-                                     language, ValueKind::String, [s](const std::string &value) {
-                                         s->provider = value;
-                                         s->SyncProviderView();
-                                     });
-        auto target = BindDropdown(context, "tencent_tmt.target_language",
-                                   Options({{"en", L"英语"},
-                                            {"fr", L"法语"},
-                                            {"ja", L"日语"},
-                                            {"es", L"西班牙语"},
-                                            {"ru", L"俄语"},
-                                            {"de", L"德语"},
-                                            {"ko", L"韩语"},
-                                            {"th", L"泰语"},
-                                            {"vi", L"越南语"},
-                                            {"it", L"意大利语"}}),
-                                   language);
-        // pointer-events: none on the rows and grids while the master switch is off.
-        auto blockInput = [s](VisualPtr visual) {
-            auto dim = std::make_shared<Dimmable>(std::move(visual), 1.0f);
-            s->translationInputs.push_back(dim);
-            return dim;
-        };
-        auto heading = [](std::wstring title, std::wstring description) {
-            auto block = MakeTitleBlock(std::move(title), std::move(description));
-            block->SetMargin({0.0f, 14.0f, 0.0f, 0.0f});
-            return block;
-        };
-        auto field = [s, model](const char *id, const char *path, std::wstring label, std::wstring placeholder,
-                                bool secret) {
-            auto f = std::make_shared<ApiField>(std::move(label), std::move(placeholder), secret, false);
-            const std::string configPath = path;
-            f->SetOnCommit([s, model, configPath](const std::wstring &text) {
-                model->Update(configPath, Narrow(text));
-                s->SyncWarning();
-            });
-            s->fields[id] = f;
-            return f;
-        };
-        auto grid = [](std::vector<std::pair<VisualPtr, bool>> items) {
-            auto g = std::make_shared<FieldGrid>();
-            for (const auto &[item, wide] : items)
-                g->Add(item, wide);
-            g->SetMargin({0.0f, 14.0f, 0.0f, 0.0f});
-            return g;
-        };
-
-        auto tencent =
-            Col({heading(L"腾讯云 API 凭据", L"用于在线机器翻译，凭据仅保存在本机配置文件中"),
-                 blockInput(grid(
-                     {{field("tencentTmtSecretId", "tencent_tmt.secret_id", L"SecretId", L"AKID...", false), false},
-                      {field("tencentTmtSecretKey", "tencent_tmt.secret_key", L"SecretKey", L"SecretKey", true),
-                       false}}))});
-        auto aliyun =
-            Col({heading(L"阿里云 API 凭据", L"在阿里云控制台「AccessKey 管理」中查看，凭据仅保存在本机配置文件中"),
-                 blockInput(grid(
-                     {{field("aliyunAccessKeyId", "aliyun_mt.secret_id", L"AccessKey ID", L"LTAI...", false), false},
-                      {field("aliyunAccessKeySecret", "aliyun_mt.secret_key", L"AccessKey Secret", L"AccessKey Secret",
-                             true),
-                       false}}))});
-        auto niutrans =
-            Col({heading(L"小牛翻译 API 凭据", L"在“控制台—>API应用”中查看，凭据仅保存在本机配置文件中"),
-                 blockInput(grid({{field("niutransAppId", "niutrans.app_id", L"APP ID", L"应用唯一标识", false), false},
-                                  {field("niutransApiKey", "niutrans.apikey", L"API Key", L"apikey", true), false}}))});
-        auto custom = Col({heading(L"自定义 DeepLX 服务", L"填写完整的 POST 接口地址；API Key 可留空"),
-                           blockInput(grid({{field("customTranslationEndpoint", "custom_translation.endpoint",
-                                                   L"接口地址", L"https://example.com/translate", false),
-                                             true},
-                                            {field("customTranslationApiKey", "custom_translation.api_key",
-                                                   L"API Key（可选，以 Bearer Token 发送）", L"留空表示不鉴权", true),
-                                             true}}))});
-        s->aiSummary = std::make_shared<ApiField>(L"当前服务商与模型", L"未配置", false, true);
-        auto ai = Col({heading(L"复用 AI 辅助配置",
-                               L"使用「AI 与云联想」页生成式服务商的接口地址、Token 与模型，无需在此重复填写。"
-                               L"那边选了「从候选里挑」也照样能用，翻译会用生成式那一家。"
-                               L"不依赖「启用 AI 联想」开关，凭据填好就能用于翻译。"),
-                       blockInput(grid({{s->aiSummary, true}}))});
-        s->providerFields["tencent"] = std::make_shared<Hideable>(tencent, true);
-        s->providerFields["aliyun"] = std::make_shared<Hideable>(aliyun, false);
-        s->providerFields["niutrans"] = std::make_shared<Hideable>(niutrans, false);
-        s->providerFields["custom"] = std::make_shared<Hideable>(custom, false);
-        s->providerFields["ai"] = std::make_shared<Hideable>(ai, false);
-
-        TextStyle warningStyle;
-        warningStyle.size = kFontCaption;
-        s->warning = std::make_shared<Label>(L"请填写 SecretId 和 SecretKey 后使用云端翻译", warningStyle);
-        s->warning->SetColor(Hex(0xD7A64A));
-        s->warning->SetMargin({0.0f, 10.0f, 0.0f, 0.0f});
-        s->warningBox = std::make_shared<Hideable>(s->warning, true);
-        s->credentialTest = std::make_unique<CredentialTest>(
-            context, [s]() { return "translation." + s->provider; }, [s]() { return s->TestConfig(); },
-            [s]() -> Json {
-                if (s->provider != "ai")
-                    return s->TestConfig();
-                // 把当前生效的服务商配置摊平成页面字段，凭据测试据此判断「测试期间配置是否改过」，
-                // 宿主再用同一份字段去发请求。
-                const voice_fields::ActiveAiConfig state = s->AiState();
-                return Json{{"provider", state.provider},
-                            {"endpoint", state.endpoint},
-                            {"token", state.token},
-                            {"model", state.model}};
-            });
-
-        auto options = Col(
-            {std::make_shared<Divider>(Divider::Kind::Option),
-             blockInput(LanguageRow(L"显示词性", L"显示译文中的 n.、v. 等词性标记，关闭后仅显示释义", s->showPosBlock)),
-             std::make_shared<Divider>(Divider::Kind::Option),
-             blockInput(LanguageRow(L"只显示单条释义", L"每个候选只显示第一条译文释义；Ctrl+Enter 仍可选择全部释义上屏",
-                                    s->singleSenseBlock)),
-             std::make_shared<Divider>(Divider::Kind::Option),
-             blockInput(LanguageRow(L"在线翻译服务",
-                                    L"可使用腾讯云、阿里云、小牛翻译、自己部署的 DeepLX 兼容接口，或复用 AI 辅助的配置",
-                                    provider)),
-             std::make_shared<Divider>(Divider::Kind::Option),
-             blockInput(LanguageRow(L"目标语种", L"英语优先使用本地词库；本地未命中时使用所选在线服务", target)),
-             std::make_shared<Divider>(Divider::Kind::Option), s->providerFields["tencent"],
-             s->providerFields["aliyun"], s->providerFields["niutrans"], s->providerFields["custom"],
-             s->providerFields["ai"], s->warningBox, s->credentialTest->View()});
+        auto options =
+            Col({std::make_shared<Divider>(Divider::Kind::Option),
+                 LanguageRow(L"显示词性", L"显示译文中的 n.、v. 等词性标记，关闭后仅显示释义",
+                             BindToggle(context, "general.candidate_translation_show_pos")),
+                 std::make_shared<Divider>(Divider::Kind::Option),
+                 LanguageRow(L"只显示单条释义", L"每个候选只显示第一条译文释义；Ctrl+Enter 仍可选择全部释义上屏",
+                             BindToggle(context, "general.candidate_translation_single_sense"))});
         s->translationOptions = std::make_shared<OpacityBox>(options);
         s->translationOptions->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         master->SetOnChanged([s, model](bool on) {
             model->Update("general.candidate_translations", on);
-            s->SetTranslationsEnabled(on);
+            s->translationOptions->SetDimmed(!on);
         });
         page.AddSection(
-            Col({MakeRow(L"候选词翻译", L"在候选窗口中显示中文与所选语种的互译，每项最多两个简短释义", master),
+            Col({MakeRow(L"候选词翻译", L"在候选窗口中显示本机中英词库的互译，每项最多两个简短释义", master),
                  s->translationOptions}));
         s->translationsToggle = master;
     }
@@ -1877,54 +1113,48 @@ VisualPtr BuildInputPage(PageContext &context)
         collocationBlock->SetMargin({0.0f, 0.0f, 10.0f, 0.0f});
         s->collocationToggle = BindToggle(context, "association.sentence_collocation_enabled");
 
-        auto content = Col(
-            {FrequencyRow(SubBlock(L"Trigram 模型整句", L"本地生成，下载模型后可用：使用三元语言模型生成整句候选"),
-                          s->latticeToggle),
-             latticeSection,
-             FrequencyRow(SubBlock(L"Unigram 模型整句", L"本地生成，使用一元语言模型生成整句候选"),
-                          Toggle(context, "association.sentence_google")),
-             FrequencyRow(
-                 SubBlock(
-                     L"神经网络模型整句（效果优先）",
-                     L"本地生成，下载模型后可用：结合已上屏的前文，从内部生成的最多 12 个备选句中选择，处理时间较长"),
-                 s->neuralToggle),
-             neuralSection,
-             FrequencyRow(SubBlock(L"神经网络模型整句（速度优先）",
-                                   L"本地生成，使用轻量模型从最多 12 个备选句中选择；两种模式可同时独立给出结果"),
-                          Toggle(context, "association.sentence_neural_keyboard")),
-             FrequencyRow(
-                 SubBlock(
-                     L"上文词库重排（实验）",
-                     L"使用轻量神经模型，根据本次输入的上文调整单字和词组顺序，例如“冬天会下大”后输入 xue 优先选“雪”"),
-                 Toggle(context, "association.context_candidate_rerank")),
-             FrequencyRow(SubBlock(L"长词前缀补全",
-                                   L"本地处理，首选已有 4 个字以上时，把词库里以它开头的最可能的长词放在第二位，例如"
-                                   L"“中华人民”补出“中华人民共和国”；下载万象或 Trigram 模型后排得更准"),
-                          Toggle(context, "association.prefix_completion")),
-             FrequencyRow(SubBlock(L"去重后补充次选",
-                                   L"本地处理，某个模型的首选与已有候选重复时，显示该模型排名最高的下一条不同结果"),
-                          Toggle(context, "association.sentence_show_next_on_duplicate")),
-             FrequencyRow(SubBlock(L"显示整句来源标签",
-                                   L"本地处理，在整句候选后显示〔Trigram〕〔Unigram〕〔神经D〕〔神经K〕〔万象〕"
-                                   L"〔八股〕〔墨奇〕等来源标签"),
-                          Toggle(context, "association.sentence_source_badge")),
-             Padded(collocationBlock, {0.0f, 10.0f, 0.0f, 10.0f}),
-             FrequencyRow(
-                 SubBlock(L"octagram 语法整句",
-                          L"本地生成，下载模型后可用：一并接入该模型的全部能力——解码时按字级搭配分选出更准的首选，"
-                          L"并把搭配紧密的整句提到前面，以所选模型自己的来源行显示（万象〔万象〕、八股文〔"
-                          L"八股〕、白霜〔墨奇〕）"),
-                 s->collocationToggle),
-             // 这一节里唯一联网的一项。它跟 AI 联想无关：不要 Token，也不用选服务商，
-             // 默认还开着，所以必须留一个能点得到的地方。
-             FrequencyRow(SubBlock(L"云候选",
-                                   L"联网，把当前的全拼发送到 Google 的 inputtools "
-                                   L"服务换取一个候选。对方会收到拼音、你的 IP 地址和请求元数据，不会收到已上屏的文字、"
-                                   L"词库或设置。默认开启，无需账号；需要走代理时在「帮助」页设置，详见 PRIVACY.md"),
-                          Toggle(context, "general.cloud_candidates"))});
+        auto content = Col({
+            FrequencyRow(SubBlock(L"Trigram 模型整句", L"本地生成，下载模型后可用：使用三元语言模型生成整句候选"),
+                         s->latticeToggle),
+            latticeSection,
+            FrequencyRow(SubBlock(L"Unigram 模型整句", L"本地生成，使用一元语言模型生成整句候选"),
+                         Toggle(context, "association.sentence_google")),
+            FrequencyRow(
+                SubBlock(
+                    L"神经网络模型整句（效果优先）",
+                    L"本地生成，下载模型后可用：结合已上屏的前文，从内部生成的最多 12 个备选句中选择，处理时间较长"),
+                s->neuralToggle),
+            neuralSection,
+            FrequencyRow(SubBlock(L"神经网络模型整句（速度优先）",
+                                  L"本地生成，使用轻量模型从最多 12 个备选句中选择；两种模式可同时独立给出结果"),
+                         Toggle(context, "association.sentence_neural_keyboard")),
+            FrequencyRow(
+                SubBlock(
+                    L"上文词库重排（实验）",
+                    L"使用轻量神经模型，根据本次输入的上文调整单字和词组顺序，例如“冬天会下大”后输入 xue 优先选“雪”"),
+                Toggle(context, "association.context_candidate_rerank")),
+            FrequencyRow(SubBlock(L"长词前缀补全",
+                                  L"本地处理，首选已有 4 个字以上时，把词库里以它开头的最可能的长词放在第二位，例如"
+                                  L"“中华人民”补出“中华人民共和国”；下载万象或 Trigram 模型后排得更准"),
+                         Toggle(context, "association.prefix_completion")),
+            FrequencyRow(SubBlock(L"去重后补充次选",
+                                  L"本地处理，某个模型的首选与已有候选重复时，显示该模型排名最高的下一条不同结果"),
+                         Toggle(context, "association.sentence_show_next_on_duplicate")),
+            FrequencyRow(SubBlock(L"显示整句来源标签",
+                                  L"本地处理，在整句候选后显示〔Trigram〕〔Unigram〕〔神经D〕〔神经K〕〔万象〕"
+                                  L"〔八股〕〔墨奇〕等来源标签"),
+                         Toggle(context, "association.sentence_source_badge")),
+            Padded(collocationBlock, {0.0f, 10.0f, 0.0f, 10.0f}),
+            FrequencyRow(
+                SubBlock(L"octagram 语法整句",
+                         L"本地生成，下载模型后可用：一并接入该模型的全部能力——解码时按字级搭配分选出更准的首选，"
+                         L"并把搭配紧密的整句提到前面，以所选模型自己的来源行显示（万象〔万象〕、八股文〔"
+                         L"八股〕、白霜〔墨奇〕）"),
+                s->collocationToggle),
+        });
         content->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         page.AddSection(
-            Col({MakeTitleBlock(L"整句与云候选", L"输入多个拼音音节时，额外提供整句或云端给出的候选"), content}));
+            Col({MakeTitleBlock(L"整句候选", L"输入多个拼音音节时，额外提供本机模型给出的整句候选"), content}));
     }
 
     // ---- 拼音方案调频 ----
@@ -1984,22 +1214,8 @@ VisualPtr BuildInputPage(PageContext &context)
             translations && translations->is_boolean())
         {
             s->translationsToggle->SetChecked(translations->get<bool>());
-            s->SetTranslationsEnabled(translations->get<bool>());
+            s->translationOptions->SetDimmed(!translations->get<bool>());
         }
-        const std::string provider = model->GetString("translation.provider");
-        s->provider = provider == "aliyun" || provider == "niutrans" || provider == "custom" || provider == "ai"
-                          ? provider
-                          : "tencent";
-        s->fields["tencentTmtSecretId"]->SetText(Widen(model->GetString("tencent_tmt.secret_id")));
-        s->fields["tencentTmtSecretKey"]->SetText(Widen(model->GetString("tencent_tmt.secret_key")));
-        s->fields["aliyunAccessKeyId"]->SetText(Widen(model->GetString("aliyun_mt.secret_id")));
-        s->fields["aliyunAccessKeySecret"]->SetText(Widen(model->GetString("aliyun_mt.secret_key")));
-        s->fields["niutransAppId"]->SetText(Widen(model->GetString("niutrans.app_id")));
-        s->fields["niutransApiKey"]->SetText(Widen(model->GetString("niutrans.apikey")));
-        s->fields["customTranslationEndpoint"]->SetText(Widen(model->GetString("custom_translation.endpoint")));
-        s->fields["customTranslationApiKey"]->SetText(Widen(model->GetString("custom_translation.api_key")));
-        s->SyncProviderView();
-
         // Lattice language model row. Server 映射着 sc.lm 时删除只留标记（deletePending），
         // 下载按钮换成「重启输入法」，重启后 Server 在映射前把文件删掉。
         {

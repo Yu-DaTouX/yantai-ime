@@ -12,7 +12,7 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 |---|---|---|
 | `windows/` | TSF 文本服务 DLL：按键预判、焦点、edit session、管道客户端 | [windows/AGENTS.md](windows/AGENTS.md) |
 | `server/` | 常驻后端：候选状态、配置、词库、管道服务，以及候选窗、悬浮工具栏、托盘菜单和设置窗口（均由 `msimeui` 以 Direct2D 绘制） | [server/AGENTS.md](server/AGENTS.md) |
-| `engine/` | 输入引擎：输入会话、候选查询、辅助码、跨进程契约、语音模块 | [engine/AGENTS.md](engine/AGENTS.md) |
+| `engine/` | 输入引擎：输入会话、候选查询、辅助码、跨进程契约 | [engine/AGENTS.md](engine/AGENTS.md) |
 | `ui/` | 通用 Win32 / Direct2D / DirectWrite 控件库 `msimeui` | [ui/AGENTS.md](ui/AGENTS.md) |
 | `installer/` | 收集产物、自签名、Inno Setup 打包 | [installer/README.md](installer/README.md) |
 | `skins/` | 外部皮肤合集，每个子目录一个 `skin.toml` 皮肤包；除素材授权未核实的外随安装包装到数据目录，同名且改过的旧版改名 `.bak` 保留 | [skins/README.md](skins/README.md) |
@@ -24,12 +24,12 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 
 ## 组件之间的边界
 
-- **协议的唯一来源是 `engine/contracts/`**。IPC 线格式、opcode、语音分帧和设置窗口的消息定义（`engine/contracts/webview/`，名字是历史遗留）都在那里，`windows/` 和 `server/` 各自引用同一份头文件。不要在任何一侧重新定义或复制一份。
+- **协议的唯一来源是 `engine/contracts/`**。IPC 线格式、opcode 和设置窗口的消息定义（`engine/contracts/webview/`，名字是历史遗留）都在那里，`windows/` 和 `server/` 各自引用同一份头文件。不要在任何一侧重新定义或复制一份。
 - **`ui/` 不许反向依赖产品**。它不读 Server 配置、IPC、引擎、词库或全局输入状态；业务通过数据和回调接入。`ui/scripts/check-boundary.py` 在 CI 里检查已知的反向依赖，新增依赖会红。
 - **界面只有 Direct2D 一套**。候选窗、悬浮工具栏、托盘菜单的 HWND、尺寸、位置、DPI、Z-order 和绘制在 `server/src/window/`（presenter 用 `ui/` 的 `msimeui` 控件）；设置窗口是独立进程 `server/src/settings/`，界面在 `server/src/settings/native/`，用到的图片资源在 `server/assets/settings/`，安装到数据目录的 `assets\settings\`。WebView2 与 `ui-html/` 已移除，不要再引入浏览器内核或网页前端。
 - **候选与输入状态的权威在 Server 和引擎**，界面只负责展示和发出用户动作，不要在 presenter 或设置窗口里复制状态机。
 - **新增配置项必须同时写进出厂模板 `installer/default_config/config.default.toml`。** 这个文件是安装包真正打进去的那一份，Server 升级时用 `MergeConfigIntoTemplate` 以它为骨架重建用户配置：**模板里没有的键会被丢弃**。只在 `ime_config.cpp` 里加读取和默认值，代码本身能跑，但用户在设置页改过的值会在下次升级时静默消失，而且没有任何编译期或运行期报错。同一个提交里要一并更新的还有 `server/assets/config/config.toml`（开发和 CI 测试用的工作配置），以及设置页的配置读写映射——服务端进程内已不再内嵌设置宿主，读写映射只剩独立设置进程 `server/src/settings/settings_app.cpp` 一处，其中 `BuildConfigMessage` 里 `configSnapshot` 的字段列表和 `ApplyConfigUpdate` 里 `path == "..."` 的分发两边都要加，漏掉任一边的表现是「设置页能点，重开就回退」。
-- **`engine/` 是本仓的一等代码，不是 vendored 第三方。** 需要为 Windows 改引擎就直接改，和改 `server/` 一样评审和测试，不用绕上游。唯一例外是 `engine/` 下的 `ngram/kenlm/`、`ngram/octagram/darts.h`、`utfcpp/` 和 `voice/third_party/`，那几个是上游副本，保留原格式与许可；`darts.h` 按精确路径单独排除，同目录的 `octagram_gram.{h,cpp}` 是我们的代码，仍受格式门禁管。`googlepinyinime-rev/` 已与上游解绑，可以直接改，但保留它原有的格式与许可，本地改动记在 UPSTREAM.md。来源与裁剪清单见 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
+- **`engine/` 是本仓的一等代码，不是 vendored 第三方。** 需要为 Windows 改引擎就直接改，和改 `server/` 一样评审和测试，不用绕上游。唯一例外是 `engine/` 下的 `ngram/kenlm/`、`ngram/octagram/darts.h`和 `utfcpp/`，那几个是上游副本，保留原格式与许可；`darts.h` 按精确路径单独排除，同目录的 `octagram_gram.{h,cpp}` 是我们的代码，仍受格式门禁管。`googlepinyinime-rev/` 已与上游解绑，可以直接改，但保留它原有的格式与许可，本地改动记在 UPSTREAM.md。来源与裁剪清单见 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
 
 Server 当前仍使用引擎的兼容 `InputSession`，尚未迁移公共 `Session` facade。
 辅助码筛选与候选提示都按会话配置，禁止用全局默认码表驱动活动会话。
@@ -70,7 +70,7 @@ cmake -S ui      -B ui/build -A x64                # GUI 框架
   # 要就地修复去掉 --dry-run --Werror，加 -i
   ```
 
-  `--style=file` 会就近找每个子树自己的 `.clang-format`（`server/`、`engine/voice/` 等各有一份，列宽等规则不同），别用固定 `--style` 覆盖。
+  `--style=file` 会就近找每个子树自己的 `.clang-format`（`server/`、`engine/` 等各有一份，列宽等规则不同），别用固定 `--style` 覆盖。
 
 ## 产品输入清单
 

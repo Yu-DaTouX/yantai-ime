@@ -156,7 +156,6 @@ extern std::atomic_bool g_candidate_translation_show_pos;
 extern std::atomic_bool g_candidate_translation_single_sense;
 extern int g_english_mixed_input_min_chars;
 extern int g_english_mixed_input_first_page_count;
-extern bool g_cloud_candidates_enabled;
 extern bool g_assoc_sentence_wordlattice;
 extern bool g_assoc_sentence_google;
 extern bool g_assoc_sentence_neural_desktop;
@@ -224,7 +223,6 @@ extern std::string g_candidate_skin;
 extern std::string g_candidate_window_preedit_style;
 extern bool g_candidate_fixed_badge;
 extern std::string g_candidate_fixed_badge_style;
-extern std::string g_candidate_ai_badge_style;
 extern std::string g_settings_window_linger;
 extern bool g_settings_launch_animation;
 extern bool g_auto_download_update;
@@ -233,15 +231,6 @@ extern std::string g_theme_settings;
 extern std::string g_theme_cand;
 extern std::string g_theme_ftb;
 extern std::string g_theme_menu;
-extern std::string g_theme_voice;
-extern std::shared_mutex g_voice_input_mutex;
-extern VoiceInputConfig g_voice_input;
-extern AiAssistantConfig g_ai_assistant;
-extern TencentTmtConfig g_tencent_tmt;
-extern AliyunMtConfig g_aliyun_mt;
-extern CustomTranslationConfig g_custom_translation;
-extern NiuTransConfig g_niutrans;
-extern std::string g_translation_provider;
 extern std::mutex g_network_proxy_mutex;
 extern NetworkProxyConfig g_network_proxy; // guarded by g_network_proxy_mutex
 extern FrequencyAdjustmentConfig g_frequency_adjustment;
@@ -250,21 +239,10 @@ extern std::filesystem::path g_config_path;
 bool IsHelpcodeSchemaAvailable(const std::string &schema);
 // ime_config_input.cpp：把用户选的行内预编辑样式写进 GlobalSettings。
 void RefreshEffectiveTsfPreeditStyle();
-VoiceInputConfig SnapshotVoiceInput();
 bool IsValidCandidateSkinId(const std::string &skin);
 bool IsValidCandidateFixedBadgeStyle(const std::string &style);
-bool IsValidCandidateAiBadgeStyle(const std::string &style);
 bool IsValidSettingsWindowLinger(const std::string &linger);
-bool IsValidTranslationTargetLanguage(const std::string &language);
-std::string AiAssistantTokenSlotKey(std::string_view provider);
-// 实现在 ime_config_services.cpp；声明与注释见 ime_config.h 的同名条目。
-bool SetConfiguredAiAssistantProviderValue(std::string_view provider, std::string_view field, const std::string &value);
-// ime_config_services.cpp：按当前各段全局配置重建候选词翻译快照。改动 provider、腾讯云、
-// 阿里云、自定义翻译、小牛翻译或 AI 辅助服务商配置的地方，改完都要调一次。
-void PublishTranslationConfig();
 void RememberConfigWriteTime();
-// 记下 ai_providers.json 当前的修改时间。本进程自己保存注册表后调用，免得把自己的写入当成外部变更重载。
-void RememberProviderStoreWriteTime();
 
 // ime_config_toml.cpp
 std::string EscapeTomlBasicString(const std::string &value);

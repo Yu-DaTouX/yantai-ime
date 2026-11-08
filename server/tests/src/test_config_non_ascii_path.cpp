@@ -44,7 +44,7 @@ class ScopedEnv
 // LOCALAPPDATA alone no longer decides where the config lives: an installed product records its
 // data directory in HKLM, which outranks the profile. Pin the config directory explicitly so these
 // cases stay isolated on a machine that has the IME installed. The provider registry store
-// (ai_providers.json) resolves through METASEQUOIA_IME_DATA_DIR and needs the same pin.
+// resolves through METASEQUOIA_IME_DATA_DIR and needs the same pin.
 class ScopedConfigLocation
 {
   public:
@@ -393,283 +393,6 @@ TEST_CASE(config_reload_detects_a_change_that_keeps_the_same_timestamp)
         REQUIRE(!ReloadImeConfigIfChanged());
     }
 
-    fs::remove_all(unique_root, ec);
-}
-
-TEST_CASE(ai_provider_configuration_round_trips_without_mixing_credentials)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"ai-providers";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    WriteText(data_dir / L"config.toml", "[ai_assistant]\nprovider = \"deepseek\"\n"
-                                         "token = \"test-deepseek\"\ntoken_deepseek = \"test-deepseek\"\n"
-                                         "token_openai = \"test-openai\"\n"
-                                         "endpoint = \"https://deepseek.example.test/chat/completions\"\n"
-                                         "model = \"custom-deepseek\"\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoints.at("deepseek"),
-                   std::string("https://deepseek.example.test/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().models.at("deepseek"), std::string("custom-deepseek"));
-
-        REQUIRE(SetConfiguredAiAssistantString("provider", "openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("test-openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://api.openai.com/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("gpt-4o-mini"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().provider, std::string("openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("test-openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://api.openai.com/v1/chat/completions"));
-
-        REQUIRE(SetConfiguredAiAssistantString("endpoint", "https://openai.example.test/v1/chat/completions"));
-        REQUIRE(SetConfiguredAiAssistantString("model", "custom-openai"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoints.at("openai"),
-                   std::string("https://openai.example.test/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().models.at("openai"), std::string("custom-openai"));
-
-        REQUIRE(SetConfiguredAiAssistantString("provider", "deepseek"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("test-deepseek"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://deepseek.example.test/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-deepseek"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://deepseek.example.test/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-deepseek"));
-
-        REQUIRE(SetConfiguredAiAssistantString("provider", "openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://openai.example.test/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-openai"));
-
-        // Custom 槽位的 base_url、API Key、模型独立落盘，切走再切回不串味。
-        REQUIRE(SetConfiguredAiAssistantString("provider", "custom"));
-        REQUIRE(SetConfiguredAiAssistantString("token_custom", "test-custom"));
-        REQUIRE(SetConfiguredAiAssistantString("endpoint", "https://custom.example.test/v1/chat/completions"));
-        REQUIRE(SetConfiguredAiAssistantString("model", "custom-model"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().provider, std::string("custom"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("test-custom"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://custom.example.test/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-model"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoints.at("custom"),
-                   std::string("https://custom.example.test/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().models.at("custom"), std::string("custom-model"));
-
-        REQUIRE(SetConfiguredAiAssistantString("provider", "openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("test-openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://openai.example.test/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-openai"));
-        REQUIRE(SetConfiguredAiAssistantString("provider", "custom"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("test-custom"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, std::string("https://custom.example.test/v1/chat/completions"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-model"));
-
-        for (const std::string provider : {"siliconflow", "groq"})
-        {
-            const AiAssistantConfig defaults;
-            REQUIRE(SetConfiguredAiAssistantString("provider", provider));
-            InitImeConfig();
-            REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string());
-            REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, defaults.endpoints.at(provider));
-            REQUIRE_EQ(GetConfiguredAiAssistant().model, defaults.models.at(provider));
-        }
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-TEST_CASE(ai_provider_default_values_are_not_pinned_into_slots)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"ai-provider-defaults";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    WriteText(data_dir / L"config.toml", "[ai_assistant]\nprovider = \"openai\"\nendpoint = \"\"\n"
-                                         "model = \"custom-openai\"\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        const AiAssistantConfig defaults;
-        const auto stored = [&](const char *key) {
-            return toml::parse(ReadText(data_dir / L"config.toml"))["ai_assistant"][key].value_or(std::string("?"));
-        };
-        InitImeConfig();
-        // 空的旧版 endpoint 表示默认值，不能把请求地址读成空串。
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, defaults.endpoints.at("openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, std::string("custom-openai"));
-
-        // 来回切换：没改过的默认值写成空串，改过的值照常保留。
-        REQUIRE(SetConfiguredAiAssistantString("provider", "deepseek"));
-        REQUIRE_EQ(stored("endpoint_openai"), std::string());
-        REQUIRE_EQ(stored("model_openai"), std::string("custom-openai"));
-        REQUIRE_EQ(stored("endpoint"), std::string());
-        REQUIRE_EQ(stored("model"), std::string());
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, defaults.endpoints.at("deepseek"));
-        REQUIRE(SetConfiguredAiAssistantString("provider", "openai"));
-        REQUIRE_EQ(stored("endpoint_deepseek"), std::string());
-        REQUIRE_EQ(stored("model_deepseek"), std::string());
-        REQUIRE_EQ(stored("model"), std::string("custom-openai"));
-
-        // 手动填回默认值或清空，都按默认值处理并且不落盘。
-        REQUIRE(SetConfiguredAiAssistantString("model", defaults.models.at("openai")));
-        REQUIRE_EQ(stored("model_openai"), std::string());
-        REQUIRE(SetConfiguredAiAssistantString("endpoint", ""));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, defaults.endpoints.at("openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoints.at("openai"), defaults.endpoints.at("openai"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().endpoint, defaults.endpoints.at("openai"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, defaults.models.at("openai"));
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-TEST_CASE(ai_provider_retired_default_model_follows_new_default)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"ai-provider-retired";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    // 早期版本把 Groq 当时的默认模型原样写进了旧版 model 和 model_groq。
-    WriteText(data_dir / L"config.toml", "[ai_assistant]\nprovider = \"groq\"\n"
-                                         "model = \"llama-3.3-70b-versatile\"\n"
-                                         "model_groq = \"llama-3.3-70b-versatile\"\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        const AiAssistantConfig defaults;
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().model, defaults.models.at("groq"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().models.at("groq"), defaults.models.at("groq"));
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-// [translation].provider 是候选词翻译的唯一来源；旧配置只有三个 enabled 布尔，升级时按
-// niutrans > custom > tencent 推导，并把布尔按 provider 归一，降级回旧版时选择不丢。
-TEST_CASE(translation_provider_migrates_from_legacy_enabled_flags)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"translation-provider";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    // 旧版配置：没有 [translation]，只有 niutrans.enabled。
-    WriteText(data_dir / L"config.toml",
-              "[niutrans]\nenabled = true\napp_id = \"legacy-app\"\napikey = \"legacy-key\"\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-        REQUIRE(GetConfiguredNiuTrans().enabled);
-        REQUIRE(!GetConfiguredCustomTranslation().enabled);
-        REQUIRE_EQ(GetConfiguredTranslation()->niutrans.app_id, std::string("legacy-app"));
-
-        // 非法值被拒绝，保持原值。
-        REQUIRE(!SetConfiguredTranslationString("provider", "not-a-provider"));
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-
-        // 切到 AI 辅助：provider 落盘，旧布尔同步写回 false。
-        REQUIRE(SetConfiguredTranslationString("provider", "ai"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("ai"));
-        REQUIRE(!GetConfiguredNiuTrans().enabled);
-        REQUIRE(!GetConfiguredCustomTranslation().enabled);
-        REQUIRE(!GetConfiguredTencentTmt().enabled);
-
-        // AI 辅助页改模型后，翻译快照立刻跟着变，不用等重载。
-        REQUIRE(SetConfiguredAiAssistantString("model", "translation-model"));
-        REQUIRE_EQ(GetConfiguredTranslation()->ai.model, std::string("translation-model"));
-
-        // 输出格式策略与翻译快照共用一份：改一次两边都读到，落盘后重载仍是它。
-        REQUIRE(SetConfiguredAiAssistantString("json_mode", "off"));
-        REQUIRE_EQ(GetConfiguredTranslation()->ai.json_mode, std::string("off"));
-        REQUIRE(!SetConfiguredAiAssistantString("json_mode", "not-a-mode"));
-        REQUIRE_EQ(GetConfiguredTranslation()->ai.json_mode, std::string("off"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->ai.json_mode, std::string("off"));
-        REQUIRE(SetConfiguredAiAssistantString("json_mode", "auto"));
-
-        // 切到阿里云：provider 与快照里的凭据一起更新，旧布尔同步写回 false。
-        REQUIRE(SetConfiguredAliyunMtString("secret_id", "LTAIlegacy"));
-        REQUIRE(SetConfiguredTranslationString("provider", "aliyun"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("aliyun"));
-        REQUIRE(GetConfiguredAliyunMt().enabled);
-        REQUIRE(!GetConfiguredNiuTrans().enabled);
-        REQUIRE_EQ(GetConfiguredTranslation()->aliyun.secret_id, std::string("LTAIlegacy"));
-
-        // 切到自定义 DeepLX：布尔随之更新。
-        REQUIRE(SetConfiguredTranslationString("provider", "custom"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("custom"));
-        REQUIRE(GetConfiguredCustomTranslation().enabled);
-        REQUIRE(!GetConfiguredNiuTrans().enabled);
-        REQUIRE(!GetConfiguredAliyunMt().enabled);
-
-        // 旧的 enabled 开关改为切换 provider；关掉当前服务回落到腾讯云，并显式打开腾讯云门禁。
-        REQUIRE(SetConfiguredNiuTransBool("enabled", true));
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-        REQUIRE(SetConfiguredCustomTranslationBool("enabled", false));
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-        REQUIRE(SetConfiguredNiuTransBool("enabled", false));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("tencent"));
-        REQUIRE(GetConfiguredTencentTmt().enabled);
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-// 旧版只有 tencent_tmt.enabled = true 时才向腾讯云发请求。三个布尔都关的旧配置升级后推导为
-// 腾讯云，但门禁保持关闭，不能因为升级就把候选词发出去。
-TEST_CASE(translation_provider_migration_keeps_tencent_gate)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"translation-tencent-gate";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    WriteText(data_dir / L"config.toml", "[tencent_tmt]\nenabled = false\nsecret_id = \"AKIDreal\"\n"
-                                         "secret_key = \"real-key\"\n[niutrans]\nenabled = false\n"
-                                         "[custom_translation]\nenabled = false\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("tencent"));
-        REQUIRE(!GetConfiguredTranslation()->tencent.enabled);
-
-        // 用户在设置页明确选择腾讯云后才打开。
-        REQUIRE(SetConfiguredTranslationString("provider", "tencent"));
-        InitImeConfig();
-        REQUIRE(GetConfiguredTranslation()->tencent.enabled);
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-// 新装默认不联网：老配置里根本没有 cloud_candidates 这个键时也必须是关，只有显式写 true
-// （安装向导勾选或设置页开关）才发拼音。
-TEST_CASE(cloud_candidates_defaults_off_when_key_is_missing)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"cloud-candidates-default";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    WriteText(data_dir / L"config.toml", "[general]\nfloating_toolbar = true\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE(!GetConfiguredCloudCandidatesEnabled());
-        REQUIRE(SetConfiguredCloudCandidatesEnabled(true));
-        InitImeConfig();
-        REQUIRE(GetConfiguredCloudCandidatesEnabled());
-    }
     fs::remove_all(unique_root, ec);
 }
 
@@ -1489,59 +1212,6 @@ TEST_CASE(floating_toolbar_auto_hide_defaults_and_round_trips)
 
 // DeepSeek 思考强度：两个出厂模板都带键且默认 disabled（缺键会在升级合并时丢掉用户的选择），
 // 缺键和非法值回退到 disabled，非法写入被拒且不落盘，合法值能往返。
-TEST_CASE(deepseek_thinking_levels_default_disabled_and_round_trip)
-{
-    {
-        std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
-        REQUIRE(static_cast<bool>(input));
-        const std::string installed((std::istreambuf_iterator<char>(input)), {});
-        const auto parsed = toml::parse(installed);
-        REQUIRE_EQ(parsed["ai_assistant"]["thinking"].value_or(std::string()), std::string("disabled"));
-        REQUIRE_EQ(parsed["voice_input"]["polish_thinking"].value_or(std::string()), std::string("disabled"));
-    }
-
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot();
-    const fs::path local_app_data = unique_root / L"本地";
-    const fs::path data_dir = local_app_data / L"metasequoiaime";
-
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-
-    {
-        ScopedConfigLocation local_app_data_env(local_app_data);
-
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
-        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
-
-        WriteText(data_dir / L"config.toml",
-                  "[ai_assistant]\nthinking = \"medium\"\n[voice_input]\npolish_thinking = \"ultra\"\n");
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
-        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
-
-        const std::string before_invalid_set = ReadText(data_dir / L"config.toml");
-        REQUIRE(!SetConfiguredAiAssistantString("thinking", "medium"));
-        REQUIRE(!SetConfiguredVoiceInputString("polish_thinking", "ultra"));
-        REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
-        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
-        REQUIRE_EQ(ReadText(data_dir / L"config.toml"), before_invalid_set);
-
-        for (const char *value : {"low", "high", "max", "disabled"})
-        {
-            REQUIRE(SetConfiguredAiAssistantString("thinking", value));
-            REQUIRE(SetConfiguredVoiceInputString("polish_thinking", value));
-            InitImeConfig();
-            REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string(value));
-            REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string(value));
-        }
-    }
-
-    fs::remove_all(unique_root, ec);
-}
-
 TEST_CASE(credential_protection_round_trips_and_rejects_foreign_ciphertext)
 {
     const std::string secret = "sk-测试-0123456789";
@@ -1571,29 +1241,16 @@ TEST_CASE(credentials_are_stored_encrypted_and_plaintext_is_migrated)
     {
         ScopedConfigLocation local_app_data_env(local_app_data);
 
-        // 出厂占位符保持明文，模板合并要靠它们识别「用户没填」。
         InitImeConfig();
         REQUIRE(ReadText(config_path).find("dpapi:") == std::string::npos);
-        REQUIRE(ReadText(config_path).find("FAKESECRET_") != std::string::npos);
-
-        // 设置页写入的凭证以密文落盘，重新加载后还原。
-        REQUIRE(SetConfiguredAiAssistantString("token", "sk-ai-明文-token"));
-        REQUIRE(ReadText(config_path).find("sk-ai-明文-token") == std::string::npos);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("sk-ai-明文-token"));
 
         // 旧版本留下的明文凭证在启动时被换成密文，值不变。
         std::string text = ReadText(config_path);
-        const std::string placeholder = "secret_key = \"<YOUR_TENCENT_SECRET_KEY>\"";
-        const size_t at = text.find(placeholder);
-        REQUIRE(at != std::string::npos);
-        text.replace(at, placeholder.size(), "secret_key = \"legacy-plain-secret\"");
+        text += "[test_service]\nsecret_key = \"legacy-plain-secret\"\n";
         WriteText(config_path, text);
         InitImeConfig();
         REQUIRE(ReadText(config_path).find("legacy-plain-secret") == std::string::npos);
-        REQUIRE_EQ(GetConfiguredTencentTmt().secret_key, std::string("legacy-plain-secret"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTencentTmt().secret_key, std::string("legacy-plain-secret"));
+        REQUIRE(ReadText(config_path).find("dpapi:") != std::string::npos);
 
         // 解不开的密文（别的账户或机器写的）当作没填，不能把密文本身当 token 用。
         text = ReadText(config_path);
@@ -1603,7 +1260,7 @@ TEST_CASE(credentials_are_stored_encrypted_and_plaintext_is_migrated)
         text.replace(key_at, line_end - key_at, "secret_key = \"dpapi:AAAA\"");
         WriteText(config_path, text);
         InitImeConfig();
-        REQUIRE(GetConfiguredTencentTmt().secret_key.empty());
+        REQUIRE(ReadText(config_path).find("dpapi:AAAA") != std::string::npos);
     }
 
     fs::remove_all(unique_root, ec);

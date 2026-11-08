@@ -2,7 +2,6 @@
 
 #include "KeyEventSendResult.h"
 #include "CapsLockPunctuationPolicy.h"
-#include "VoiceCompositionPipe.h"
 #include <Windows.h>
 #include <atomic>
 #include <cstddef>
@@ -303,14 +302,6 @@ inline BOOL ResolveFollowedPunctuationOpen(BOOL imeOpen)
 inline std::atomic_bool TsfDiagnosticLogEnabled{false};
 // Default off, like the persisted setting: until the Server sends the switch on
 // connect, the capture paths classify nothing and never touch the stats pipe.
-// The Server uploads committed-text context to the AI assistant. Only while this
-// is on does the key path read the focused field's input scope; off, it costs
-// one relaxed atomic load.
-inline std::atomic_bool AiContextUploadEnabled{false};
-// The field this thread last checked declares a password or PIN input scope.
-// Rechecked on the key that starts a composition; KeyEvent packets carry it as
-// FanyImePipeFlags::SensitiveField.
-inline thread_local bool SensitiveInputField = false;
 inline thread_local bool g_connected = false;
 
 } // namespace Global

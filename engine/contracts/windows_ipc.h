@@ -25,7 +25,6 @@ inline const wchar_t *FANY_IME_AUX_NAMED_PIPE = L"\\\\.\\pipe\\FanyImeAuxNamedPi
 inline const wchar_t *FANY_IME_TSF_DIAGNOSTIC_NAMED_PIPE = L"\\\\.\\pipe\\FanyImeTsfDiagnosticNamedPipe";
 // Dedicated Tauri-to-Server voice lifecycle channel. It never carries TSF
 // frames and cannot be confused with the legacy Aux endpoint.
-inline const wchar_t *FANY_IME_VOICE_CONTROL_NAMED_PIPE = L"\\\\.\\pipe\\FanyImeVoiceControlNamedPipe";
 inline constexpr uint32_t FANY_IME_TSF_DIAGNOSTIC_MAGIC = 0x474F4C54; // "TLOG"
 inline constexpr uint32_t FANY_IME_TSF_DIAGNOSTIC_VERSION = 1;
 inline constexpr size_t FANY_IME_TSF_DIAGNOSTIC_MAX_FRAME_BYTES = 16 * 1024;
@@ -151,13 +150,8 @@ namespace FanyImePipeFlags
 constexpr std::uint32_t UiLess = 0x80000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotPresent = 0x40000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotEnabled = 0x20000000u;
-// KeyEvent only: the focused field declares a password or PIN input scope. The
-// DLL checks only while the Server reports AiContextUploadChanged "1"; the Server
-// then sends no AI request and keeps the committed text out of the AI context.
-// The Server strips it before any key-modifier policy runs; old Servers never
-// receive it because the DLL only sets it after the new opcode turned it on.
 // 0x10000000..0x04000000 are retired language-cycle flags; do not reuse.
-constexpr std::uint32_t SensitiveField = 0x02000000u;
+// 0x02000000 was SensitiveField (the AI assistant's password-field marker); never reuse.
 // KeyEvent only, plain Left / Right while candidates are shown: the DLL asks the Server to decide between moving
 // the candidate highlight and moving the composition caret (horizontal candidate window, see
 // HorizontalArrowSelectionChanged). The Server answers a highlight move with MoveSelectionPrevious / MoveSelectionNext
@@ -194,17 +188,6 @@ constexpr std::uint32_t Main = 0;
 constexpr std::uint32_t ToTsf = 1;
 constexpr std::uint32_t ToTsfWorkerThread = 2;
 } // namespace FanyImePipeRole
-
-// Tauri-to-Server voice lifecycle commands. Consumers must authenticate the
-// client_id and activation epoch with the registered pipe lease; generation
-// is a non-zero session value used to reject stale cancellation requests.
-namespace FanyImeVoiceControl
-{
-constexpr std::uint32_t Start = 1;
-constexpr std::uint32_t Stop = 2;
-constexpr std::uint32_t Cancel = 3;
-constexpr std::size_t MaxMessageChars = 96;
-} // namespace FanyImeVoiceControl
 
 struct alignas(8) FanyImePipeHello
 {
@@ -373,7 +356,7 @@ constexpr std::uint32_t FocusSessionReady = 8;
 // Worker-endpoint registration acknowledgement. It is consumed before the
 // handle is published to IpcWorkerThread and before Main can be opened.
 constexpr std::uint32_t PipeReady = 9;
-// Unsolicited text insert (voice ASR, etc.). Does not finalize candidates.
+// Reserved opcode from removed voice text insertion. Never send or reuse.
 constexpr std::uint32_t InsertText = 10;
 // Master switch for the reversible Chinese/ASCII punctuation conversion:
 // space after a committed Chinese punctuation converts it. Payload "0"/"1".
@@ -385,11 +368,9 @@ constexpr std::uint32_t Reserved13 = 13;
 // Revert a converted ASCII punctuation back to Chinese when the same
 // punctuation key is pressed within the revert window. Payload "0"/"1".
 constexpr std::uint32_t SmartPunctuationRepeatToChineseChanged = 14;
-// Streaming ASR: replace the inline composition with this full snapshot.
+// Reserved opcodes from removed streaming ASR. Never send or reuse these values.
 constexpr std::uint32_t UpdateVoiceComposition = 15;
-// Streaming ASR: abort the voice composition without committing.
 constexpr std::uint32_t CancelVoiceComposition = 16;
-// Streaming ASR: replace the inline composition with this snapshot and commit.
 constexpr std::uint32_t CommitVoiceComposition = 17;
 // Retired native-language state; do not reuse.
 constexpr std::uint32_t Reserved18 = 18;
@@ -437,11 +418,8 @@ constexpr std::uint32_t VModeChanged = 32;
 // Retired language-cycle setting; do not reuse.
 // Separate from Reserved18 so old DLLs retain its active-language meaning and ignore this switch.
 constexpr std::uint32_t Reserved33 = 33;
-// Whether the AI assistant uploads the committed-text context. Payload "0"/"1". Only while it is "1" does the DLL
-// read the focused field's input scope and mark password fields with FanyImePipeFlags::SensitiveField, so with
-// the assistant off the key path does no extra TSF work.
-constexpr std::uint32_t AiContextUploadChanged = 34;
-// UI-less hosts only: the Server replaced the candidate page outside a key reply (cloud/AI suggestion, reranking,
+// 34 was AiContextUploadChanged (the AI assistant's committed-text context). Never send or reuse.
+// UI-less hosts only: the Server replaced the candidate page outside a key reply (reranking,
 // mixed English). Payload has the UiLessComposition shape "<preedit>\t<page>\t<selection>\t<generation>" with an
 // empty preedit; see FanyImeUiLessPage. Without it the host keeps drawing the page it read on the last key while
 // digits commit from the new one.

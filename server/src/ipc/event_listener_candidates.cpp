@@ -20,10 +20,8 @@
 #include "engine/common/helpcode_utils.h"
 #include "engine/quanpin/quanpin_query.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
-#include "cloud/cloud_translation.h"
 #include "english/english_ime.h"
 #include "config/ime_config.h"
-#include "ai/jev_candidate_policy.h"
 #include "settings/collocation_model.h"
 #include "engine/local_modes/quick_phrase_query.h"
 #include "engine/local_modes/date_time_query.h"
@@ -40,8 +38,6 @@ namespace
 {
 std::string BuildCurrentCandidatePage();
 void PrepareCandidateTranslationRequest();
-
-std::string g_candidate_translation_scope;
 
 bool BuildTranslationQuery(const WordItem &item, EnglishIme::TranslationQuery &query)
 {
@@ -114,11 +110,10 @@ void PlaceQuickPhrases(std::vector<WordItem> &items, const std::string &current_
 {
     const SchemeType scheme = g_inputSession->current_scheme_type();
     if (!GetConfiguredMixedCandidatesEnabled() || !GetConfiguredQuickPhraseCandidatesEnabled() ||
-        scheme != SchemeType::Quanpin ||
-        GlobalIme::composition.creating_word.active || g_inputSession->prefix_end() != current_input.size() ||
-        current_input.empty() || !std::all_of(current_input.begin(), current_input.end(), [](unsigned char ch) {
-            return ch >= 'a' && ch <= 'z';
-        }))
+        scheme != SchemeType::Quanpin || GlobalIme::composition.creating_word.active ||
+        g_inputSession->prefix_end() != current_input.size() || current_input.empty() ||
+        !std::all_of(current_input.begin(), current_input.end(),
+                     [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; }))
         return;
     auto phrases = metasequoia::local_modes::query_quick_phrases_by_code(current_input).candidates;
     if (phrases.empty())
@@ -231,9 +226,9 @@ std::string BuildCurrentCandidatePage()
     // 副候选框里装的是译文，不是这次输入的候选：助记码、云/AI 角标和「右侧译文」都不适用，
     // 而且 g_candidate_translation_glosses 还留着原候选的译文，照常查会把译文再标注一遍。
     const bool translation_page = g_translation_candidates_active;
-    const bool show_helpcodes =
-        !translation_page && current_scheme == SchemeType::Quanpin && GetConfiguredQuanpinHelpcodeEnabled() &&
-        GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
+    const bool show_helpcodes = !translation_page && current_scheme == SchemeType::Quanpin &&
+                                GetConfiguredQuanpinHelpcodeEnabled() &&
+                                GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
     // U 模式（部件拆字反查）：候选上反显该字的注音。annotation 在这个模式下专属注音，辅助码
     // 提示不在该模式出现（候选来源是 Generated，本来也不走辅助码的整句规则）。
     const bool radical_mode = IsRadicalCandidateListActive();
@@ -241,8 +236,6 @@ std::string BuildCurrentCandidatePage()
     // 组页时读一次徽标配置，循环内不再逐条查
     const bool show_fixed_badge = GetConfiguredCandidateFixedBadge();
     const std::string fixed_badge_style = GetConfiguredCandidateFixedBadgeStyle();
-    // AI 联想候选的来源徽标随配置切换（🤖 / 🐳），同样每次组页解析一次。
-    const std::string ai_badge = AiSuggestionBadge(GetConfiguredCandidateAiBadgeStyle());
     const bool show_sentence_source_badge = GetConfiguredAssocSentenceSourceBadge();
     const bool show_autocorrect_marker = GetConfiguredQuanpinAutocorrectMarker();
     const bool show_translation_pos = GetConfiguredCandidateTranslationShowPos();
@@ -303,18 +296,11 @@ std::string BuildCurrentCandidatePage()
             item.source != CandidateSource::Kaomoji && item.source != CandidateSource::Symbol &&
             item.source != CandidateSource::DateTime && item.source != CandidateSource::Generated)
             view.annotation = g_inputSession->get_helpcode_annotation(item.word, uppercase_all_helpcodes);
-        if (!IsCandidateSubPageActive() && item.word == JevSelectionWord() && Jev::IsPoolSource(item) &&
-            item.fixed_position == 0)
-            view.badge = " 〔Jev〕";
-        else if (item.source == CandidateSource::CloudSuggestion)
-            view.badge = " ☁️";
-        else if (item.source == CandidateSource::AiSuggestion)
-            view.badge = ai_badge;
         // 整句来源标签与设置页名称保持一致，方便同时比较四个来源。两家选中同一句时只剩一行，
         // 标签归先保留下来的来源；开启去重补位后，其余来源会改为显示自己的下一条不同结果。
         // Generated/Fallback 也被原样上屏、英文、日期等合成候选借用，只有引擎标了整句联想的才挂标签。
         // 设置页可整体关闭这组标签，候选本身和排序不受影响。
-        else if (show_sentence_source_badge)
+        if (show_sentence_source_badge)
         {
             if (item.source == CandidateSource::Generated && item.sentence_association)
                 view.badge = " 〔Trigram〕";
@@ -393,17 +379,9 @@ void PrepareCandidateTranslationRequest()
         {
             g_candidate_translation_signature.clear();
             EnglishIme::ClearTranslations();
-            CloudTranslation::Clear();
         }
         return;
     }
-    const std::string scope = CloudTranslation::ActiveProviderScope();
-    if (scope != g_candidate_translation_scope)
-    {
-        g_candidate_translation_scope = scope;
-        g_candidate_translation_glosses.clear();
-    }
-
     std::vector<EnglishIme::TranslationQuery> queries;
     std::string signature;
     const int start = ui.current_page_start();
@@ -424,8 +402,7 @@ void PrepareCandidateTranslationRequest()
     if (signature == g_candidate_translation_signature)
         return;
     g_candidate_translation_signature = std::move(signature);
-    CloudTranslation::Clear();
-    EnglishIme::RequestTranslations(std::move(queries), GetConfiguredTencentTmt().target_language == "en");
+    EnglishIme::RequestTranslations(std::move(queries));
 }
 
 // Copy the page the worker just finished into an immutable snapshot for the UI thread. This is the single publish
@@ -464,7 +441,6 @@ namespace event_listener_detail
 {
 void RefreshCandidatePageUi(bool show_window)
 {
-    RefreshJevSelection();
     PrepareCandidateTranslationRequest();
     const std::string candidate_string = BuildCurrentCandidatePage();
     // Host-drawn UI wants plain words (Microsoft IME style), not helpcodes.
@@ -496,8 +472,8 @@ std::string CurrentRankingContextKey()
     plain.erase(std::remove(plain.begin(), plain.end(), '\''), plain.end());
     // 与引擎侧 InputSession::position_context 同一规则（quanpin::correction_aliases_enabled 只看
     // 换位、邻键两个开关）。
-    const bool correction_aliases = GetConfiguredQuanpinAutocorrectTransposition() ||
-                                    GetConfiguredQuanpinAutocorrectNeighbor();
+    const bool correction_aliases =
+        GetConfiguredQuanpinAutocorrectTransposition() || GetConfiguredQuanpinAutocorrectNeighbor();
     const auto cuts = quanpin::cut_pinyin_by_mode(plain, "correction", correction_aliases);
     return cuts.empty() ? converted : quanpin::join_segments(cuts.front());
 }
@@ -740,15 +716,15 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     }
     else if (IsEmojiInput(current_input))
     {
-        items = metasequoia::local_modes::query_emoji(current_input.substr(1), g_inputSession->current_scheme_type(),
-                                                      10)
-                    .candidates;
+        items =
+            metasequoia::local_modes::query_emoji(current_input.substr(1), g_inputSession->current_scheme_type(), 10)
+                .candidates;
     }
     else if (IsKaomojiInput(current_input))
     {
-        items = metasequoia::local_modes::query_kaomoji(current_input.substr(1), g_inputSession->current_scheme_type(),
-                                                        10)
-                    .candidates;
+        items =
+            metasequoia::local_modes::query_kaomoji(current_input.substr(1), g_inputSession->current_scheme_type(), 10)
+                .candidates;
     }
     else if (IsSymbolInput(current_input))
     {

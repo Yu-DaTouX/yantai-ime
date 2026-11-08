@@ -40,14 +40,12 @@ const DWORD WM_IpcSessionDirty = WM_USER + 17;
 // resync the composition instead of running the full transport reset.
 constexpr LPARAM IPC_SESSION_DIRTY_RESYNC = 1;
 const DWORD WM_DrainDeferredKeyDown = WM_USER + 18;
-const DWORD WM_InsertText = WM_USER + 19;
+// WM_USER + 19 is reserved (removed voice text insertion).
 const DWORD WM_RefreshLanguageBarTheme = WM_USER + 20;
 const DWORD WM_PairedPunctuationCaretMove = WM_USER + 21;
 const DWORD WM_RewriteSmartPunctuationViaSendInput = WM_USER + 22;
 const DWORD WM_BareShiftRelease = WM_USER + 23;
-const DWORD WM_UpdateVoiceComposition = WM_USER + 24;
-const DWORD WM_CommitVoiceComposition = WM_USER + 25;
-const DWORD WM_CancelVoiceComposition = WM_USER + 26;
+// WM_USER + 24..26 are reserved (removed voice input).
 const DWORD WM_ApplyPunctuationLock = WM_USER + 27;
 const DWORD WM_CommitCandidateAndContinue = WM_USER + 28;
 const DWORD WM_SyncCapsLockPunctuation = WM_USER + 30;
@@ -280,11 +278,7 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     HRESULT _HandleEscapeCancel(TfEditCookie ec, _In_ ITfContext *pContext, uint64_t requestId);
     HRESULT _HandleToogleIMEMode(TfEditCookie ec, _In_ ITfContext *pContext);
     void _ClearCreatingWordState();
-    HRESULT _HandleInsertText(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &text);
     HRESULT _HandleCommitCandidateAndContinue(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &payload);
-    HRESULT _HandleUpdateVoiceComposition(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &text);
-    HRESULT _HandleCommitVoiceComposition(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &text);
-    HRESULT _HandleCancelVoiceComposition(TfEditCookie ec, _In_ ITfContext *pContext);
 
     // key event handlers for composition object.
     HRESULT _HandleCompositionInput(TfEditCookie ec, _In_ ITfContext *pContext, WCHAR wch, uint64_t requestId);
@@ -565,12 +559,8 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     };
     bool _PostServerCandidateCommit(_In_z_ const WCHAR *candidateText);
     bool _PostServerCandidateCommitAndContinue(_In_z_ const WCHAR *payload);
-    bool _PostServerInsertText(_In_z_ const WCHAR *text);
     bool _PostServerTextDelivery(UINT windowMessage, _In_z_ const WCHAR *text);
     bool _TakeServerCandidateCommit(UINT token, _Out_ WorkerCandidateCommit &request);
-    void _ResetVoiceCompositionAssemble();
-    void _AssembleVoiceCompositionFrame(const FanyImeNamedpipeDataToTsfWorkerThread &buf);
-    void _DispatchUnsolicitedVoiceText(WPARAM wParam, KEYSTROKE_FUNCTION function);
     struct WorkerCompartmentSwitch
     {
         UINT messageType = 0;
@@ -690,8 +680,7 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     BOOL _IsComposing();
     BOOL _IsKeyboardDisabled();
 
-    HRESULT _AddComposingAndChar(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString,
-                                 bool voicePreview = false);
+    HRESULT _AddComposingAndChar(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString);
     HRESULT _AddCharAndFinalize(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString);
     HRESULT _InsertTextToComposition(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString);
     HRESULT _SetCompositionTextAndSelection(TfEditCookie ec, _In_ ITfContext *pContext,
@@ -923,11 +912,6 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     // De-duplicates the two composition exits that can observe the same commit
     // (_TerminateComposition can re-enter OnCompositionTerminated). Reset when
     // the next composition is created; see _CaptureCompositionStats.
-    std::wstring _voiceCompositionAssemble;
-    UINT _voiceCompositionAssembleMsg = 0;
-    wchar_t _voiceCompositionAssembleGeneration = 0;
-    bool _voiceCompositionAssembleActive = false;
-    bool _voiceCompositionActive = false;
     std::atomic<bool> _localSessionResetPending;
     std::atomic<UINT> _localSessionResetToken;
     bool _localResetEditSessionQueued;

@@ -22,7 +22,6 @@
 #include "ipc/event_listener.h"
 #include "utils/ime_utils.h"
 #include "log/candidate_diag_log.h"
-#include "voice-input/voice_input_service.h"
 
 using namespace ime_windows_detail;
 
@@ -601,7 +600,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const bool previous_floating_toolbar_auto_hide = GetConfiguredFloatingToolbarAutoHide();
             const int previous_floating_toolbar_auto_hide_delay = GetConfiguredFloatingToolbarAutoHideDelay();
             const bool previous_floating_toolbar_shadow = GetConfiguredFloatingToolbarShadow();
-            const bool previous_cloud_candidates = GetConfiguredCloudCandidatesEnabled();
             const bool previous_comma_period = GetConfiguredPagingCommaPeriodEnabled();
             const bool previous_smart_punctuation = GetConfiguredSmartPunctuationEnabled();
             const bool previous_smart_punctuation_space_convert = GetConfiguredSmartPunctuationSpaceConvertEnabled();
@@ -614,7 +612,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const std::wstring previous_horizontal_arrow_selection = FormatHorizontalArrowSelectionWorkerPayload();
             const std::string previous_punctuation_lock = GetConfiguredPunctuationLock();
             const bool previous_tsf_diagnostic_log = GetConfiguredTsfDiagnosticLogEnabled();
-            const bool previous_ai_assistant_enabled = GetConfiguredAiAssistant().enabled;
             const std::wstring previous_v_mode = FormatVModeWorkerPayload();
             const std::wstring previous_paging_worker_payload = FormatPagingCommaPeriodWorkerPayload();
             const std::string previous_theme_mode = GetConfiguredThemeMode();
@@ -627,7 +624,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const int previous_font_size = GetConfiguredCandidateFontSize();
             const int previous_preedit_font_size = GetConfiguredCandidateWindowPreeditFontSize();
             const std::string previous_cand_text_color = GetConfiguredCandidateTextColor();
-            const VoiceInputConfig previous_voice_input = GetConfiguredVoiceInput();
             if (ReloadImeConfigIfChanged())
             {
                 // 下面入队的任务会按新字形换写法，切到繁体时先在后台载入转换字典。
@@ -701,8 +697,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                 {
                     ApplyConfiguredFloatingToolbarSize();
                 }
-                if (previous_cloud_candidates && !GetConfiguredCloudCandidatesEnabled())
-                    FanyNamedPipe::CancelCloudCandidateRequest();
                 if (previous_comma_period != GetConfiguredPagingCommaPeriodEnabled() ||
                     previous_paging_worker_payload != FormatPagingCommaPeriodWorkerPayload())
                 {
@@ -781,25 +775,10 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                         Global::DataFromServerMsgTypeToTsfWorkerThread::TsfDiagnosticLogChanged,
                         GetConfiguredTsfDiagnosticLogEnabled() ? L"1" : L"0");
                 }
-                if (previous_ai_assistant_enabled != GetConfiguredAiAssistant().enabled)
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged,
-                        GetConfiguredAiAssistant().enabled ? L"1" : L"0");
-                }
                 if (previous_v_mode != FormatVModeWorkerPayload())
                 {
                     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged,
                                                            FormatVModeWorkerPayload());
-                }
-                const VoiceInputConfig &voice_input = GetConfiguredVoiceInput();
-                if (previous_voice_input.enabled != voice_input.enabled ||
-                    previous_voice_input.hotkey_ralt != voice_input.hotkey_ralt ||
-                    previous_voice_input.hotkey_ctrl_f9 != voice_input.hotkey_ctrl_f9 ||
-                    previous_voice_input.hotkey_ctrl_win != voice_input.hotkey_ctrl_win ||
-                    previous_voice_input.hotkey_rctrl_ralt != voice_input.hotkey_rctrl_ralt)
-                {
-                    VoiceInput::RefreshKeyboardHook();
                 }
             }
             FanyNamedPipe::EnqueueEnsureInputSessionMatchesConfigTask();
