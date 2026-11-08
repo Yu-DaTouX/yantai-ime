@@ -3,7 +3,6 @@
 #include "../common/helpcode_utils.h"
 #include "../contracts/assets/assets.h"
 #include "../user_dictionary/user_dictionary_journal.h"
-#include "../local_modes/jianpin_query.h"
 #include "../quanpin/quanpin_utils.h"
 #include <algorithm>
 #include <cctype>
@@ -28,8 +27,6 @@ std::string InputSession::position_context(bool english) const
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         return "english:" + input;
     }
-    if (local_input_mode_ == LocalInputMode::SuperJianpin)
-        return local_modes::jianpin_ranking_context(local_preedit_.substr(1), scheme(), shuangpin_profile_);
     std::string context = get_quanpin();
     if (context.empty())
         context = get_pinyin_segmentation();
@@ -38,9 +35,8 @@ std::string InputSession::position_context(bool english) const
     auto plain = context;
     plain.erase(std::remove(plain.begin(), plain.end(), '\''), plain.end());
     // 全拼的上下文 key 跟查询走同一个纠错开关：关掉纠错时 laing 的候选按字面 lai'ng 出，
-    // key 若仍被别名层切成 liang，两组固定位置会互相串。双拼词典不受全拼开关管，保持原样。
-    const bool correction_aliases =
-        scheme() == SchemeType::Shuangpin || quanpin::correction_aliases_enabled(quanpin_autocorrect_types_);
+    // key 若仍被别名层切成 liang，两组固定位置会互相串。
+    const bool correction_aliases = quanpin::correction_aliases_enabled(quanpin_autocorrect_types_);
     const auto cuts = quanpin::cut_pinyin_by_mode(plain, "correction", correction_aliases);
     return cuts.empty() ? context : quanpin::join_segments(cuts.front());
 }
@@ -50,7 +46,6 @@ void InputSession::apply_candidate_positions(std::vector<WordItem> &items)
     if (!fixed_positions_enabled_ || items.empty())
         return;
     const auto journal = path_to_utf8(paths_.user(assets::user_journal));
-    const bool super_jianpin = local_input_mode_ == LocalInputMode::SuperJianpin;
     const bool regular = local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_;
     if (regular)
     {
@@ -60,10 +55,6 @@ void InputSession::apply_candidate_positions(std::vector<WordItem> &items)
                 return engine_.find_candidate(scheme(), key, word);
             },
             has_active_helpcode());
-    }
-    else if (super_jianpin)
-    {
-        user_dictionary::apply_fixed_positions(journal, position_context(false), items, false);
     }
     if (std::any_of(items.begin(), items.end(),
                     [](const auto &item) { return item.source == CandidateSource::EnglishDictionary; }))
@@ -112,7 +103,7 @@ KeyResult InputSession::remove_candidate(std::size_t index)
 
     const auto kind = english ? user_dictionary::DictionaryKind::English : user_dictionary::DictionaryKind::Pinyin;
     // A displayed pinyin candidate already carries its exact dictionary key. Re-segmenting it
-    // (or expanding shuangpin again) can delete a different pronunciation of the same word.
+    // can delete a different pronunciation of the same word.
     const auto &key = english ? selected.pinyin : selected.canonical_pinyin;
     if (key.empty())
         return {};

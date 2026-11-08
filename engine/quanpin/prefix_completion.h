@@ -19,7 +19,7 @@ class SentenceModel;
 }
 
 // 长词前缀补全（#1343）：首选已经是四个字以上、覆盖整串输入的词时，到词库里找以它开头的更长的词
-// （中华人民 → 中华人民共和国），挑最可能的一条插到首选后面。全拼、双拼共用，词库都是 msime.db 的
+// （中华人民 → 中华人民共和国），挑最可能的一条插到首选后面。词库是 msime.db 的
 // tbl_* 分表。
 namespace quanpin
 {
@@ -89,7 +89,7 @@ class PrefixCompletionCache
 };
 
 // 首选（result[0]）满足条件时，把排在最前、过了门槛的那条补全插到第二位。full_code 是整串输入在这个方案
-// 下的编码（全拼是切分，双拼是按键），首选的 pinyin 去掉分隔符后必须与它相同，即首选覆盖了整串输入。补全行的
+// 下的编码（切分），首选的 pinyin 去掉分隔符后必须与它相同，即首选覆盖了整串输入。补全行的
 // pinyin 沿用首选的 pinyin（选中后吃掉同样多的输入），canonical_pinyin 是它自己的读音。
 void insert_prefix_completion(std::vector<WordItem> &result, const std::string &full_code,
                               const PrefixCompletionOptions &options, sqlite3 *db,

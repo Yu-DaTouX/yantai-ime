@@ -3,7 +3,6 @@
 #include "../../core/input_session.h"
 #include "../../core/data_path.h"
 #include "../../quanpin/prefix_completion.h"
-#include "../../shuangpin/shuangpin_profile.h"
 #include "test_directory_cleanup.h"
 
 #include <sqlite3.h>
@@ -247,21 +246,6 @@ void test_quanpin(const metasequoia::RuntimePaths &paths, const std::filesystem:
     }
 }
 
-void test_shuangpin(const metasequoia::RuntimePaths &paths)
-{
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-    session.set_prefix_completion_options(enabled());
-    // 小鹤：zhong=vs hua=hx ren=rf min=mb
-    type(session, "vshxrfmb");
-    const auto &candidates = session.candidates();
-    require(!candidates.empty() && candidates[0].word == "中华人民", "Shuangpin must offer the exact word first.");
-    const auto index = completion_index(session);
-    require(index == 1 && candidates[1].word == "中华人民共和国",
-            "Shuangpin must complete the head word in the second slot.");
-    require(session.select_candidate(1).commit == "中华人民共和国" && !session.has_composition(),
-            "Selecting the shuangpin completion must consume the whole input.");
-}
 } // namespace
 
 int main()
@@ -277,7 +261,6 @@ int main()
         test_query_rows(directory);
         test_guessed_head(directory);
         test_quanpin(paths, directory);
-        test_shuangpin(paths);
     }
     catch (const std::exception &error)
     {

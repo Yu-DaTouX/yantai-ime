@@ -11,7 +11,7 @@
 namespace metasequoia::local_modes
 {
 // One code looked up by query_ranked_entries(). Only lookups with exact_ranks
-// set lift a whole-key match above longer keys: under Shuangpin the raw typed
+// set lift a whole-key match above longer keys: the raw typed
 // code is looked up too, and a raw code that happens to equal some jianpin or
 // English key must not outrank the full pinyin the user meant.
 struct RankedLookup

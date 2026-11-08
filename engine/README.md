@@ -8,7 +8,7 @@
 
 | 目录 | 职责 |
 |---|---|
-| `core/`、`quanpin/`、`shuangpin/`、`english/` | 输入会话和候选查询 |
+| `core/`、`quanpin/`、`english/` | 输入会话和候选查询 |
 | `contracts/` | 与 server、前端页面共享的协议、词库格式和标点策略 |
 | `helpcode/` | 辅助码数据和生成脚本 |
 | `local_modes/`、`providers/`、`user_dictionary/` | 本地模式、在线候选来源、用户词库 |

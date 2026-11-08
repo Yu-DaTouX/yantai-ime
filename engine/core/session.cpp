@@ -7,12 +7,13 @@ namespace metasequoia
 class Session::Impl
 {
   public:
-    explicit Impl(const SessionOptions &options) : session(options.scheme, options.shuangpin_profile, options.paths)
+    explicit Impl(const SessionOptions &options)
+        : session(options.scheme, options.autocorrect_types, options.helpcode, options.chinese_punctuation,
+                  options.learning, options.paths)
     {
         session.set_quanpin_autocorrect_types(options.autocorrect_types);
         session.set_fuzzy_pinyin_options(options.fuzzy_pinyin);
         session.set_quanpin_helpcode_enabled(options.helpcode);
-        session.set_shuangpin_helpcode_enabled(options.helpcode);
         if (!session.set_helpcode_schema(options.helpcode_schema) ||
             !session.set_frequency_adjustment(options.frequency) || !session.set_english_input_options(options.english))
             throw std::invalid_argument("Invalid session options");
@@ -100,7 +101,6 @@ bool Session::set_helpcode_schema(const std::string &schema)
 void Session::set_helpcode_enabled(bool enabled)
 {
     impl_->session.set_quanpin_helpcode_enabled(enabled);
-    impl_->session.set_shuangpin_helpcode_enabled(enabled);
 }
 void Session::set_dedicated_english(bool enabled)
 {

@@ -157,7 +157,7 @@ struct WordLatticeOptions
     LatticeCollocationScorer collocation_scorer;
     // 搭配项的标定系数（log10 域）；0 = 关闭（scorer 非空也不生效）。
     double collocation_weight = 0.0;
-    // 调用方已经按同一套打分解出来的 n-best（双拼直接辅助码的解析器选切分时顺带解出了最优整句）。
+    // 调用方已经按同一套打分解出来的 n-best。
     // 非空时 merge_lattice_candidates 直接用它，不再重解一遍，其余合并逻辑不变。全拼从不设置。
     std::vector<LatticePath> precomputed_paths;
     // 切分里有 t、k 这类单字母段、且它们都能被字母词（latin_words）覆盖时由调用方置位：

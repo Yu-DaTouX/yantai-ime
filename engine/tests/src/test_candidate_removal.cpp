@@ -88,16 +88,16 @@ int run_test()
     const auto english_before = bytes(resources / assets::english_dictionary);
     // A later deletion must win over an earlier pin when the journal is replayed.
     for (const bool pin_first : {false, true})
-        for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
+    {
         {
-            const auto suffix = std::to_string(static_cast<int>(scheme)) + (pin_first ? "-pinned" : "");
+            const auto suffix = pin_first ? std::string("-pinned") : std::string();
             const auto user = root / ("user-" + suffix);
             const auto cache = root / ("cache-" + suffix);
             SessionOptions options;
             options.paths = prepare_runtime_paths(resources, user, cache, "v1");
-            options.scheme = scheme;
+            options.scheme = SchemeType::Quanpin;
             options.learning = false;
-            const std::string input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
+            const std::string input = "nihao";
             {
                 Session session(options);
                 require(!session.remove(0).handled, "Empty removal consumed input");
@@ -126,6 +126,7 @@ int run_test()
             type(rolled_back, input);
             require(!has(rolled_back, "拟好"), "Removed phrase reappeared after rollback");
         }
+    }
     for (const bool pin_first : {false, true})
         for (const int mode : {0, 1, 2})
         {

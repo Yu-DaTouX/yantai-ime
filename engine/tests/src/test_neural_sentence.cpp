@@ -19,7 +19,6 @@
 #include "neural/rescore_worker.h"
 #include "neural/sentence_model.h"
 #include "quanpin/quanpin_dictionary.h"
-#include "shuangpin/shuangpin_dictionary.h"
 
 #include <algorithm>
 #include <chrono>
@@ -542,18 +541,15 @@ int run_test()
         }
     }
 
-    // Real dictionary paths: both full pinyin and shuangpin, including a cached requery.
+    // Real dictionary paths, including a cached requery.
     {
         QuanpinDictionary dictionary;
-        ShuangpinDictionary shuangpin;
         SentenceAssociationOptions options;
         const auto baseline = dictionary.query("xue");
         expect(!baseline.empty(), "dictionary fixture must contain xue");
         options.context_candidate_rerank = true;
         dictionary.set_sentence_association(options);
-        shuangpin.set_sentence_association(options);
         dictionary.set_rescoring_context("冬天会下大");
-        shuangpin.set_rescoring_context("冬天会下大");
         const auto wait_first = [&](auto query, auto reset, const std::string &wanted) {
             std::vector<WordItem> rows;
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
@@ -569,10 +565,6 @@ int run_test()
         };
         expect(wait_first([&] { return dictionary.query("xue"); }, [&] { dictionary.reset_sentence_cache(); }, "雪"),
                "quanpin xue should promote 雪 after winter context");
-        // Default shuangpin profile: xt = xue.
-        expect(wait_first([&] { return shuangpin.generateSeries("xt", "xt"); },
-                          [&] { shuangpin.reset_sentence_cache(); }, "雪"),
-               "shuangpin xt should promote 雪 after winter context");
         dictionary.set_rescoring_context("我明天要上");
         expect(wait_first([&] { return dictionary.query("xue"); }, [&] { dictionary.reset_sentence_cache(); }, "学"),
                "a fresh tomorrow-school context should promote 学");

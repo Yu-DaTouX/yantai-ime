@@ -345,9 +345,6 @@ int run_test()
         require(reads_as_pinyin(SchemeType::Quanpin, "bus"), "A syllable with a jianpin tail did not read as pinyin.");
         require(!reads_as_pinyin(SchemeType::Quanpin, "github"), "An English-only spelling read as pinyin.");
         require(!reads_as_pinyin(SchemeType::Quanpin, "upstream"), "An English-only spelling read as pinyin.");
-        require(reads_as_pinyin(SchemeType::Shuangpin, "zd"), "A complete shuangpin code did not read as pinyin.");
-        require(reads_as_pinyin(SchemeType::Shuangpin, "zdb"),
-                "A shuangpin code with a pending initial did not read as pinyin.");
     }
     dedicated.set_dedicated_english_mode(false);
     require(!dedicated.dedicated_english_mode() && !dedicated.has_composition(),

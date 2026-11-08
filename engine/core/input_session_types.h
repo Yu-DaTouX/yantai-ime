@@ -64,7 +64,6 @@ enum class LocalInputMode
     QuickPhrase,
     Emoji,
     Kaomoji,
-    SuperJianpin,
     TemporaryEnglish,
 };
 
@@ -81,7 +80,6 @@ struct LocalModeOptions
     bool quick_phrase_frequency = true;
     bool emoji = true;
     bool kaomoji = true;
-    bool super_jianpin = true;
     bool temporary_english = true;
 };
 

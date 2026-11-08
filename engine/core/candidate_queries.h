@@ -4,7 +4,6 @@
 #include "../english/english_dictionary.h"
 #include "../local_modes/local_query_result.h"
 #include "../local_modes/date_time_query.h"
-#include "../shuangpin/shuangpin_profile.h"
 #include <functional>
 #include <memory>
 
@@ -14,8 +13,7 @@ namespace metasequoia
 class CandidateQueries
 {
   public:
-    CandidateQueries(RuntimePaths paths, ShuangpinProfile profile)
-        : paths_(std::move(paths)), shuangpin_profile_(std::move(profile))
+    explicit CandidateQueries(RuntimePaths paths) : paths_(std::move(paths))
     {
     }
     local_modes::LocalQueryResult local(LocalInputMode mode, const std::string &preedit, SchemeType scheme,
@@ -27,7 +25,6 @@ class CandidateQueries
 
   private:
     RuntimePaths paths_;
-    ShuangpinProfile shuangpin_profile_;
     std::unique_ptr<EnglishDictionary> english_dictionary_;
 };
 } // namespace metasequoia

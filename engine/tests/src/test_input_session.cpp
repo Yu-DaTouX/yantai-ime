@@ -8,7 +8,6 @@
 #include "../../quanpin/quanpin_utils.h"
 #include "../../quanpin/quanpin_dictionary.h"
 #include "../../schemes/quanpin_scheme.h"
-#include "../../shuangpin/shuangpin_profile.h"
 
 #include <sqlite3.h>
 
@@ -123,17 +122,6 @@ void prepare_frequency_fixture(const std::filesystem::path &directory)
                      "INSERT INTO tbl_1_n VALUES('ni', 'n', '丁', 70);"
                      "INSERT INTO tbl_1_n VALUES('ni', 'n', '戊', 60);"
                      "INSERT INTO tbl_1_n VALUES('ni', 'n', '己', 50);"
-                     "COMMIT;");
-}
-
-void prepare_shuangpin_frequency_fixture(const std::filesystem::path &directory)
-{
-    std::filesystem::create_directories(directory);
-    Database database(directory / "msime.db");
-    database.execute("BEGIN;"
-                     "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                     "INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '你好', 100);"
-                     "INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '拟好', 50);"
                      "COMMIT;");
 }
 
@@ -643,73 +631,6 @@ void run_literal_mixed_pinyin_tests(const std::filesystem::path &data_directory)
                         session.preedit() == "b" && session.select_candidate(0).commit == "办",
                     "Partial mixed-pinyin selection must retain the last initial.");
         }
-    }
-    struct DoublePinyin
-    {
-        const ShuangpinProfile *profile;
-        std::array<const char *, 4> inputs;
-    };
-    const std::array double_pinyin{
-        DoublePinyin{&GetXiaoheShuangpinProfile(), {"wwufme", "kjdmyk", "gdzfmebj", "veyhzi"}},
-        DoublePinyin{&GetZiranmaShuangpinProfile(), {"wzufme", "kjdmyy", "glzfmebj", "veyhzi"}},
-        DoublePinyin{&GetShoudaoShuangpinProfile(), {"wmekme", "kjdnyg", "glzkmebj", "veyyzi"}},
-        DoublePinyin{&GetMicrosoftShuangpinProfile(), {"wzufme", "kjdmy;", "glzfmebj", "veyhzi"}},
-        DoublePinyin{&GetSogouShuangpinProfile(), {"wzufme", "kjdmy;", "glzfmebj", "veyhzi"}},
-        DoublePinyin{&GetZiguangShuangpinProfile(), {"wkiwme", "krdfy;", "gpzwmebr", "ueyszi"}},
-        DoublePinyin{&GetZhinengAbcShuangpinProfile(), {"wqvfme", "kjdwyy", "glzfmebj", "aeyhzi"}},
-        DoublePinyin{&GetGuobiaoShuangpinProfile(), {"wburme", "kfddyj", "gkzrmebf", "veygzi"}},
-        DoublePinyin{&GetPinyinJiajiaShuangpinProfile(), {"wwirme", "kfdjyq", "gszrmebf", "veygzi"}},
-    };
-    const auto type_double_pinyin = [](metasequoia::InputSession &session, const std::string &input) {
-        for (const char ch : input)
-            session.handle_engine_key(ch == ';' ? 0xBAu : static_cast<unsigned>(ch - 'a' + 'A'), 0, ch);
-    };
-    for (const auto &layout : double_pinyin)
-    {
-        for (const unsigned mask : {0u, 1u, 2u, 3u})
-        {
-            for (size_t i = 0; i < phrases.size(); ++i)
-            {
-                metasequoia::InputSession session(SchemeType::Shuangpin, *layout.profile, paths);
-                session.set_shuangpin_helpcode_enabled(false);
-                session.set_candidate_learning_enabled(false);
-                session.set_quanpin_autocorrect_types(mask);
-                for (int repetition = 0; repetition < 2; ++repetition)
-                {
-                    type_double_pinyin(session, layout.inputs[i]);
-                    require(!session.candidates().empty() && session.candidates().front().word == phrases[i].word &&
-                                session.candidates().front().canonical_pinyin == phrases[i].key &&
-                                session.candidates().front().corrected_from.empty() &&
-                                session.normalized_segmentation() == phrases[i].key,
-                            ("Mixed-pinyin ordering must preserve Shuangpin: " + layout.profile->name + "/" +
-                             layout.inputs[i] + "/mask=" + std::to_string(mask))
-                                .c_str());
-                    require(session.select_candidate(0).commit == phrases[i].word && session.preedit().empty(),
-                            "Shuangpin selection must consume exactly its two-key syllables.");
-                }
-            }
-            metasequoia::InputSession partial(SchemeType::Shuangpin, *layout.profile, paths);
-            partial.set_shuangpin_helpcode_enabled(false);
-            partial.set_candidate_learning_enabled(false);
-            partial.set_quanpin_autocorrect_types(mask);
-            type_double_pinyin(partial, layout.inputs[1]);
-            require(partial.select_candidate(candidate_index(partial, "看")).commit == "看" &&
-                        partial.preedit() == std::string(layout.inputs[1]).substr(2),
-                    "A Shuangpin prefix selection must retain the remaining two-key units.");
-        }
-    }
-    {
-        metasequoia::InputSession switching(SchemeType::Quanpin, 3u, false, true, false, paths);
-        type(switching, "kandy");
-        check(switching, "kandy before scheme switch", phrases[1], "kan'd'y");
-        switching.switch_scheme(SchemeType::Shuangpin);
-        switching.set_shuangpin_helpcode_enabled(false);
-        type_double_pinyin(switching, "kjdmyk");
-        require(switching.select_candidate(0).commit == "看电影" && switching.preedit().empty(),
-                "Switching to Shuangpin must discard Quanpin candidate state.");
-        switching.switch_scheme(SchemeType::Quanpin);
-        type(switching, "zheyzi");
-        check(switching, "zheyzi after scheme switch", phrases[3], "zhe'y'zi");
     }
     metasequoia::InputSession session(SchemeType::Quanpin, 3u, false, true, false, paths);
     for (const char *input : {"kandy", "kanwy", "kandy"})
@@ -2191,163 +2112,9 @@ void run_caret_prefix_session_tests(const std::filesystem::path &data_directory)
         require(session.editing_text() == "Hni'hao", "Restoring the end caret altered the raw text");
     }
 
-    // 双拼贪心配对（engine spec #187）：nihkb; → {0,2,4,6}、nihcb; → {0,2,3,5,6}，
-    // caret 落在段中间时同样 floor 到完整段边界；首单元内侧向上取整到首单元末尾。
-    const auto shuangpin_words = [&](const std::string &typed) {
-        metasequoia::InputSession other(SchemeType::Shuangpin, GetMicrosoftShuangpinProfile(), paths);
-        type(other, typed);
-        return words_of(other);
-    };
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, GetMicrosoftShuangpinProfile(), paths);
-        type(session, "nihkb;");
-        require(candidate_index(session, "你好") < session.candidates().size(),
-                "The shuangpin baseline lost its phrase candidates");
-        require(session.prefix_end() == 6 && session.pending_suffix().empty(),
-                "The unset shuangpin caret must decode the whole string");
-
-        session.set_caret(1);
-        session.recompute_candidates();
-        require(session.prefix_end() == 2 && session.pending_suffix() == "hkb;" &&
-                    same_word_list(session, shuangpin_words("ni")),
-                "A caret inside the first shuangpin unit must round up to the end of that unit");
-
-        session.set_caret(3);
-        session.recompute_candidates();
-        require(session.prefix_end() == 2 && session.pending_suffix() == "hkb;",
-                "A caret inside the hk unit must floor to the ni boundary");
-        require(same_word_list(session, shuangpin_words("ni")),
-                "The shuangpin 'ni' prefix must decode exactly like the typed spelling");
-
-        session.set_caret(5);
-        session.recompute_candidates();
-        require(session.prefix_end() == 4 && session.pending_suffix() == "b;",
-                "A caret inside the b; unit must floor to the hk boundary");
-        require(candidate_index(session, "你好") < session.candidates().size(),
-                "The shuangpin nihk prefix lost its phrase candidates");
-        require(same_word_list(session, shuangpin_words("nihk")),
-                "The shuangpin nihk prefix must decode exactly like the typed spelling");
-
-        session.set_caret(6);
-        session.recompute_candidates();
-        require(session.prefix_end() == 6 && !session.candidates().empty(),
-                "A caret on the final shuangpin boundary must restore the full decode");
-
-        session.handle_command(metasequoia::Command::Cancel);
-        type(session, "nihcb;");
-        session.set_caret(4);
-        session.recompute_candidates();
-        require(session.prefix_end() == 3 && session.pending_suffix() == "cb;",
-                "The greedy pairing boundary must floor the caret to where cb starts");
-        require(same_word_list(session, shuangpin_words("nih")),
-                "The shuangpin nih prefix must decode exactly like the typed spelling");
-    }
-
     std::filesystem::remove_all(directory);
 }
 } // namespace
-
-void run_word_final_helpcode_lifecycle_tests(const std::filesystem::path &data_directory)
-{
-    const auto directory = data_directory / "word-final-lifecycle";
-    std::filesystem::create_directories(directory);
-    write_file(directory / "helpcodes" / "custom" / "lifecycle.txt", "你=rx\n拟=fr\n好=nz\n湖=gq\n不=ab\n");
-    Database database(directory / "msime.db");
-    database.execute("CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                     "INSERT INTO tbl_1_n VALUES('ni','n','你',200),('ni','n','拟',100);"
-                     "CREATE TABLE tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                     "INSERT INTO tbl_1_h VALUES('hao','h','好',100),('hu','h','湖',100);"
-                     "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                     "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
-                     "CREATE TABLE tbl_2_b(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                     "INSERT INTO tbl_2_b VALUES('bu''hao','bh','不好',100);");
-    const metasequoia::RuntimePaths paths{directory, directory, directory, directory};
-    const auto make_session = [&](bool direct) {
-        auto session =
-            std::make_unique<metasequoia::InputSession>(SchemeType::Shuangpin, GetXiaoheShuangpinProfile(), paths);
-        session->set_shuangpin_helpcode_enabled(true);
-        session->set_shuangpin_helpcode_triggers(direct, !direct);
-        require(session->set_helpcode_schema("custom/lifecycle"), "The lifecycle helpcode fixture was not selected.");
-        return session;
-    };
-    const auto check_transition = [&](bool direct, const std::string &raw, const std::string &word,
-                                      const std::string &prefix, const std::string &rest, const std::string &tail) {
-        auto session = make_session(direct);
-        session->set_mid_sentence_helpcode_enabled(true);
-        type(*session, raw);
-        if (session->candidates().empty())
-        {
-            throw std::runtime_error("No lifecycle candidates for: " + raw);
-        }
-        const auto picked = session->candidates()[candidate_index(*session, word)];
-        const auto transition =
-            session->advance_composition_after_selection(picked.pinyin, picked.word, picked.canonical_pinyin);
-        require(transition.continues_composition && session->get_pinyin_sequence_with_cases() == rest,
-                "Terminal helpcode selection did not preserve the expected suffix.");
-        require(transition.consumed_raw_input_with_cases == prefix &&
-                    transition.consumed_terminal_helpcode_with_cases == tail && prefix + rest + tail == raw,
-                "The prefix/suffix/terminal decomposition was not reversible.");
-    };
-
-    for (const bool direct : {false, true})
-    {
-        // An uppercase first direct code reverses the existing code order.
-        for (const std::string codes : {"f", "fR", direct ? "Rf" : "Fr", direct ? "RF" : "FR"})
-        {
-            const std::string tail = (direct ? std::string() : "|") + codes;
-            for (const std::string spelling : {"nihc", "ni'hc"})
-            {
-                check_transition(direct, spelling + tail, "拟", spelling == "nihc" ? "ni" : "ni'", "hc", tail);
-            }
-            check_transition(direct, "nihu`ghc" + tail, "拟", "ni", "hu`ghc", tail);
-        }
-        const std::string marker = direct ? "" : "|";
-        check_transition(direct, "nihcbuhc" + marker + "x", "你好", "nihc", "buhc", marker + "x");
-        check_transition(direct, "nihcbuhc" + marker + "rN", "你好", "nihc", "buhc", marker + "rN");
-        auto missing = make_session(direct);
-        type(*missing, "nihc" + marker + "fN");
-        require(missing->candidates().empty(), "The lifecycle change generated a new strict-filter candidate.");
-    }
-    check_transition(false, "nihcFr", "拟", "ni", "hc", "Fr");
-    check_transition(false, "nihcF", "拟", "ni", "hc", "F");
-    check_transition(false, "nihc", "拟", "ni", "hc", "");
-    check_transition(false, "ni`fRhc", "拟", "ni`fR", "hc", "");
-    check_transition(false, "nihc|", "拟", "ni", "hc|", "");
-    // A block followed by more pinyin is no longer the active terminal block.
-    check_transition(false, "nihc|xybuhc|fR", "拟", "ni", "hc|xybuhc", "|fR");
-
-    // A caret-prefix selection keeps the existing suffix layout and consumes
-    // no terminal block that belongs to the full-string decode.
-    {
-        auto session = make_session(false);
-        type(*session, "nihc|fR");
-        session->set_caret(2);
-        session->recompute_candidates();
-        const auto picked = session->candidates()[candidate_index(*session, "拟")];
-        const auto transition =
-            session->advance_composition_after_selection(picked.pinyin, picked.word, picked.canonical_pinyin);
-        require(transition.continues_composition && transition.consumed_terminal_helpcode_with_cases.empty() &&
-                    session->get_pinyin_sequence_with_cases() == "hc|fR",
-                "A caret-prefix selection changed the full-string terminal helpcode lifecycle.");
-    }
-
-    // Learning must still work when the desired phrase was absent initially.
-    for (const bool direct : {false, true})
-    {
-        auto session = make_session(direct);
-        type(*session, direct ? "nihcfR" : "nihc|fR");
-        require(session->select_candidate(candidate_index(*session, "拟")).commit == "拟" &&
-                    session->get_pinyin_sequence_with_cases() == "hc",
-                "The first selection did not continue portable word creation.");
-        require(session->select_candidate(candidate_index(*session, "好")).commit == "好" &&
-                    !session->has_composition(),
-                "The final selection did not complete portable word creation.");
-        auto reopened = make_session(direct);
-        type(*reopened, "nihc");
-        require(candidate_index(*reopened, "拟好") < reopened->candidates().size(),
-                "The newly created phrase was not available in the next composition.");
-    }
-}
 
 int run_test()
 {
@@ -2711,12 +2478,6 @@ int run_test()
         require(!no_helpcode_session.handle_character('H').handled && no_helpcode_session.preedit() == "ni",
                 "A constructor-disabled Quanpin helpcode key was swallowed.");
 
-        metasequoia::InputSession shuangpin_session(SchemeType::Shuangpin);
-        require(shuangpin_session.scheme_type() == SchemeType::Shuangpin,
-                "The requested double-pinyin scheme was not retained.");
-        require(shuangpin_session.handle_character('n').handled && shuangpin_session.preedit() == "n",
-                "A valid Shuangpin letter was rejected.");
-
         metasequoia::InputSession ascii_punctuation_session(SchemeType::Quanpin, true, true, false);
         require(!ascii_punctuation_session.chinese_punctuation_enabled(),
                 "The requested punctuation setting was not retained.");
@@ -2876,12 +2637,10 @@ int run_test()
                 "Cancel did not discard the composition.");
 
         type(session, "nihao");
-        session.switch_scheme(SchemeType::Shuangpin);
-        require(session.scheme() == SchemeType::Shuangpin, "Switching schemes did not update the active scheme.");
+        session.switch_scheme(SchemeType::Quanpin);
+        require(session.scheme() == SchemeType::Quanpin, "Switching schemes did not update the active scheme.");
         require(!session.has_composition() && session.candidates().empty(),
                 "Switching schemes did not discard the old composition.");
-
-        session.switch_scheme(SchemeType::Quanpin);
 
         const std::vector<std::string> supported_helpcode_schemas{"lantian",     "ziranma", "shouyou2_0",
                                                                   "shouyouplus", "xiaohe",  "jiajia"};
@@ -2945,316 +2704,6 @@ int run_test()
         require(same_candidate_words(quanpin_helpcode, quanpin_without_helpcode),
                 "Quanpin helpcode changed candidates after an incomplete base spelling.");
 
-        metasequoia::InputSession shuangpin_helpcode(SchemeType::Shuangpin);
-        shuangpin_helpcode.set_shuangpin_helpcode_enabled(true);
-        type(shuangpin_helpcode, "nihcc");
-        require(shuangpin_helpcode.raw_segmentation() == "ni'hc'c" &&
-                    shuangpin_helpcode.normalized_segmentation() == "ni'hao'c" &&
-                    !shuangpin_helpcode.candidates().empty() && shuangpin_helpcode.candidates().front().word == "拟好",
-                "Shuangpin helpcode or exposed segmentation did not match the complete base spelling.");
-
-        metasequoia::InputSession shuangpin_delimited_helpcode(SchemeType::Shuangpin);
-        shuangpin_delimited_helpcode.set_shuangpin_helpcode_enabled(true);
-        type(shuangpin_delimited_helpcode, "nihcAB'");
-        require(shuangpin_delimited_helpcode.raw_segmentation() == "ni'hc'AB" &&
-                    shuangpin_delimited_helpcode.normalized_segmentation() == "ni'hao'AB",
-                "A manual delimiter next to the Shuangpin help codes leaked into the exposed segmentation.");
-
-        metasequoia::InputSession shuangpin_without_helpcode(SchemeType::Shuangpin);
-        shuangpin_without_helpcode.set_shuangpin_helpcode_enabled(false);
-        require(!shuangpin_without_helpcode.helpcode_enabled(),
-                "Disabling Shuangpin helpcode was not reflected by the session.");
-        type(shuangpin_without_helpcode, "ni");
-        require(!shuangpin_without_helpcode.handle_character('H').handled &&
-                    shuangpin_without_helpcode.preedit() == "ni",
-                "A setter-disabled Shuangpin helpcode key was swallowed.");
-
-        // 句中辅助码：反引号后的第一码筛它前面那个音节上的字（lantian 夹具：你=ab、拟=cd、好=ef）。
-        {
-            const auto has_word = [](const metasequoia::InputSession &target, const std::string &word) {
-                const auto &items = target.candidates();
-                return std::any_of(items.begin(), items.end(), [&](const WordItem &item) { return item.word == word; });
-            };
-            const auto enabled_session = []() {
-                auto session = std::make_unique<metasequoia::InputSession>(SchemeType::Shuangpin);
-                session->set_mid_sentence_helpcode_enabled(true);
-                require(session->set_helpcode_schema("lantian"), "The Lantian helpcode fixture was not selected.");
-                return session;
-            };
-
-            metasequoia::InputSession disabled(SchemeType::Shuangpin);
-            type(disabled, "ni");
-            require(!disabled.handle_character('`').handled && disabled.preedit() == "ni",
-                    "A backquote entered the composition while mid-sentence helpcode was off.");
-
-            auto first_code_session = enabled_session();
-            auto &first_code = *first_code_session;
-            type(first_code, "n");
-            require(!first_code.handle_character('`').handled,
-                    "A backquote was accepted after an incomplete shuangpin syllable.");
-            type(first_code, "i`c");
-            require(!first_code.handle_character('`').handled,
-                    "A second backquote was accepted right after a helpcode block.");
-            type(first_code, "hc");
-            require(first_code.preedit() == "ni`chc" && first_code.get_pinyin_sequence_with_cases() == "ni`chc" &&
-                        first_code.get_pinyin_sequence() == "ni'hc",
-                    "The mid-sentence helpcode block was not kept in the raw input.");
-            require(first_code.get_pinyin_segmentation_with_cases() == "ni`c'hc",
-                    "The mid-sentence helpcode block was not shown after its syllable.");
-            require(has_word(first_code, "拟好") && !has_word(first_code, "你好"),
-                    "The mid-sentence first code did not filter the constrained syllable.");
-
-            auto second_code_session = enabled_session();
-            auto &second_code = *second_code_session;
-            type(second_code, "ni`cDhc");
-            require(has_word(second_code, "拟好") && !has_word(second_code, "你好"),
-                    "A matching uppercase second code filtered the constrained syllable away.");
-            auto wrong_second_code_session = enabled_session();
-            auto &wrong_second_code = *wrong_second_code_session;
-            type(wrong_second_code, "ni`cEhc");
-            require(!has_word(wrong_second_code, "拟好") && !has_word(wrong_second_code, "你好"),
-                    "An uppercase second code did not take part in filtering.");
-
-            // 约束挂在后面的音节上：前面的短候选不受影响，选掉之后约束随剩余部分留下来。
-            auto carried_session = enabled_session();
-            auto &carried = *carried_session;
-            type(carried, "nihcbuhc`x");
-            require(has_word(carried, "你好"), "A constraint on a later syllable filtered a shorter candidate.");
-            const auto committed = carried.select_candidate(candidate_index(carried, "你好"));
-            require(committed.commit == "你好" && carried.preedit() == "buhc`x",
-                    "Selecting a prefix dropped the helpcode block of the remaining syllables.");
-            require(!has_word(carried, "不好") && !has_word(carried, "补好"),
-                    "The carried mid-sentence helpcode no longer filtered the remaining syllables.");
-            require(carried.handle_command(metasequoia::Command::Backspace).handled && carried.preedit() == "buhc`",
-                    "Backspace did not remove the helpcode letter.");
-            require(has_word(carried, "不好") && has_word(carried, "补好"),
-                    "A bare backquote still filtered candidates.");
-
-            // 光标移回句中补辅助码：反引号和它后面的码按光标前的部分判断，插在光标处。
-            auto caret_session = enabled_session();
-            auto &caret = *caret_session;
-            type(caret, "nihc");
-            require(caret.handle_command(metasequoia::Command::MoveLeft).handled && caret.caret_position() == 3,
-                    "The caret did not move into the composition.");
-            require(!caret.handle_character('`').handled && caret.preedit() == "nihc",
-                    "A backquote was accepted in the middle of a shuangpin syllable.");
-            require(caret.handle_command(metasequoia::Command::MoveLeft).handled && caret.caret_position() == 2,
-                    "The caret did not move back to the syllable boundary.");
-            require(caret.handle_character('`').handled && caret.preedit() == "ni`hc" && caret.caret_position() == 3,
-                    "A backquote at a mid-composition syllable boundary was not inserted at the caret.");
-            require(!caret.handle_character('`').handled && caret.preedit() == "ni`hc",
-                    "A second backquote was accepted right after a mid-composition marker.");
-            type(caret, "cD");
-            require(caret.preedit() == "ni`cDhc" && caret.caret_position() == 5,
-                    "The mid-composition helpcode letters were not inserted at the caret.");
-            // 辅码段是音节后面单独的一个单元：按段删除、按段跳光标都能只落在它上面。
-            require(caret.segment_raw_boundaries() == std::vector<std::size_t>({0, 2, 5, 7}),
-                    "The mid-sentence helpcode block was not a unit of its own.");
-            // 光标停在辅码段后面：候选跟着光标前缀走，不再是整串的词；回到串尾再按整串解码。
-            require(!has_word(caret, "拟好") && !has_word(caret, "你好"),
-                    "The caret prefix after a mid-sentence helpcode block was not decoded on its own.");
-            require(caret.handle_command(metasequoia::Command::MoveEnd).handled, "The caret did not move to the end.");
-            require(has_word(caret, "拟好") && !has_word(caret, "你好"),
-                    "A helpcode inserted in the middle did not filter its syllable.");
-            for (int step = 0; step < 2; ++step)
-                require(caret.handle_command(metasequoia::Command::MoveLeft).handled, "The caret did not move left.");
-            for (int step = 0; step < 3; ++step)
-                require(caret.handle_command(metasequoia::Command::MoveLeft).handled, "The caret did not move left.");
-            require(caret.caret_position() == 2 && !caret.handle_character('`').handled && caret.preedit() == "ni`cDhc",
-                    "A backquote was accepted in front of an existing helpcode block.");
-        }
-
-        // 句中辅助码的大写触发：完整音节后的大写字母相当于「反引号 + 这个字母」，第二码仍要大写。
-        {
-            const auto has_word = [](const metasequoia::InputSession &target, const std::string &word) {
-                const auto &items = target.candidates();
-                return std::any_of(items.begin(), items.end(), [&](const WordItem &item) { return item.word == word; });
-            };
-            const auto uppercase_session = [](bool uppercase, const ShuangpinProfile &profile) {
-                auto session = std::make_unique<metasequoia::InputSession>(SchemeType::Shuangpin, profile,
-                                                                           metasequoia::RuntimePaths::legacy());
-                session->set_shuangpin_helpcode_enabled(false);
-                session->set_mid_sentence_helpcode_enabled(true);
-                session->set_mid_sentence_uppercase_trigger_enabled(uppercase);
-                require(session->set_helpcode_schema("lantian"), "The Lantian helpcode fixture was not selected.");
-                return session;
-            };
-
-            auto first_session = uppercase_session(true, GetXiaoheShuangpinProfile());
-            auto &first = *first_session;
-            type(first, "niChc");
-            require(first.preedit() == "niChc" && first.get_pinyin_sequence_with_cases() == "niChc" &&
-                        first.get_pinyin_sequence() == "ni'hc",
-                    "An uppercase letter after a complete syllable did not open a mid-sentence helpcode block.");
-            require(first.get_pinyin_segmentation_with_cases() == "niC'hc",
-                    "The uppercase helpcode block was not shown after its syllable.");
-            require(first.segment_raw_boundaries() == std::vector<std::size_t>({0, 2, 3, 5}),
-                    "The uppercase helpcode block was not a unit of its own.");
-            require(has_word(first, "拟好") && !has_word(first, "你好"),
-                    "The uppercase first code did not filter the constrained syllable.");
-            // 大写段之后照样能接反引号段，这一节从大写段之后算起。
-            require(first.handle_character('`').handled && first.preedit() == "niChc`",
-                    "A backquote was rejected after an uppercase helpcode block.");
-
-            auto second_session = uppercase_session(true, GetXiaoheShuangpinProfile());
-            type(*second_session, "niCDhc");
-            require(has_word(*second_session, "拟好") && !has_word(*second_session, "你好"),
-                    "A matching uppercase second code after an uppercase block filtered the syllable away.");
-            auto wrong_second_session = uppercase_session(true, GetXiaoheShuangpinProfile());
-            type(*wrong_second_session, "niCEhc");
-            require(!has_word(*wrong_second_session, "拟好") && !has_word(*wrong_second_session, "你好"),
-                    "An uppercase second code after an uppercase block did not take part in filtering.");
-
-            // 只有在完整音节后才开段：音节中间的大写字母不收（辅助码开关关着时）。
-            auto middle_session = uppercase_session(true, GetXiaoheShuangpinProfile());
-            type(*middle_session, "n");
-            require(!middle_session->handle_character('C').handled && middle_session->preedit() == "n",
-                    "An uppercase letter in the middle of a syllable was accepted as a helpcode.");
-
-            // 勾选关着：大写字母不开段，原来的规则不变。
-            auto off_session = uppercase_session(false, GetXiaoheShuangpinProfile());
-            type(*off_session, "ni");
-            require(!off_session->handle_character('C').handled && off_session->preedit() == "ni",
-                    "An uppercase letter opened a block while the uppercase trigger was off.");
-
-            // 约束挂在后面的音节上：选掉前面的词，大写段随剩余部分留下来。
-            auto carried_session = uppercase_session(true, GetXiaoheShuangpinProfile());
-            auto &carried = *carried_session;
-            type(carried, "nihcbuhcX");
-            require(has_word(carried, "你好"), "An uppercase block on a later syllable filtered a shorter candidate.");
-            const auto committed = carried.select_candidate(candidate_index(carried, "你好"));
-            require(committed.commit == "你好" && carried.preedit() == "buhcX",
-                    "Selecting a prefix dropped the uppercase block of the remaining syllables.");
-            require(!has_word(carried, "不好") && !has_word(carried, "补好"),
-                    "The carried uppercase block no longer filtered the remaining syllables.");
-
-            // 微软双拼的 ; 韵母：大写段不算这一节的键，nihkXb; 里 b; 是一个音节。
-            auto microsoft_session = uppercase_session(true, GetMicrosoftShuangpinProfile());
-            type(*microsoft_session, "nihkXb");
-            require(microsoft_session->handle_character(';').handled && microsoft_session->preedit() == "nihkXb;",
-                    "The semicolon final was rejected after an uppercase helpcode block.");
-        }
-
-        // 双拼末尾辅助码关掉直接触发：辅码改由引导键（输入串里的 |，宿主把反引号或分号换成它）或大写字母
-        // 引出，一码按首末字重排、两码按首末字筛选（lantian 夹具：你=ab、拟=cd、好=ef）。
-        {
-            const auto has_word = [](const metasequoia::InputSession &target, const std::string &word) {
-                const auto &items = target.candidates();
-                return std::any_of(items.begin(), items.end(), [&](const WordItem &item) { return item.word == word; });
-            };
-            const auto indirect_session = [](bool uppercase, const ShuangpinProfile &profile) {
-                auto session = std::make_unique<metasequoia::InputSession>(SchemeType::Shuangpin, profile,
-                                                                           metasequoia::RuntimePaths::legacy());
-                session->set_shuangpin_helpcode_enabled(true);
-                session->set_shuangpin_helpcode_triggers(false, uppercase);
-                require(session->set_helpcode_schema("lantian"), "The Lantian helpcode fixture was not selected.");
-                return session;
-            };
-
-            // 关着直接触发：完整音节后多出来的键不再当单码。
-            auto plain_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            type(*plain_session, "nihcc");
-            require(!plain_session->has_active_helpcode(),
-                    "A trailing letter was read as a helpcode while the end helpcode was indirect.");
-
-            auto single_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            auto &single = *single_session;
-            type(single, "n");
-            require(!single.handle_character('|').handled && single.preedit() == "n",
-                    "An end helpcode marker was accepted after an incomplete shuangpin syllable.");
-            type(single, "ihc");
-            require(single.handle_character('|').handled && single.preedit() == "nihc|",
-                    "The end helpcode marker was not accepted after complete syllables.");
-            require(!single.handle_character('|').handled, "A second end helpcode marker was accepted.");
-            type(single, "c");
-            require(single.get_pinyin_sequence_with_cases() == "nihc|c" && single.get_pinyin_sequence() == "nihc" &&
-                        single.has_active_helpcode(),
-                    "The end helpcode block was not kept apart from the pinyin.");
-            require(single.get_pinyin_segmentation_with_cases() == "ni'hc|c",
-                    "The end helpcode block was not shown after the last syllable.");
-            require(single.segment_raw_boundaries() == std::vector<std::size_t>({0, 2, 4, 6}),
-                    "The end helpcode block was not a unit of its own.");
-            require(!single.candidates().empty() && single.candidates().front().word == "拟好" &&
-                        has_word(single, "你好"),
-                    "A single indirect end helpcode did not reorder candidates by their first character.");
-
-            auto double_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            type(*double_session, "nihc|cE");
-            require(has_word(*double_session, "拟好") && !has_word(*double_session, "你好"),
-                    "Two indirect end helpcodes did not filter by the first and last characters.");
-
-            // Selecting a prefix consumes the active terminal block in either mode.
-            database.execute("INSERT INTO tbl_1_n VALUES('ni','n','拟',100)");
-            database.execute("CREATE TABLE IF NOT EXISTS tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER)");
-            database.execute("INSERT INTO tbl_1_h VALUES('hao','h','好',100)");
-            for (const bool direct : {false, true})
-            {
-                for (const std::string codes : {"c", "cD"})
-                {
-                    auto target = indirect_session(false, GetXiaoheShuangpinProfile());
-                    target->set_shuangpin_helpcode_triggers(direct, false);
-                    type(*target, "nihc" + (direct ? std::string() : "|") + codes);
-                    const auto picked = target->candidates()[candidate_index(*target, "拟")];
-                    const auto transition = target->advance_composition_after_selection(picked.pinyin, picked.word,
-                                                                                        picked.canonical_pinyin);
-                    require(transition.continues_composition && target->get_pinyin_sequence_with_cases() == "hc" &&
-                                has_word(*target, "好"),
-                            "A selected prefix left its terminal helpcode blocking the remaining syllables.");
-                    require(transition.consumed_raw_input_with_cases == "ni" &&
-                                transition.consumed_terminal_helpcode_with_cases ==
-                                    (direct ? std::string() : "|") + codes,
-                            "The selection did not record the prefix and terminal block separately.");
-                }
-            }
-
-            // 引导键只在输入末尾收：光标移回句中时仍按标点处理。
-            auto caret_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            type(*caret_session, "nihc");
-            require(caret_session->handle_command(metasequoia::Command::MoveLeft).handled &&
-                        caret_session->handle_command(metasequoia::Command::MoveLeft).handled &&
-                        !caret_session->handle_character('|').handled && caret_session->preedit() == "nihc",
-                    "An end helpcode marker was accepted in the middle of the composition.");
-
-            // A single code also expires after selecting a nonmatching prefix.
-            auto carried_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            auto &carried = *carried_session;
-            type(carried, "nihcbuhc|x");
-            require(has_word(carried, "你好"), "A single end helpcode filtered a shorter candidate away.");
-            const auto committed = carried.select_candidate(candidate_index(carried, "你好"));
-            require(committed.commit == "你好" && carried.preedit() == "buhc" && !carried.has_active_helpcode(),
-                    "Selecting a prefix retained the terminal helpcode on the remaining syllables.");
-            require(carried.handle_command(metasequoia::Command::Backspace).handled && carried.preedit() == "buh" &&
-                        !carried.has_active_helpcode(),
-                    "Portable Backspace did not delete the remaining pinyin letter.");
-
-            // 大写触发：完整音节后的大写字母开一段末尾段，第二码大小写都算。
-            auto upper_session = indirect_session(true, GetXiaoheShuangpinProfile());
-            auto &upper = *upper_session;
-            type(upper, "nihcCe");
-            require(upper.get_pinyin_sequence() == "nihc" && upper.get_pinyin_segmentation_with_cases() == "ni'hcCe",
-                    "An uppercase letter after complete syllables did not open an end helpcode block.");
-            require(has_word(upper, "拟好") && !has_word(upper, "你好"),
-                    "An uppercase end helpcode block did not filter candidates.");
-
-            // 微软双拼：末尾段后面的 ; 不是韵母。
-            auto microsoft_session = indirect_session(false, GetMicrosoftShuangpinProfile());
-            type(*microsoft_session, "nihk|ce");
-            require(!microsoft_session->handle_character(';').handled && microsoft_session->preedit() == "nihk|ce",
-                    "A semicolon after an end helpcode block was taken as the ing final.");
-
-            // 直接触发开着、或直接辅助码（万象式）接管辅码时，引导键不收。
-            auto direct_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            direct_session->set_shuangpin_helpcode_triggers(true, false);
-            type(*direct_session, "nihc");
-            require(!direct_session->handle_character('|').handled,
-                    "An end helpcode marker was accepted while the end helpcode was direct.");
-            auto wanxiang_session = indirect_session(false, GetXiaoheShuangpinProfile());
-            wanxiang_session->set_direct_helpcode_enabled(true);
-            type(*wanxiang_session, "nihc");
-            require(!wanxiang_session->handle_character('|').handled,
-                    "An end helpcode marker was accepted while the direct helpcode took over.");
-        }
-
         require(!session.handle_character('1').handled, "A digit was swallowed instead of passed through.");
         require(!session.handle_command(metasequoia::Command::Backspace).handled,
                 "Backspace was swallowed while no composition was active.");
@@ -3267,7 +2716,6 @@ int run_test()
     }
 
     run_umlaut_alias_session_tests(data_directory);
-    run_word_final_helpcode_lifecycle_tests(data_directory);
     run_caret_prefix_session_tests(data_directory);
     run_autocorrect_mixed_jianpin_tests(data_directory);
     run_literal_mixed_pinyin_tests(data_directory);
@@ -3384,46 +2832,6 @@ int run_test()
     require(first_candidate_session.select_candidate(static_cast<std::size_t>(0)).commit == "甲" &&
                 !std::filesystem::exists(first_candidate_directory / "msime_user.db"),
             "Selecting the already-leading candidate created frequency state.");
-
-    user_dictionary::close_default_user_database();
-    const std::filesystem::path shuangpin_directory = data_directory / "frequency-shuangpin";
-    prepare_shuangpin_frequency_fixture(shuangpin_directory);
-    set_data_directory(shuangpin_directory);
-    metasequoia::InputSession shuangpin_learning(SchemeType::Shuangpin);
-    require(shuangpin_learning.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),
-            "A valid Shuangpin frequency configuration was rejected.");
-    type(shuangpin_learning, "nihc");
-    require(shuangpin_learning.select_candidate(std::string("拟好")).commit == "拟好",
-            "Shuangpin frequency learning blocked candidate commit.");
-    metasequoia::InputSession reopened_shuangpin(SchemeType::Shuangpin);
-    type(reopened_shuangpin, "nihc");
-    require(!reopened_shuangpin.candidates().empty() && reopened_shuangpin.candidates().front().word == "拟好",
-            "Shuangpin frequency learning did not persist through the canonical pinyin key.");
-
-    // 句中辅助码筛过的列表里，要的词排第一；直接上屏也要按不带约束的排序调频，下次不敲辅助码
-    // 它就排在前面（lantian 夹具：你=ab、拟=cd）。
-    user_dictionary::close_default_user_database();
-    const std::filesystem::path mid_sentence_directory = data_directory / "frequency-shuangpin-mid-sentence";
-    prepare_shuangpin_frequency_fixture(mid_sentence_directory);
-    write_file(mid_sentence_directory / "helpcodes" / "helpcode.txt", "你=ab\n拟=cd\n好=ef\n");
-    set_data_directory(mid_sentence_directory);
-    {
-        metasequoia::InputSession mid_sentence_learning(SchemeType::Shuangpin);
-        mid_sentence_learning.set_mid_sentence_helpcode_enabled(true);
-        require(mid_sentence_learning.set_helpcode_schema("lantian") &&
-                    mid_sentence_learning.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),
-                "The mid-sentence frequency fixture could not be configured.");
-        type(mid_sentence_learning, "ni`chc");
-        require(candidate_index(mid_sentence_learning, "拟好") == 0,
-                "The mid-sentence helpcode did not put the constrained phrase first.");
-        const auto learned = mid_sentence_learning.select_candidate(static_cast<std::size_t>(0));
-        require(learned.commit == "拟好" && !learned.diagnostic.has_value(),
-                "Committing a mid-sentence helpcode phrase failed.");
-    }
-    metasequoia::InputSession reopened_mid_sentence(SchemeType::Shuangpin);
-    type(reopened_mid_sentence, "nihc");
-    require(candidate_index(reopened_mid_sentence, "拟好") == 0,
-            "A phrase committed with a mid-sentence helpcode was not promoted for the plain spelling.");
 
     user_dictionary::close_default_user_database();
     const std::filesystem::path failure_directory = data_directory / "frequency-write-failure";
@@ -3566,10 +2974,10 @@ int run_test()
                 disabled_radical.local_input_mode() == metasequoia::LocalInputMode::None,
             "A disabled radical shortcut swallowed Shift+U.");
 
-    metasequoia::InputSession switch_clears_radical(SchemeType::Shuangpin);
+    metasequoia::InputSession switch_clears_radical(SchemeType::Quanpin);
     require(switch_clears_radical.handle_character('U', true).handled &&
                 switch_clears_radical.local_input_mode() == metasequoia::LocalInputMode::Radical,
-            "Shuangpin could not enter radical mode.");
+            "Quanpin could not enter radical mode.");
     switch_clears_radical.switch_scheme(SchemeType::Quanpin);
     require(!switch_clears_radical.has_composition() &&
                 switch_clears_radical.local_input_mode() == metasequoia::LocalInputMode::None,
@@ -3637,9 +3045,8 @@ int run_test()
             "Cancel did not leave the specific time.");
 
     // V 模式由 Server 按原串识别，引擎照常收到整串：运算符和括号混在拼音原串里也不能出错。
-    for (const SchemeType scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
     {
-        metasequoia::InputSession v_mode_raw(scheme);
+        metasequoia::InputSession v_mode_raw(SchemeType::Quanpin);
         for (const char *raw : {"V1+2*(3-4)/5.6", "v12.5", "V(", "V9)", "v1//2"})
         {
             v_mode_raw.set_pinyin_sequence(raw);
@@ -3765,14 +3172,14 @@ int run_test()
                 emoji_session.local_input_mode() == metasequoia::LocalInputMode::None,
             "Cancel did not leave Emoji mode.");
 
-    metasequoia::InputSession kaomoji_session(SchemeType::Shuangpin);
+    metasequoia::InputSession kaomoji_session(SchemeType::Quanpin);
     require(kaomoji_session.handle_character('M', true).handled &&
                 kaomoji_session.local_input_mode() == metasequoia::LocalInputMode::Kaomoji,
-            "Shift+M did not enter kaomoji mode in Shuangpin.");
+            "Shift+M did not enter kaomoji mode.");
     type(kaomoji_session, "hx");
     require(kaomoji_session.candidates().size() == 1 && kaomoji_session.candidates().front().word == "(*/ω＼*)" &&
                 kaomoji_session.candidates().front().source == CandidateSource::Kaomoji,
-            "Kaomoji mode did not expose its Shuangpin-expanded candidate.");
+            "Kaomoji mode did not expose its jianpin candidate.");
     const auto kaomoji_commit = kaomoji_session.select_candidate(0);
     require(kaomoji_commit.handled && kaomoji_commit.commit == "(*/ω＼*)" &&
                 kaomoji_session.local_input_mode() == metasequoia::LocalInputMode::None,

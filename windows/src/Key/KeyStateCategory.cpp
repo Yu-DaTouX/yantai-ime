@@ -92,7 +92,6 @@ HRESULT CKeyStateCategory::KeyStateHandler(KEYSTROKE_FUNCTION function, KeyHandl
     case FUNCTION_INSERT_TEXT:
         return _pTextService->_HandleInsertText(dto.ec, dto.pContext, dto.prefetchedText);
 
-
     case FUNCTION_UPDATE_VOICE_COMPOSITION:
         return _pTextService->_HandleUpdateVoiceComposition(dto.ec, dto.pContext, dto.prefetchedText);
 
@@ -150,11 +149,6 @@ HRESULT CKeyStateCategory::KeyStateHandler(KEYSTROKE_FUNCTION function, KeyHandl
 
     case FUNCTION_APPLY_COMPOSITION_RESTORE:
         return _pTextService->_HandleApplyCompositionRestore(dto.ec, dto.pContext, dto.prefetchedText);
-
-    case FUNCTION_SERVER_COMPOSITION_REWRITE:
-        // Never dispatched here: _DispatchKeyDown sends it through the async Server reply path, or downgrades it to
-        // the plain Backspace / punctuation before sending when that path is unavailable.
-        return S_OK;
 
     case FUNCTION_SELECT_BY_NUMBER:
         return HandleKeySelectByNumber(dto);

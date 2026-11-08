@@ -1,8 +1,5 @@
 #include "input_session.h"
 #include "../contracts/date_time_input.h"
-#include "../contracts/direct_helpcode.h"
-#include "../shuangpin/shuangpin_query.h"
-#include "../shuangpin/shuangpin_utils.h"
 #include <algorithm>
 #include <cctype>
 
@@ -75,38 +72,6 @@ std::vector<std::size_t> QuanpinRawBoundaries(const std::string &raw, const std:
     return boundaries;
 }
 
-std::string LowercaseWithoutSeparators(const std::string &text)
-{
-    std::string result;
-    result.reserve(text.size());
-    for (const char ch : text)
-    {
-        if (ch != '\'')
-        {
-            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-        }
-    }
-    return result;
-}
-
-// 带辅助码段的双拼（句中辅助码的反引号段 / 大写段、直接辅助码解析出的辅码字母）：按请求里的
-// 段布局切单元，每个音节和挂在它后面的辅码段各算一个单元，按段删除可以只删辅码，光标也能停在
-// 音节与辅码之间。布局对不上原串时不给边界，宿主退回逐字符编辑。
-std::vector<std::size_t> SyllableHelpcodeRawBoundaries(const std::string &raw, const QueryRequest &request)
-{
-    auto units = request.syllable_helpcode_decorations;
-    for (auto &unit : units)
-    {
-        unit.second.insert(unit.second.begin(), '\'');
-    }
-    const std::string &segmentation = request.raw_segmentation.empty() ? request.raw_input : request.raw_segmentation;
-    const std::string display = shuangpin::decorate_segmentation(segmentation, units);
-    if (LowercaseWithoutSeparators(display) != LowercaseWithoutSeparators(raw))
-    {
-        return {};
-    }
-    return QuanpinRawBoundaries(raw, display);
-}
 } // namespace
 
 std::vector<std::size_t> InputSession::segment_raw_boundaries() const
@@ -125,36 +90,6 @@ std::vector<std::size_t> InputSession::segment_raw_boundaries() const
         return {};
     }
 
-    if (current_scheme_type() == SchemeType::Shuangpin)
-    {
-        // 句中辅助码段和直接辅助码的辅码字母混在音节之间，贪心切分算不出单元边界，改按请求带着的
-        // 段布局切。直接辅助码没解析出辅码时请求原样放行，下面的普通切分就是它的切分。
-        if (request().has_syllable_helpcode_layout)
-        {
-            return SyllableHelpcodeRawBoundaries(raw_with_cases, request());
-        }
-        const std::size_t helpcode_length =
-            shuangpin::detect_active_double_helpcode_length(raw, raw_with_cases, shuangpin_profile_);
-        const std::string base =
-            helpcode_length > 0 ? shuangpin::trim_trailing_letters_preserve_delimiters(raw_with_cases, helpcode_length)
-                                : raw_with_cases;
-        std::vector<std::size_t> boundaries = shuangpin::segment_raw_boundaries(base, shuangpin_profile_);
-        if (helpcode_length > 0 && !boundaries.empty())
-        {
-            // The active double helpcode is one editable unit of its own, the
-            // same boundary raw_segmentation draws before it.
-            boundaries.push_back(base.size());
-            boundaries.push_back(raw_with_cases.size());
-            std::sort(boundaries.begin(), boundaries.end());
-            boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
-        }
-        return boundaries;
-    }
-
-    if (current_scheme_type() != SchemeType::Quanpin)
-    {
-        return {};
-    }
     return QuanpinRawBoundaries(raw_with_cases, get_pinyin_segmentation_with_cases());
 }
 
@@ -223,28 +158,9 @@ KeyResult InputSession::insert_at_caret(char character)
             accepted = FanyImeDateTimeInput::AcceptsAt(text.data(), text.size(), caret, character);
             break;
         case LocalInputMode::None:
-            accepted = lower || (upper && ((scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_) ||
-                                           (scheme() == SchemeType::Shuangpin &&
-                                            (shuangpin_helpcode_enabled_ || direct_helpcode_enabled_))));
-            if (character == ';' && scheme() == SchemeType::Shuangpin &&
-                ShuangpinProfileUsesSemicolonFinal(shuangpin_profile_))
-            {
-                accepted = direct_helpcode_enabled_
-                               ? FanyImeDirectHelpcode::AcceptsSemicolonFinalAt(text.data(), text.size(), caret)
-                               : FanyImeMidSentenceHelpcode::AcceptsSemicolonFinalAt(
-                                     text.data(), text.size(), caret, engine_.helpcode_uppercase_triggers());
-            }
-            if (character == '/')
-                accepted = accepts_direct_helpcode_slash_at(caret);
+            accepted = lower || (upper && scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_);
             if (character == '\'')
                 accepted = caret > 0;
-            // 光标移回句中补句中辅助码：反引号和它后面的码按光标前的部分判断。
-            if (character == shuangpin::kMidSentenceHelpcodeMarker)
-                accepted = accepts_mid_sentence_helpcode_marker_at(caret);
-            else if (character == shuangpin::kEndHelpcodeMarker)
-                accepted = accepts_end_helpcode_marker_at(caret);
-            else if (upper && !accepted)
-                accepted = accepts_mid_sentence_code_at(caret, character);
             break;
         case LocalInputMode::Emoji:
         case LocalInputMode::Kaomoji:

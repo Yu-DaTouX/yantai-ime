@@ -1,60 +1,15 @@
 #include "ime_session.h"
 #include "../schemes/quanpin_scheme.h"
-#include "../schemes/shuangpin_scheme.h"
 #include "../quanpin/quanpin_utils.h"
-#include "../shuangpin/shuangpin_query.h"
-#include "../contracts/direct_helpcode.h"
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
 #include <unordered_set>
 
-namespace
+ImeSession::ImeSession(SchemeType scheme_type, metasequoia::RuntimePaths paths)
+    : provider_registry_(std::move(paths)), scheme_(create_scheme(scheme_type))
 {
-void ApplyShuangpinHelpcodeSegmentation(QueryRequest &request, const ShuangpinProfile &profile)
-{
-    if (request.scheme != SchemeType::Shuangpin || !request.enable_shuangpin_helpcode ||
-        shuangpin::detect_active_double_helpcode_length(request.raw_input, request.raw_input_with_cases, profile) != 2)
-    {
-        return;
-    }
-
-    const size_t helpcode_length = 2;
-    // The detector locates the help codes in delimiter-stripped space, so the split has to be made there too: slicing
-    // the last raw bytes would push a pinyin letter into the base and a manual delimiter into the help codes.
-    const std::string base_raw_input =
-        shuangpin::trim_trailing_letters_preserve_delimiters(request.raw_input, helpcode_length);
-    const std::string base_raw_input_with_cases =
-        shuangpin::trim_trailing_letters_preserve_delimiters(request.raw_input_with_cases, helpcode_length);
-    const std::string base_segmentation = shuangpin::segment_input(base_raw_input, profile);
-    const std::string effective_input_with_cases = shuangpin::remove_manual_delimiters(request.raw_input_with_cases);
-    const std::string help_codes =
-        effective_input_with_cases.substr(effective_input_with_cases.size() - helpcode_length);
-
-    request.raw_segmentation =
-        shuangpin::apply_segmentation_cases(base_segmentation, base_raw_input_with_cases) + "'" + help_codes;
-    request.normalized_segmentation = shuangpin::to_quanpin_segmentation(base_segmentation, profile) + "'" + help_codes;
-    request.segmentation = request.normalized_segmentation;
-}
-} // namespace
-
-ImeSession::ImeSession(SchemeType scheme_type, const ShuangpinProfile &shuangpin_profile,
-                       metasequoia::RuntimePaths paths)
-    : provider_registry_(shuangpin_profile, std::move(paths)), shuangpin_profile_(shuangpin_profile),
-      scheme_(create_scheme(scheme_type))
-{
-    bind_shuangpin_scheme();
     bind_quanpin_scheme();
-}
-
-void ImeSession::configure_shuangpin_scheme(IInputScheme *scheme) const
-{
-    if (auto *shuangpin_scheme = dynamic_cast<ShuangpinScheme *>(scheme))
-    {
-        shuangpin_scheme->set_direct_helpcode(enable_direct_helpcode_);
-        shuangpin_scheme->set_mid_sentence_uppercase_trigger(mid_sentence_uppercase_trigger_active());
-        shuangpin_scheme->set_end_helpcode_uppercase_trigger(end_helpcode_uppercase_trigger_active());
-    }
 }
 
 void ImeSession::configure_quanpin_scheme(IInputScheme *scheme) const
@@ -67,114 +22,9 @@ void ImeSession::configure_quanpin_scheme(IInputScheme *scheme) const
     }
 }
 
-void ImeSession::bind_shuangpin_scheme()
-{
-    configure_shuangpin_scheme(scheme_.get());
-}
-
 void ImeSession::bind_quanpin_scheme()
 {
     configure_quanpin_scheme(scheme_.get());
-}
-
-void ImeSession::set_direct_helpcode_enabled(bool enabled)
-{
-    enable_direct_helpcode_ = enabled;
-    bind_shuangpin_scheme();
-}
-
-void ImeSession::set_direct_helpcode_markers(bool slash, bool uppercase)
-{
-    direct_helpcode_slash_marker_ = slash;
-    direct_helpcode_uppercase_marker_ = uppercase;
-}
-
-void ImeSession::set_mid_sentence_helpcode_enabled(bool enabled)
-{
-    enable_mid_sentence_helpcode_ = enabled;
-    bind_shuangpin_scheme();
-}
-
-void ImeSession::set_mid_sentence_uppercase_trigger_enabled(bool enabled)
-{
-    enable_mid_sentence_uppercase_trigger_ = enabled;
-    bind_shuangpin_scheme();
-}
-
-void ImeSession::set_direct_helpcode_end_trigger_enabled(bool enabled)
-{
-    enable_direct_helpcode_end_trigger_ = enabled;
-}
-
-bool ImeSession::direct_helpcode_end_block_active(const QueryRequest &request) const
-{
-    return enable_direct_helpcode_ && enable_direct_helpcode_end_trigger_ && request.scheme == SchemeType::Shuangpin &&
-           request.raw_input_with_syllable_helpcodes.find(FanyImeMidSentenceHelpcode::kEndMarker) != std::string::npos;
-}
-
-void ImeSession::resolve_direct_helpcode(QueryRequest &request)
-{
-    if (enable_direct_helpcode_ && request.valid && request.scheme == SchemeType::Shuangpin &&
-        !direct_helpcode_end_block_active(request))
-    {
-        provider_registry_.resolve_direct_helpcode(request);
-    }
-}
-
-std::optional<std::string> ImeSession::direct_helpcode_end_trigger_prefix(const std::string &typed)
-{
-    if (!enable_direct_helpcode_ || !enable_direct_helpcode_end_trigger_ || scheme_->type() != SchemeType::Shuangpin ||
-        !FanyImeDirectHelpcode::AcceptsEndTriggerAt(typed.data(), typed.size(), typed.size()))
-    {
-        return std::nullopt;
-    }
-    // 和 query_raw_candidates 一样用临时方案建请求：解析器按原串缓存切分，这次查询与当前组合看到的是同一个切分。
-    const std::unique_ptr<IInputScheme> query_scheme = create_scheme(SchemeType::Shuangpin);
-    configure_shuangpin_scheme(query_scheme.get());
-    std::string lowered = typed;
-    std::transform(lowered.begin(), lowered.end(), lowered.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    query_scheme->set_raw_input(lowered, typed);
-    QueryRequest request = query_scheme->build_request();
-    apply_request_options(request);
-    if (!request.valid)
-    {
-        return std::nullopt;
-    }
-    if (!provider_registry_.resolve_direct_helpcode(request))
-    {
-        // 解析器没改写：整串本来就是不带辅码的普通双拼，或者按辅码切不通。前者每一节都得是完整音节。
-        if (!shuangpin::is_complete_input(lowered, shuangpin_profile_))
-        {
-            return std::nullopt;
-        }
-        return typed;
-    }
-    // 改写后的 raw_input_with_cases 是去掉辅码与 / 的双拼码，解析器在带辅码的音节、单键声母后面插了 '。
-    // 单键声母说明那个音节不完整，这一节就不是一个个完整音节。
-    const std::string &clean = request.raw_input_with_cases;
-    if (!shuangpin::is_complete_input(clean, shuangpin_profile_) ||
-        request.syllable_helpcode_source_index.size() != clean.size() + 1)
-    {
-        return std::nullopt;
-    }
-    // 解析器为隔开辅码插的 ' 不要；用户自己敲的 ' 留着（映射回原串正是那个 '）。
-    std::string prefix;
-    prefix.reserve(clean.size());
-    for (std::size_t index = 0; index < clean.size(); ++index)
-    {
-        if (clean[index] == '\'')
-        {
-            const std::size_t source = request.syllable_helpcode_source_index[index];
-            if (source < typed.size() && typed[source] == '\'' && !prefix.empty() && prefix.back() != '\'')
-            {
-                prefix.push_back('\'');
-            }
-            continue;
-        }
-        prefix.push_back(clean[index]);
-    }
-    return prefix;
 }
 
 void ImeSession::handle_key(ImeKeyCode vk, ImeModifierMask modifiers_down, ImeCharacter wch)
@@ -187,22 +37,8 @@ void ImeSession::handle_key(ImeKeyCode vk, ImeModifierMask modifiers_down, ImeCh
 void ImeSession::switch_scheme(SchemeType scheme_type)
 {
     scheme_ = create_scheme(scheme_type);
-    bind_shuangpin_scheme();
     bind_quanpin_scheme();
     state_ = CompositionState{};
-}
-
-void ImeSession::set_shuangpin_helpcode_enabled(bool enabled)
-{
-    enable_shuangpin_helpcode_ = enabled;
-    bind_shuangpin_scheme();
-}
-
-void ImeSession::set_shuangpin_helpcode_triggers(bool direct, bool uppercase_trigger)
-{
-    shuangpin_helpcode_direct_ = direct;
-    end_helpcode_uppercase_trigger_ = uppercase_trigger;
-    bind_shuangpin_scheme();
 }
 
 void ImeSession::set_quanpin_helpcode_enabled(bool enabled)
@@ -214,23 +50,6 @@ void ImeSession::set_quanpin_autocorrect_types(unsigned autocorrect_types)
 {
     quanpin_autocorrect_types_ = autocorrect_types;
     bind_quanpin_scheme();
-}
-
-void ImeSession::replace_shuangpin_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
-{
-    if (scheme_->type() != SchemeType::Shuangpin)
-    {
-        return;
-    }
-
-    auto *shuangpin_scheme = dynamic_cast<ShuangpinScheme *>(scheme_.get());
-    if (!shuangpin_scheme)
-    {
-        return;
-    }
-
-    shuangpin_scheme->set_raw_input(raw_input, raw_input_with_cases);
-    refresh_candidates();
 }
 
 void ImeSession::replace_quanpin_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
@@ -294,14 +113,10 @@ std::vector<WordItem> ImeSession::query_raw_candidates(const std::string &raw_in
     // A throwaway scheme instance: set_raw_input on the live scheme would clobber its key
     // strokes, and a prefix query must leave the composition exactly as it found it.
     const std::unique_ptr<IInputScheme> query_scheme = create_scheme(scheme_->type());
-    // 临时方案要按同样的触发规则解析原串（大写段），否则前缀查询与正式查询切得不一样。
-    configure_shuangpin_scheme(query_scheme.get());
     configure_quanpin_scheme(query_scheme.get());
     query_scheme->set_raw_input(raw_input, raw_input_with_cases);
     QueryRequest request = query_scheme->build_request();
     apply_request_options(request);
-    ApplyShuangpinHelpcodeSegmentation(request, shuangpin_profile_);
-    resolve_direct_helpcode(request);
     if (!request.valid)
     {
         return {};
@@ -309,30 +124,9 @@ std::vector<WordItem> ImeSession::query_raw_candidates(const std::string &raw_in
     return provider_registry_.resolve(request.scheme).query(request);
 }
 
-std::vector<WordItem> ImeSession::query_without_syllable_helpcodes()
-{
-    if (!state_.request.valid || state_.request.syllable_helpcodes.empty() ||
-        !state_.request.enable_mid_sentence_helpcode)
-    {
-        return state_.candidates;
-    }
-    // 反引号段在请求里已换成分隔符，切分与不敲辅助码时一致；关掉开关，词典层就不再按约束筛。
-    QueryRequest request = state_.request;
-    request.enable_mid_sentence_helpcode = false;
-    return provider_registry_.resolve(request.scheme).query(request);
-}
-
 void ImeSession::replace_active_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
 {
-    switch (scheme_->type())
-    {
-    case SchemeType::Quanpin:
-        replace_quanpin_raw_input(raw_input, raw_input_with_cases);
-        return;
-    case SchemeType::Shuangpin:
-        replace_shuangpin_raw_input(raw_input, raw_input_with_cases);
-        return;
-    }
+    replace_quanpin_raw_input(raw_input, raw_input_with_cases);
 }
 
 int ImeSession::cache_dynamic_candidate_for_current_request(const std::string &word, CandidateSource source)
@@ -387,33 +181,6 @@ bool ImeSession::expand_initial_candidates()
 
 void ImeSession::apply_request_options(QueryRequest &request) const
 {
-    // 直接辅助码下由引导键进入的末尾段：前面已经整理成纯双拼，末尾段的辅码按引导键式末尾辅助码筛，
-    // 与末尾辅助码自己的开关无关。
-    const bool direct_end_block = direct_helpcode_end_block_active(request);
-    // 末尾辅助码直接触发时按输入形状认辅码；改成引导键触发后，辅码只来自方案层解析出的末尾段。
-    request.enable_shuangpin_helpcode = enable_shuangpin_helpcode_ && shuangpin_helpcode_direct_;
-    if ((!enable_shuangpin_helpcode_ || shuangpin_helpcode_direct_) && !direct_end_block)
-    {
-        request.end_helpcodes.clear();
-    }
-    request.enable_mid_sentence_helpcode = enable_mid_sentence_helpcode_;
-    if (direct_end_block)
-    {
-        // 不按输入形状认辅码，也不交给直接辅助码的解析器与它的词格缓存（resolve_direct_helpcode 同样跳过）。
-        request.enable_shuangpin_helpcode = false;
-        request.enable_mid_sentence_helpcode = false;
-    }
-    else if (enable_direct_helpcode_ && request.scheme == SchemeType::Shuangpin)
-    {
-        // 直接辅助码接管辅码：末尾单码/双码那套判断会把辅码字母当成别的东西，关掉；约束由解析器
-        // 改写请求时再打开。
-        request.enable_shuangpin_helpcode = false;
-        request.end_helpcodes.clear();
-        request.enable_mid_sentence_helpcode = false;
-        request.enable_direct_helpcode = true;
-        request.direct_helpcode_slash_marker = direct_helpcode_slash_marker_;
-        request.direct_helpcode_uppercase_marker = direct_helpcode_uppercase_marker_;
-    }
     request.enable_quanpin_helpcode = enable_quanpin_helpcode_;
     request.enable_quanpin_autocorrect_transposition =
         (quanpin_autocorrect_types_ & quanpin::kAutocorrectTransposition) != 0;
@@ -431,8 +198,6 @@ void ImeSession::refresh_candidates()
     state_.preedit = scheme_->get_preedit();
     state_.request = scheme_->build_request();
     apply_request_options(state_.request);
-    ApplyShuangpinHelpcodeSegmentation(state_.request, shuangpin_profile_);
-    resolve_direct_helpcode(state_.request);
 
     if (!state_.request.valid)
     {
@@ -446,8 +211,6 @@ std::unique_ptr<IInputScheme> ImeSession::create_scheme(SchemeType scheme_type) 
 {
     switch (scheme_type)
     {
-    case SchemeType::Shuangpin:
-        return std::make_unique<ShuangpinScheme>(shuangpin_profile_);
     case SchemeType::Quanpin:
         return std::make_unique<QuanpinScheme>();
     default:

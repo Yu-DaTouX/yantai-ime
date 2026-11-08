@@ -193,7 +193,7 @@ int run_test()
                 "The public Session facade did not keep expressive candidates at the end.");
 
     // Cloud/AI slots affect English only; all expressive candidates still follow the local list.
-    metasequoia::CandidateQueries queries(metasequoia::RuntimePaths::legacy(), GetXiaoheShuangpinProfile());
+    metasequoia::CandidateQueries queries(metasequoia::RuntimePaths::legacy());
     const auto with_online = queries.mixed(
         {WordItem("ni", "你", 200), WordItem("ni", "cloud", 0, CandidateSource::CloudSuggestion),
          WordItem("ni", "ai", 0, CandidateSource::AiSuggestion), WordItem("ni", "倪", 100)},

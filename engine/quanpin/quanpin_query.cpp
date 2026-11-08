@@ -5,7 +5,7 @@
 
 #include "fuzzy_pinyin.h"
 #include "quanpin_utils.h"
-#include "../shuangpin/shuangpin_utils.h"
+#include "../core/data_path.h"
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -312,20 +312,15 @@ bool is_two_letter_initial(const std::string &segment)
     return segment == "zh" || segment == "ch" || segment == "sh";
 }
 
-bool needs_mixed_jianpin_query(const Segments &segments, QuerySource source)
+bool needs_mixed_jianpin_query(const Segments &segments)
 {
     if (segments.size() <= 1)
     {
         return false;
     }
 
-    return std::any_of(segments.begin(), segments.end() - 1, [source](const std::string &segment) {
-        if (segment.size() == 1)
-        {
-            return true;
-        }
-        return source == QuerySource::Shuangpin && is_two_letter_initial(segment);
-    });
+    return std::any_of(segments.begin(), segments.end() - 1,
+                       [](const std::string &segment) { return segment.size() == 1; });
 }
 
 // 全拼的简拼形态：至少两段，且非末尾段里有单字母段或 zh/ch/sh 声母段（zhly = 张靓颖）。
@@ -355,7 +350,7 @@ std::string extract_initial_token(const std::string &segment)
     return segment.empty() ? "" : segment.substr(0, 1);
 }
 
-bool matches_mixed_segments(const std::string &key, const Segments &segments, QuerySource source)
+bool matches_mixed_segments(const std::string &key, const Segments &segments)
 {
     const auto key_segments = split(key, '\'');
     if (key_segments.size() != segments.size())
@@ -373,31 +368,26 @@ bool matches_mixed_segments(const std::string &key, const Segments &segments, Qu
             return false;
         }
 
-        const bool is_strict_shuangpin_initial = source == QuerySource::Shuangpin && is_two_letter_initial(expected);
         // 全拼把 zh/ch/sh 当声母段时按声母比，而不是整段相等：zhg 的 zh 要认 zhang。
-        const bool is_quanpin_two_letter_initial = source == QuerySource::Quanpin && is_two_letter_initial(expected);
-        if (expected.size() == 1 || is_strict_shuangpin_initial || is_quanpin_two_letter_initial)
+        if (expected.size() == 1)
         {
-            if (source == QuerySource::Shuangpin || is_quanpin_two_letter_initial)
-            {
-                if (extract_initial_token(actual) != expected)
-                {
-                    return false;
-                }
-            }
-            else if (actual.front() != expected.front())
+            if (actual.front() != expected.front())
             {
                 return false;
             }
-            continue;
         }
-
-        if (actual != expected)
+        else if (is_two_letter_initial(expected))
+        {
+            if (extract_initial_token(actual) != expected)
+            {
+                return false;
+            }
+        }
+        else if (actual != expected)
         {
             return false;
         }
     }
-
     return true;
 }
 
@@ -503,8 +493,8 @@ struct QueryStatementUse
 };
 
 template <typename Row, typename Texts>
-std::vector<Row> read_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> *cache,
-                           const std::string &sql, const Texts &texts, int limit)
+std::vector<Row> read_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> *cache, const std::string &sql,
+                            const Texts &texts, int limit)
 {
     sqlite3_stmt *stmt = nullptr;
     if (cache)
@@ -599,14 +589,13 @@ std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, const std::string &sql,
 }
 
 std::vector<KeyedQueryItem> run_keyed_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &cache,
-                                            const std::string &sql, const std::string &lower,
-                                            const std::string &upper, int limit)
+                                            const std::string &sql, const std::string &lower, const std::string &upper,
+                                            int limit)
 {
     return read_query<KeyedQueryItem>(db, &cache, sql, std::initializer_list<std::string_view>{lower, upper}, limit);
 }
 
-std::vector<KeyedQueryItem> run_keyed_batch_query(sqlite3 *db,
-                                                  std::unordered_map<std::string, sqlite3_stmt *> &cache,
+std::vector<KeyedQueryItem> run_keyed_batch_query(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &cache,
                                                   const std::string &table, const std::vector<std::string> &keys,
                                                   int limit)
 {
@@ -631,7 +620,7 @@ std::vector<KeyedQueryItem> filter_mixed_jianpin_rows(const std::vector<KeyedQue
     matched.reserve(static_cast<size_t>(std::min(limit, static_cast<int>(rows.size()))));
     for (const auto &row : rows)
     {
-        if (!matches_mixed_segments(row.key, segments, source))
+        if (!matches_mixed_segments(row.key, segments))
         {
             continue;
         }
@@ -709,11 +698,6 @@ std::vector<KeyedQueryItem> query_single_cut_keyed(sqlite3 *db, const Segments &
 
     const auto key = join_segments(segments);
     const auto jp = segments_to_jianpin_impl(segments);
-    const auto mixed_query_limit = build_mixed_jianpin_scan_limit(limit);
-    const auto needs_mixed_query = needs_mixed_jianpin_query(segments, source);
-    const auto key_prefix_pattern = build_key_like_pattern(segments);
-    const auto key_prefix = key_prefix_pattern.substr(0, key_prefix_pattern.size() - 1);
-    const auto key_prefix_upper_bound = build_key_prefix_upper_bound(key_prefix);
 
     const auto exact_sql = "SELECT \"key\", \"value\", \"weight\" FROM \"" + table +
                            "\" WHERE \"key\" = ? ORDER BY \"weight\" DESC LIMIT ?";
@@ -745,29 +729,7 @@ std::vector<KeyedQueryItem> query_single_cut_keyed(sqlite3 *db, const Segments &
             run_keyed_query(db, jp_sql, jp, quanpin_jianpin_scan_limit(limit)), segments, limit, source);
         return merge_jianpin_into_prefix(std::move(prefix_rows), std::move(jianpin_rows), limit);
     }
-
-    // 双拼保持原有分层：前缀命中即返回，简拼只在空手时兜底。
-    rows = run_keyed_query(db, prefix_sql, key_prefix, key_prefix_upper_bound, limit);
-    if (!rows.empty())
-    {
-        return rows;
-    }
-
-    if (needs_mixed_query)
-    {
-        rows = filter_mixed_jianpin_rows(run_keyed_query(db, jp_sql, jp, mixed_query_limit), segments, limit, source);
-        if (!rows.empty())
-        {
-            return rows;
-        }
-    }
-
-    if (!is_pure_jianpin(segments))
-    {
-        return {};
-    }
-
-    return run_keyed_query(db, jp_sql, jp, limit);
+    return {};
 }
 
 std::vector<KeyedQueryItem> query_single_cut_keyed(sqlite3 *db,
@@ -782,11 +744,6 @@ std::vector<KeyedQueryItem> query_single_cut_keyed(sqlite3 *db,
 
     const auto key = join_segments(segments);
     const auto jp = segments_to_jianpin_impl(segments);
-    const auto mixed_query_limit = build_mixed_jianpin_scan_limit(limit);
-    const auto needs_mixed_query = needs_mixed_jianpin_query(segments, source);
-    const auto key_prefix_pattern = build_key_like_pattern(segments);
-    const auto key_prefix = key_prefix_pattern.substr(0, key_prefix_pattern.size() - 1);
-    const auto key_prefix_upper_bound = build_key_prefix_upper_bound(key_prefix);
 
     const auto exact_sql = "SELECT \"key\", \"value\", \"weight\" FROM \"" + table +
                            "\" WHERE \"key\" = ? ORDER BY \"weight\" DESC LIMIT ?";
@@ -819,30 +776,7 @@ std::vector<KeyedQueryItem> query_single_cut_keyed(sqlite3 *db,
             source);
         return merge_jianpin_into_prefix(std::move(prefix_rows), std::move(jianpin_rows), limit);
     }
-
-    // 双拼保持原有分层：前缀命中即返回，简拼只在空手时兜底。
-    rows = run_keyed_query(db, statement_cache, prefix_sql, key_prefix, key_prefix_upper_bound, limit);
-    if (!rows.empty())
-    {
-        return rows;
-    }
-
-    if (needs_mixed_query)
-    {
-        rows = filter_mixed_jianpin_rows(run_keyed_query(db, statement_cache, jp_sql, jp, mixed_query_limit), segments,
-                                         limit, source);
-        if (!rows.empty())
-        {
-            return rows;
-        }
-    }
-
-    if (!is_pure_jianpin(segments))
-    {
-        return {};
-    }
-
-    return run_keyed_query(db, statement_cache, jp_sql, jp, limit);
+    return {};
 }
 
 std::vector<QueryItem> query_single_cut(sqlite3 *db, const Segments &segments, int limit, QuerySource source)
@@ -960,7 +894,7 @@ std::string segments_to_jianpin(const Segments &segments)
 
 std::string get_default_db_path()
 {
-    return metasequoia::path_to_utf8(shuangpin::get_data_file_path(metasequoia::assets::main_dictionary));
+    return metasequoia::path_to_utf8(metasequoia::data_file_path(metasequoia::assets::main_dictionary));
 }
 
 void warm_up(sqlite3 *db, std::unordered_map<std::string, sqlite3_stmt *> &statement_cache)

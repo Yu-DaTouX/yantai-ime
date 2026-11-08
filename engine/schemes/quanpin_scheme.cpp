@@ -2,7 +2,6 @@
 #include "../common/helpcode_utils.h"
 #include "../quanpin/quanpin_query.h"
 #include "../quanpin/quanpin_utils.h"
-#include "../shuangpin/shuangpin_query.h"
 #include <cctype>
 
 namespace
@@ -10,6 +9,65 @@ namespace
 bool is_alpha_vk(ImeKeyCode vk)
 {
     return vk >= 'A' && vk <= 'Z';
+}
+} // namespace
+
+namespace
+{
+std::string ApplySegmentationCases(const std::string &segmented_input, const std::string &raw_input_with_cases)
+{
+    if (segmented_input.empty() || raw_input_with_cases.empty())
+    {
+        return {};
+    }
+
+    std::string extracted_input;
+    extracted_input.reserve(segmented_input.size());
+    for (const char ch : segmented_input)
+    {
+        if (ch != '\'')
+        {
+            extracted_input.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        }
+    }
+
+    std::string raw_letters;
+    raw_letters.reserve(raw_input_with_cases.size());
+    for (const char ch : raw_input_with_cases)
+    {
+        if (ch != '\'')
+        {
+            raw_letters.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        }
+    }
+    if (extracted_input != raw_letters)
+    {
+        return segmented_input;
+    }
+
+    std::string result;
+    result.reserve(segmented_input.size());
+    size_t index = 0;
+    for (const char ch : segmented_input)
+    {
+        if (ch == '\'')
+        {
+            result.push_back(ch);
+            continue;
+        }
+        while (index < raw_input_with_cases.size() && raw_input_with_cases[index] == '\'')
+        {
+            ++index;
+        }
+        if (index >= raw_input_with_cases.size())
+        {
+            return segmented_input;
+        }
+        const char cased = raw_input_with_cases[index];
+        result.push_back(ch == cased || ch == cased + ('a' - 'A') ? cased : ch);
+        ++index;
+    }
+    return result;
 }
 } // namespace
 
@@ -132,7 +190,7 @@ QueryRequest QuanpinScheme::build_request() const
         cased_source = cased_source.substr(0, cased_source.size() - helpcode_length);
     }
 
-    request.raw_segmentation = shuangpin::apply_segmentation_cases(request.normalized_segmentation, cased_source);
+    request.raw_segmentation = ApplySegmentationCases(request.normalized_segmentation, cased_source);
     if (!cased_source.empty() && cased_source.back() == '\'' &&
         (request.raw_segmentation.empty() || request.raw_segmentation.back() != '\''))
     {

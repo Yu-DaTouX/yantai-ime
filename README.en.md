@@ -9,7 +9,7 @@ A privacy-first Chinese input method for Windows. Typing stays on your computer:
 - **Local first**: pinyin parsing, sentence composition, frequency learning and your personal dictionary all stay on your machine.
 - **Network features are off by default**: cloud candidates, candidate translation, AI suggestions and cloud speech recognition ship disabled and are opt-in. Logs never contain what you type.
 - **Automatic updates**: checks only this project's GitHub Releases, verifies SHA256, and asks before installing. Can be turned off.
-- **Input schemes**: Quanpin, nine Shuangpin layouts, and optional auxiliary codes.
+- **Input scheme**: Quanpin with optional auxiliary codes.
 - **Pure TSF** for Windows 10 / 11.
 
 ## Install

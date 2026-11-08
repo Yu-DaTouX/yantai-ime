@@ -2,15 +2,12 @@
 
 #include "../common/helpcode_utils.h"
 #include "../contracts/date_time_input.h"
-#include "../contracts/direct_helpcode.h"
 #include "../local_modes/date_time_query.h"
 #include "../local_modes/emoji_query.h"
-#include "../local_modes/jianpin_query.h"
 #include "../local_modes/kaomoji_query.h"
 #include "../local_modes/quick_phrase_query.h"
 #include "../quanpin/quanpin_query.h"
 #include "../quanpin/quanpin_utils.h"
-#include "../shuangpin/shuangpin_query.h"
 #include "../user_dictionary/user_dictionary_journal.h"
 #include "data_path.h"
 
@@ -55,24 +52,12 @@ std::string online_identity(const QueryRequest &request)
 
 InputSession::InputSession(SchemeType scheme_type, unsigned quanpin_autocorrect_types, bool helpcode_enabled,
                            bool chinese_punctuation_enabled, bool candidate_learning_enabled, RuntimePaths paths)
-    : paths_(std::move(paths)), candidate_queries_(paths_, GetXiaoheShuangpinProfile()),
-      engine_(scheme_type, GetXiaoheShuangpinProfile(), paths_), quanpin_autocorrect_types_(quanpin_autocorrect_types),
-      quanpin_helpcode_enabled_(helpcode_enabled), shuangpin_helpcode_enabled_(helpcode_enabled),
-      chinese_punctuation_enabled_(chinese_punctuation_enabled),
-      candidate_learning_enabled_(candidate_learning_enabled), shuangpin_profile_(GetXiaoheShuangpinProfile())
+    : paths_(std::move(paths)), candidate_queries_(paths_), engine_(scheme_type, paths_),
+      quanpin_autocorrect_types_(quanpin_autocorrect_types), quanpin_helpcode_enabled_(helpcode_enabled),
+      chinese_punctuation_enabled_(chinese_punctuation_enabled), candidate_learning_enabled_(candidate_learning_enabled)
 {
     engine_.set_quanpin_autocorrect_types(quanpin_autocorrect_types_);
     engine_.set_quanpin_helpcode_enabled(quanpin_helpcode_enabled_);
-    engine_.set_shuangpin_helpcode_enabled(shuangpin_helpcode_enabled_);
-}
-
-InputSession::InputSession(SchemeType scheme_type, const ShuangpinProfile &shuangpin_profile, RuntimePaths paths)
-    : paths_(std::move(paths)), candidate_queries_(paths_, shuangpin_profile),
-      engine_(scheme_type, shuangpin_profile, paths_), shuangpin_profile_(shuangpin_profile)
-{
-    engine_.set_quanpin_autocorrect_types(quanpin_autocorrect_types_);
-    engine_.set_quanpin_helpcode_enabled(quanpin_helpcode_enabled_);
-    engine_.set_shuangpin_helpcode_enabled(shuangpin_helpcode_enabled_);
 }
 
 KeyResult InputSession::handle_character(char character, bool shift_only)
@@ -97,7 +82,7 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
     }
 
     if (shift_only && character == 'U' && local_mode_options_.radical && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
+        scheme() == SchemeType::Quanpin)
     {
         local_input_mode_ = LocalInputMode::Radical;
         local_preedit_ = "U";
@@ -105,7 +90,7 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
         return {true, std::nullopt, std::nullopt};
     }
     if (shift_only && character == 'T' && local_mode_options_.date_time && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
+        scheme() == SchemeType::Quanpin)
     {
         local_input_mode_ = LocalInputMode::DateTime;
         local_preedit_ = "T";
@@ -113,7 +98,7 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
         return {true, std::nullopt, std::nullopt};
     }
     if (shift_only && character == 'K' && local_mode_options_.quick_phrase && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
+        scheme() == SchemeType::Quanpin)
     {
         local_input_mode_ = LocalInputMode::QuickPhrase;
         local_preedit_ = "K";
@@ -121,7 +106,7 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
         return {true, std::nullopt, std::nullopt};
     }
     if (shift_only && character == 'E' && local_mode_options_.emoji && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
+        scheme() == SchemeType::Quanpin)
     {
         local_input_mode_ = LocalInputMode::Emoji;
         local_preedit_ = "E";
@@ -129,24 +114,15 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
         return {true, std::nullopt, std::nullopt};
     }
     if (shift_only && character == 'M' && local_mode_options_.kaomoji && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
+        scheme() == SchemeType::Quanpin)
     {
         local_input_mode_ = LocalInputMode::Kaomoji;
         local_preedit_ = "M";
         local_candidates_.clear();
         return {true, std::nullopt, std::nullopt};
     }
-    // 超级简拼只保留给双拼：全拼直接打声母就是简拼，Shift+J 留作普通大写 J。
-    if (shift_only && character == 'J' && local_mode_options_.super_jianpin && !has_composition() &&
-        scheme() == SchemeType::Shuangpin)
-    {
-        local_input_mode_ = LocalInputMode::SuperJianpin;
-        local_preedit_ = "J";
-        local_candidates_.clear();
-        return {true, std::nullopt, std::nullopt};
-    }
     if (shift_only && character == 'Y' && local_mode_options_.temporary_english && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
+        scheme() == SchemeType::Quanpin)
     {
         local_input_mode_ = LocalInputMode::TemporaryEnglish;
         local_preedit_ = "Y";
@@ -155,23 +131,9 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
     }
 
     const bool lowercase_letter = character >= 'a' && character <= 'z';
-    const bool semicolon_final =
-        character == ';' && scheme() == SchemeType::Shuangpin && ShuangpinProfileUsesSemicolonFinal(shuangpin_profile_);
-    const bool mid_sentence_marker = character == shuangpin::kMidSentenceHelpcodeMarker && has_composition() &&
-                                     accepts_mid_sentence_helpcode_marker();
-    const bool end_helpcode_marker = character == shuangpin::kEndHelpcodeMarker && has_composition() &&
-                                     accepts_end_helpcode_marker_at(get_pinyin_sequence_with_cases().size());
-    // 句中辅助码：反引号后的第一码大小写都收，紧跟的大写字母是第二码，与辅助码开关无关。
-    const bool mid_sentence_code = accepts_mid_sentence_code_at(get_pinyin_sequence_with_cases().size(), character);
-    // 直接辅助码：辅码可以用大写敲（万象的大写变体），四码后接 / 终止。
-    const bool direct_slash = character == '/' && has_composition() &&
-                              accepts_direct_helpcode_slash_at(get_pinyin_sequence_with_cases().size());
-    const bool active_helpcode =
-        character >= 'A' && character <= 'Z' && has_composition() &&
-        ((scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_) ||
-         (scheme() == SchemeType::Shuangpin && (shuangpin_helpcode_enabled_ || direct_helpcode_enabled_)));
-    if (!lowercase_letter && !active_helpcode && !mid_sentence_code && !mid_sentence_marker && !end_helpcode_marker &&
-        character != '\'' && !semicolon_final && !direct_slash)
+    const bool active_helpcode = character >= 'A' && character <= 'Z' && has_composition() &&
+                                 scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_;
+    if (!lowercase_letter && !active_helpcode && character != '\'')
     {
         return {};
     }
@@ -182,12 +144,8 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
 
     const std::string previous_preedit = preedit();
     const auto unsigned_character = static_cast<unsigned char>(character);
-    const ImeKeyCode key_code = character == '\''     ? ImeKey::Apostrophe
-                                : direct_slash        ? ImeKey::Slash
-                                : mid_sentence_marker ? ImeKey::Backquote
-                                : end_helpcode_marker ? ImeKey::Backquote
-                                : semicolon_final     ? ImeKey::Semicolon
-                                                      : static_cast<ImeKeyCode>(std::toupper(unsigned_character));
+    const ImeKeyCode key_code =
+        character == '\'' ? ImeKey::Apostrophe : static_cast<ImeKeyCode>(std::toupper(unsigned_character));
     engine_.handle_key(key_code, 0, static_cast<ImeCharacter>(unsigned_character));
     update_mixed_candidates();
     const bool handled = preedit() != previous_preedit;
@@ -358,174 +316,6 @@ KeyResult InputSession::select_candidate_edge(std::size_t index, CandidateEdge e
     return {true, std::move(character), std::nullopt};
 }
 
-void InputSession::set_shuangpin_helpcode_enabled(bool enabled)
-{
-    if (shuangpin_helpcode_enabled_ == enabled)
-    {
-        return;
-    }
-    shuangpin_helpcode_enabled_ = enabled;
-    engine_.set_shuangpin_helpcode_enabled(enabled);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-void InputSession::set_shuangpin_helpcode_triggers(bool direct, bool uppercase_trigger)
-{
-    if (shuangpin_helpcode_direct_ == direct && end_helpcode_uppercase_trigger_enabled_ == uppercase_trigger)
-    {
-        return;
-    }
-    shuangpin_helpcode_direct_ = direct;
-    end_helpcode_uppercase_trigger_enabled_ = uppercase_trigger;
-    engine_.set_shuangpin_helpcode_triggers(direct, uppercase_trigger);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-bool InputSession::accepts_end_helpcode_marker_at(std::size_t caret) const
-{
-    // 直接辅助码接管辅码时末尾辅助码整个让位，引导键也就不收。
-    if (!shuangpin_helpcode_enabled_ || shuangpin_helpcode_direct_ || direct_helpcode_enabled_ || !is_shuangpin() ||
-        dedicated_english_mode_ || local_input_mode_ != LocalInputMode::None)
-    {
-        return false;
-    }
-    const std::string &typed = get_pinyin_sequence_with_cases();
-    return FanyImeMidSentenceHelpcode::AcceptsEndMarkerAt(typed.data(), typed.size(), caret,
-                                                          engine_.helpcode_uppercase_triggers());
-}
-
-void InputSession::set_mid_sentence_helpcode_enabled(bool enabled)
-{
-    if (mid_sentence_helpcode_enabled_ == enabled)
-    {
-        return;
-    }
-    mid_sentence_helpcode_enabled_ = enabled;
-    engine_.set_mid_sentence_helpcode_enabled(enabled);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-void InputSession::set_direct_helpcode_enabled(bool enabled)
-{
-    if (direct_helpcode_enabled_ == enabled)
-    {
-        return;
-    }
-    direct_helpcode_enabled_ = enabled;
-    engine_.set_direct_helpcode_enabled(enabled);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-void InputSession::set_direct_helpcode_markers(bool slash, bool uppercase)
-{
-    if (direct_helpcode_slash_marker_ == slash && direct_helpcode_uppercase_marker_ == uppercase)
-    {
-        return;
-    }
-    direct_helpcode_slash_marker_ = slash;
-    direct_helpcode_uppercase_marker_ = uppercase;
-    engine_.set_direct_helpcode_markers(slash, uppercase);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-void InputSession::set_direct_helpcode_end_trigger_enabled(bool enabled)
-{
-    if (direct_helpcode_end_trigger_enabled_ == enabled)
-    {
-        return;
-    }
-    direct_helpcode_end_trigger_enabled_ = enabled;
-    engine_.set_direct_helpcode_end_trigger_enabled(enabled);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-std::optional<std::string> InputSession::direct_helpcode_end_trigger_prefix(const std::string &typed)
-{
-    if (!direct_helpcode_enabled_ || !direct_helpcode_end_trigger_enabled_ || !is_shuangpin() ||
-        dedicated_english_mode_ || local_input_mode_ != LocalInputMode::None)
-    {
-        return std::nullopt;
-    }
-    return engine_.direct_helpcode_end_trigger_prefix(typed);
-}
-
-bool InputSession::accepts_direct_helpcode_slash_at(std::size_t caret) const
-{
-    if (!direct_helpcode_enabled_ || !direct_helpcode_slash_marker_ || !is_shuangpin() || dedicated_english_mode_ ||
-        local_input_mode_ != LocalInputMode::None)
-    {
-        return false;
-    }
-    const std::string &typed = get_pinyin_sequence_with_cases();
-    return FanyImeDirectHelpcode::AcceptsSlashAt(typed.data(), typed.size(), caret);
-}
-
-bool InputSession::accepts_mid_sentence_helpcode_marker() const
-{
-    return accepts_mid_sentence_helpcode_marker_at(caret_position());
-}
-
-bool InputSession::accepts_mid_sentence_helpcode_marker_at(std::size_t caret) const
-{
-    // 直接辅助码开着时反引号不再是编码键：两套辅码同时生效，同一个音节会被约束两遍。
-    if (!mid_sentence_helpcode_enabled_ || direct_helpcode_enabled_ || !is_shuangpin() || dedicated_english_mode_ ||
-        local_input_mode_ != LocalInputMode::None)
-    {
-        return false;
-    }
-    return shuangpin::accepts_mid_sentence_helpcode_marker_at(get_pinyin_sequence_with_cases(), caret,
-                                                              engine_.helpcode_uppercase_triggers());
-}
-
-void InputSession::set_mid_sentence_uppercase_trigger_enabled(bool enabled)
-{
-    if (mid_sentence_uppercase_trigger_enabled_ == enabled)
-    {
-        return;
-    }
-    mid_sentence_uppercase_trigger_enabled_ = enabled;
-    engine_.set_mid_sentence_uppercase_trigger_enabled(enabled);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-bool InputSession::accepts_mid_sentence_code_at(std::size_t caret, char character) const
-{
-    const std::string &typed = get_pinyin_sequence_with_cases();
-    if (!mid_sentence_helpcode_enabled_ || direct_helpcode_enabled_ || !is_shuangpin() || character < 'A' ||
-        character > 'Z' || caret == 0 || caret > typed.size())
-    {
-        return false;
-    }
-    const auto triggers = engine_.helpcode_uppercase_triggers();
-    const std::string before = typed.substr(0, caret);
-    // 反引号后的第一码、只有第一码的段后的第二码，或（大写触发开着时）完整音节后自己开一段。
-    return before.back() == shuangpin::kMidSentenceHelpcodeMarker ||
-           shuangpin::accepts_mid_sentence_second_code(before, character, triggers) ||
-           (triggers.mid && FanyImeMidSentenceHelpcode::AcceptsMarkerAt(typed.data(), typed.size(), caret, true));
-}
-
-bool InputSession::has_mid_sentence_helpcode() const
-{
-    return (mid_sentence_helpcode_enabled_ || direct_helpcode_enabled_) && !dedicated_english_mode_ &&
-           local_input_mode_ == LocalInputMode::None && !request().syllable_helpcodes.empty();
-}
-
-std::vector<WordItem> InputSession::candidates_without_mid_sentence_helpcode()
-{
-    if (!has_mid_sentence_helpcode())
-    {
-        return engine_.get_candidates();
-    }
-    return engine_.query_without_syllable_helpcodes();
-}
-
 void InputSession::set_quanpin_helpcode_enabled(bool enabled)
 {
     if (quanpin_helpcode_enabled_ == enabled)
@@ -588,7 +378,6 @@ void InputSession::set_local_mode_options(LocalModeOptions options)
         (local_input_mode_ == LocalInputMode::QuickPhrase && !local_mode_options_.quick_phrase) ||
         (local_input_mode_ == LocalInputMode::Emoji && !local_mode_options_.emoji) ||
         (local_input_mode_ == LocalInputMode::Kaomoji && !local_mode_options_.kaomoji) ||
-        (local_input_mode_ == LocalInputMode::SuperJianpin && !local_mode_options_.super_jianpin) ||
         (local_input_mode_ == LocalInputMode::TemporaryEnglish && !local_mode_options_.temporary_english))
     {
         reset_composition();
@@ -803,15 +592,7 @@ unsigned InputSession::quanpin_autocorrect_types() const
 
 bool InputSession::helpcode_enabled() const
 {
-    if (scheme() == SchemeType::Quanpin)
-    {
-        return quanpin_helpcode_enabled_;
-    }
-    if (scheme() == SchemeType::Shuangpin)
-    {
-        return shuangpin_helpcode_enabled_;
-    }
-    return false;
+    return scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_;
 }
 
 bool InputSession::chinese_punctuation_enabled() const
@@ -873,16 +654,6 @@ KeyResult InputSession::handle_local_character(char character)
         if (!ascii_letter)
         {
             return {};
-        }
-        local_preedit_.push_back(character);
-        return {true, std::nullopt, update_local_candidates()};
-    }
-    if (local_input_mode_ == LocalInputMode::SuperJianpin)
-    {
-        const bool ascii_letter = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z');
-        if (!ascii_letter)
-        {
-            return {true, std::nullopt, std::nullopt};
         }
         local_preedit_.push_back(character);
         return {true, std::nullopt, update_local_candidates()};
@@ -976,16 +747,15 @@ bool InputSession::mixed_candidates_active() const
     return fixed_positions_enabled_ ||
            ((english_input_options_.mixed_candidates || mixed_expressive_options_.emoji_candidates ||
              mixed_expressive_options_.kaomoji_candidates) &&
-            (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin));
+            scheme() == SchemeType::Quanpin);
 }
 
-// 不看辅助码：双拼辅助码会把「完整音节 + 一个字母」的编码（dia）都认成带辅助码，
-// 整串精确等于用户编码时按短语处理。
+// 不看辅助码：整串精确等于用户编码时按短语处理。
 std::optional<std::string> InputSession::quick_phrase_code() const
 {
     if (!local_mode_options_.quick_phrase_candidates || local_input_mode_ != LocalInputMode::None ||
-        dedicated_english_mode_ || (scheme() != SchemeType::Quanpin && scheme() != SchemeType::Shuangpin) ||
-        prefix_candidates_active_ || !immediate_phrase_progress_.word.empty())
+        dedicated_english_mode_ || scheme() != SchemeType::Quanpin || prefix_candidates_active_ ||
+        !immediate_phrase_progress_.word.empty())
     {
         return std::nullopt;
     }
@@ -1238,14 +1008,6 @@ std::optional<std::string> InputSession::learn_candidate(std::size_t index)
         }
         return std::nullopt;
     }
-    // 句中辅助码筛过的列表里排第一的词，不敲辅助码时未必排第一：排位参照换成不带约束的候选，
-    // 选的是第一个也照样调。
-    if (frequency_adjustment_.mode != FrequencyAdjustmentMode::Disabled && has_mid_sentence_helpcode() &&
-        (selected.source == CandidateSource::Database || selected.source == CandidateSource::UserDatabase))
-    {
-        return adjust_pinyin_candidate_frequency(selected, candidates_without_mid_sentence_helpcode(),
-                                                 frequency_adjustment_, false);
-    }
     if (frequency_adjustment_.mode == FrequencyAdjustmentMode::Disabled || index == 0)
     {
         return std::nullopt;
@@ -1314,11 +1076,8 @@ std::optional<std::string> InputSession::adjust_pinyin_candidate_frequency(const
                                                                            FrequencyAdjustmentOptions options,
                                                                            bool force_top)
 {
-    const bool super_jianpin = local_input_mode_ == LocalInputMode::SuperJianpin;
-    std::string context_key =
-        super_jianpin ? local_modes::jianpin_ranking_context(local_preedit_.substr(1), scheme(), shuangpin_profile_)
-                      : engine_.get_request().normalized_segmentation;
-    if (!super_jianpin && context_key.empty())
+    std::string context_key = engine_.get_request().normalized_segmentation;
+    if (context_key.empty())
     {
         context_key = engine_.get_request().segmentation;
     }

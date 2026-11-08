@@ -3,7 +3,7 @@
 // Bridges the word lattice's n-best paths to the neural sentence model.
 //
 // word_lattice.* knows nothing about the model and engine/neural knows nothing about lattices; this
-// is the one place that speaks both. Quanpin and shuangpin share it because their sentence pipelines
+// is the one place that speaks both. The quanpin sentence pipeline
 // are the same lattice over the same syllables.
 
 #include "../neural/neural_decoder.h"

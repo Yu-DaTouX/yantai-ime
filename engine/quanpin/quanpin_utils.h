@@ -41,7 +41,7 @@ std::vector<std::string> cut_one_piece_min_segments(const std::string &pinyin, b
 std::vector<Segments> enumerate_min_segmentations(const std::string &pinyin, size_t path_limit);
 bool is_complete_pinyin_input(const std::string &pinyin);
 // j/q/x/y 后面的 v 只是 u 的别名（jv、jve、xvan、yvn……）：这几个声母没有保留鱼眼的
-// 合法音节，词库、解码器和双拼都只认 u 写法。
+// 合法音节，词库和解码器只认 u 写法。
 bool is_jqxy_v_alias(const std::string &syllable);
 // ü 的两种写法归到词库存的那一种：j/q/x/y 系写 u（xvan→xuan），l/n 系的 nue/lue 写 v
 // （→nve/lve），其余原样返回。nu/lu 是真实音节，n/l 系只改整段等于 nue/lue 的。词库查询、

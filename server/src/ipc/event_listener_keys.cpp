@@ -11,9 +11,7 @@
 #include "ipc/candidate_translation_policy.h"
 #include "ipc/input_key_policy.h"
 #include "engine/contracts/date_time_input.h"
-#include "engine/contracts/direct_helpcode.h"
 #include "engine/contracts/ipc_negotiation.h"
-#include "engine/contracts/mid_sentence_helpcode.h"
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "utils/common_utils.h"
@@ -33,8 +31,7 @@ namespace
 bool IsShiftLetterSpecialModeTriggered()
 {
     return g_quick_phrase_triggered || g_radical_mode_triggered || g_date_time_mode_triggered ||
-           g_emoji_mode_triggered || g_kaomoji_mode_triggered || g_symbol_mode_triggered ||
-           g_y_mode_triggered;
+           g_emoji_mode_triggered || g_kaomoji_mode_triggered || g_symbol_mode_triggered || g_y_mode_triggered;
 }
 
 // 字母键写进 raw 的那个字母：键产生了字母就照收（保留大小写），否则取键位本身的小写字母。
@@ -980,8 +977,8 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     const bool is_composition_edit_key =
         ((Global::Keycode == VK_LEFT || Global::Keycode == VK_RIGHT) && !arrow_moves_selection) ||
         Global::Keycode == VK_BACK || Global::Keycode == VK_DELETE ||
-        (Global::Keycode >= 'A' && Global::Keycode <= 'Z') || is_manual_pinyin_separator ||
-        is_date_time_input_key || is_v_mode_input_key;
+        (Global::Keycode >= 'A' && Global::Keycode <= 'Z') || is_manual_pinyin_separator || is_date_time_input_key ||
+        is_v_mode_input_key;
     const bool should_forward_key_to_session = !is_commit_with_highlighted_candidate_punctuation && !is_selection_key &&
                                                !is_paging_key && !is_composition_edit_key;
 
@@ -1145,11 +1142,10 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         UpdateCloudInput(cloud_query_state.query_text, client_id, activation_epoch);
     }
 
-    const bool ai_eligible = !g_english_input_mode &&
-                             !IsSpecialModeCompositionActive(g_inputSession->get_pinyin_sequence_with_cases()) &&
-                             g_inputSession->current_scheme_type() == SchemeType::Quanpin &&
-                             g_inputSession->is_all_complete_pure_pinyin() && !g_inputSession->has_active_helpcode() &&
-                             !GlobalIme::composition.creating_word.active;
+    const bool ai_eligible =
+        !g_english_input_mode && !IsSpecialModeCompositionActive(g_inputSession->get_pinyin_sequence_with_cases()) &&
+        g_inputSession->current_scheme_type() == SchemeType::Quanpin && g_inputSession->is_all_complete_pure_pinyin() &&
+        !g_inputSession->has_active_helpcode() && !GlobalIme::composition.creating_word.active;
     if (!suppress_async_lookup)
     {
         ScopedKeyStage ai_query{client_id, activation_epoch, request_id, L"handle-async-query"};

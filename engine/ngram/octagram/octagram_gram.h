@@ -127,7 +127,7 @@ std::string last_codepoints(std::string_view utf8, size_t n);
 
 // 进程内按路径共享的模型，照 ngram::shared_language_model 的范式：查询全是
 // 只读（mmap 页 + const 方法），多会话可同时持有返回的引用；载入失败返回
-// valid() == false 的实例，调用方判空降级。全拼和双拼词典各持一份引用、共享
+// valid() == false 的实例，调用方判空降级。全拼词典持有一份引用、共享
 // 同一份映射，不重复付 390MB 的物理内存。
 //
 // 引用是 shared_ptr：查询按值持有副本，在飞查询不受缓存淘汰影响。设置侧删除

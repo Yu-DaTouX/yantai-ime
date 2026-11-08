@@ -3,7 +3,6 @@
 #include "../../core/data_path.h"
 #include "../../contracts/assets/assets.h"
 #include "../../quanpin/latin_words.h"
-#include "../../shuangpin/shuangpin_profile.h"
 #include "../../user_dictionary/user_dictionary_journal.h"
 #include "test_directory_cleanup.h"
 
@@ -327,33 +326,6 @@ void test_quanpin_sentence(const metasequoia::RuntimePaths &paths)
             "The lattice must compose a sentence through the t segment with the latin word.");
 }
 
-void test_shuangpin(const metasequoia::RuntimePaths &paths)
-{
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        type(session, "txu");
-        require(latin_follows_leader(session, "特许", "T恤"),
-                "Xiaohe txu must offer T恤 right after 特许, which covers the whole input.");
-    }
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        with_lattice(session);
-        // 小鹤 买 md、一件 yijm：贪心切分本身就留下 t'xu 两段。
-        type(session, "mdyijmtxu");
-        require(!session.candidates().empty() && session.candidates()[0].word == "买一件T恤",
-                "A shuangpin cut that leaves the latin letter on its own must compose the sentence.");
-    }
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        with_lattice(session);
-        // 做 zo、B超 bic：贪心切分读成 zo'bi'c（作弊 + c），要在边界上换一条按 B超 切的切分。
-        type(session, "zobic");
-        require(find_index(session, "做B超") < session.candidates().size(),
-                "A latin word the greedy shuangpin cut splits apart must still reach the sentence.");
-    }
-}
-
 // 车牌（exact_only）：整串正好是它时单独出候选，不补全、不进整句。zhe'e、mai'zhe'e 全是完整音节，
 // 夹具里 zhe、e 都没有词，不标 exact_only 的话词格只能经过浙E，必然组出「买浙E」。
 void test_exact_only(const metasequoia::RuntimePaths &paths)
@@ -376,21 +348,6 @@ void test_exact_only(const metasequoia::RuntimePaths &paths)
         type(session, "maizhee");
         require(find_index(session, "买浙E") == session.candidates().size(),
                 "A license plate must not enter a quanpin sentence.");
-    }
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    {
-        // 小鹤 浙 ve，字母 E 一个键。
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        type(session, "vee");
-        require(find_index(session, "浙E") < session.candidates().size(),
-                "A shuangpin license plate must be offered on an exact match.");
-    }
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        with_lattice(session);
-        type(session, "mdvee");
-        require(find_index(session, "买浙E") == session.candidates().size(),
-                "A license plate must not enter a shuangpin sentence.");
     }
 }
 
@@ -519,37 +476,6 @@ void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
         type(session, "nabla");
         expect_latin_after_full_input(session, "nabla", {}, "Nabla算子", {"那边", "那"});
     }
-
-    // vin、vingic、vel 关掉双拼辅码再打：会话默认开着，奇数个键时末键当单码辅码（夹具没有辅码表也一样），
-    // 那条路见 test_shuangpin_helpcodes。
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    {
-        // 小鹤 vi 是 zhi，vin 读作 zhi + n：还没打到 智能IC卡 的字母段 ic，不补全。
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        session.set_shuangpin_helpcode_enabled(false);
-        type(session, "vin");
-        require(!has_latin_word(session) && first_is(session, "智能"),
-                "xiaohe vin stops before the letters ic: no latin word." + listing(session));
-    }
-    {
-        // 小鹤 智能 ving，打全字母段 ic 后补出 智能IC卡；智能 只覆盖前四个键。
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        session.set_shuangpin_helpcode_enabled(false);
-        type(session, "vingic");
-        expect_latin_after_full_input(session, "xiaohe vingic", {}, "智能IC卡", {"智能"});
-    }
-    {
-        // 小鹤 ve 是 zhe。
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        session.set_shuangpin_helpcode_enabled(false);
-        type(session, "vel");
-        expect_latin_after_full_input(session, "xiaohe vel", {"这里", "这类"}, "浙L", {"这"});
-    }
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        type(session, "nabla");
-        expect_latin_after_full_input(session, "xiaohe nabla", {}, "Nabla算子", {"那"});
-    }
 }
 
 // 补全门槛：输入打全词里第一段连续字母之后才补出整条词。Nabla算子 的字母段是 nabla，卡拉OK 的是 ok
@@ -601,34 +527,6 @@ void test_completion_gate(const metasequoia::RuntimePaths &paths)
                     session->candidates()[completion].latin_word,
                 "The exact latin word must stay ahead of a heavier completion." + listing(*session));
     }
-
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    const auto shuangpin = [&](const std::string &input) {
-        auto session = std::make_unique<metasequoia::InputSession>(SchemeType::Shuangpin, xiaohe, paths);
-        session->set_shuangpin_helpcode_enabled(false);
-        type(*session, input);
-        return session;
-    };
-    for (const char *input : {"nab", "nabl"})
-    {
-        const auto session = shuangpin(input);
-        require(find_index(*session, "Nabla算子") == session->candidates().size(),
-                std::string("Xiaohe ") + input + " must not complete Nabla算子." + listing(*session));
-    }
-    for (const char *input : {"nabla", "nablasr"})
-    {
-        const auto session = shuangpin(input);
-        require(find_index(*session, "Nabla算子") < session->candidates().size(),
-                std::string("Xiaohe ") + input + " covers nabla and must complete Nabla算子." + listing(*session));
-    }
-    // 智能IC卡 的字母段 ic 前面有两个汉字，各占两个键：ving、vingi 都还没打到 ic。
-    for (const char *input : {"ving", "vingi"})
-    {
-        const auto session = shuangpin(input);
-        require(find_index(*session, "智能IC卡") == session->candidates().size(),
-                std::string("Xiaohe ") + input + " stops before the letters ic: 智能IC卡 must not be completed." +
-                    listing(*session));
-    }
 }
 
 // 门槛按词里第一段字母算，补全至多两条，被门槛挡掉的词不占名额。
@@ -656,50 +554,6 @@ void test_completion_gate_shapes(const metasequoia::RuntimePaths &paths)
         require(find_index(session, "DNA序列") == session.candidates().size(),
                 "At most two latin words are completed." + listing(session));
     }
-}
-
-// 小鹤 vin、vel 开着辅码（会话默认开）且有辅码表：末键 n、l 当单码辅码，辅码筛出的 知、这 排到最前，
-// 它们的 pinyin 只到 vi、ve，可选中后连辅码一起吃掉整串，同样算覆盖整串。
-void test_shuangpin_helpcodes(const metasequoia::RuntimePaths &paths)
-{
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    {
-        // vin 没打到 智能IC卡 的字母段，没有字母词；辅码筛出的 知 照样吃掉整串。
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        type(session, "vin");
-        const auto words = words_of(session);
-        require(!has_latin_word(session) && words.size() >= 4 &&
-                    std::vector<std::string>(words.begin(), words.begin() + 4) ==
-                        std::vector<std::string>{"知", "智能", "职能", "知"},
-                "xiaohe vin with helpcodes must keep the helpcode order 知 智能 职能 知 and offer no latin word." +
-                    listing(session));
-        require(session.select_candidate(find_index(session, "知")).commit == "知" && !session.has_composition(),
-                "The helpcode-filtered candidate must consume the whole input when selected.");
-    }
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        type(session, "vel");
-        expect_latin_after_full_input(session, "xiaohe vel with helpcodes", {"这", "这里", "这类", "这"}, "浙L", {});
-    }
-}
-
-// 双拼开着 Google 整句：小鹤 vingic 解出的整句排在最前，它也覆盖整串，字母词排在它之后；智能 只覆盖 ving。
-void test_shuangpin_google_sentence(const metasequoia::RuntimePaths &paths)
-{
-    metasequoia::InputSession session(SchemeType::Shuangpin, GetXiaoheShuangpinProfile(), paths);
-    session.set_shuangpin_helpcode_enabled(false);
-    SentenceAssociationOptions association;
-    association.google = true;
-    session.set_sentence_association(association);
-    type(session, "vingic");
-    const auto &candidates = session.candidates();
-    const auto sentence =
-        std::find_if(candidates.begin(), candidates.end(), [](const WordItem &item) { return !item.latin_word; });
-    require(
-        sentence != candidates.end() && sentence->source == CandidateSource::Fallback && sentence->sentence_association,
-        "The Google decoder must lead the ordinary candidates of xiaohe vingic with a sentence." + listing(session));
-    expect_latin_after_full_input(session, "xiaohe vingic with Google sentences", {sentence->word}, "智能IC卡",
-                                  {"智能"});
 }
 
 // 普通候选彼此的先后与没有字母词的词库逐项相同：字母词只是插进去，不挪动别的候选。
@@ -739,21 +593,6 @@ void test_ordinary_order_unchanged(const metasequoia::RuntimePaths &paths, const
         metasequoia::InputSession current(SchemeType::Quanpin, 0u, true, true, true, paths);
         metasequoia::InputSession old(SchemeType::Quanpin, 0u, true, true, true, old_paths);
         compare(current, old, input, lattice, expect_latin);
-    }
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    for (const auto &[input, expect_latin] : std::vector<std::pair<std::string, bool>>{
-             {"vin", false},
-             {"vingic", true},
-             {"vel", true},
-             {"txu", true},
-             {"vi", false},
-             {"nabm", false},
-             {"veli", false},
-         })
-    {
-        metasequoia::InputSession current(SchemeType::Shuangpin, xiaohe, paths);
-        metasequoia::InputSession old(SchemeType::Shuangpin, xiaohe, old_paths);
-        compare(current, old, input, false, expect_latin);
     }
 }
 
@@ -830,20 +669,16 @@ void retype(metasequoia::InputSession &session, const std::string &text)
     type(session, text);
 }
 
-// 用户加的字母词：已开着的会话里下一次按键就能打出来（全拼、双拼），出厂词不能改删，改名、删除生效。
+// 用户加的字母词：已开着的会话里下一次按键就能打出来（全拼），出厂词不能改删，改名、删除生效。
 void test_user_words(const std::filesystem::path &directory)
 {
     const auto paths = paths_for(directory);
     const auto main = utf8_path(directory / "msime.db");
     const auto journal = utf8_path(paths.user(metasequoia::assets::user_journal));
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
     metasequoia::InputSession quanpin_session(SchemeType::Quanpin, 0u, true, true, true, paths);
-    metasequoia::InputSession shuangpin_session(SchemeType::Shuangpin, xiaohe, paths);
     with_lattice(quanpin_session);
     type(quanpin_session, "xguang");
-    type(shuangpin_session, "xgl");
-    require(find_index(quanpin_session, "X光") == quanpin_session.candidates().size() &&
-                find_index(shuangpin_session, "X光") == shuangpin_session.candidates().size(),
+    require(find_index(quanpin_session, "X光") == quanpin_session.candidates().size(),
             "X光 must not exist before it is added.");
     // 先让词格把 a'gu 这个跨度（还没有 A股）记进跨度缓存，加词后换一串没打过的输入再用到它。
     retype(quanpin_session, "maiagu");
@@ -859,11 +694,8 @@ void test_user_words(const std::filesystem::path &directory)
             "A sentence through a span cached before the word was added must see the new word.");
 
     retype(quanpin_session, "xguang");
-    retype(shuangpin_session, "xgl");
     require(first_is(quanpin_session, "X光") && quanpin_session.candidates()[0].latin_word,
             "A latin word added while the quanpin session is open must show on the next key.");
-    require(first_is(shuangpin_session, "X光"),
-            "A latin word added while the shuangpin session is open must show on the next key.");
     retype(quanpin_session, "txu");
     require(latin_follows_leader(quanpin_session, "特许", "T恤"), "Shipped latin words must stay after a reload.");
     retype(quanpin_session, "maiyijianxguang");
@@ -947,7 +779,6 @@ int main()
         const auto paths = paths_for(current);
         test_quanpin_candidates(paths);
         test_quanpin_sentence(paths);
-        test_shuangpin(paths);
         test_exact_only(paths);
         test_no_learning(current, paths);
         test_old_dictionary(paths_for(old));
@@ -955,14 +786,6 @@ int main()
         test_completion_gate(paths);
         test_completion_gate_shapes(paths);
         test_ordinary_order_unchanged(paths, paths_for(old));
-        const auto helpcoded = root / "helpcoded";
-        prepare_dictionary(helpcoded, true);
-        prepare_helpcodes(helpcoded);
-        test_shuangpin_helpcodes(paths_for(helpcoded));
-        const auto google = root / "google";
-        prepare_dictionary(google, true);
-        prepare_google_model(google);
-        test_shuangpin_google_sentence(paths_for(google));
         test_parse_entries();
         const auto user = root / "user";
         prepare_dictionary(user, true);

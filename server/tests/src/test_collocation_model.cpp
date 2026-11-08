@@ -20,7 +20,7 @@ namespace
 // 环境变量隔离：进入时保存原值，退出时恢复（没有原值就删除）。
 // 读写必须走 CRT 一侧：data_directory() 经 _wdupenv_s 读 CRT 环境副本，Win32 的
 // SetEnvironmentVariableW 对它不可见（UCRT 只在 _wputenv_s 时同步缓存）——这是
-// test_custom_shuangpin 同款写法的原因。
+// 测试数据布局的原因。
 class ScopedEnv
 {
   public:

@@ -1,10 +1,7 @@
 #include "input_session.h"
 #include "../common/helpcode_utils.h"
-#include "../contracts/mid_sentence_helpcode.h"
 #include "../quanpin/quanpin_query.h"
 #include "../quanpin/quanpin_utils.h"
-#include "../shuangpin/shuangpin_query.h"
-#include "../shuangpin/shuangpin_utils.h"
 #include <algorithm>
 #include <cctype>
 
@@ -24,6 +21,21 @@ std::string remove_delimiters(const std::string &segmented)
         }
     }
     return normalized;
+}
+
+std::size_t raw_length_for_effective_prefix(const std::string &raw_input, std::size_t effective_length)
+{
+    std::size_t raw_length = 0;
+    std::size_t effective_count = 0;
+    while (raw_length < raw_input.size() && effective_count < effective_length)
+    {
+        if (raw_input[raw_length] != '\'')
+        {
+            ++effective_count;
+        }
+        ++raw_length;
+    }
+    return raw_length;
 }
 
 void remove_consumed_leading_separators(std::string &raw_input, std::string &raw_input_with_cases)
@@ -83,125 +95,10 @@ std::string append_canonical_pinyin(const std::string &prefix, const std::string
     return prefix + "'" + suffix;
 }
 
-// 句中辅助码：选词推进是在去掉反引号段的串上算的，剩下的部分要换回原串，后面音节上的约束才
-// 留得住。[clean_begin, clean_end) 是剩余部分在去段串里的范围；开头的分隔符连同挂在已上屏音节上
-// 的段一起算进已消耗部分，跟普通推进丢掉开头分隔符的做法一致。
-struct MidSentenceRest
-{
-    std::string consumed;
-    std::string rest;
-};
-
-MidSentenceRest RemapMidSentenceRest(const QueryRequest &request, const std::string &typed, std::size_t clean_begin,
-                                     std::size_t clean_end, const ShuangpinProfile &profile)
-{
-    // 方案层或直接辅助码的解析器已经把映射填进请求（见 QueryRequest::has_syllable_helpcode_layout），
-    // 直接用它；原串的段规则取决于当时的触发设置，这里不再反推。
-    shuangpin::MidSentenceHelpcodeInput parsed;
-    if (request.has_syllable_helpcode_layout)
-    {
-        parsed.input = request.raw_input_with_cases;
-        parsed.source_index = request.syllable_helpcode_source_index;
-    }
-    else
-    {
-        parsed = shuangpin::parse_mid_sentence_helpcodes(typed, profile);
-    }
-    const std::string &clean = parsed.input;
-    clean_end = (std::min)(clean_end, clean.size());
-    while (clean_begin < clean_end && clean[clean_begin] == '\'')
-    {
-        ++clean_begin;
-    }
-    MidSentenceRest result;
-    if (clean_begin >= clean_end)
-    {
-        result.consumed = typed;
-        return result;
-    }
-    const std::size_t full_begin = parsed.source_index[clean_begin];
-    const std::size_t full_end = clean_end >= clean.size() ? typed.size() : parsed.source_index[clean_end];
-    result.consumed = typed.substr(0, full_begin);
-    result.rest = typed.substr(full_begin, full_end - full_begin);
-    return result;
-}
-
-std::string LowercaseLetters(std::string text)
-{
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    return text;
-}
-
-struct ShuangpinCompositionBase
-{
-    std::string raw_input;
-    std::string raw_input_with_cases;
-    std::string effective_raw_input;
-    std::string effective_raw_input_with_cases;
-    size_t helpcode_length = 0;
-};
-
-ShuangpinCompositionBase ResolveShuangpinCompositionBase(const QueryRequest &request, const ShuangpinProfile &profile)
-{
-    ShuangpinCompositionBase base{
-        request.raw_input, request.raw_input_with_cases.empty() ? request.raw_input : request.raw_input_with_cases};
-    base.effective_raw_input = shuangpin::remove_manual_delimiters(base.raw_input);
-    base.effective_raw_input_with_cases = shuangpin::remove_manual_delimiters(base.raw_input_with_cases);
-
-    if (!request.enable_shuangpin_helpcode || base.effective_raw_input.empty())
-    {
-        return base;
-    }
-
-    const auto has_complete_unseparated_base = [&](size_t helpcode_length) {
-        if (base.effective_raw_input.size() <= helpcode_length)
-        {
-            return false;
-        }
-        const size_t pure_length = base.effective_raw_input.size() - helpcode_length;
-        const size_t raw_prefix_length = shuangpin::raw_length_for_effective_prefix(base.raw_input, pure_length);
-        // An apostrophe immediately before the suffix makes that suffix a
-        // user-defined pinyin segment, not an auxiliary code.
-        if (raw_prefix_length < base.raw_input.size() && base.raw_input[raw_prefix_length] == '\'')
-        {
-            return false;
-        }
-        return shuangpin::is_complete_input(base.raw_input.substr(0, raw_prefix_length), profile);
-    };
-
-    if (shuangpin::detect_active_double_helpcode_length(base.raw_input, base.raw_input_with_cases, profile) == 2)
-    {
-        base.helpcode_length = 2;
-        return base;
-    }
-
-    if (base.effective_raw_input.size() % 2 == 1 && base.effective_raw_input.size() > 1)
-    {
-        if (has_complete_unseparated_base(1))
-        {
-            base.helpcode_length = 1;
-        }
-    }
-
-    return base;
-}
-
 bool HasActiveQuanpinHelpcode(const QueryRequest &request)
 {
     return request.enable_quanpin_helpcode &&
            quanpin::detect_active_helpcode_length(request.raw_input, request.raw_input_with_cases) > 0;
-}
-
-std::string ResolveShuangpinCloudCacheKey(const QueryRequest &request, const ShuangpinProfile &profile)
-{
-    const auto base = ResolveShuangpinCompositionBase(request, profile);
-    if (base.helpcode_length > 0 && base.effective_raw_input.size() >= base.helpcode_length)
-    {
-        const size_t base_length = base.effective_raw_input.size() - base.helpcode_length;
-        return base.raw_input.substr(0, shuangpin::raw_length_for_effective_prefix(base.raw_input, base_length));
-    }
-    return base.raw_input;
 }
 
 std::string ResolveQuanpinCloudCacheKey(const QueryRequest &request)
@@ -583,11 +480,6 @@ const std::string &InputSession::get_pinyin_sequence() const
 
 const std::string &InputSession::get_pinyin_sequence_with_cases() const
 {
-    // 句中辅助码的反引号段只在原串里，宿主回读的必须是用户敲的原样。
-    if (!request().raw_input_with_syllable_helpcodes.empty())
-    {
-        return request().raw_input_with_syllable_helpcodes;
-    }
     return request().raw_input_with_cases.empty() ? request().raw_input : request().raw_input_with_cases;
 }
 
@@ -603,96 +495,51 @@ const std::string &InputSession::get_pinyin_segmentation() const
 
 std::string InputSession::get_pinyin_segmentation_with_cases() const
 {
-    return build_pinyin_segmentation_with_cases(shuangpin_preedit_uses_raw_);
+    return build_pinyin_segmentation_with_cases();
 }
 
-InputSession::ShuangpinPreeditForms InputSession::get_shuangpin_preedit_forms() const
+std::string InputSession::build_pinyin_segmentation_with_cases() const
 {
-    if (!is_shuangpin())
-    {
-        return {};
-    }
-    return {build_pinyin_segmentation_with_cases(true), build_pinyin_segmentation_with_cases(false)};
-}
-
-std::string InputSession::build_pinyin_segmentation_with_cases(bool shuangpin_raw) const
-{
-    // 句中辅助码的反引号段在切分串里只是一个 '，显示时按原样接回对应音节后面；
-    // 末尾补 ' 也要看用户敲的原串，否则 ulpb`x 会显示成 ul'pb`x'。
     const std::string &typed = get_pinyin_sequence_with_cases();
-    // 段文本由方案层或直接辅助码的解析器随请求给出（见 QueryRequest::has_syllable_helpcode_layout）。
-    const auto decorate = [&](const std::string &segmentation) {
-        return request().has_syllable_helpcode_layout
-                   ? shuangpin::decorate_segmentation(segmentation, request().syllable_helpcode_decorations)
-                   : shuangpin::decorate_mid_sentence_segmentation(segmentation, typed, shuangpin_profile_);
-    };
-    if (is_shuangpin() && shuangpin_raw)
+    // 容错仲裁选中的读音（句中简拼展开、槽内漏字变体）与敲的字母不逐音节相同，
+    // 下面几条按首选重建显示的路径都会比对失败、退回字面切分；那时预编辑会和
+    // 首选候选对不上（layout-and-unit-boundaries：切分即编辑单元）。仲裁已经把
+    // 分段显示按原串大小写算好，直接用。
+    const std::string &fault_display = engine_.fault_segmentation_with_cases();
+    if (!fault_display.empty())
     {
-        std::string preedit = request().raw_segmentation.empty() ? request().raw_input : request().raw_segmentation;
-        preedit = decorate(preedit);
-        if (!typed.empty() && typed.back() == '\'' && (preedit.empty() || preedit.back() != '\''))
-        {
-            preedit.push_back('\'');
-        }
-        return preedit;
+        return fault_display;
     }
-    if (current_scheme_type() == SchemeType::Quanpin)
+    if (!candidates().empty())
     {
-        // 容错仲裁选中的读音（句中简拼展开、槽内漏字变体）与敲的字母不逐音节相同，
-        // 下面几条按首选重建显示的路径都会比对失败、退回字面切分；那时预编辑会和
-        // 首选候选对不上（layout-and-unit-boundaries：切分即编辑单元）。仲裁已经把
-        // 分段显示按原串大小写算好，直接用。全拼方案下 shuangpin_raw 也会是 true
-        // （宿主默认取原串形态），所以这里只能按方案判断，不能用它当门。
-        if (!is_shuangpin())
+        const auto &head = candidates().front();
+        if (quanpin::literal_mixed_pinyin_match(request().raw_input, head.pinyin, head.canonical_pinyin))
         {
-            const std::string &fault_display = engine_.fault_segmentation_with_cases();
-            if (!fault_display.empty())
+            std::vector<size_t> boundaries;
+            size_t consumed = 0;
+            for (const auto &segment : quanpin::split_segments(head.pinyin))
             {
-                return decorate(fault_display);
+                consumed += segment.size();
+                boundaries.push_back(consumed);
             }
+            if (consumed == request().raw_input.size())
+                boundaries.pop_back();
+            return RebuildQuanpinDisplayAtBoundaries(typed, boundaries);
         }
-        if (!candidates().empty())
-        {
-            const auto &head = candidates().front();
-            if (quanpin::literal_mixed_pinyin_match(request().raw_input, head.pinyin, head.canonical_pinyin))
-            {
-                std::vector<size_t> boundaries;
-                size_t consumed = 0;
-                for (const auto &segment : quanpin::split_segments(head.pinyin))
-                {
-                    consumed += segment.size();
-                    boundaries.push_back(consumed);
-                }
-                if (consumed == request().raw_input.size())
-                    boundaries.pop_back();
-                return RebuildQuanpinDisplayAtBoundaries(typed, boundaries);
-            }
-        }
-        if (!candidates().empty())
-        {
-            std::string display = BuildQuanpinDisplayFromLiteralHead(request(), candidates().front());
-            if (display.empty())
-            {
-                display = BuildQuanpinDisplayFromLeadingCorrection(request(), candidates().front());
-            }
-            if (!display.empty())
-            {
-                return display;
-            }
-        }
-        return BuildQuanpinAutocorrectDisplay(request());
     }
-    std::string preedit =
-        request().normalized_segmentation.empty() ? request().segmentation : request().normalized_segmentation;
-    if (is_shuangpin())
+    if (!candidates().empty())
     {
-        preedit = decorate(preedit);
+        std::string display = BuildQuanpinDisplayFromLiteralHead(request(), candidates().front());
+        if (display.empty())
+        {
+            display = BuildQuanpinDisplayFromLeadingCorrection(request(), candidates().front());
+        }
+        if (!display.empty())
+        {
+            return display;
+        }
     }
-    if (!typed.empty() && typed.back() == '\'' && (preedit.empty() || preedit.back() != '\''))
-    {
-        preedit.push_back('\'');
-    }
-    return preedit;
+    return BuildQuanpinAutocorrectDisplay(request());
 }
 
 std::string InputSession::get_quanpin() const
@@ -702,18 +549,6 @@ std::string InputSession::get_quanpin() const
 
 bool InputSession::is_all_complete_pure_pinyin() const
 {
-    if (is_shuangpin())
-    {
-        const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
-        if (base.helpcode_length > 0 && base.effective_raw_input.size() >= base.helpcode_length)
-        {
-            const size_t base_length = base.effective_raw_input.size() - base.helpcode_length;
-            return shuangpin::is_complete_input(
-                base.raw_input.substr(0, shuangpin::raw_length_for_effective_prefix(base.raw_input, base_length)),
-                shuangpin_profile_);
-        }
-        return shuangpin::is_complete_input(base.raw_input, shuangpin_profile_);
-    }
     const auto &segmentation =
         request().normalized_segmentation.empty() ? request().segmentation : request().normalized_segmentation;
     return !segmentation.empty() && quanpin::is_complete_pinyin_input(segmentation);
@@ -728,24 +563,11 @@ bool InputSession::reads_as_pinyin() const
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     if (raw.empty())
         return false;
-    if (is_shuangpin())
-    {
-        // 双拼两键一个音节，打到一半时末尾会剩一个声母键。
-        return raw.size() == 1 || shuangpin::is_complete_input(raw, shuangpin_profile_) ||
-               shuangpin::is_complete_input(raw.substr(0, raw.size() - 1), shuangpin_profile_);
-    }
-    if (current_scheme_type() == SchemeType::Quanpin)
-        return !quanpin::cut_one_piece_min_segments(raw, false).empty();
-    return false;
+    return !quanpin::cut_one_piece_min_segments(raw, false).empty();
 }
 
 bool InputSession::has_active_helpcode() const
 {
-    if (is_shuangpin())
-    {
-        return !request().end_helpcodes.empty() ||
-               ResolveShuangpinCompositionBase(request(), shuangpin_profile_).helpcode_length > 0;
-    }
     return HasActiveQuanpinHelpcode(request());
 }
 
@@ -768,9 +590,6 @@ int InputSession::store_user_phrase(std::string pinyin, std::string word)
 
 int InputSession::store_user_phrase_from_canonical_pinyin(std::string pinyin, std::string word)
 {
-    // Both quanpin and shuangpin ultimately share the canonical quanpin
-    // dictionary.  Do not feed a complete quanpin key back through the active
-    // shuangpin profile a second time.
     if (!canonical_phrase_engine_)
         canonical_phrase_engine_ = std::make_unique<QuanpinEngine>(paths_);
     return canonical_phrase_engine_->create_word_from_canonical_pinyin(std::move(pinyin), std::move(word));
@@ -792,8 +611,7 @@ std::optional<std::string> InputSession::learn_sentence_candidate(const WordItem
         return std::nullopt;
     }
 
-    // 读音必须完整且音节数与字数对得上，否则落库的是个读音残缺的词条。双拼的整句
-    // 候选同样带 canonical quanpin，这里统一按全拼键处理。
+    // 读音必须完整且音节数与字数对得上，否则落库的是个读音残缺的词条。
     const std::string canonical = normalize_canonical_pinyin_for_word(selected.canonical_pinyin, selected.word);
     if (canonical.empty() || quanpin::split_segments(canonical).size() > kMaxLearnedSentenceSyllables)
     {
@@ -828,147 +646,6 @@ InputSession::SelectionTransition InputSession::advance_composition_after_select
 {
     SelectionTransition transition;
     transition.selected_canonical_pinyin = selected_canonical_pinyin;
-    if (is_shuangpin())
-    {
-        const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
-        const size_t word_pinyin_length = HelpcodeUtils::count_han_chars(selected_word) * 2;
-        const size_t total_input_length = base.effective_raw_input.size();
-
-        transition.full_pure_pinyin =
-            base.helpcode_length > 0 && total_input_length >= base.helpcode_length
-                ? base.effective_raw_input.substr(0, total_input_length - base.helpcode_length)
-                : base.effective_raw_input;
-
-        size_t consumed_length = remove_delimiters(selected_pinyin).size();
-        // 带句中辅助码时 base 是去掉反引号段的串，推进结果要映射回原串，见 RemapMidSentenceRest。
-        const std::string typed = request().raw_input_with_syllable_helpcodes;
-        const std::string original = typed.empty() ? base.raw_input_with_cases : typed;
-        std::string terminal_helpcode;
-        if (!prefix_candidates_active_)
-        {
-            if (!request().end_helpcodes.empty())
-            {
-                FanyImeMidSentenceHelpcode::ScanBlocks(
-                    original.data(), original.size(), engine_.helpcode_uppercase_triggers(),
-                    [&](size_t begin, size_t end, size_t, FanyImeMidSentenceHelpcode::BlockKind kind) {
-                        if (kind == FanyImeMidSentenceHelpcode::BlockKind::End && end == original.size())
-                        {
-                            terminal_helpcode = original.substr(begin);
-                        }
-                    });
-            }
-            else if (base.helpcode_length > 0)
-            {
-                const size_t begin = shuangpin::raw_length_for_effective_prefix(
-                    base.raw_input_with_cases, total_input_length - base.helpcode_length);
-                terminal_helpcode = typed.empty()
-                                        ? original.substr(begin)
-                                        : RemapMidSentenceRest(request(), typed, begin,
-                                                               base.raw_input_with_cases.size(), shuangpin_profile_)
-                                              .rest;
-            }
-        }
-        const auto consume_terminal_helpcode = [&](std::string &normalized_rest, std::string &cased_rest) {
-            if (terminal_helpcode.empty())
-            {
-                return;
-            }
-            // Explicit terminal blocks survive the existing layout remapping;
-            // implicit direct codes have already been excluded by rest_end.
-            if (!request().end_helpcodes.empty())
-            {
-                if (cased_rest.size() < terminal_helpcode.size() ||
-                    cased_rest.compare(cased_rest.size() - terminal_helpcode.size(), terminal_helpcode.size(),
-                                       terminal_helpcode) != 0)
-                {
-                    return;
-                }
-                cased_rest.resize(cased_rest.size() - terminal_helpcode.size());
-                normalized_rest = LowercaseLetters(cased_rest);
-            }
-            transition.consumed_terminal_helpcode_with_cases = terminal_helpcode;
-            // Include separators removed with the prefix so the consumed prefix,
-            // remaining suffix and terminal helpcode reconstruct the exact raw.
-            transition.consumed_raw_input_with_cases =
-                original.substr(0, original.size() - cased_rest.size() - terminal_helpcode.size());
-        };
-        if (base.helpcode_length > 0)
-        {
-            const size_t rest_start =
-                shuangpin::raw_length_for_effective_prefix(base.raw_input_with_cases, word_pinyin_length);
-            transition.consumed_raw_input_with_cases = base.raw_input_with_cases.substr(0, rest_start);
-            const size_t required_length = word_pinyin_length + base.helpcode_length;
-            transition.continues_composition =
-                required_length < total_input_length && word_pinyin_length < total_input_length;
-
-            if (transition.continues_composition)
-            {
-                const size_t rest_end = shuangpin::raw_length_for_effective_prefix(
-                    base.raw_input_with_cases, total_input_length - base.helpcode_length);
-                const std::string rest_pinyin_sequence = base.raw_input.substr(rest_start, rest_end - rest_start);
-                std::string normalized_rest = rest_pinyin_sequence;
-                std::string cased_rest = base.raw_input_with_cases.substr(rest_start, rest_end - rest_start);
-                remove_consumed_leading_separators(normalized_rest, cased_rest);
-                if (!typed.empty())
-                {
-                    auto remapped = RemapMidSentenceRest(request(), typed, rest_start, rest_end, shuangpin_profile_);
-                    transition.consumed_raw_input_with_cases = std::move(remapped.consumed);
-                    cased_rest = std::move(remapped.rest);
-                    normalized_rest = LowercaseLetters(cased_rest);
-                }
-                consume_terminal_helpcode(normalized_rest, cased_rest);
-                engine_.replace_shuangpin_raw_input(normalized_rest, cased_rest);
-                online_requests_.invalidate();
-                update_mixed_candidates();
-            }
-        }
-        else
-        {
-            if (consumed_length == 0 || consumed_length > base.effective_raw_input.size())
-            {
-                consumed_length = (std::min)(word_pinyin_length, base.effective_raw_input.size());
-            }
-
-            const size_t consumed_raw_length =
-                shuangpin::raw_length_for_effective_prefix(base.raw_input_with_cases, consumed_length);
-            transition.consumed_raw_input_with_cases = base.raw_input_with_cases.substr(0, consumed_raw_length);
-            transition.continues_composition = consumed_length < transition.full_pure_pinyin.size();
-
-            if (transition.continues_composition)
-            {
-                const std::string rest_pinyin_sequence =
-                    base.raw_input.substr(consumed_raw_length, base.raw_input.size() - consumed_raw_length);
-                const std::string rest_pinyin_sequence_with_cases = base.raw_input_with_cases.substr(
-                    consumed_raw_length, base.raw_input_with_cases.size() - consumed_raw_length);
-                std::string normalized_rest = rest_pinyin_sequence;
-                std::string cased_rest = rest_pinyin_sequence_with_cases;
-                remove_consumed_leading_separators(normalized_rest, cased_rest);
-                if (!typed.empty())
-                {
-                    auto remapped = RemapMidSentenceRest(request(), typed, consumed_raw_length,
-                                                         base.raw_input_with_cases.size(), shuangpin_profile_);
-                    transition.consumed_raw_input_with_cases = std::move(remapped.consumed);
-                    cased_rest = std::move(remapped.rest);
-                    normalized_rest = LowercaseLetters(cased_rest);
-                }
-                consume_terminal_helpcode(normalized_rest, cased_rest);
-                engine_.replace_shuangpin_raw_input(normalized_rest, cased_rest);
-                online_requests_.invalidate();
-                update_mixed_candidates();
-            }
-        }
-
-        if (!typed.empty() && !transition.continues_composition)
-        {
-            // 整串上屏：撤销时要还原的是用户敲的原串，连同反引号段。
-            transition.consumed_raw_input_with_cases = typed;
-        }
-
-        transition.current_segmentation = get_pinyin_segmentation();
-        transition.current_segmentation_with_cases = get_pinyin_segmentation_with_cases();
-        return transition;
-    }
-
     transition.full_pure_pinyin = request().normalized_input;
     const std::string current_segmentation =
         request().normalized_segmentation.empty() ? request().segmentation : request().normalized_segmentation;
@@ -1005,7 +682,7 @@ InputSession::SelectionTransition InputSession::advance_composition_after_select
     }
 
     size_t consumed_raw_length =
-        shuangpin::raw_length_for_effective_prefix(raw_input_with_cases_without_helpcodes, consumed_letters);
+        raw_length_for_effective_prefix(raw_input_with_cases_without_helpcodes, consumed_letters);
     transition.consumed_raw_input_with_cases = raw_input_with_cases_without_helpcodes.substr(0, consumed_raw_length);
 
     transition.continues_composition = !selected_pure_pinyin.empty() &&
@@ -1033,36 +710,6 @@ InputSession::SelectionTransition InputSession::advance_composition_after_select
 InputSession::CloudQueryState InputSession::get_cloud_query_state() const
 {
     CloudQueryState state;
-
-    if (is_shuangpin())
-    {
-        const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
-        state.cache_key = ResolveShuangpinCloudCacheKey(request(), shuangpin_profile_);
-        state.committed_pinyin = shuangpin::remove_manual_delimiters(state.cache_key);
-
-        if (has_active_helpcode())
-        {
-            return state;
-        }
-
-        const char last =
-            base.effective_raw_input_with_cases.empty() ? '\0' : base.effective_raw_input_with_cases.back();
-        const bool ends_with_input_key = (last >= 'a' && last <= 'z') || last == ';';
-        state.should_query =
-            ends_with_input_key && shuangpin::is_complete_input(base.effective_raw_input, shuangpin_profile_);
-
-        if (state.should_query)
-        {
-            // 云输入拿的是带撇号的全拼，但 ü 要换成 inputtools 认的写法：它和本地的
-            // Google 解码器一样只认 nue/lue，nve'dai'dong'wu 会被它拆成 nv + e，
-            // 「虐待动物」于是变成「女蛾黛动物」。committed_pinyin / cache_key 不受
-            // 影响，仍是双拼原串。
-            const std::string quanpin_segmentation =
-                shuangpin::normalize_input_with_delimiters(state.cache_key, shuangpin_profile_);
-            state.query_text = quanpin::to_google_spelling(quanpin_segmentation);
-        }
-        return state;
-    }
 
     state.committed_pinyin = request().normalized_input;
     state.cache_key = ResolveQuanpinCloudCacheKey(request());
@@ -1104,11 +751,6 @@ InputSession::CreatingWordProgress InputSession::update_creating_word_progress(
     return progress;
 }
 
-bool InputSession::is_shuangpin() const
-{
-    return current_scheme_type() == SchemeType::Shuangpin;
-}
-
 void InputSession::clear_pending_sequence()
 {
     pending_pinyin_sequence_.clear();
@@ -1126,9 +768,6 @@ void InputSession::apply_pending_sequence()
 
     switch (current_scheme_type())
     {
-    case SchemeType::Shuangpin:
-        engine_.replace_shuangpin_raw_input(raw_input, raw_input_with_cases);
-        break;
     case SchemeType::Quanpin:
         engine_.replace_quanpin_raw_input(raw_input, raw_input_with_cases);
         break;

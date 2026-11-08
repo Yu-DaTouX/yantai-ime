@@ -39,13 +39,9 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     core/input_session_composition.cpp
     core/input_session_editing.cpp
     core/input_session_candidates.cpp
-    direct_helpcode/direct_lattice.cpp
-    direct_helpcode/direct_resolver.cpp
-    direct_helpcode/spelling_graph.cpp
     english/english_dictionary.cpp
     local_modes/date_time_query.cpp
     local_modes/emoji_query.cpp
-    local_modes/jianpin_query.cpp
     local_modes/kaomoji_query.cpp
     local_modes/local_database.cpp
     local_modes/quick_phrase_query.cpp
@@ -66,14 +62,6 @@ set(METASEQUOIA_IME_ENGINE_SOURCES
     quanpin/lattice_rerank.cpp
     quanpin/word_lattice.cpp
     schemes/quanpin_scheme.cpp
-    schemes/shuangpin_scheme.cpp
-    shuangpin/engine.cpp
-    shuangpin/shuangpin_custom_profile.cpp
-    shuangpin/shuangpin_dictionary.cpp
-    shuangpin/shuangpin_profile.cpp
-    shuangpin/shuangpin_latin_words.cpp
-    shuangpin/shuangpin_query.cpp
-    shuangpin/shuangpin_utils.cpp
     user_dictionary/user_dictionary_journal.cpp
     user_dictionary/personal_dictionary.cpp
     user_dictionary/dictionary_state.cpp
@@ -260,10 +248,6 @@ if(BUILD_TESTING)
     target_link_libraries(test_frequency_input_session PRIVATE MetasequoiaIme::Engine)
     add_test(NAME frequency_input_session COMMAND test_frequency_input_session)
 
-    add_executable(test_direct_helpcode tests/src/test_direct_helpcode.cpp)
-    target_link_libraries(test_direct_helpcode PRIVATE MetasequoiaIme::Engine)
-    add_test(NAME direct_helpcode COMMAND test_direct_helpcode)
-
     add_executable(test_english_input_session tests/src/test_english_input_session.cpp)
     target_link_libraries(test_english_input_session PRIVATE MetasequoiaIme::Engine)
     add_test(NAME english_input_session COMMAND test_english_input_session)
@@ -276,10 +260,6 @@ if(BUILD_TESTING)
     target_link_libraries(test_mixed_expressive_input_session PRIVATE MetasequoiaIme::Engine)
     add_test(NAME mixed_expressive_input_session COMMAND test_mixed_expressive_input_session)
 
-
-    add_executable(test_jianpin_input_session tests/src/test_jianpin_input_session.cpp)
-    target_link_libraries(test_jianpin_input_session PRIVATE MetasequoiaIme::Engine)
-    add_test(NAME jianpin_input_session COMMAND test_jianpin_input_session)
 
     add_executable(test_temporary_input_session tests/src/test_temporary_input_session.cpp)
     target_link_libraries(test_temporary_input_session PRIVATE MetasequoiaIme::Engine)

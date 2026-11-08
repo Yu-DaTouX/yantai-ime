@@ -349,7 +349,7 @@ int run_test()
         database.execute("INSERT INTO emoji_pinyin VALUES('xiaolian','😀',30)");
         database.execute("INSERT INTO emoji_pinyin VALUES('xl','😀',10)");
         database.execute("INSERT INTO emoji_pinyin VALUES('laugh','😀',10)");
-        database.execute("INSERT INTO emoji_pinyin VALUES('xnlm','raw shuangpin match',40)");
+        database.execute("INSERT INTO emoji_pinyin VALUES('xnlm','raw key match',40)");
         // 长键 + 更靠前的目录位置，用来验证它不会压过精确命中。
         database.execute("INSERT INTO emoji_pinyin VALUES('kuxiao','😅',5)");
         database.execute("INSERT INTO emoji_pinyin VALUES('ku','😢',93)");
@@ -391,12 +391,6 @@ int run_test()
                     .candidates.front()
                     .word == "😀",
         "Emoji lookup did not support jianpin and English keywords.");
-    const auto shuangpin_emoji =
-        metasequoia::local_modes::query_emoji("xnlm", SchemeType::Shuangpin, others_database, 10);
-    require(shuangpin_emoji.candidates.size() == 3 && shuangpin_emoji.candidates[0].word == "😀" &&
-                shuangpin_emoji.candidates[1].word == "😄" &&
-                shuangpin_emoji.candidates[2].word == "raw shuangpin match",
-            "Emoji lookup did not merge raw and Xiaohe-shuangpin prefixes in catalog order.");
     require(
         metasequoia::local_modes::query_emoji("xiaolian", SchemeType::Quanpin, others_database, 1).candidates.size() ==
                 1 &&
@@ -417,13 +411,6 @@ int run_test()
     require(exact_first_limited.candidates.size() == 3 && exact_first_limited.candidates[0].word == "😢" &&
                 exact_first_limited.candidates[2].word == "😅",
             "Emoji lookup dropped an exact key match when the prefix tier filled the limit.");
-    // 双拼下只有展开后的全拼参与精确提级，原始码的精确命中按目录顺序排在后面。
-    const auto shuangpin_exact_first =
-        metasequoia::local_modes::query_emoji("xl", SchemeType::Shuangpin, others_database, 10);
-    require(shuangpin_exact_first.candidates.size() == 2 && shuangpin_exact_first.candidates[0].word == "🐘" &&
-                shuangpin_exact_first.candidates[1].word == "😀",
-            "Emoji lookup let a raw shuangpin exact match outrank the expanded full pinyin.");
-
     // 混输只认整串精确命中：ku 不带出 kuxiao 的 😅，xiao 这样的前缀什么都不出。
     using metasequoia::local_modes::query_mixed_emoji;
     const auto mixed_exact = query_mixed_emoji("KU", SchemeType::Quanpin, others_database, 3);
@@ -433,11 +420,6 @@ int run_test()
     require(query_mixed_emoji("xiao", SchemeType::Quanpin, others_database, 3).candidates.empty() &&
                 query_mixed_emoji("xiaolia", SchemeType::Quanpin, others_database, 3).candidates.empty(),
             "Mixed emoji lookup matched a key by prefix.");
-    // 双拼下只查展开后的全拼：xl → xiang 出 🐘，原始码 xl 的简拼键不算。
-    const auto mixed_shuangpin = query_mixed_emoji("xl", SchemeType::Shuangpin, others_database, 3);
-    require(mixed_shuangpin.candidates.size() == 1 && mixed_shuangpin.candidates[0].word == "🐘",
-            "Mixed emoji lookup let a raw shuangpin code match a jianpin key.");
-
     const auto kaomoji = metasequoia::local_modes::query_kaomoji("HAIXIU", SchemeType::Quanpin, others_database, 10);
     require(!kaomoji.diagnostic.has_value() && kaomoji.candidates.size() == 2 &&
                 kaomoji.candidates[0].word == "(*/ω＼*)" && kaomoji.candidates[1].word == "(^_^)" &&
@@ -452,11 +434,6 @@ int run_test()
                     .word == "( ˘ ³˘)♥" &&
             !metasequoia::local_modes::query_kaomoji("k", SchemeType::Quanpin, others_database, 10).candidates.empty(),
         "Kaomoji lookup did not support jianpin, English, and single-letter prefixes.");
-    const auto shuangpin_kaomoji =
-        metasequoia::local_modes::query_kaomoji("hx", SchemeType::Shuangpin, others_database, 10);
-    require(shuangpin_kaomoji.candidates.size() == 2 && shuangpin_kaomoji.candidates.front().word == "(*/ω＼*)",
-            "Kaomoji lookup did not expand Xiaohe shuangpin or deduplicate merged matches.");
-
     // 精确命中排在更长键之前：bai 必须先是自己的键，而不是 baifo 的目录位置更靠前的那条。
     const auto kaomoji_exact_first =
         metasequoia::local_modes::query_kaomoji("bai", SchemeType::Quanpin, others_database, 10);

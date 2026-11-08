@@ -80,7 +80,6 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_v_mode_query.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_emoji_query.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_kaomoji_query.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_jianpin_query.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_quanpin_jianpin_recall.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_quanpin_query_failure.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_fault_slot_jianpin.cpp"

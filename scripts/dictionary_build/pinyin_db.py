@@ -109,7 +109,7 @@ def _insert_quanpin_rows(connection: sqlite3.Connection, rows: list[tuple[str, s
 
 
 # 万象词库把嗯、呣记成 n、ng、m，靠方案的拼写运算（wanxiang_algebra.yaml 的 xform/^ng(\d)/eng$1/、
-# xform/^n(\d)/en$1/、xform/^m(\d)/me$1/）改写成 eng、en、me，双拼才打得出来。引擎没有拼写运算，入库时照做。
+# xform/^n(\d)/en$1/、xform/^m(\d)/me$1/）改写成 eng、en、me，输入才打得出来。引擎没有拼写运算，入库时照做。
 _ZERO_INITIAL = {"n": "en", "ng": "eng", "m": "me"}
 
 

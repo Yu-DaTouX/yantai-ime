@@ -3,7 +3,6 @@
 #include "../core/data_path.h"
 #include <mutex>
 #include <stdexcept>
-#include "../shuangpin/shuangpin_utils.h"
 
 #include <utf8.h>
 #include <algorithm>

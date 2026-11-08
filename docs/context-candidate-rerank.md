@@ -5,7 +5,7 @@
 ## 实现范围
 
 `quanpin::rerank_dictionary_candidates` 对完整读音匹配的前 32 个词库候选做后台重排，
-全拼在 `query_exact` 合并完成后接入，双拼在 `generateSeries` 合并完成后接入。
+全拼在 `query_exact` 合并完成后接入。
 只交换这些词库行的位置，保留候选来源、读音和权重，不写回数据库。
 
 评分复用轻量 `sentence-model.safetensors` 和 `RescoreWorker`，参考最近 64 个字符。
@@ -36,7 +36,7 @@ $env:METASEQUOIA_IME_DATA_DIR = '<隔离测试数据目录>'
 ctest --test-dir engine/build-local -C Release -R '^neural_sentence$' --output-on-failure
 ```
 
-覆盖全拼 `xue` / 小鹤双拼 `xt` 在「冬天会下大」后提升「雪」，换成
+覆盖全拼 `xue` 在「冬天会下大」后提升「雪」，换成
 「我们正在学校里上」后提升「学」，以及「上海 / 伤害」的词组消歧。
 另外覆盖清空上下文、关闭开关、候选元数据保留、缓存先验/参数隔离，以及
 实际 `InputSession` 的手动固定首位覆盖模型结果。

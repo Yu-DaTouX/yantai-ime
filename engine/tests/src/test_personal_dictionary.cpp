@@ -72,8 +72,7 @@ void run()
                          PersonalDictionaryEntry{static_cast<PersonalDictionaryKind>(99), "a", "a"}})
         require(!edit_personal_dictionary(paths, std::nullopt, invalid).success, "Invalid entry accepted");
     require(edit_personal_dictionary(paths, std::nullopt, pinyin).success, "Pinyin add failed");
-    require(has(paths, "nihao", "拟好") && has(paths, "nihc", "拟好", SchemeType::Shuangpin),
-            "Personal pinyin is missing from input schemes");
+    require(has(paths, "nihao", "拟好"), "Personal pinyin is missing from input schemes");
     {
         // 新写入的拼音词按词库写法归一：nue 存成 nve，查询把 nue 归一后才查得到这一行。
         PersonalDictionaryEntry umlaut{PersonalDictionaryKind::Pinyin, "nue'nv", "虐女", 10};

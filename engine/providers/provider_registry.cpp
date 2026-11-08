@@ -1,8 +1,7 @@
 #include "provider_registry.h"
 #include <stdexcept>
 
-ProviderRegistry::ProviderRegistry(const ShuangpinProfile &shuangpin_profile, metasequoia::RuntimePaths paths)
-    : pinyin_provider_(shuangpin_profile, paths)
+ProviderRegistry::ProviderRegistry(metasequoia::RuntimePaths paths) : pinyin_provider_(paths)
 {
 }
 
@@ -11,7 +10,6 @@ ICandidateProvider &ProviderRegistry::resolve(SchemeType scheme_type)
     switch (scheme_type)
     {
     case SchemeType::Quanpin:
-    case SchemeType::Shuangpin:
         return pinyin_provider_;
     default:
         throw std::runtime_error("Unknown scheme type.");
@@ -23,7 +21,6 @@ void ProviderRegistry::reset_cache(SchemeType scheme_type)
     switch (scheme_type)
     {
     case SchemeType::Quanpin:
-    case SchemeType::Shuangpin:
         pinyin_provider_.reset_cache();
         return;
     default:

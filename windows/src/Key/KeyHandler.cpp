@@ -295,7 +295,6 @@ HRESULT CMetasequoiaIME::_HandleInsertText(TfEditCookie ec, _In_ ITfContext *pCo
     return _HandleCompleteCommitFirst(ec, pContext);
 }
 
-
 HRESULT CMetasequoiaIME::_HandleCommitCandidateAndContinue(TfEditCookie ec, _In_ ITfContext *pContext,
                                                            const std::wstring &payload)
 {
@@ -519,7 +518,6 @@ HRESULT CMetasequoiaIME::_HandleCompositionInput(TfEditCookie ec, _In_ ITfContex
     }
 
     // Add virtual key to composition processor engine
-    wch = pCompositionProcessorEngine->NormalizeMidSentenceHelpcodeTrigger(wch);
     const DWORD_PTR previousLength = pCompositionProcessorEngine->GetVirtualKeyLength();
     if (pCompositionProcessorEngine->AddVirtualKey(wch) &&
         pCompositionProcessorEngine->GetVirtualKeyLength() > previousLength)
@@ -635,7 +633,7 @@ HRESULT CMetasequoiaIME::_HandleCompositionInputWorker(_In_ CCompositionProcesso
 
             if (gotServerPreedit)
             {
-                // 双拼显示全拼时预编辑和按键缓冲不再是同一串字母，Server 把光标映射附在末尾。
+                // 预编辑和按键缓冲不再是同一串字母时，Server 把光标映射附在末尾。
                 FanyImePreeditCaretMap::Decode(readingStr, preeditCaretMap);
             }
             else if (!GlobalIme::word_for_creating_word.empty())

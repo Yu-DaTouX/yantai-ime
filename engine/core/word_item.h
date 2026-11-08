@@ -23,7 +23,7 @@ enum class CandidateSource
     // keyboard 档更快。两者都属于「猜出来的整句」，落库/学习判定与 Generated/Fallback 同类。
     NeuralDesktop,
     NeuralKeyboard,
-    // 全拼/双拼里打 rq / sj / xq 等唤醒词时混进普通候选的日期、时间、星期。Shift+T 模式里的同一批
+    // 全拼里打 rq / sj / xq 等唤醒词时混进普通候选的日期、时间、星期。Shift+T 模式里的同一批
     // 文本仍记 Generated：那是独占的候选列表，不和别的候选排位置。
     DateTime,
     // 万象语法模型（octagram .gram）在词格 n-best 上重排挑中的那一句。句子仍是词格
@@ -41,7 +41,7 @@ struct WordItem
     // user typed (including abbreviated pinyin).
     std::string pinyin;
     // The complete quanpin key read from the database.  It is deliberately
-    // separate from pinyin: abbreviated quanpin and shuangpin candidates use
+    // separate from pinyin: abbreviated quanpin candidates use
     // their typed code for advancement, but phrase creation must persist a
     // complete, unambiguous pronunciation.
     std::string canonical_pinyin;

@@ -37,7 +37,7 @@ QuickPhraseQueryResult query_failure(const char *diagnostic)
 {
     return {{}, std::string(diagnostic)};
 }
-// 前缀查询给 K 模式用，精确查询给全拼/双拼混排用；上界拼 0x7f 让 key 落在 [code, code+0x7f)。
+// 前缀查询给 K 模式用，精确查询给全拼混排用；上界拼 0x7f 让 key 落在 [code, code+0x7f)。
 QuickPhraseQueryResult query_quick_phrase_rows(const std::string &code, const std::filesystem::path &database_path,
                                                int limit, bool exact)
 {

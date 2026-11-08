@@ -3,7 +3,6 @@
 #include "local_database.h"
 
 #include "../core/data_path.h"
-#include "../shuangpin/shuangpin_query.h"
 
 #include <algorithm>
 #include <cctype>
@@ -33,8 +32,8 @@ LocalQueryResult query_failure(const char *diagnostic)
     return {{}, std::string(diagnostic)};
 }
 
-LocalQueryResult run_emoji_query(const std::string &code, SchemeType scheme, const std::filesystem::path &database_path,
-                                 int limit, const ShuangpinProfile &profile, bool exact_only)
+LocalQueryResult run_emoji_query(const std::string &code, SchemeType /*scheme*/,
+                                 const std::filesystem::path &database_path, int limit, bool exact_only)
 {
     if (!valid_code(code) || limit <= 0)
     {
@@ -47,20 +46,6 @@ LocalQueryResult run_emoji_query(const std::string &code, SchemeType scheme, con
 
     const std::string lower = lower_ascii(code);
     std::vector<RankedLookup> lookups{{lower, true}};
-    if (scheme == SchemeType::Shuangpin)
-    {
-        const std::string quanpin = shuangpin::normalize_input(lower, profile);
-        if (!quanpin.empty() && quanpin != lower)
-        {
-            // 双拼下精确命中只认展开后的全拼：原始码恰好等于某个简拼或英文键（如 xl → 😀）时，
-            // 不能压过用户想打的全拼前缀；只要精确命中时原始码干脆不查。
-            if (exact_only)
-                lookups.clear();
-            else
-                lookups.front().exact_ranks = false;
-            lookups.push_back({quanpin, true});
-        }
-    }
 
     const std::shared_ptr<sqlite3> database = open_local_database(database_path);
     if (!database)
@@ -91,21 +76,20 @@ LocalQueryResult run_emoji_query(const std::string &code, SchemeType scheme, con
 }
 } // namespace
 
-LocalQueryResult query_emoji(const std::string &code, SchemeType scheme, int limit, const ShuangpinProfile &profile)
+LocalQueryResult query_emoji(const std::string &code, SchemeType scheme, int limit)
 {
-    return query_emoji(code, scheme, data_file_path(metasequoia::assets::other_dictionary), limit, profile);
+    return query_emoji(code, scheme, data_file_path(metasequoia::assets::other_dictionary), limit);
 }
 
 LocalQueryResult query_emoji(const std::string &code, SchemeType scheme, const std::filesystem::path &database_path,
-                             int limit, const ShuangpinProfile &profile)
+                             int limit)
 {
-    return run_emoji_query(code, scheme, database_path, limit, profile, false);
+    return run_emoji_query(code, scheme, database_path, limit, false);
 }
 
 LocalQueryResult query_mixed_emoji(const std::string &code, SchemeType scheme,
-                                   const std::filesystem::path &database_path, int limit,
-                                   const ShuangpinProfile &profile)
+                                   const std::filesystem::path &database_path, int limit)
 {
-    return run_emoji_query(code, scheme, database_path, limit, profile, true);
+    return run_emoji_query(code, scheme, database_path, limit, true);
 }
 } // namespace metasequoia::local_modes
