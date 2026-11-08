@@ -78,9 +78,6 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
         MakeTomlAssignmentId("helpcode", "quanpin_helpcode"),
         MakeTomlAssignmentId("utility", "emoji_mode"),
         MakeTomlAssignmentId("utility", "kaomoji_mode"),
-        MakeTomlAssignmentId("tencent_tmt", "enabled"),
-        MakeTomlAssignmentId("aliyun_mt", "enabled"),
-        MakeTomlAssignmentId("niutrans", "enabled"),
     };
     return kIds.count(assignment_id) != 0;
 }

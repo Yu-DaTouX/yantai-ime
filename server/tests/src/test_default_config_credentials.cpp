@@ -1,7 +1,6 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include "cloud/translation_gloss.h"
 #include "tests/includes/test_framework.h"
 #include "config/credential_protection.h"
 
@@ -71,23 +70,18 @@ std::vector<ConfigEntry> ReadCredentialEntries(const std::string &path, bool &op
 } // namespace
 
 // The shipped default config must not contain anything the runtime mistakes for a real credential.
-// tencent_tmt.enabled now ships off, but a user who
-// switches one on before filling in a key must not end up sending the composition, the recorded
-// audio or the candidate text to a third party under a placeholder that reads as usable.
 // This reads the file the installer actually ships rather than restating today's placeholder
-// spellings, so introducing a fourth spelling fails here instead of in someone's traffic log.
+// spellings, so a new credential key with a usable-looking value fails here instead of in
+// someone's traffic log.
 TEST_CASE(default_config_ships_no_usable_credentials)
 {
     bool opened = false;
     const std::vector<ConfigEntry> entries = ReadCredentialEntries(MSIME_DEFAULT_CONFIG_PATH, opened);
     REQUIRE(opened);
-    REQUIRE(!entries.empty());
 
     for (const ConfigEntry &entry : entries)
     {
-        const bool usable_as_token = !CredentialProtection::IsPlaceholderCredential(entry.value);
-        const bool usable_as_secret = CloudTranslation::IsUsableSecret(entry.value);
-        if (usable_as_token || usable_as_secret)
+        if (!CredentialProtection::IsPlaceholderCredential(entry.value))
         {
             // Thrown rather than REQUIRE'd so the failure names the offending key and line.
             throw std::runtime_error("config.default.toml line " + std::to_string(entry.line) + ": " + entry.key +
@@ -104,11 +98,4 @@ TEST_CASE(placeholder_credentials_are_rejected_in_every_shipped_spelling)
     REQUIRE(CredentialProtection::IsPlaceholderCredential("<YOUR_ASR_APP_KEY>"));
     REQUIRE(CredentialProtection::IsPlaceholderCredential("FAKESECRET_e1f2g3h4i5j6k7l8m9n0"));
     REQUIRE(!CredentialProtection::IsPlaceholderCredential("sk-a-real-looking-token"));
-
-    REQUIRE(!CloudTranslation::IsUsableSecret(""));
-    REQUIRE(!CloudTranslation::IsUsableSecret("<YOUR_OWN_TENCENT_SECRET_ID>"));
-    REQUIRE(!CloudTranslation::IsUsableSecret("<YOUR_TENCENT_SECRET_ID>"));
-    REQUIRE(!CloudTranslation::IsUsableSecret("  <YOUR_TENCENT_SECRET_KEY>  "));
-    REQUIRE(!CloudTranslation::IsUsableSecret("FAKESECRET_q2r3s4t5u6v7w8x9y0z1"));
-    REQUIRE(CloudTranslation::IsUsableSecret("AKIDrealLookingSecretId"));
 }

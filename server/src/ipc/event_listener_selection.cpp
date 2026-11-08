@@ -265,7 +265,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             mid_sentence_ranking_candidates = g_inputSession->candidates_without_mid_sentence_helpcode();
         }
         const bool mid_sentence_ranking = !mid_sentence_ranking_candidates.empty();
-        // 日文候选的键是罗马音，不在拼音词库里：调频、造词、云候选落库都会把它当拼音键写进日志，
+        // 日文候选的键是罗马音，不在拼音词库里：调频、造词、整句落库都会把它当拼音键写进日志，
         // 升级回放时日文词就成了中文候选（#869）。日文候选一律不往拼音词库写。
         const bool japanese_candidate = curWordItem.scheme == SchemeType::JapaneseRomaji;
         // 字母词（T恤）也不调频：拼音分表里没有它的行，调频改不到，只会白记选择计数（#1340）。
@@ -332,7 +332,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             {
                 EnqueueLearnDateTimeOrderTask(curWordItem.pinyin, client_id, activation_epoch);
             }
-            UpdateCloudInput("");
             UpdateEnglishInput("");
             UpdateMixedInput({});
             g_inputSession->reset_state();
@@ -344,31 +343,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             GlobalIme::composition.clear();
             ClearSpecialModeTriggers();
             return;
-        }
-        std::string cloudCommittedPinyin;
-        bool cloudCommittedPinyinIsCanonical = false;
-        if (curWordItem.source == CandidateSource::CloudSuggestion)
-        {
-            if (!curWordItem.canonical_pinyin.empty())
-            {
-                cloudCommittedPinyin = curWordItem.canonical_pinyin;
-                cloudCommittedPinyinIsCanonical = true;
-            }
-            else if (g_inputSession->is_all_complete_pure_pinyin())
-            {
-                // 与 AI 联想同一个坑：committed_pinyin 走的是 normalized_input，丢掉了音节
-                // 边界，create_word 会用贪心的 "correction" 切分重新断句，qi'e'huan 落成
-                // qie'huan，音节数与字数对不上、do_validate 静默失败而不入库。整串是完整
-                // 拼音时改用带撇号的 normalized_segmentation 作 canonical 键，按用户实际断句
-                // 落库。简拼 / 带 helpcode 等非完整拼音的云候选仍走原来的 committed_pinyin
-                // 路径（见下面的 else），避免回归。
-                cloudCommittedPinyin = g_inputSession->get_pinyin_segmentation();
-                cloudCommittedPinyinIsCanonical = true;
-            }
-            else
-            {
-                cloudCommittedPinyin = g_inputSession->get_cloud_query_state().committed_pinyin;
-            }
         }
         // 这次选择之前是否已经在造词。下面的造词收尾会清掉这个标志，之后就问不出来了。
         const bool was_creating_word = GlobalIme::composition.creating_word.active;
@@ -396,12 +370,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         {
             GlobalIme::composition.caret_position = g_inputSession->get_pinyin_sequence_with_cases().size();
         }
-        // A cloud suggestion is an already-composed result returned for the
-        // current query.  It must commit as one candidate even when the
-        // returned query spelling is shorter than the raw input (for example
-        // with an abbreviation or an active help-code suffix).  Treating it
-        // like an ordinary partial candidate enters word-creation mode, while
-        // the cloud branch below still persists the selected word.
         const bool isNeedCreateWord =
             FanyImeIpc::ShouldEnterCreatingWord(curWordItem.source, selection_transition.continues_composition);
         if (isNeedCreateWord)
@@ -484,16 +452,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             EnqueueStoreUserPhraseTask(curWordItem.canonical_pinyin, curWord, /*pinyin_is_canonical=*/true);
         }
 
-        // 看看云联想出来的词是否需要被插入到数据库
-        if (curWordItem.source == CandidateSource::CloudSuggestion && !cloudCommittedPinyin.empty())
-        {
-            if (!japanese_candidate)
-                EnqueueStoreUserPhraseTask(cloudCommittedPinyin, curWord, cloudCommittedPinyinIsCanonical);
-            // 清理云联想变量状态
-            Global::cloud_candidate.added = false;
-            Global::cloud_candidate.word.clear();
-            Global::cloud_candidate.pinyin.clear();
-        }
         AppendRescoringContext(curWord);
 
         if (!isNeedCreateWord)

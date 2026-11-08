@@ -13,8 +13,6 @@
 #include <windows.h>
 #include <fmt/xchar.h>
 #include <spdlog/spdlog.h>
-#include "cloud/cloud_ime.h"
-#include "cloud/cloud_translation.h"
 #include "english/english_ime.h"
 #include "mixed/mixed_candidates.h"
 #include "engine/neural/rescore_worker.h"
@@ -187,9 +185,6 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE /*hPrevInstance*/,
         Sleep(INFINITE);
     }
 
-    CloudIme::Start([](const std::string &candidate, const std::string &pinyin, uint64_t generation) {
-        FanyNamedPipe::EnqueueCloudCandidate(candidate, pinyin, generation);
-    });
     // 神经整句重排：打分在引擎自己的后台线程上跑，算完通过这个回调回到任务队列，由队列去重查候选。
     // 不 Start 什么线程——没开这个开关的用户不会平白多一条。
     neural::RescoreWorker::instance().set_ready_callback([] { FanyNamedPipe::EnqueueRescoredCandidates(); });
@@ -201,10 +196,6 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE /*hPrevInstance*/,
         [](std::vector<EnglishIme::TranslationResult> results, uint64_t generation) {
             FanyNamedPipe::EnqueueCandidateTranslations(std::move(results), generation);
         });
-    CloudTranslation::Start(CommonUtils::get_ime_data_path() + "\\english.db",
-                            [](std::vector<EnglishIme::TranslationResult> results, uint64_t generation) {
-                                FanyNamedPipe::EnqueueCandidateTranslations(std::move(results), generation, true);
-                            });
     MixedCandidates::Start(CommonUtils::get_ime_data_path() + "\\english.db",
                            CommonUtils::get_ime_data_path() + "\\others.db",
                            [](MixedCandidates::Result result, const std::string &input, uint64_t generation) {
@@ -239,9 +230,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE /*hPrevInstance*/,
     FanyNamedPipe::RegisterStatusSnapshotWindow(nullptr);
 
     EnglishIme::Stop();
-    CloudTranslation::Stop();
     MixedCandidates::Stop();
-    CloudIme::Stop();
     ClipboardMonitor::Stop();
 
     pipe_running = false;

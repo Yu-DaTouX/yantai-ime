@@ -602,7 +602,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const bool previous_floating_toolbar_auto_hide = GetConfiguredFloatingToolbarAutoHide();
             const int previous_floating_toolbar_auto_hide_delay = GetConfiguredFloatingToolbarAutoHideDelay();
             const bool previous_floating_toolbar_shadow = GetConfiguredFloatingToolbarShadow();
-            const bool previous_cloud_candidates = GetConfiguredCloudCandidatesEnabled();
             const bool previous_comma_period = GetConfiguredPagingCommaPeriodEnabled();
             const bool previous_smart_punctuation = GetConfiguredSmartPunctuationEnabled();
             const bool previous_smart_punctuation_space_convert = GetConfiguredSmartPunctuationSpaceConvertEnabled();
@@ -718,8 +717,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                 {
                     ApplyConfiguredFloatingToolbarSize();
                 }
-                if (previous_cloud_candidates && !GetConfiguredCloudCandidatesEnabled())
-                    FanyNamedPipe::CancelCloudCandidateRequest();
                 if (previous_comma_period != GetConfiguredPagingCommaPeriodEnabled() ||
                     previous_paging_worker_payload != FormatPagingCommaPeriodWorkerPayload())
                 {

@@ -1,12 +1,3 @@
-{ 升级换目录时，旧配置会迁移到新目录。任一目录已有配置，就跳过安装选项。}
-function UserConfigExistsBeforeInstall: Boolean;
-begin
-  Result := FileExists(UserConfigPath);
-  if (not Result) and
-     (CompareText(GetDataDir(''), ResolvePreviousDataDir) <> 0) then
-    Result := FileExists(AddBackslash(ResolvePreviousDataDir) + 'config.toml');
-end;
-
 function SameFileContent(const A, B: String): Boolean;
 begin
   try
@@ -56,8 +47,8 @@ begin
   DropMigratedCopy(OldDir, NewDir, 'custom_translations.txt');
 end;
 
-{ 网络页因为旧配置存在而跳过。旧配置没搬过去，新目录就会装上出厂配置，
-  用户主动打开的云候选会被悄悄关掉，所以必须中止安装。}
+{ 旧配置没搬过去，新目录就会装上出厂配置，用户的设置会被悄悄重置，
+  所以必须中止安装。}
 function ConfigMigrationFailure(const OldDir, NewDir: String): String;
 begin
   Result := '';
@@ -79,53 +70,4 @@ begin
       '无法把自定义翻译 custom_translations.txt 从 ' + OldDir + ' 移动到 ' + NewDir + '。' + #13#10 +
       '请确认文件没有被其他程序占用、目标磁盘可写，然后重试安装。' + #13#10 +
       '该文件仍留在 ' + OldDir + '，本次安装没有改动它。';
-end;
-
-{ 只改本次安装新生成的 config.toml：把向导里的勾选结果原样写进 cloud_candidates，
-  勾选就写 true、不勾写 false（出厂配置已是 false，这一步保证勾选能生效、不勾也确定是关）。
-  写入失败不中止安装：此时文件已落盘，中止只会留下一个缺登录任务和目录权限的半成品。
-  改为提示用户到设置页手动改。}
-procedure ApplyNetworkChoiceToUserConfig;
-var
-  Lines: TArrayOfString;
-  Index: Integer;
-  Trimmed: String;
-  InGeneral: Boolean;
-  Problem: String;
-  Wanted: String;
-begin
-  if UserConfigExistedBeforeInstall or (NetworkPage = nil) then
-    Exit;
-  if NetworkPage.Values[CloudCandidatesIndex] then
-    Wanted := 'true'
-  else
-    Wanted := 'false';
-
-  Problem := '缺少 cloud_candidates';
-  if not LoadStringsFromFile(UserConfigPath, Lines) then
-    Problem := '无法读取'
-  else
-  begin
-    InGeneral := False;
-    for Index := 0 to GetArrayLength(Lines) - 1 do
-    begin
-      Trimmed := Trim(Lines[Index]);
-      if (Length(Trimmed) > 0) and (Trimmed[1] = '[') then
-        InGeneral := (Trimmed = '[general]')
-      else if InGeneral and (Pos('cloud_candidates', Trimmed) = 1) then
-      begin
-        Lines[Index] := 'cloud_candidates = ' + Wanted;
-        if SaveStringsToUTF8FileWithoutBOM(UserConfigPath, Lines, False) then
-          Exit;
-        Problem := '无法保存';
-        Break;
-      end;
-    end;
-  end;
-
-  Log('Cannot apply cloud candidates choice to ' + UserConfigPath + ': ' + Problem);
-  SuppressibleMsgBox(
-    '无法把云候选选择写入 ' + UserConfigPath + '（' + Problem + '）。' + #13#10 +
-    '安装已完成，请到「设置 → 输入」里确认云候选是否关闭。',
-    mbError, MB_OK, IDOK);
 end;

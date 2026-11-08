@@ -141,16 +141,11 @@ struct Task
     uint64_t activation_epoch = 0;
     std::chrono::steady_clock::time_point enqueued_at{};
     uint64_t enqueue_sequence = 0;
-    std::string cloud_candidate;
-    std::string cloud_pinyin;
-    uint64_t cloud_generation = 0;
-    std::optional<metasequoia::OnlineQuery> online_query;
     std::vector<WordItem> english_candidates;
     std::string english_input;
     uint64_t english_generation = 0;
     std::vector<EnglishIme::TranslationResult> translation_results;
     uint64_t translation_generation = 0;
-    bool translation_merge = false;
     MixedCandidates::Result mixed_result;
     std::string mixed_input;
     uint64_t mixed_generation = 0;
@@ -533,19 +528,13 @@ void WorkerThread()
             break;
         }
 
-        case TaskType::ApplyCloudCandidate: {
-            ApplyCloudCandidate(task.cloud_candidate, task.cloud_pinyin, task.cloud_generation, task.online_query);
-            break;
-        }
-
         case TaskType::ApplyEnglishCandidates: {
             ApplyEnglishCandidates(std::move(task.english_candidates), task.english_input, task.english_generation);
             break;
         }
 
         case TaskType::ApplyCandidateTranslations: {
-            ApplyCandidateTranslations(std::move(task.translation_results), task.translation_generation,
-                                       task.translation_merge);
+            ApplyCandidateTranslations(std::move(task.translation_results), task.translation_generation);
             break;
         }
 
@@ -1044,7 +1033,7 @@ void WorkerThread()
             }
             // Global::candidate_ui.items 是按键时那份副本，重查后必须重新组页才看得到新的
             // 整句候选；只刷新页面会把旧列表再发一遍。与 ApplyRescoredOrder 共用同一段。
-            (void)RequeryCandidatesPreservingOnline(owner);
+            (void)RequeryCandidatesAfterAsyncMerge(owner);
             break;
         }
         }
@@ -1067,28 +1056,6 @@ void EnqueueTask(TaskType type, const FanyImeNamedpipeData &pipeData, uint64_t a
         task.client_id = pipeData.client_id;
         task.activation_epoch = activation_epoch;
         task.enqueued_at = std::chrono::steady_clock::now();
-        PushTaskLocked(std::move(task));
-    }
-    pipe_queueCv.notify_one();
-}
-
-void EnqueueCloudCandidate(const std::string &candidate, const std::string &pinyin, uint64_t generation)
-{
-    const AsyncRequestOrigin origin = FindCloudRequestOrigin(pinyin, generation);
-    if (origin.client_id == 0 || origin.activation_epoch == 0)
-    {
-        return;
-    }
-    {
-        std::lock_guard lock(queueMutex);
-        Task task;
-        task.type = TaskType::ApplyCloudCandidate;
-        task.cloud_candidate = candidate;
-        task.cloud_pinyin = pinyin;
-        task.cloud_generation = generation;
-        task.online_query = origin.engine_query;
-        task.client_id = origin.client_id;
-        task.activation_epoch = origin.activation_epoch;
         PushTaskLocked(std::move(task));
     }
     pipe_queueCv.notify_one();
@@ -1131,7 +1098,7 @@ void EnqueueEnglishCandidates(std::vector<WordItem> candidates, const std::strin
     pipe_queueCv.notify_one();
 }
 
-void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation, bool merge)
+void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation)
 {
     {
         std::lock_guard lock(queueMutex);
@@ -1139,7 +1106,6 @@ void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> res
         task.type = TaskType::ApplyCandidateTranslations;
         task.translation_results = std::move(results);
         task.translation_generation = generation;
-        task.translation_merge = merge;
         PushTaskLocked(std::move(task));
     }
     pipe_queueCv.notify_one();

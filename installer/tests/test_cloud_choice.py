@@ -25,11 +25,5 @@ class CloudChoiceTests(unittest.TestCase):
     def test_conflict_is_rejected_on_the_data_dir_page(self):
         self.assertIn("ConfigMigrationProblem(", function_body("NextButtonClick"))
 
-    def test_cloud_choice_runs_after_required_post_install_steps(self):
-        post_install = function_body("CurStepChanged", "procedure")
-        for step in ("CreateWatchdogLogonTask;", "EnsureImeUserDataDir;", "'MetasequoiaImeWatchdog'"):
-            self.assertLess(post_install.index(step), post_install.index("ApplyNetworkChoiceToUserConfig;"))
-
-
 if __name__ == "__main__":
     unittest.main()

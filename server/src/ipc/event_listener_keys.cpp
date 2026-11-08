@@ -959,7 +959,6 @@ void HandleCreatingWordEscape(uint64_t client_id, uint64_t activation_epoch, uin
         g_inputSession->set_pinyin_sequence("");
         g_inputSession->set_pinyin_sequence_with_cases("");
         g_inputSession->recompute_candidates();
-        UpdateCloudInput("");
         UpdateEnglishInput("");
         UpdateMixedInput({});
         g_dedicated_english_answer_pending = false;
@@ -1377,8 +1376,8 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
                                                !is_paging_key && !is_composition_edit_key;
 
     // Punctuation needs a synchronous highlighted-candidate response on the TSF pipe.
-    // Reply before cloud-query and candidate recomputation work so the TSF-side
-    // timeout sentinel keeps its original meaning instead of masking latency here.
+    // Reply before candidate recomputation work so the TSF-side timeout sentinel
+    // keeps its original meaning instead of masking latency here.
     if (is_commit_with_highlighted_candidate_punctuation)
     {
         Global::MsgTypeToTsf = Global::DataFromServerMsgType::Normal;
@@ -1667,25 +1666,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
             SendCurrentDataToClient(client_id, activation_epoch, request_id);
         }
         return;
-    }
-
-    //
-    // 先判断要不要触发云联想
-    // 判断依据：
-    //  - 拼音序列长度是偶数
-    //  - 最后一个字符不是大写字母
-    //
-    // Paging / selection must not bump async generations or re-apply cached
-    // cloud/AI results (that previously reset page_index and re-cached duplicates).
-    const bool suppress_async_lookup = is_paging_key || is_selection_key;
-
-    const auto cloud_query_state = g_inputSession->get_cloud_query_state();
-    if (!g_english_input_mode && !suppress_async_lookup &&
-        !IsSpecialModeCompositionActive(g_inputSession->get_pinyin_sequence_with_cases()) &&
-        cloud_query_state.should_query)
-    {
-        ScopedKeyStage cloud_query{client_id, activation_epoch, request_id, L"handle-async-query"};
-        UpdateCloudInput(cloud_query_state.query_text, client_id, activation_epoch);
     }
 
     // The shape the key leaves behind: a Backspace that keeps the creating word

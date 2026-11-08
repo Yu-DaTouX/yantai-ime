@@ -69,8 +69,6 @@ emoji_mixed_input = false
 kaomoji_mixed_input = false
 # 中文输入状态下输入恰好等于符号编码（alpha、infinity、szq、xl，数字读音 yi → ① ⑴ ⒈，标点读音 dian → · 、、shuminghao → 《》 〈〉）时显示符号候选，首个紧跟首选，其余排在颜文字之后
 symbol_mixed_input = false
-# 云候选（默认关闭：开启后每次输入都会把当前拼音发给 Google 的 input-tools 服务）
-cloud_candidates = false
 # TODO: 极简模式。极简模式下，候选窗口使用 d2d 绘制，界面只作展示候选项，无其他功能。
 clean_mode = false
 
@@ -126,56 +124,7 @@ sentence_collocation_weak_penalty = -100.0
 sentence_collocation_rear_penalty = -18.0
 
 #
-# 腾讯云机器翻译（候选项本地词库未命中时的补全）
-# enabled 布尔仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
-#
-[tencent_tmt]
-enabled = false
-secret_id = ""
-secret_key = ""
-region = "ap-guangzhou"
-# 候选词翻译/背单词目标语种：en / fr / ja / es / ru / de / ko / th / vi / it
-target_language = "en"
-
-#
-# 阿里云机器翻译（通用版）。secret_id / secret_key 填 AccessKey ID 与 AccessKey Secret。
-# enabled 仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
-#
-[aliyun_mt]
-enabled = false
-secret_id = ""
-secret_key = ""
-
-#
-# 自定义 DeepLX 兼容翻译服务。endpoint 必须填写完整的 POST 接口地址。
-# api_key 留空时不发送 Authorization 请求头。
-#
-[custom_translation]
-enabled = false
-endpoint = ""
-api_key = ""
-
-#
-# 小牛翻译（NiuTrans）机器翻译。app_id 与 apikey 在“控制台->API应用”中查看。
-# enabled 布尔仅为旧版兼容保留，实际生效方由 [translation].provider 决定。
-# 默认关闭：联网功能都要用户自己在设置页打开。
-#
-[niutrans]
-enabled = false
-app_id = ""
-apikey = ""
-
-#
-# 候选词翻译当前生效的在线提供方：tencent | aliyun | niutrans | custom | ai。
-# ai 表示复用 AI 辅助当前服务商的接口地址、Token 与模型。
-# 留空表示按 [tencent_tmt]/[aliyun_mt]/[custom_translation]/[niutrans] 的旧 enabled 布尔自动推导，
-# 在设置页选择过一次后会写入具体值。
-#
-[translation]
-provider = ""
-
-#
-# 网络代理：云输入、模型下载、AI 联想、翻译等需要联网的功能共用。
+# 网络代理：模型下载、更新检查等需要联网的功能共用。
 # proxy_mode：system 跟随系统代理设置 / none 不使用代理（直连）/ custom 使用下面的 HTTP 代理。
 # proxy_server：custom 模式的 HTTP 代理地址，形如 127.0.0.1:7890；留空时按 system 处理。
 #

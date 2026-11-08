@@ -51,13 +51,10 @@ void ReplayDeferredClientActivation();
 void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch);
 void ClearState();
 void RegisterStatusSnapshotWindow(HWND toolbar_window);
-void EnqueueCloudCandidate(const std::string &candidate, const std::string &pinyin, uint64_t generation);
 // 神经整句重排的后台线程算完一批后调这个；见 event_listener_async_candidates.cpp 的 ApplyRescoredOrder。
 void EnqueueRescoredCandidates();
-void CancelCloudCandidateRequest();
 void EnqueueEnglishCandidates(std::vector<WordItem> candidates, const std::string &input, uint64_t generation);
-void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation,
-                                  bool merge = false);
+void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation);
 void EnqueueMixedCandidates(MixedCandidates::Result result, const std::string &input, uint64_t generation);
 void EnqueueCandidateUiAction(CandidateUiAction action, int one_based_index, int fixed_position = 0);
 // 鼠标开始操作当前显示的候选页时，通知工作线程保持这批候选的顺序。界面线程调用，只记下页面

@@ -1,4 +1,4 @@
-// 通用功能开关：诊断日志、输入统计、中英与表情混输、候选翻译、云候选、整句联想、各工具模式与剪贴板历史。
+// 通用功能开关：诊断日志、输入统计、中英与表情混输、候选翻译、整句联想、各工具模式与剪贴板历史。
 #include "config/ime_config_internal.h"
 #include <atomic>
 #include <string>
@@ -159,21 +159,6 @@ bool SetConfiguredSymbolMixedInputEnabled(bool enabled)
         return false;
     }
     g_symbol_mixed_input_enabled = enabled;
-    return true;
-}
-
-bool GetConfiguredCloudCandidatesEnabled()
-{
-    return g_cloud_candidates_enabled;
-}
-
-bool SetConfiguredCloudCandidatesEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("general", "cloud_candidates", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_cloud_candidates_enabled = enabled;
     return true;
 }
 

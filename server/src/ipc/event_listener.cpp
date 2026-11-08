@@ -28,8 +28,6 @@
 #include "window/caret_state_indicator.h"
 #include "window/caret_state_indicator_policy.h"
 #include "utils/ime_utils.h"
-#include "cloud/cloud_ime.h"
-#include "cloud/cloud_translation.h"
 #include "english/english_ime.h"
 #include "config/ime_config.h"
 #include "engine/contracts/date_time_input.h"
@@ -91,8 +89,7 @@ bool g_translation_saved_selection_started = false;
 
 std::string TranslationIdentity(const EnglishIme::TranslationQuery &query)
 {
-    return GetConfiguredTencentTmt().target_language + ":" +
-           (query.direction == EnglishIme::TranslationDirection::EnglishToChinese ? "e:" : "z:") + query.key;
+    return std::string(query.direction == EnglishIme::TranslationDirection::EnglishToChinese ? "e:" : "z:") + query.key;
 }
 
 bool IsCandidateSubPageActive()
@@ -347,10 +344,8 @@ bool IsWubiLiteralComposition(const std::string &raw)
 namespace
 {
 std::mutex g_async_request_mutex;
-uint64_t g_cloud_generation = 0;
 uint64_t g_english_generation = 0;
 uint64_t g_mixed_generation = 0;
-AsyncRequestOrigin g_cloud_request_origin;
 AsyncRequestOrigin g_english_request_origin;
 AsyncRequestOrigin g_mixed_request_origin;
 std::string g_rescoring_context;
@@ -489,20 +484,6 @@ void PostCaretStateBadge(FanyImeUi::CaretStateBadge badge, int x, int y)
         delete request;
 }
 
-void UpdateCloudInput(const std::string &input, uint64_t client_id, uint64_t activation_epoch)
-{
-    std::lock_guard lock(g_async_request_mutex);
-    const std::string effective_input = GetConfiguredCloudCandidatesEnabled() ? input : std::string{};
-    const bool japanese = g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-    CloudIme::OnInputChanged(effective_input, japanese);
-    ++g_cloud_generation;
-    g_cloud_request_origin = effective_input.empty()
-                                 ? AsyncRequestOrigin{}
-                                 : AsyncRequestOrigin{client_id, activation_epoch, g_cloud_generation, effective_input};
-    if (!effective_input.empty() && g_inputSession)
-        g_cloud_request_origin.engine_query = g_inputSession->online_query();
-}
-
 void UpdateEnglishInput(const std::string &input, uint64_t client_id, uint64_t activation_epoch, bool dedicated_mode)
 {
     std::lock_guard lock(g_async_request_mutex);
@@ -528,16 +509,6 @@ void UpdateMixedInput(MixedCandidates::Request request, uint64_t client_id, uint
 
 namespace event_listener_detail
 {
-AsyncRequestOrigin FindCloudRequestOrigin(const std::string &input, uint64_t generation)
-{
-    std::lock_guard lock(g_async_request_mutex);
-    if (g_cloud_request_origin.matches(input, generation))
-    {
-        return g_cloud_request_origin;
-    }
-    return {};
-}
-
 AsyncRequestOrigin FindEnglishRequestOrigin(const std::string &input, uint64_t generation)
 {
     std::lock_guard lock(g_async_request_mutex);
@@ -744,11 +715,6 @@ std::wstring TemporaryJapanesePolicyPayload()
     return std::wstring(1, FanyImeTemporaryJapanese::ToPayload(TemporaryJapanesePolicy()));
 }
 
-void CancelCloudCandidateRequest()
-{
-    UpdateCloudInput("");
-}
-
 void RegisterStatusSnapshotWindow(HWND toolbar_window)
 {
     std::lock_guard lock(g_status_snapshot_mutex);
@@ -836,7 +802,6 @@ void ClearState()
     const auto r_mode_original_session = g_r_mode_original_session;
     ClearSpecialModeTriggers();
     ClearCandidateUiOwner();
-    UpdateCloudInput("");
     UpdateEnglishInput("");
     g_dedicated_english_answer_pending = false;
     // The gloss cache survives the composition: the next one starts from the
@@ -850,7 +815,6 @@ void ClearState()
     g_translation_saved_selected_index = 0;
     g_translation_saved_selection_started = false;
     EnglishIme::ClearTranslations();
-    CloudTranslation::Clear();
     UpdateMixedInput({});
     /* Clear dict engine state */
     g_inputSession->reset_state();

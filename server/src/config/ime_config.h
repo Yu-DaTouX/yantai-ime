@@ -13,56 +13,6 @@
 #include <string_view>
 #include <vector>
 
-struct TencentTmtConfig
-{
-    bool enabled = false;
-    std::string secret_id;
-    std::string secret_key;
-    std::string region = "ap-guangzhou";
-    // Language shown beside Chinese candidates. Tencent TMT language codes:
-    // en / fr / ja / es / ru / de / ko / th / vi / it.
-    std::string target_language = "en";
-};
-
-struct AliyunMtConfig
-{
-    bool enabled = false;
-    // 键名沿用 secret_id / secret_key，才会被 IsCredentialKey 加密保存。
-    std::string secret_id;
-    std::string secret_key;
-};
-
-struct CustomTranslationConfig
-{
-    bool enabled = false;
-    // Full URL of a DeepLX-compatible POST endpoint.
-    std::string endpoint;
-    // Optional bearer token used by private or protected deployments.
-    std::string api_key;
-};
-
-struct NiuTransConfig
-{
-    bool enabled = false;
-    // 控制台->API应用 中的应用唯一标识与 apikey。
-    std::string app_id;
-    std::string apikey;
-};
-
-// 候选词翻译读取的整份配置快照。provider 来自 [translation].provider，旧配置没有这个键时由
-// [tencent_tmt]/[aliyun_mt]/[custom_translation]/[niutrans] 的 enabled 布尔在加载时推导；其余字段是各提供方
-// 配置的副本，ai 复用 AI 辅助当前服务商。配置加载和相关设置写入后整份替换，翻译 worker 与
-// 候选线程只读快照，不直接读会被重载改写的各段全局字符串。
-struct TranslationConfig
-{
-    // tencent | aliyun | niutrans | custom
-    std::string provider = "tencent";
-    TencentTmtConfig tencent;
-    AliyunMtConfig aliyun;
-    CustomTranslationConfig custom;
-    NiuTransConfig niutrans;
-};
-
 // [network] 段：模型下载、更新检查等出站请求共用的代理设置。
 struct NetworkProxyConfig
 {
@@ -397,8 +347,6 @@ bool SetConfiguredKaomojiMixedInputEnabled(bool enabled);
 // 全拼/双拼里输入恰好等于某个符号编码（alpha、szq、xl）时，把符号混进候选。
 bool GetConfiguredSymbolMixedInputEnabled();
 bool SetConfiguredSymbolMixedInputEnabled(bool enabled);
-bool GetConfiguredCloudCandidatesEnabled();
-bool SetConfiguredCloudCandidatesEnabled(bool enabled);
 // 整句候选来源与去重补位开关（[association] 段），默认全关。
 bool GetConfiguredAssocSentenceWordLattice();
 bool SetConfiguredAssocSentenceWordLattice(bool enabled);
@@ -555,9 +503,6 @@ bool GetConfiguredCandidateFixedBadge();
 bool SetConfiguredCandidateFixedBadge(bool enabled);
 const std::string &GetConfiguredCandidateFixedBadgeStyle();
 bool SetConfiguredCandidateFixedBadgeStyle(const std::string &style);
-// AI 联想候选词的来源徽标样式（"robot" | "whale"），出厂 "robot"（🤖）。
-const std::string &GetConfiguredCandidateAiBadgeStyle();
-bool SetConfiguredCandidateAiBadgeStyle(const std::string &style);
 // 设置窗口关闭后隐藏驻留多久再退出进程：
 // "off" | "1m" | "5m" | "10m" | "30m" | "60m" | "forever"，默认 "10m"。
 const std::string &GetConfiguredSettingsWindowLinger();
@@ -590,21 +535,7 @@ bool SetConfiguredThemeMenu(const std::string &theme);
 // Resolve effective "dark" / "light" for a surface override ("follow" | "dark" | "light").
 std::string ResolveConfiguredTheme(const std::string &surface_theme);
 bool IsSystemAppsLightTheme();
-const TencentTmtConfig &GetConfiguredTencentTmt();
-bool SetConfiguredTencentTmtString(const std::string &key, const std::string &value);
-const CustomTranslationConfig &GetConfiguredCustomTranslation();
-bool SetConfiguredCustomTranslationBool(const std::string &key, bool value);
-bool SetConfiguredCustomTranslationString(const std::string &key, const std::string &value);
-const AliyunMtConfig &GetConfiguredAliyunMt();
-bool SetConfiguredAliyunMtBool(const std::string &key, bool value);
-bool SetConfiguredAliyunMtString(const std::string &key, const std::string &value);
-const NiuTransConfig &GetConfiguredNiuTrans();
-bool SetConfiguredNiuTransBool(const std::string &key, bool value);
-bool SetConfiguredNiuTransString(const std::string &key, const std::string &value);
-bool IsValidTranslationProvider(const std::string &provider);
-std::shared_ptr<const TranslationConfig> GetConfiguredTranslation();
-bool SetConfiguredTranslationString(const std::string &key, const std::string &value);
-// Snapshot by value: download threads and the cloud worker read it while the settings host rewrites it.
+// Snapshot by value: download threads read it while the settings host rewrites it.
 NetworkProxyConfig GetConfiguredNetworkProxy();
 bool SetConfiguredNetworkString(const std::string &key, const std::string &value);
 // Accepts "host:port" or "http://host:port[/]"; returns the normalized "host:port", or an empty string when the

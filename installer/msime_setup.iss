@@ -232,9 +232,6 @@ var
   DataDirValue: String;
   PreviousDataDir: String;
   DataDirPage: TInputDirWizardPage;
-  NetworkPage: TInputOptionWizardPage;
-  CloudCandidatesIndex: Integer;
-  UserConfigExistedBeforeInstall: Boolean;
   DataDirAdoptedEmpty: Boolean;
 
 // VC 运行库不随包分发：它是系统级共享组件，安装器不该替用户装。缺了它 Server 直接
@@ -448,11 +445,6 @@ begin
   SaveStringsToFile(DataDirMarkerPath(Directory), Lines, False);
 end;
 
-function UserConfigPath: String;
-begin
-  Result := AddBackslash(GetDataDir('')) + 'config.toml';
-end;
-
 function IsPathInside(const Child, Parent: String): Boolean;
 begin
   Result :=
@@ -594,14 +586,7 @@ begin
     DataDirPage.Values[0] := Chosen;
 end;
 
-{ 云候选是唯一一个不用凭据、开启即联网的功能：输入过程中把当前拼写发给 Google 的 input-tools
-  服务。出厂默认关闭（config.default.toml 里 cloud_candidates = false），这一页让用户在首次
-  安装时明确选择要不要打开，选择写进首次生成的 config.toml。
-
-  升级时跳过：那时 config.toml 已经属于用户，安装器不该替他重新决定。}
-procedure InitializeWizard;
-begin
-  { 词库、用户配置、皮肤和界面资源都在这个目录下，整包有几百 MB，
+{ 词库、用户配置、皮肤和界面资源都在这个目录下，整包有几百 MB，
     所以要让用户能把它放到别的盘。程序本体仍然装在 Program Files：
     Server 带 uiAccess=true，只有装在受信任目录里这个标志才生效。}
   DataDirPage := CreateInputDirPage(
@@ -616,32 +601,8 @@ begin
   DataDirPage.Values[0] := ResolvePreviousDataDir;
   DataDirPage.Buttons[0].OnClick := @DataDirBrowseClick;
 
-#ifndef LightPackage
-  NetworkPage := CreateInputOptionPage(
-    DataDirPage.ID,
-    '联网功能',
-    '选择安装后哪些功能可以联网',
-    '拼音切分、候选排序和词频学习全部在本机完成，不联网。' + #13#10 +
-    '出厂时联网功能全部关闭，下面这一项也要勾选后才会生效。AI 联想、候选翻译都需要你自己填入 API token 并主动打开，否则不会发出任何请求。' + #13#10#13#10 +
-    '安装后随时可以在「设置 → 输入」里改变这个选择。',
-    False,
-    False
-  );
-  CloudCandidatesIndex := NetworkPage.Add(
-    '启用云候选：输入过程中把当前正在输入的拼写通过 HTTPS 发送给 Google 的 input-tools 服务' +
-    '（inputtools.google.com），换回一条额外候选。已上屏的文本、词库内容和学习到的词频都不会发送。');
-  NetworkPage.Values[CloudCandidatesIndex] := False;
-#endif
 end;
 
-#include "cloud_choice.iss"
-
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  Result := False;
-  if (NetworkPage <> nil) and (PageID = NetworkPage.ID) then
-    Result := UserConfigExistsBeforeInstall;
-end;
 
 procedure LaunchInstalledComponents;
 var
@@ -1742,7 +1703,6 @@ begin
   end;
 #ifndef LightPackage
   { 静默安装也必须在最终目录确定后、配置迁移前检查。}
-  UserConfigExistedBeforeInstall := UserConfigExistsBeforeInstall;
 #endif
   { 迁移会往目录里搬文件，所以要在那之前记下它是不是空着被接手的。}
   DataDirAdoptedEmpty :=
@@ -1859,10 +1819,6 @@ procedure CurStepChanged(CurStep: TSetupStep);begin
       'Software\Microsoft\Windows\CurrentVersion\Run',
       'MetasequoiaImeWatchdog'
     );
-#ifndef LightPackage
-    { 偏好写入放在最后：它失败只弹提示，不能挡住上面这些必需步骤。}
-    ApplyNetworkChoiceToUserConfig;
-#endif
     { TSF 的语言配置要以原用户身份装进键盘列表：提权进程的 HKCU 指向管理员账户，写进去当前用户
       看不到（见 server/src/settings/input_method_install.h）。放在最后，失败也不影响装好的文件。}
     RegisterProfileForUser;

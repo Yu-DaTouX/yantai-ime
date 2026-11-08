@@ -4,7 +4,6 @@
 #include "global/globals.h"
 #include "resource/resource.h"
 #include "settings/settings_launcher.h"
-#include "settings/api_credential_test.h"
 #include "settings/collocation_model.h"
 #include "settings/lattice_model.h"
 #include "settings/neural_model.h"
@@ -256,11 +255,6 @@ nlohmann::json BuildInputStateShortcutMetadata()
 std::wstring BuildConfigMessage(bool refresh_skin_catalog)
 {
 
-    const TencentTmtConfig &tencent_tmt = GetConfiguredTencentTmt();
-    const CustomTranslationConfig &custom_translation = GetConfiguredCustomTranslation();
-    const AliyunMtConfig &aliyun_mt = GetConfiguredAliyunMt();
-    const NiuTransConfig &niutrans = GetConfiguredNiuTrans();
-    const auto translation = GetConfiguredTranslation();
     const NetworkProxyConfig network_proxy = GetConfiguredNetworkProxy();
     const FrequencyAdjustmentConfig &frequency = GetConfiguredFrequencyAdjustment();
     const FloatingToolbarItemsConfig &toolbar = GetConfiguredFloatingToolbarItems();
@@ -369,7 +363,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"emoji_mixed_input", GetConfiguredEmojiMixedInputEnabled()},
             {"kaomoji_mixed_input", GetConfiguredKaomojiMixedInputEnabled()},
             {"symbol_mixed_input", GetConfiguredSymbolMixedInputEnabled()},
-            {"cloud_candidates", GetConfiguredCloudCandidatesEnabled()},
             {"paging_minus_equal", GetConfiguredPagingMinusEqualEnabled()},
             {"paging_comma_period", GetConfiguredPagingCommaPeriodEnabled()},
             {"paging_brackets", GetConfiguredPagingBracketsEnabled()},
@@ -498,19 +491,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_skin_catalog_scanned", g_candidate_skin_catalog.has_value()},
             {"candidate_skin_catalog_revision", g_candidate_skin_catalog_revision},
             {"candidate_skin_directory", skins_root.u8string()}}},
-          {"tencent_tmt",
-           {{"secret_id", tencent_tmt.secret_id},
-            {"secret_key", tencent_tmt.secret_key},
-            {"region", tencent_tmt.region},
-            {"target_language", tencent_tmt.target_language}}},
-          {"aliyun_mt", {{"enabled", aliyun_mt.enabled}, {"secret_id", aliyun_mt.secret_id},
-                         {"secret_key", aliyun_mt.secret_key}}},
-          {"custom_translation",
-           {{"enabled", custom_translation.enabled},
-            {"endpoint", custom_translation.endpoint},
-            {"api_key", custom_translation.api_key}}},
-          {"niutrans", {{"enabled", niutrans.enabled}, {"app_id", niutrans.app_id}, {"apikey", niutrans.apikey}}},
-          {"translation", {{"provider", translation->provider}}},
           {"network", {{"proxy_mode", network_proxy.mode}, {"proxy_server", network_proxy.server}}},
           {"helpcode",
            {{"shuangpin_helpcode", GetConfiguredShuangpinHelpcodeEnabled()},
@@ -746,8 +726,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredKaomojiMixedInputEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.symbol_mixed_input")
         return SetConfiguredSymbolMixedInputEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "general.cloud_candidates")
-        return SetConfiguredCloudCandidatesEnabled(json::value_to<bool>(data.at("value")));
     if (path == "association.sentence_wordlattice")
         return SetConfiguredAssocSentenceWordLattice(json::value_to<bool>(data.at("value")));
     if (path == "association.sentence_google")
@@ -848,42 +826,6 @@ bool ApplyConfigUpdate(const json::object &data)
         if (value.is_int64())
             return SetConfiguredFrequencyAdjustmentInt(key, static_cast<int>(value.as_int64()));
         return false;
-    }
-    if (path.rfind("tencent_tmt.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredTencentTmtString(path.substr(std::string("tencent_tmt.").size()),
-                                                                  json::value_to<std::string>(value));
-    }
-    if (path == "aliyun_mt.enabled")
-        return SetConfiguredAliyunMtBool("enabled", json::value_to<bool>(data.at("value")));
-    if (path.rfind("aliyun_mt.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredAliyunMtString(path.substr(std::string("aliyun_mt.").size()),
-                                                                json::value_to<std::string>(value));
-    }
-    if (path == "custom_translation.enabled")
-        return SetConfiguredCustomTranslationBool("enabled", json::value_to<bool>(data.at("value")));
-    if (path.rfind("custom_translation.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() &&
-               SetConfiguredCustomTranslationString(path.substr(std::string("custom_translation.").size()),
-                                                    json::value_to<std::string>(value));
-    }
-    if (path == "niutrans.enabled")
-        return SetConfiguredNiuTransBool("enabled", json::value_to<bool>(data.at("value")));
-    if (path.rfind("niutrans.", 0) == 0)
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredNiuTransString(path.substr(std::string("niutrans.").size()),
-                                                                json::value_to<std::string>(value));
-    }
-    if (path == "translation.provider")
-    {
-        const json::value &value = data.at("value");
-        return value.is_string() && SetConfiguredTranslationString("provider", json::value_to<std::string>(value));
     }
     if (path.rfind("network.", 0) == 0)
     {
@@ -1135,38 +1077,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
                     if (!saved)
                         MessageBoxW(g_settings_hwnd, L"设置保存失败，请重试。", L"水杉输入法", MB_OK | MB_ICONWARNING);
                 };
-            });
-        }
-        else if (type == "apiCredentialTest")
-        {
-            const auto &data = value.at("data").as_object();
-            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
-            ApiCredentialTest::Request request;
-            request.service = json::value_to<std::string>(data.at("service"));
-            for (const auto &[key, item] : data.at("config").as_object())
-            {
-                if (item.is_string())
-                    request.config.emplace(std::string(key), json::value_to<std::string>(item));
-            }
-            g_worker->Submit([request_id, request = std::move(request)]() -> SerialTaskQueue::Completion {
-                ApiCredentialTest::Result result;
-                try
-                {
-                    result = ApiCredentialTest::Run(request);
-                }
-                catch (...)
-                {
-                    result = {false, "测试失败：内部错误。"};
-                }
-                json::value response = {{"type", "apiCredentialTestResult"},
-                                        {"requestId", request_id},
-                                        {"ok", result.ok},
-                                        {"message", result.message},
-                                        {"protocolVersion", metasequoia::webview::Version}};
-                if (!metasequoia::webview::Validate(response, "server"))
-                    throw std::runtime_error("Invalid API credential test response");
-                auto message = string_to_wstring(json::serialize(response));
-                return [message = std::move(message)] { PostToPage(message); };
             });
         }
         else if (type == "restartServer")

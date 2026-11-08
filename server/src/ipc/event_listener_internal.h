@@ -270,14 +270,12 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
 void ClearState();
 void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_epoch, int forced_index_in_page = -1);
 void WaitForCandidateRenderSync(UINT keycode);
-void ApplyCloudCandidate(const std::string &candidate, const std::string &pinyin, uint64_t generation,
-                         const std::optional<metasequoia::OnlineQuery> &query);
 void ApplyRescoredOrder();
-// 用当前会话状态重查一次候选，保留只活在 series cache 里的云/AI 候选；候选没变就不动 UI。
+// 用当前会话状态重查一次候选；候选没变就不动 UI。
 // 调用方负责前置守卫（选词中/造词/子页、owner 有效性）。返回是否重发了候选页。
-bool RequeryCandidatesPreservingOnline(const FanyImeIpc::CandidateUiOwner &owner);
+bool RequeryCandidatesAfterAsyncMerge(const FanyImeIpc::CandidateUiOwner &owner);
 void ApplyEnglishCandidates(std::vector<WordItem> candidates, const std::string &input, uint64_t generation);
-void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation, bool merge);
+void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation);
 void ApplyMixedCandidates(MixedCandidates::Result result, const std::string &input, uint64_t generation);
 void EnqueueStoreUserPhraseTask(const std::string &pinyin, const std::string &word, bool pinyin_is_canonical = false);
 bool ResolveCandidateItem(int one_based_index, WordItem &item);

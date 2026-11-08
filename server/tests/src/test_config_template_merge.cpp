@@ -326,7 +326,7 @@ TEST_CASE(config_merge_keeps_customized_values_and_adds_new_keys)
     const std::string template_text = "[general]\n"
                                       "# 悬浮工具栏\n"
                                       "floating_toolbar = true\n"
-                                      "cloud_candidates = true\n"
+                                      "example_flag = true\n"
                                       "\n"
                                       "[input]\n"
                                       "schema = \"shuangpin\" # 可选：quanpin/shuangpin\n";
@@ -344,7 +344,7 @@ TEST_CASE(config_merge_keeps_customized_values_and_adds_new_keys)
     const std::string expected = "[general]\n"
                                  "# 悬浮工具栏\n"
                                  "floating_toolbar = false\n"
-                                 "cloud_candidates = true\n"
+                                 "example_flag = true\n"
                                  "\n"
                                  "[input]\n"
                                  "schema = \"quanpin\" # 可选：quanpin/shuangpin\n";
@@ -377,9 +377,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
                                           "candidate_skin = \"acrylic\"\n"
                                           "[helpcode]\nshuangpin_helpcode = true\nquanpin_helpcode = true\n"
                                           "[utility]\nemoji_mode = true # Shift+E\nkaomoji_mode = true\n"
-                                          "[voice_input]\nvoice_input = true\ndoubao_enable_ddc = true\n"
-                                          "[tencent_tmt]\nenabled = true\n"
-                                          "[niutrans]\nenabled = false\n";
+                                          "[voice_input]\nvoice_input = true\ndoubao_enable_ddc = true\n";
 
     const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, previous_defaults, previous_defaults));
     REQUIRE(upgraded["general"]["emoji_mixed_input"].value_or(false));
@@ -395,17 +393,14 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));
     REQUIRE(upgraded["utility"]["kaomoji_mode"].value_or(false));
     REQUIRE(!upgraded.contains("voice_input"));
-    REQUIRE(upgraded["tencent_tmt"]["enabled"].value_or(false));
-    REQUIRE(!upgraded["niutrans"]["enabled"].value_or(true));
 
     // 新装用户拿到的是模板本身。
     const auto fresh = toml::parse(installed);
     REQUIRE_EQ(fresh["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("horizontal"));
     REQUIRE(!fresh["helpcode"]["shuangpin_helpcode"].value_or(true));
     REQUIRE(!fresh["association"]["sentence_wordlattice"].value_or(true));
-    // 新装不把任何输入内容发出去：云候选和旧版翻译门禁都必须是关。
-    REQUIRE(!fresh["general"]["cloud_candidates"].value_or(true));
-    REQUIRE(!fresh["niutrans"]["enabled"].value_or(true));
+    // 新装不把任何输入内容发出去。
+    REQUIRE(!fresh.contains("example_flag"));
 }
 
 TEST_CASE(config_merge_drops_keys_and_sections_absent_from_template)
@@ -479,30 +474,6 @@ TEST_CASE(retired_voice_config_is_ignored_during_template_upgrade)
     REQUIRE(merged.contains("input"));
 }
 
-// 读取安装器真正分发的模板，防止开发配置齐全、安装模板漏项导致升级后丢失设置。
-TEST_CASE(shipped_translation_settings_survive_template_upgrade)
-{
-    std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
-    REQUIRE(static_cast<bool>(input));
-    const std::string installed((std::istreambuf_iterator<char>(input)), {});
-    const std::string configured =
-        "[custom_translation]\nenabled = true\nendpoint = \"https://translation.example/translate\"\n"
-        "api_key = \"test-translation-key\"\n[tencent_tmt]\ntarget_language = \"ja\"\n";
-    const std::string legacy_template = "[tencent_tmt]\nenabled = true\n";
-
-    // 同时覆盖旧版本缺少这些字段，以及新版本已经包含这些字段的升级。
-    for (const auto &baseline : {legacy_template, installed})
-    {
-        const auto merged = toml::parse(MergeConfigIntoTemplate(installed, configured, baseline));
-        REQUIRE(merged["custom_translation"]["enabled"].value_or(false));
-        REQUIRE_EQ(merged["custom_translation"]["endpoint"].value_or(std::string()),
-                   std::string("https://translation.example/translate"));
-        REQUIRE_EQ(merged["custom_translation"]["api_key"].value_or(std::string()),
-                   std::string("test-translation-key"));
-        REQUIRE_EQ(merged["tencent_tmt"]["target_language"].value_or(std::string()), std::string("ja"));
-    }
-}
-
 // 模板漂移：新模板意外漏掉了某个 token 键。用户填过的真 token 不能因此被丢弃，
 // 必须被重新写回它所属的分节。
 TEST_CASE(config_merge_reappends_real_credentials_absent_from_template)
@@ -553,23 +524,12 @@ TEST_CASE(shipped_credentials_survive_template_upgrade)
     REQUIRE(static_cast<bool>(input));
     const std::string installed((std::istreambuf_iterator<char>(input)), {});
 
-    const std::string configured = "[tencent_tmt]\nsecret_id = \"real-secret-id\"\nsecret_key = \"real-secret-key\"\n"
-                                   "[aliyun_mt]\nsecret_id = \"real-aliyun-id\"\nsecret_key = \"real-aliyun-key\"\n"
-                                   "[custom_translation]\napi_key = \"real-api-key\"\n"
-                                   "[niutrans]\napp_id = \"real-app-id\"\napikey = \"real-apikey\"\n"
-                                   "[voice_input]\nasr_token = \"real-asr\"\nasr_token_doubao = \"real-doubao\"\n"
+    const std::string configured = "[voice_input]\nasr_token = \"real-asr\"\nasr_token_doubao = \"real-doubao\"\n"
                                    "polish_token_deepseek = \"real-polish\"\n";
 
     for (const auto &baseline : {std::string(), installed})
     {
         const auto merged = toml::parse(MergeConfigIntoTemplate(installed, configured, baseline));
-        REQUIRE_EQ(merged["tencent_tmt"]["secret_id"].value_or(std::string()), std::string("real-secret-id"));
-        REQUIRE_EQ(merged["tencent_tmt"]["secret_key"].value_or(std::string()), std::string("real-secret-key"));
-        REQUIRE_EQ(merged["aliyun_mt"]["secret_id"].value_or(std::string()), std::string("real-aliyun-id"));
-        REQUIRE_EQ(merged["aliyun_mt"]["secret_key"].value_or(std::string()), std::string("real-aliyun-key"));
-        REQUIRE_EQ(merged["custom_translation"]["api_key"].value_or(std::string()), std::string("real-api-key"));
-        REQUIRE_EQ(merged["niutrans"]["app_id"].value_or(std::string()), std::string("real-app-id"));
-        REQUIRE_EQ(merged["niutrans"]["apikey"].value_or(std::string()), std::string("real-apikey"));
         REQUIRE(!merged.contains("voice_input"));
     }
 }

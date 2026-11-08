@@ -144,8 +144,6 @@ std::atomic_bool g_candidate_translation_show_pos{true};
 std::atomic_bool g_candidate_translation_single_sense{false};
 int g_english_mixed_input_min_chars = kEnglishMixedInputMinCharsDefault;
 int g_english_mixed_input_first_page_count = kEnglishMixedInputFirstPageCountDefault;
-// 云候选默认关闭：新装和缺字段的老配置都不发拼音到云端，必须用户在设置页主动打开。
-bool g_cloud_candidates_enabled = false;
 // 整句候选来源与去重补位开关：词格、Google 和神经速度档默认开，神经效果档与去重补位默认关。
 bool g_assoc_sentence_wordlattice = false;
 bool g_assoc_sentence_google = true;
@@ -234,11 +232,6 @@ std::string g_theme_menu = "follow";
 
 namespace ime_config_detail
 {
-TencentTmtConfig g_tencent_tmt;
-AliyunMtConfig g_aliyun_mt;
-CustomTranslationConfig g_custom_translation;
-NiuTransConfig g_niutrans;
-std::string g_translation_provider = "tencent";
 std::mutex g_network_proxy_mutex;
 NetworkProxyConfig g_network_proxy;
 FrequencyAdjustmentConfig g_frequency_adjustment;
@@ -281,11 +274,6 @@ bool IsValidSettingsWindowLinger(const std::string &linger)
            linger == "60m" || linger == "forever";
 }
 
-bool IsValidTranslationTargetLanguage(const std::string &language)
-{
-    static constexpr std::string_view kLanguages[] = {"en", "fr", "ja", "es", "ru", "de", "ko", "th", "vi", "it"};
-    return std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
-}
 } // namespace ime_config_detail
 
 namespace
@@ -567,7 +555,6 @@ bool LoadImeConfig()
                     ? count
                     : kEnglishMixedInputFirstPageCountDefault;
         }
-        g_cloud_candidates_enabled = tbl["general"]["cloud_candidates"].value_or(false);
         g_assoc_sentence_wordlattice = tbl["association"]["sentence_wordlattice"].value_or(false);
         g_assoc_sentence_google = tbl["association"]["sentence_google"].value_or(true);
         g_assoc_sentence_neural_desktop = tbl["association"]["sentence_neural_desktop"].value_or(false);
@@ -767,49 +754,6 @@ bool LoadImeConfig()
             g_tsf_preedit_shuangpin_quanpin = tbl["appearance"]["tsf_preedit_shuangpin_quanpin"].value_or(false);
             RefreshEffectiveTsfPreeditStyle();
         }
-        g_tencent_tmt.enabled = tbl["tencent_tmt"]["enabled"].value_or(false);
-        g_tencent_tmt.secret_id = tbl["tencent_tmt"]["secret_id"].value_or(std::string());
-        g_tencent_tmt.secret_key = tbl["tencent_tmt"]["secret_key"].value_or(std::string());
-        g_tencent_tmt.region = tbl["tencent_tmt"]["region"].value_or(std::string("ap-guangzhou"));
-        if (g_tencent_tmt.region.empty())
-            g_tencent_tmt.region = "ap-guangzhou";
-        g_tencent_tmt.target_language = tbl["tencent_tmt"]["target_language"].value_or(std::string("en"));
-        if (!IsValidTranslationTargetLanguage(g_tencent_tmt.target_language))
-            g_tencent_tmt.target_language = "en";
-        g_aliyun_mt.enabled = tbl["aliyun_mt"]["enabled"].value_or(false);
-        g_aliyun_mt.secret_id = tbl["aliyun_mt"]["secret_id"].value_or(std::string());
-        g_aliyun_mt.secret_key = tbl["aliyun_mt"]["secret_key"].value_or(std::string());
-        g_custom_translation.enabled = tbl["custom_translation"]["enabled"].value_or(false);
-        g_custom_translation.endpoint = tbl["custom_translation"]["endpoint"].value_or(std::string());
-        g_custom_translation.api_key = tbl["custom_translation"]["api_key"].value_or(std::string());
-        g_niutrans.enabled = tbl["niutrans"]["enabled"].value_or(false);
-        g_niutrans.app_id = tbl["niutrans"]["app_id"].value_or(std::string());
-        g_niutrans.apikey = tbl["niutrans"]["apikey"].value_or(std::string());
-        // [translation].provider 是唯一来源；旧配置缺这个键时从各提供方的 enabled 布尔推导，
-        // 再把布尔按 provider 归一，保证旧版读回时选择不丢。
-        g_translation_provider = tbl["translation"]["provider"].value_or(std::string());
-        if (IsValidTranslationProvider(g_translation_provider))
-        {
-            // 用户在设置页明确选过，腾讯云的旧门禁跟着选择走。
-            g_tencent_tmt.enabled = g_translation_provider == "tencent";
-        }
-        else
-        {
-            // 推导出腾讯云时保留 tencent_tmt.enabled 原值：旧版要它为 true 才会发请求，
-            // 升级不能替用户把候选词发给腾讯云。
-            if (g_niutrans.enabled)
-                g_translation_provider = "niutrans";
-            else if (g_aliyun_mt.enabled)
-                g_translation_provider = "aliyun";
-            else if (g_custom_translation.enabled)
-                g_translation_provider = "custom";
-            else
-                g_translation_provider = "tencent";
-        }
-        g_niutrans.enabled = g_translation_provider == "niutrans";
-        g_aliyun_mt.enabled = g_translation_provider == "aliyun";
-        g_custom_translation.enabled = g_translation_provider == "custom";
-        PublishTranslationConfig();
         {
             NetworkProxyConfig proxy;
             proxy.mode = tbl["network"]["proxy_mode"].value_or(std::string("system"));

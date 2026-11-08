@@ -20,7 +20,6 @@
 #include "engine/common/helpcode_utils.h"
 #include "engine/quanpin/quanpin_query.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
-#include "cloud/cloud_translation.h"
 #include "english/english_ime.h"
 #include "config/ime_config.h"
 #include "settings/collocation_model.h"
@@ -50,8 +49,6 @@ const ShuangpinProfile &ConfiguredShuangpinProfile()
 
 std::string BuildCurrentCandidatePage();
 void PrepareCandidateTranslationRequest();
-
-std::string g_candidate_translation_scope;
 
 bool BuildTranslationQuery(const WordItem &item, EnglishIme::TranslationQuery &query)
 {
@@ -341,13 +338,11 @@ std::string BuildCurrentCandidatePage()
             item.source != CandidateSource::Kaomoji && item.source != CandidateSource::Symbol &&
             item.source != CandidateSource::DateTime && item.source != CandidateSource::Generated)
             view.annotation = g_inputSession->get_helpcode_annotation(item.word, uppercase_all_helpcodes);
-        if (item.source == CandidateSource::CloudSuggestion)
-            view.badge = " ☁️";
         // 整句来源标签与设置页名称保持一致，方便同时比较四个来源。两家选中同一句时只剩一行，
         // 标签归先保留下来的来源；开启去重补位后，其余来源会改为显示自己的下一条不同结果。
         // Generated/Fallback 也被原样上屏、英文、日期等合成候选借用，只有引擎标了整句联想的才挂标签。
         // 设置页可整体关闭这组标签，候选本身和排序不受影响。
-        else if (show_sentence_source_badge)
+        if (show_sentence_source_badge)
         {
             if (item.source == CandidateSource::Generated && item.sentence_association)
                 view.badge = " 〔Trigram〕";
@@ -427,17 +422,9 @@ void PrepareCandidateTranslationRequest()
         {
             g_candidate_translation_signature.clear();
             EnglishIme::ClearTranslations();
-            CloudTranslation::Clear();
         }
         return;
     }
-    const std::string scope = CloudTranslation::ActiveProviderScope();
-    if (scope != g_candidate_translation_scope)
-    {
-        g_candidate_translation_scope = scope;
-        g_candidate_translation_glosses.clear();
-    }
-
     std::vector<EnglishIme::TranslationQuery> queries;
     std::string signature;
     const int start = ui.current_page_start();
@@ -458,8 +445,7 @@ void PrepareCandidateTranslationRequest()
     if (signature == g_candidate_translation_signature)
         return;
     g_candidate_translation_signature = std::move(signature);
-    CloudTranslation::Clear();
-    EnglishIme::RequestTranslations(std::move(queries), GetConfiguredTencentTmt().target_language == "en");
+    EnglishIme::RequestTranslations(std::move(queries));
 }
 
 // Copy the page the worker just finished into an immutable snapshot for the UI thread. This is the single publish

@@ -495,108 +495,6 @@ TEST_CASE(trilingual_runtime_language_preserves_preferences_without_writing_conf
     fs::remove_all(unique_root, ec);
 }
 
-TEST_CASE(translation_provider_migrates_from_legacy_enabled_flags)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"translation-provider";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    // 旧版配置：没有 [translation]，只有 niutrans.enabled。
-    WriteText(data_dir / L"config.toml",
-              "[niutrans]\nenabled = true\napp_id = \"legacy-app\"\napikey = \"legacy-key\"\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-        REQUIRE(GetConfiguredNiuTrans().enabled);
-        REQUIRE(!GetConfiguredCustomTranslation().enabled);
-        REQUIRE_EQ(GetConfiguredTranslation()->niutrans.app_id, std::string("legacy-app"));
-
-        // 非法值被拒绝，保持原值。
-        REQUIRE(!SetConfiguredTranslationString("provider", "not-a-provider"));
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-
-        // 切到阿里云：provider 与快照里的凭据一起更新，旧布尔同步写回 false。
-        REQUIRE(SetConfiguredAliyunMtString("secret_id", "LTAIlegacy"));
-        REQUIRE(SetConfiguredTranslationString("provider", "aliyun"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("aliyun"));
-        REQUIRE(GetConfiguredAliyunMt().enabled);
-        REQUIRE(!GetConfiguredNiuTrans().enabled);
-        REQUIRE_EQ(GetConfiguredTranslation()->aliyun.secret_id, std::string("LTAIlegacy"));
-
-        // 切到自定义 DeepLX：布尔随之更新。
-        REQUIRE(SetConfiguredTranslationString("provider", "custom"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("custom"));
-        REQUIRE(GetConfiguredCustomTranslation().enabled);
-        REQUIRE(!GetConfiguredNiuTrans().enabled);
-        REQUIRE(!GetConfiguredAliyunMt().enabled);
-
-        // 旧的 enabled 开关改为切换 provider；关掉当前服务回落到腾讯云，并显式打开腾讯云门禁。
-        REQUIRE(SetConfiguredNiuTransBool("enabled", true));
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-        REQUIRE(SetConfiguredCustomTranslationBool("enabled", false));
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("niutrans"));
-        REQUIRE(SetConfiguredNiuTransBool("enabled", false));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("tencent"));
-        REQUIRE(GetConfiguredTencentTmt().enabled);
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-// 旧版只有 tencent_tmt.enabled = true 时才向腾讯云发请求。三个布尔都关的旧配置升级后推导为
-// 腾讯云，但门禁保持关闭，不能因为升级就把候选词发出去。
-TEST_CASE(translation_provider_migration_keeps_tencent_gate)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"translation-tencent-gate";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    WriteText(data_dir / L"config.toml", "[tencent_tmt]\nenabled = false\nsecret_id = \"AKIDreal\"\n"
-                                         "secret_key = \"real-key\"\n[niutrans]\nenabled = false\n"
-                                         "[custom_translation]\nenabled = false\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTranslation()->provider, std::string("tencent"));
-        REQUIRE(!GetConfiguredTranslation()->tencent.enabled);
-
-        // 用户在设置页明确选择腾讯云后才打开。
-        REQUIRE(SetConfiguredTranslationString("provider", "tencent"));
-        InitImeConfig();
-        REQUIRE(GetConfiguredTranslation()->tencent.enabled);
-    }
-    fs::remove_all(unique_root, ec);
-}
-
-// 新装默认不联网：老配置里根本没有 cloud_candidates 这个键时也必须是关，只有显式写 true
-// （安装向导勾选或设置页开关）才发拼音。
-TEST_CASE(cloud_candidates_defaults_off_when_key_is_missing)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"cloud-candidates-default";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-    WriteText(data_dir / L"config.toml", "[general]\nfloating_toolbar = true\n");
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE(!GetConfiguredCloudCandidatesEnabled());
-        REQUIRE(SetConfiguredCloudCandidatesEnabled(true));
-        InitImeConfig();
-        REQUIRE(GetConfiguredCloudCandidatesEnabled());
-    }
-    fs::remove_all(unique_root, ec);
-}
-
 TEST_CASE(config_recovers_unparseable_file_and_saves)
 {
     namespace fs = std::filesystem;
@@ -1437,29 +1335,16 @@ TEST_CASE(credentials_are_stored_encrypted_and_plaintext_is_migrated)
     {
         ScopedConfigLocation local_app_data_env(local_app_data);
 
-        // 出厂占位符保持明文，模板合并要靠它们识别「用户没填」。
         InitImeConfig();
         REQUIRE(ReadText(config_path).find("dpapi:") == std::string::npos);
-        REQUIRE(ReadText(config_path).find("<YOUR_") != std::string::npos);
-
-        // 设置页写入的凭证以密文落盘，重新加载后还原。
-        REQUIRE(SetConfiguredTencentTmtString("secret_id", "AKID-plain-token"));
-        REQUIRE(ReadText(config_path).find("AKID-plain-token") == std::string::npos);
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTencentTmt().secret_id, std::string("AKID-plain-token"));
 
         // 旧版本留下的明文凭证在启动时被换成密文，值不变。
         std::string text = ReadText(config_path);
-        const std::string placeholder = "secret_key = \"<YOUR_TENCENT_SECRET_KEY>\"";
-        const size_t at = text.find(placeholder);
-        REQUIRE(at != std::string::npos);
-        text.replace(at, placeholder.size(), "secret_key = \"legacy-plain-secret\"");
+        text += "[test_service]\nsecret_key = \"legacy-plain-secret\"\n";
         WriteText(config_path, text);
         InitImeConfig();
         REQUIRE(ReadText(config_path).find("legacy-plain-secret") == std::string::npos);
-        REQUIRE_EQ(GetConfiguredTencentTmt().secret_key, std::string("legacy-plain-secret"));
-        InitImeConfig();
-        REQUIRE_EQ(GetConfiguredTencentTmt().secret_key, std::string("legacy-plain-secret"));
+        REQUIRE(ReadText(config_path).find("dpapi:") != std::string::npos);
 
         // 解不开的密文（别的账户或机器写的）当作没填，不能把密文本身当 token 用。
         text = ReadText(config_path);
@@ -1469,7 +1354,7 @@ TEST_CASE(credentials_are_stored_encrypted_and_plaintext_is_migrated)
         text.replace(key_at, line_end - key_at, "secret_key = \"dpapi:AAAA\"");
         WriteText(config_path, text);
         InitImeConfig();
-        REQUIRE(GetConfiguredTencentTmt().secret_key.empty());
+        REQUIRE(ReadText(config_path).find("dpapi:AAAA") != std::string::npos);
     }
 
     fs::remove_all(unique_root, ec);

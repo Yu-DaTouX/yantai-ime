@@ -92,7 +92,7 @@ TEST_CASE(task_classification_covers_every_task_type)
         {TaskType::IMESwitch, TaskClass::Foreground},
         {TaskType::PuncSwitch, TaskClass::Foreground},
         {TaskType::DoubleSingleByteSwitch, TaskClass::Foreground},
-        {TaskType::ApplyCloudCandidate, TaskClass::Enrichment},
+        {TaskType::ReservedCloudCandidate, TaskClass::Enrichment},
         {TaskType::ReservedAiCandidate, TaskClass::Enrichment},
         {TaskType::ApplyEnglishCandidates, TaskClass::Enrichment},
         {TaskType::ApplyCandidateTranslations, TaskClass::Enrichment},

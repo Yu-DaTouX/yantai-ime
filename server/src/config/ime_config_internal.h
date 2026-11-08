@@ -193,7 +193,6 @@ extern std::atomic_bool g_candidate_translation_show_pos;
 extern std::atomic_bool g_candidate_translation_single_sense;
 extern int g_english_mixed_input_min_chars;
 extern int g_english_mixed_input_first_page_count;
-extern bool g_cloud_candidates_enabled;
 extern bool g_assoc_sentence_wordlattice;
 extern bool g_assoc_sentence_google;
 extern bool g_assoc_sentence_neural_desktop;
@@ -271,11 +270,6 @@ extern std::string g_theme_settings;
 extern std::string g_theme_cand;
 extern std::string g_theme_ftb;
 extern std::string g_theme_menu;
-extern TencentTmtConfig g_tencent_tmt;
-extern AliyunMtConfig g_aliyun_mt;
-extern CustomTranslationConfig g_custom_translation;
-extern NiuTransConfig g_niutrans;
-extern std::string g_translation_provider;
 extern std::mutex g_network_proxy_mutex;
 extern NetworkProxyConfig g_network_proxy; // guarded by g_network_proxy_mutex
 extern FrequencyAdjustmentConfig g_frequency_adjustment;
@@ -291,10 +285,6 @@ bool LoadShuangpinSchema(const std::string &schema);
 bool IsValidCandidateSkinId(const std::string &skin);
 bool IsValidCandidateFixedBadgeStyle(const std::string &style);
 bool IsValidSettingsWindowLinger(const std::string &linger);
-bool IsValidTranslationTargetLanguage(const std::string &language);
-// ime_config_services.cpp：按当前各段全局配置重建候选词翻译快照。改动 provider、腾讯云、
-// 阿里云、自定义翻译或小牛翻译配置的地方，改完都要调一次。
-void PublishTranslationConfig();
 void RememberConfigWriteTime();
 
 // ime_config_toml.cpp

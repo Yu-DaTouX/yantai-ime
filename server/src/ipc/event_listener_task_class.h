@@ -17,8 +17,8 @@ enum class TaskType
     IMESwitch,
     PuncSwitch,
     DoubleSingleByteSwitch,
-    ApplyCloudCandidate,
-    ReservedAiCandidate, // Removed AI task; keep subsequent ordinals stable.
+    ReservedCloudCandidate, // Removed cloud task; keep subsequent ordinals stable.
+    ReservedAiCandidate,    // Removed AI task; keep subsequent ordinals stable.
     ApplyEnglishCandidates,
     ApplyCandidateTranslations,
     ApplyMixedCandidates,
