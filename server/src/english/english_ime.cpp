@@ -92,10 +92,11 @@ void WorkerLoop()
             {
                 if (!g_running || g_translation_generation.load() != observed_translation_generation)
                     break;
+                const auto from_user = [&] { return dictionary.query_custom_english_gloss(query.key); };
                 const auto from_dictionary = [&] { return dictionary.query_english_gloss(query.key); };
                 if (g_gloss_resolver)
                 {
-                    auto answer = g_gloss_resolver(query.key, from_dictionary);
+                    auto answer = g_gloss_resolver(query.key, from_user, from_dictionary);
                     results.push_back({query.key, std::move(answer.text), answer.hidden});
                 }
                 else

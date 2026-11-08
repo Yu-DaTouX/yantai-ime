@@ -152,7 +152,15 @@ TEST_CASE(candidate_skin_scene_english_line_keeps_selected_padding_and_does_not_
                     scene.EnglishLine()->SetLineVisible(false);
                     const auto hiddenSize = scene.Root()->MeasureInLayout({1200, 1200});
 
+                    // 英文行高度固定：内容是空白（隐藏词、没释义、模型还在算）与有内容时一样高。
                     scene.EnglishLine()->SetLineVisible(true);
+                    scene.EnglishLine()->SetContent(L"", L"", L"");
+                    const auto blankSize = scene.Root()->MeasureInLayout({1200, 1200});
+                    scene.EnglishLine()->SetContent(L"Hi", L"n.", L"Ctrl+\u21B5 \u4E0A\u5C4F");
+                    const auto shortSize = scene.Root()->MeasureInLayout({1200, 1200});
+                    REQUIRE(std::fabs(blankSize.height - shortSize.height) < 0.02f);
+                    REQUIRE(std::fabs(blankSize.width - shortSize.width) < 0.02f);
+                    REQUIRE(blankSize.height > hiddenSize.height);
                     scene.EnglishLine()->SetContent(std::wstring(3000, L'x'), L"n.", L"Ctrl+\u21B5 \u4E0A\u5C4F");
                     const auto size = scene.Root()->MeasureInLayout({1200, 1200});
                     scene.Root()->ArrangeInLayout({0, 0, size.width, size.height});

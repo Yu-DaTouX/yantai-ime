@@ -404,31 +404,16 @@ void PublishBuiltCandidatePage(const std::wstring &candidate_string)
     }
     else if (GetConfiguredEnglishLineEnabled() && !IsUiLessMode())
     {
-        // 英文行：本页只要有一个候选查得到英文就保留（否则高亮到没释义的词时会跳一下），
-        // 高亮那条没有释义时显示「—」；整页都没有就不画。
-        bool any_english = false;
-        bool highlighted_hidden = false;
-        std::string highlighted_gloss;
-        for (size_t i = 0; i < snapshot->page_views.size(); ++i)
+        // 英文行高度固定：功能开着就始终为它预留一行。覆盖表标「-」、查不到释义、模型还在算的词
+        // 都只是显示空白，这样高亮移动时候选窗不会上下跳。
+        snapshot->english_line_visible = true;
+        if (snapshot->selected_index_in_page >= 0 &&
+            static_cast<size_t>(snapshot->selected_index_in_page) < snapshot->page_views.size())
         {
-            if (!snapshot->page_views[i].english_gloss.empty())
-                any_english = true;
-            if (static_cast<int>(i) == snapshot->selected_index_in_page)
-            {
-                highlighted_gloss = snapshot->page_views[i].english_gloss;
-                // 覆盖表标了「-」的词（的、就、都……）高亮时不显示英文行。
-                highlighted_hidden = snapshot->page_views[i].english_hidden;
-            }
-        }
-        if (any_english && !highlighted_hidden)
-        {
-            snapshot->english_line_visible = true;
-            const auto senses = FanyImeIpc::SplitEnglishSenses(highlighted_gloss, 1);
-            if (senses.empty())
-            {
-                snapshot->english_line_word = L"\u2014";
-            }
-            else
+            const auto &highlighted = snapshot->page_views[static_cast<size_t>(snapshot->selected_index_in_page)];
+            const auto senses = FanyImeIpc::SplitEnglishSenses(
+                highlighted.english_hidden ? std::string{} : highlighted.english_gloss, 1);
+            if (!senses.empty())
             {
                 snapshot->english_line_word = string_to_wstring(senses.front().text);
                 snapshot->english_line_pos = string_to_wstring(senses.front().part_of_speech);

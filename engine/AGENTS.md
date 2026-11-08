@@ -65,7 +65,7 @@ ctest --test-dir build --output-on-failure --timeout 20
 
 `msime.db` 来自锁定的全量白霜源构建，`english.db`、`others.db` 独立按 SHA256 复用非中文资源；不再生成五笔/日语表或 `dict_japanese.dat`。构建入口是仓根 `scripts/build-dictionary.py`，本地与 CI 共用。查询格式契约仍是 `contracts/dictionary/format.json`，变更必须同时验证建库、查询、用户回放及七/八/九音节回归。
 
-候选窗英文行的释义除 `english.db` 的大表外还有一层人工覆盖：`english.db` 同目录的 `custom_translations.txt`，格式 `源<Tab>释义`，优先级高于大表（`english/english_dictionary.cpp`）。要纠正个别释义改这里，不要动 ECDICT 生成的大表。Server 侧在它前面还有随包覆盖表 `server/assets/dictionary/zh_en_gloss.tsv`（`chinese<Tab>gloss`，`-` 表示该词不显示英文行），查不到时才轮到本地翻译模型，见 `server/src/translation/gloss_resolver.h`。
+候选窗英文行的释义除 `english.db` 的大表外还有一层人工覆盖：`english.db` 同目录的 `custom_translations.txt`，格式 `源<Tab>释义`，优先级高于大表（`english/english_dictionary.cpp`）。要纠正个别释义改这里，不要动 ECDICT 生成的大表。英文行里它排第一，其后依次是随包覆盖表 `server/assets/dictionary/zh_en_gloss.tsv`（`chinese<Tab>gloss`，`-` 表示该词英文行留空）、english.db，都查不到时才轮到本地翻译模型，见 `server/src/translation/gloss_resolver.h`。
 
 ## 提交
 

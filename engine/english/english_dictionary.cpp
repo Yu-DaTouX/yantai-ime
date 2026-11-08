@@ -126,6 +126,12 @@ std::string EnglishDictionary::query_chinese_gloss(const std::string &english)
     return english.empty() || !ensure_gloss_statements() ? std::string{} : QueryGloss(en_zh_statement_, english);
 }
 
+std::string EnglishDictionary::query_custom_english_gloss(const std::string &chinese) const
+{
+    const auto custom = custom_zh_en_.find(chinese);
+    return custom == custom_zh_en_.end() ? std::string{} : custom->second;
+}
+
 std::string EnglishDictionary::query_english_gloss(const std::string &chinese)
 {
     const auto custom = custom_zh_en_.find(chinese);

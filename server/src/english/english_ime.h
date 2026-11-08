@@ -27,9 +27,11 @@ struct GlossAnswer
     std::string text;
     bool hidden = false;
 };
-// 在后台线程里决定一个词的释义：dictionary() 懒读 english.db 的结果。没设置时直接用 english.db。
+// 在后台线程里决定一个词的释义：user() 读用户 custom_translations.txt，dictionary() 懒读 english.db。
+// 没设置时先用户文件再 english.db。
+using GlossLookup = std::function<std::string()>;
 using GlossResolver =
-    std::function<GlossAnswer(const std::string &key, const std::function<std::string()> &dictionary)>;
+    std::function<GlossAnswer(const std::string &key, const GlossLookup &user, const GlossLookup &dictionary)>;
 
 using ApplyCallback =
     std::function<void(std::vector<WordItem> candidates, const std::string &input, uint64_t generation)>;

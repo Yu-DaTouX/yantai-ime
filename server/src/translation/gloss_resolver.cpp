@@ -291,8 +291,15 @@ void ModelGlossCache::Run()
     }
 }
 
-GlossResolver::Answer GlossResolver::Resolve(const std::string &chinese, const Dictionary &dictionary) const
+GlossResolver::Answer GlossResolver::Resolve(const std::string &chinese, const Dictionary &user,
+                                             const Dictionary &dictionary) const
 {
+    if (user)
+    {
+        std::string custom = user();
+        if (!custom.empty())
+            return {std::move(custom), false};
+    }
     const GlossOverlay::Entry entry = overlay_.Find(chinese);
     if (entry.kind == GlossOverlay::Kind::Hidden)
         return {{}, true};

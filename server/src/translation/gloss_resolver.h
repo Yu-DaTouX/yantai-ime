@@ -1,6 +1,7 @@
 #pragma once
 
 // 候选词英文行的释义来源，按优先级：
+//   0. 用户的 custom_translations.txt（永远最优先）；
 //   1. 随包覆盖表 assets\dictionary\zh_en_gloss.tsv（chinese<TAB>gloss；gloss 为 "-" 表示该词不显示英文行）；
 //   2. english.db 的中译英表（含 custom_translations.txt 覆盖）；
 //   3. 本地翻译模型：后台、按词缓存、不阻塞按键；模型没装就什么都不显示。
@@ -109,7 +110,7 @@ class GlossResolver
     GlossResolver(GlossOverlay overlay, ModelGlossCache *model) : overlay_(std::move(overlay)), model_(model)
     {
     }
-    Answer Resolve(const std::string &chinese, const Dictionary &dictionary) const;
+    Answer Resolve(const std::string &chinese, const Dictionary &user, const Dictionary &dictionary) const;
 
   private:
     GlossOverlay overlay_;

@@ -21,9 +21,10 @@ void InstallEnglishGlossResolver()
     static ModelGlossCache *const model =
         new ModelGlossCache(LocalInference(translation_model::Directory()), [] { EnglishIme::RefreshTranslations(); });
     static GlossResolver *const resolver = new GlossResolver(std::move(overlay), model);
-    EnglishIme::SetGlossResolver([](const std::string &key, const std::function<std::string()> &dictionary) {
-        auto answer = resolver->Resolve(key, dictionary);
-        return EnglishIme::GlossAnswer{std::move(answer.text), answer.hidden};
-    });
+    EnglishIme::SetGlossResolver(
+        [](const std::string &key, const EnglishIme::GlossLookup &user, const EnglishIme::GlossLookup &dictionary) {
+            auto answer = resolver->Resolve(key, user, dictionary);
+            return EnglishIme::GlossAnswer{std::move(answer.text), answer.hidden};
+        });
 }
 } // namespace translation

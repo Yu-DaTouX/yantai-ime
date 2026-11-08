@@ -78,6 +78,11 @@ GlossOverlay MakeOverlay(const char *tsv)
     return overlay;
 }
 
+GlossResolver::Dictionary NoUser()
+{
+    return {};
+}
+
 GlossResolver::Dictionary Dictionary(std::string value, int *calls = nullptr)
 {
     return [value = std::move(value), calls] {
@@ -120,7 +125,7 @@ TEST_CASE(gloss_overlay_wins_over_dictionary_and_model)
 
     int dictionary_calls = 0;
     const auto answer =
-        resolver.Resolve("\xE5\xA4\xA9\xE6\xB0\x94", Dictionary("dictionary weather", &dictionary_calls));
+        resolver.Resolve("\xE5\xA4\xA9\xE6\xB0\x94", NoUser(), Dictionary("dictionary weather", &dictionary_calls));
     REQUIRE_EQ(answer.text, std::string("weather"));
     REQUIRE(!answer.hidden);
     REQUIRE_EQ(dictionary_calls, 0);
@@ -135,7 +140,7 @@ TEST_CASE(gloss_overlay_dash_hides_the_word_and_never_asks_dictionary_or_model)
     const GlossResolver resolver(MakeOverlay("chinese\tgloss\n\xE7\x9A\x84\t-\n"), &cache);
 
     int dictionary_calls = 0;
-    const auto answer = resolver.Resolve("\xE7\x9A\x84", Dictionary("of; 's", &dictionary_calls));
+    const auto answer = resolver.Resolve("\xE7\x9A\x84", NoUser(), Dictionary("of; 's", &dictionary_calls));
     REQUIRE(answer.hidden);
     REQUIRE(answer.text.empty());
     REQUIRE_EQ(dictionary_calls, 0);
@@ -150,7 +155,7 @@ TEST_CASE(gloss_dictionary_wins_over_model_when_overlay_has_no_entry)
     ModelGlossCache cache(model.Infer(), [] {});
     const GlossResolver resolver(MakeOverlay("chinese\tgloss\n"), &cache);
 
-    const auto answer = resolver.Resolve("\xE8\x8C\xB6", Dictionary("tea"));
+    const auto answer = resolver.Resolve("\xE8\x8C\xB6", NoUser(), Dictionary("tea"));
     REQUIRE_EQ(answer.text, std::string("tea"));
     REQUIRE(!answer.hidden);
     std::this_thread::sleep_for(50ms);
@@ -166,11 +171,11 @@ TEST_CASE(gloss_model_fallback_is_asynchronous_cached_and_notifies)
     ModelGlossCache cache(model.Infer(), [&] { notifications.Notify(); });
     const GlossResolver resolver(MakeOverlay("chinese\tgloss\n"), &cache);
 
-    const auto first = resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", Dictionary(""));
+    const auto first = resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", NoUser(), Dictionary(""));
     REQUIRE(first.text.empty());
     REQUIRE(!first.hidden);
     // 排队中再问不会重复排队。
-    REQUIRE(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", Dictionary("")).text.empty());
+    REQUIRE(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", NoUser(), Dictionary("")).text.empty());
 
     {
         std::lock_guard lock(model.mutex);
@@ -179,10 +184,11 @@ TEST_CASE(gloss_model_fallback_is_asynchronous_cached_and_notifies)
     model.wake.notify_all();
     REQUIRE(notifications.WaitFor(1));
 
-    const auto second = resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", Dictionary(""));
+    const auto second = resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", NoUser(), Dictionary(""));
     REQUIRE_EQ(second.text, std::string("Express delivery"));
     REQUIRE_EQ(model.CallCount(), static_cast<size_t>(1)); // 命中缓存，不再推理
-    REQUIRE_EQ(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", Dictionary("")).text, std::string("Express delivery"));
+    REQUIRE_EQ(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", NoUser(), Dictionary("")).text,
+               std::string("Express delivery"));
     REQUIRE_EQ(model.CallCount(), static_cast<size_t>(1));
     REQUIRE_EQ(notifications.Count(), 1);
 }
@@ -194,12 +200,12 @@ TEST_CASE(gloss_model_missing_shows_nothing_and_does_not_loop)
     ModelGlossCache cache(model.Infer(), [&] { notifications.Notify(); });
     const GlossResolver resolver(MakeOverlay("chinese\tgloss\n"), &cache);
 
-    REQUIRE(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", Dictionary("")).text.empty());
+    REQUIRE(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", NoUser(), Dictionary("")).text.empty());
     REQUIRE(model.WaitForCalls(1));
     std::this_thread::sleep_for(50ms);
     // 冷却期内换个词也不再叩门，更不会通知界面重画。
-    REQUIRE(resolver.Resolve("\xE8\x8C\xB6", Dictionary("")).text.empty());
-    REQUIRE(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", Dictionary("")).text.empty());
+    REQUIRE(resolver.Resolve("\xE8\x8C\xB6", NoUser(), Dictionary("")).text.empty());
+    REQUIRE(resolver.Resolve("\xE5\xBF\xAB\xE9\x80\x92", NoUser(), Dictionary("")).text.empty());
     std::this_thread::sleep_for(50ms);
     REQUIRE_EQ(model.CallCount(), static_cast<size_t>(1));
     REQUIRE_EQ(notifications.Count(), 0);
@@ -274,4 +280,32 @@ TEST_CASE(gloss_model_output_is_cleaned_to_one_short_english_line)
     REQUIRE(ModelGlossCache::Clean("").empty());
     REQUIRE(ModelGlossCache::Clean("\xE5\xA4\xA9\xE6\xB0\x94").empty()); // 模型原样吐回汉字
     REQUIRE(ModelGlossCache::Clean(std::string(200, 'a')).empty());
+}
+
+TEST_CASE(gloss_user_custom_translation_wins_over_overlay_hidden_dictionary_and_model)
+{
+    FakeModel model;
+    model.answers["\xE7\x9A\x84"] = {Status::Ready, "model"};
+    model.answers["\xE5\xA4\xA9\xE6\xB0\x94"] = {Status::Ready, "model"};
+    ModelGlossCache cache(model.Infer(), [] {});
+    const GlossResolver resolver(MakeOverlay("chinese\tgloss\n\xE7\x9A\x84\t-\n\xE5\xA4\xA9\xE6\xB0\x94\tweather\n"),
+                                 &cache);
+
+    // 覆盖表里有译文：用户文件照样优先。
+    int dictionary_calls = 0;
+    auto answer =
+        resolver.Resolve("\xE5\xA4\xA9\xE6\xB0\x94", Dictionary("my weather"), Dictionary("db", &dictionary_calls));
+    REQUIRE_EQ(answer.text, std::string("my weather"));
+    REQUIRE(!answer.hidden);
+    // 覆盖表标了「-」：用户写了译文就显示用户的，不再隐藏。
+    answer = resolver.Resolve("\xE7\x9A\x84", Dictionary("of mine"), Dictionary("db", &dictionary_calls));
+    REQUIRE_EQ(answer.text, std::string("of mine"));
+    REQUIRE(!answer.hidden);
+    REQUIRE_EQ(dictionary_calls, 0);
+    // 用户文件没有这个词：回到覆盖表（隐藏仍然生效）。
+    REQUIRE(resolver.Resolve("\xE7\x9A\x84", Dictionary(""), Dictionary("db")).hidden);
+    REQUIRE_EQ(resolver.Resolve("\xE5\xA4\xA9\xE6\xB0\x94", Dictionary(""), Dictionary("db")).text,
+               std::string("weather"));
+    std::this_thread::sleep_for(50ms);
+    REQUIRE_EQ(model.CallCount(), static_cast<size_t>(0));
 }
