@@ -8,10 +8,11 @@
       "include-v-in-tag": true,
       "version-file": "version.txt",
       "draft": true,
-      "prerelease": true,
+      "prerelease": false,
+      "release-as": "0.1.0",
       "force-tag-creation": true,
       "pull-request-header": "这个 PR 准备本分支的下一个版本。",
-      "pull-request-footer": "CI 通过后 Release 工作流会自行合并这个 PR，然后构建并发布。手动合并效果相同，只是提前一个 run。没有配置签名证书时发布会产出带 -unsigned 后缀的未签名安装包，不会因此失败。"
+      "pull-request-footer": "本 fork 使用手动 Release workflow；此配置不触发自动合并或发布。版本由 workflow_dispatch 输入，构建签名后仅建草稿，人工审核发布。"
     }
   }
 }

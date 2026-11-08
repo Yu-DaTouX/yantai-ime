@@ -30,8 +30,8 @@ on:
           - server
   push:
     branches-ignore:
-      - develop
-      - main
+      - yudatou/main
+      - yt/release
       - 'release-please--*'
       # The Windows 7 port lives in its own repository with dev-build-win7.yml; branches named for
       # it are pushed here from that work and would only rebuild an artifact nobody asked for.
@@ -43,7 +43,7 @@ on:
       - 'docs/**'
   pull_request:
     branches:
-      - develop
+      - yudatou/main
     paths-ignore:
       - '**.md'
       - 'docs/**'

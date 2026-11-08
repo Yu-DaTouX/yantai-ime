@@ -1,162 +1,81 @@
 name: Release
-run-name: ${{ inputs.test_signing && 'SignPath test signing' || 'Release' }}
+run-name: Release v${{ inputs.version }} (${{ inputs.dry_run && 'dry run' || 'draft only' }})
 
-# Releasing is automatic. A push to main that carries a fix or a feat ends with a published installer, without anybody merging or dispatching anything: this workflow refreshes release-please's pull request, tests it, merges it, turns the merge into a draft release, then builds, signs and publishes that draft.
-#
-# The whole cycle runs inside the one run that the original push started. land-release-pr.sh merges with GITHUB_TOKEN, whose pushes do not start workflow runs, so the merge cannot produce a second Release run queued behind this one on the concurrency group.
-#
-# This spends code signing signatures on every releasable merge to main -- one per payload EXE/DLL plus one for the installer, so roughly fifteen per release rather than one. The certificate allows 3000 signatures a month, so the quota is still not what constrains this; what it spends is release hygiene -- see docs/product-release.md.
-#
-# workflow_dispatch either repairs an existing draft or tests SignPath with the selected commit.
-# Test signing uses the same build and packaging steps, but never creates or publishes a release.
+# Deliberately manual: never merge branches or publish a release automatically.
+# Draft creation is restricted to the default branch; branch rehearsals only upload artifacts.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
-      tag:
-        description: Draft release tag to build, sign and publish, for example v2026.9.1
-        required: false
+      version:
+        description: Stable version (MAJOR.MINOR.PATCH, starting at 0.1.0)
+        required: true
         type: string
-      test_signing:
-        description: Test SignPath on the selected ref without creating or publishing a release (leave tag empty)
-        required: false
+        default: '0.1.0'
+      dry_run:
+        description: Build/sign/test and upload artifacts only (no tag or release writes)
+        required: true
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  # A push refreshes release-please metadata while workflow_dispatch builds a
-  # selected draft. They must not block each other on the same branch lock.
-  group: release-${{ inputs.test_signing && 'test-signing' || github.event_name }}-${{ github.ref }}
+  group: release-v${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Prepare release metadata
+    name: Validate release request
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      # Read the PR-triggered run; merging stays scoped to GITHUB_TOKEN.
-      actions: read
-      contents: write
-      pull-requests: write
+    timeout-minutes: 10
     outputs:
-      should_publish: ${{ inputs.test_signing || github.event_name == 'workflow_dispatch' || steps.target.outputs.release_created == 'true' }}
-      tag_name: ${{ inputs.test_signing && format('test-{0}', github.run_id) || (github.event_name == 'workflow_dispatch' && inputs.tag || steps.target.outputs.tag_name) }}
-      signing_provider: ${{ inputs.test_signing && 'signpath' || vars.WINDOWS_SIGNING_PROVIDER }}
-      signing_policy: ${{ inputs.test_signing && 'test-signing' || vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-      test_certificate_sha256: ${{ steps.test_signing.outputs.certificate_sha256 }}
-      version: ${{ inputs.test_signing && steps.test_signing.outputs.version || (github.event_name == 'workflow_dispatch' && steps.requested_release.outputs.version || steps.target.outputs.version) }}
-      target_sha: ${{ inputs.test_signing && github.sha || (github.event_name == 'workflow_dispatch' && steps.requested_release.outputs.target_sha || steps.target.outputs.target_sha) }}
+      tag_name: ${{ steps.request.outputs.tag_name }}
+      version: ${{ steps.request.outputs.version }}
+      target_sha: ${{ github.sha }}
     steps:
-      - name: Check out release automation
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Validate the test signing policy and download its public certificate
-        if: ${{ inputs.test_signing }}
-        id: test_signing
+      - name: Validate version and branch
+        id: request
         env:
-          SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-        run: python3 scripts/ci/prepare-test-signing.py
-
-      - name: Upload the test signing public certificate
-        if: ${{ inputs.test_signing }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: signpath-test-certificate
-          path: ${{ runner.temp }}/signpath-test.cer
-          if-no-files-found: error
-
-      # Separate release metadata from PR updates to preserve release-please ordering.
-      # Recover an already-merged release before calculating the next PR, matching release-please's
-      # normal releases-then-pull-requests ordering.
-      - name: Require the release metadata credential
-        if: ${{ github.event_name == 'push' }}
+          TARGET_VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
+        run: python3 scripts/ci/prepare-release.py
+      - name: Require fixed signing credentials
         env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          SIGNING_PROVIDER: ${{ vars.WINDOWS_SIGNING_PROVIDER }}
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          if [[ -z "$RELEASE_TOKEN" ]]; then
-            echo '::error::RELEASE_PLEASE_TOKEN must allow contents and workflows writes to create release tags.'
-            exit 1
-          fi
+          test "$SIGNING_PROVIDER" = certificate || { echo '::error::Set WINDOWS_SIGNING_PROVIDER=certificate'; exit 1; }
+          test -n "$CERTIFICATE_BASE64" && test -n "$CERTIFICATE_PASSWORD" || { echo '::error::Fixed certificate secrets are required'; exit 1; }
 
-      - name: Recover releases from previously merged pull requests
-        if: ${{ github.event_name == 'push' }}
-        id: release_pr
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+  validate:
+    name: Validate release automation
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # release-please reads and writes the repository's default branch unless told otherwise, and that is now develop. The release branch is main: without this the version pull request, the changelog and the tag all land on develop, and the branch this workflow waits for (release-please--branches--main--*) is never created.
-          target-branch: main
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          skip-github-pull-request: true
-
-      - name: Refresh the release pull request
-        # When recovery found a release to publish, do not create the next
-        # release PR in the same run. That PR belongs to the next main push.
-        if: ${{ github.event_name == 'push' && steps.release_pr.outputs.release_created != 'true' }}
-        id: release_update
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
-        with:
-          target-branch: main
-          # A trusted credential starts normal PR checks without manual workflow approval.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          skip-github-release: true
-
-      - name: Test and merge the release pull request
-        if: ${{ github.event_name == 'push' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: bash scripts/ci/land-release-pr.sh
-
-      - name: Create the release for the merged pull request
-        if: ${{ github.event_name == 'push' }}
-        id: release
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
-        with:
-          target-branch: main
-          # Creating a tag at a historical workflow-changing commit needs workflows:write.
-          # Only GITHUB_TOKEN merges to main, preventing a second Release run.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          skip-github-pull-request: true
-
-      - name: Resolve the release this run publishes
-        if: ${{ github.event_name == 'push' }}
-        id: target
-        env:
-          FIRST_CREATED: ${{ steps.release_pr.outputs.release_created }}
-          FIRST_TAG: ${{ steps.release_pr.outputs.tag_name }}
-          FIRST_VERSION: ${{ steps.release_pr.outputs.version }}
-          FIRST_SHA: ${{ steps.release_pr.outputs.sha }}
-          SECOND_CREATED: ${{ steps.release.outputs.release_created }}
-          SECOND_TAG: ${{ steps.release.outputs.tag_name }}
-          SECOND_VERSION: ${{ steps.release.outputs.version }}
-          SECOND_SHA: ${{ steps.release.outputs.sha }}
-        run: bash scripts/ci/resolve-auto-release.sh
-
-      - name: Validate requested draft release
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.test_signing }}
-        id: requested_release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ inputs.tag }}
-        run: bash scripts/ci/validate-draft-release.sh
+          go-version: '1.26'
+          cache: false
+      - name: Validate workflow syntax
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint -color .github/workflows/release.yml .github/workflows/ci.yml .github/workflows/dev-build.yml .github/workflows/branch-guard.yml .github/workflows/quality.yml
+      - name: Test release metadata and draft safety
+        run: python3 scripts/ci/test-manual-release.py
 
   dependencies:
     name: Load the release product lock
     needs: prepare
-    if: ${{ needs.prepare.outputs.should_publish == 'true' }}
-    # 这个作业原来跑在 Depot 的 Linux runner 上。fork 里不再有 Depot：改用 GitHub 托管的
-    # windows-2025，步骤改走 Git Bash，python3 换成镜像上的 python。
     runs-on: windows-2025
     timeout-minutes: 60
     outputs:
@@ -167,9 +86,6 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.target_sha }}
           persist-credentials: false
-      # verify-published is a release gate and is deliberately absent from ci.yml: a pull request
-      # legitimately locks a branch commit while a change lands in the engine and here at once, and
-      # enforcing reachability there would deadlock the landing it protects.
       - name: Validate and export the product lock
         id: lock
         shell: bash
@@ -182,12 +98,8 @@ jobs:
   tsf:
     name: Build TSF ${{ matrix.name }}
     needs: [prepare, dependencies]
-    if: ${{ needs.prepare.outputs.should_publish == 'true' }}
-    # fork 里没有自托管的发布机，也没有 Depot：三个 Windows 作业统一跑 GitHub 托管的 windows-2025。
     runs-on: windows-2025
     env:
-      # windows-2025 自带的 vcpkg 就在 C:\vcpkg（VCPKG_INSTALLATION_ROOT），
-      # 下面的验证步骤会确认镜像仍然把它放在那里。
       VCPKG_ROOT: C:\vcpkg
     timeout-minutes: 60
     strategy:
@@ -210,14 +122,6 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      # Some runner instances leave _work owned by SYSTEM while the job itself
-      # runs as `runner`. checkout still succeeds, so the first plain git call
-      # is what exits 128 on dubious ownership, minutes into the job.
-      #
-      # The self-hosted jobs are separate runner instances on one machine, so
-      # they share C:\Users\runner\.gitconfig and reach this step in the same
-      # second. Whoever loses that race gets "could not lock config file". Read
-      # the list back before each attempt so a peer's write counts as success.
       - name: Trust the runner workspace
         shell: pwsh
         run: |
@@ -242,8 +146,6 @@ jobs:
       - name: Verify the vcpkg root
         shell: pwsh
         run: |
-          # 镜像自带的 vcpkg 就是 VCPKG_INSTALLATION_ROOT；C:\vcpkg 对不上就说明镜像变了，
-          # 后面的缓存键和工具链都会跟着错，所以在这里先拦下来。
           if (-not (Test-Path -LiteralPath (Join-Path $env:VCPKG_ROOT 'vcpkg.exe') -PathType Leaf)) {
             throw "VCPKG_ROOT is '$env:VCPKG_ROOT' but vcpkg.exe is not there"
           }
@@ -251,7 +153,6 @@ jobs:
             throw "VCPKG_ROOT is '$env:VCPKG_ROOT'; the image's VCPKG_INSTALLATION_ROOT is '$env:VCPKG_INSTALLATION_ROOT'"
           }
 
-      # A hosted runner starts with no vcpkg binaries, so it restores the archives ci.yml's TSF job saves under the same scope. A run on main can read the caches develop's CI wrote, since develop is the default branch.
       - name: Restore dependency binaries
         id: vcpkg-cache
         uses: ./.github/actions/vcpkg-cache
@@ -271,9 +172,6 @@ jobs:
           path: ${{ steps.vcpkg-cache.outputs.path }}
           key: ${{ steps.vcpkg-cache.outputs.key }}-complete
 
-      # CMakePresets.json points at a developer machine's vcpkg, so the presets cannot be used
-      # here. This mirrors what .github/workflows/ci.yml already does, into the build directory
-      # layout that the installer's Prepare-PackageFiles.ps1 expects.
       - name: Configure
         shell: pwsh
         run: >
@@ -296,25 +194,17 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tsf-${{ matrix.name }}
-          # Upload the output directory so download-artifact restores its contents directly into
-          # the layout Prepare-PackageFiles.ps1 expects.
           path: ${{ matrix.build_dir }}/Release
           if-no-files-found: error
 
   server:
     name: Build Server
     needs: [prepare, dependencies]
-    if: ${{ needs.prepare.outputs.should_publish == 'true' }}
-    # fork 里没有自托管的发布机：Server 也在 windows-2025 上构建。
     runs-on: windows-2025
     env:
-      # windows-2025 已经把它设成自己的 vcpkg，下面一步会先验证它确实在 C:\vcpkg。
       VCPKG_INSTALLATION_ROOT: C:\vcpkg
-      # 只有 GitHub 托管的这条路径用 sccache 编译（见 Configure），复用它带来的
-      # ci.yml Server 作业缓存能找回大部分时间。
       SCCACHE_GHA_ENABLED: 'true'
       SCCACHE_IGNORE_SERVER_IO_ERROR: '1'
-    # A 4-core hosted runner is slower than the release machine; sccache hits from ci.yml's Server job on develop carry most of it.
     timeout-minutes: 120
     steps:
       - name: Check out release commit
@@ -324,14 +214,6 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      # Some runner instances leave _work owned by SYSTEM while the job itself
-      # runs as `runner`. checkout still succeeds, so the first plain git call
-      # is what exits 128 on dubious ownership, minutes into the job.
-      #
-      # The self-hosted jobs are separate runner instances on one machine, so
-      # they share C:\Users\runner\.gitconfig and reach this step in the same
-      # second. Whoever loses that race gets "could not lock config file". Read
-      # the list back before each attempt so a peer's write counts as success.
       - name: Trust the runner workspace
         shell: pwsh
         run: |
@@ -345,7 +227,6 @@ jobs:
           }
           throw "Could not add $workspace to the global safe.directory list"
 
-      # The job env replaces the image's own VCPKG_INSTALLATION_ROOT, so check C:\vcpkg against the vcpkg the image puts on PATH before install-boost.ps1, the cache key and the toolchain all read it.
       - name: Verify the hosted vcpkg root
         shell: pwsh
         run: |
@@ -356,7 +237,6 @@ jobs:
             throw "VCPKG_INSTALLATION_ROOT is '$env:VCPKG_INSTALLATION_ROOT' but the image's vcpkg is at '$imageRoot'"
           }
 
-      # The GitHub-hosted steps below are ci.yml's Server job: the same vcpkg cache scope, MSVC environment and sccache, so a release run on main restores what develop's CI saved instead of compiling Boost and the whole server cold on four cores.
       - name: Restore dependency binaries
         id: vcpkg-cache
         uses: ./.github/actions/vcpkg-cache
@@ -382,8 +262,6 @@ jobs:
           path: ${{ steps.vcpkg-cache.outputs.path }}
           key: ${{ steps.vcpkg-cache.outputs.key }}-boost
 
-      # Ninja Multi-Config because sccache plugs in through CMAKE_<LANG>_COMPILER_LAUNCHER, which the Visual Studio generator ignores; it keeps the --config Release / bin/Release layout the later steps read.
-      # 这是唯一一条编译路径：构建总是跑在 GitHub 托管的 windows-2025 上。
       - name: Configure
         shell: pwsh
         run: |
@@ -424,9 +302,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/ci/test-server.ps1 -ServerRoot server -StagingRoot "$env:RUNNER_TEMP/product-data" -BuildDir build-release
 
-      # A uiAccess=true binary cannot be launched from the non-interactive
-      # service session used by this runner. Test the normal build first, then
-      # embed the manifest before upload and signing.
       - name: Embed the Server uiAccess manifest
         shell: pwsh
         run: ./scripts/ci/embed-server-manifest.ps1 -BuildDir server/build-release/bin/Release
@@ -443,33 +318,14 @@ jobs:
           if-no-files-found: error
 
   package:
-    name: Package and publish installer
-    needs: [prepare, dependencies, tsf, server]
-    # Stated explicitly even though skipped needs would already skip this job. This is the only job
-    # that spends a signature, so the condition that stops it belongs here rather than being a
-    # consequence of the other jobs' conditions that a later edit could quietly undo.
-    if: ${{ needs.prepare.outputs.should_publish == 'true' }}
-    # fork 里没有自托管的发布机：打包也在 windows-2025 上跑。没配置证书时只是不出签名，
-    # 仍然会产出带 -unsigned 后缀的安装包并发布。
+    name: Package signed installer and prepare draft
+    needs: [prepare, validate, dependencies, tsf, server]
     runs-on: windows-2025
-    # A SignPath signing request waits for an approver, twice per release, so that path gets room for both approvals on top of the build.
     timeout-minutes: 150
     permissions:
       contents: write
-      # Build provenance. Unlike Authenticode this costs nothing and needs no certificate, and the
-      # Sigstore transparency log it writes to is outside this organisation's control, so it is the
-      # one integrity signal a repository admin cannot forge by swapping a release asset.
-      id-token: write
-      attestations: write
-      # signpath/github-action-submit-signing-request reads this job's details and downloads the artifact it submits with GITHUB_TOKEN; without this the request fails before SignPath sees it.
-      actions: read
     env:
       DICTIONARY_TAG: ${{ needs.dependencies.outputs.dictionary_tag }}
-      # download-dictionaries.sh stages MetasequoiaImeDict/out under this root, and
-      # Prepare-PackageFiles.ps1 reads its dictionary directory from the same place. Before the
-      # consolidation this was a synthetic tree holding five sibling checkouts under their
-      # historical names; now the dictionary release is the only source that still arrives from
-      # outside, so it lands beside the components in the one checkout.
       STAGING_ROOT: .
     steps:
       - name: Check out the release commit
@@ -478,14 +334,6 @@ jobs:
           ref: ${{ needs.prepare.outputs.target_sha }}
           persist-credentials: false
 
-      # Some runner instances leave _work owned by SYSTEM while the job itself
-      # runs as `runner`. checkout still succeeds, so the first plain git call
-      # is what exits 128 on dubious ownership, minutes into the job.
-      #
-      # The self-hosted jobs are separate runner instances on one machine, so
-      # they share C:\Users\runner\.gitconfig and reach this step in the same
-      # second. Whoever loses that race gets "could not lock config file". Read
-      # the list back before each attempt so a peer's write counts as success.
       - name: Trust the runner workspace
         shell: pwsh
         run: |
@@ -499,30 +347,6 @@ jobs:
           }
           throw "Could not add $workspace to the global safe.directory list"
 
-      - name: Verify the release commit is on main
-        if: ${{ !inputs.test_signing }}
-        shell: bash
-        run: bash scripts/ci/verify-commit-on-main.sh
-
-      - name: Download the test signing public certificate
-        if: ${{ inputs.test_signing }}
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: signpath-test-certificate
-          path: ${{ runner.temp }}/signpath-test-certificate
-
-      - name: Trust the pinned test certificate on this ephemeral runner
-        if: ${{ inputs.test_signing }}
-        id: test_certificate
-        shell: pwsh
-        env:
-          EXPECTED_SHA256: ${{ needs.prepare.outputs.test_certificate_sha256 }}
-        run: >
-          ./scripts/ci/trust-test-signing-certificate.ps1
-          -Path "$env:RUNNER_TEMP/signpath-test-certificate/signpath-test.cer"
-          -ExpectedSha256 $env:EXPECTED_SHA256
-
-      # The hosted image's preinstalled ISCC compiles the installer only after the payload signing request has been approved. Prove now, before any signature is spent, that it resolves the Chinese language file and is new enough (6.6+) for msime_setup.iss.
       - name: Check the hosted Inno Setup can compile the installer
         shell: pwsh
         run: ./scripts/ci/check-inno-language.ps1
@@ -551,19 +375,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci/download-dictionaries.sh
 
-      # The word-lattice language model is the one product input that is neither built from this
-      # repository's sources nor published in the dictionary release: it is converted here from the
-      # ARPA corpus pinned in language-model/lock.json. Both the download and the converted result
-      # are checked against that lock, so this step is reproducible rather than a fetch of whatever
-      # the upstream file server serves today. It configures engine/ngram alone, so it needs no
-      # vcpkg and no SQLite on this runner.
       - name: Build the word-lattice language model
         shell: pwsh
         run: ./scripts/build-language-model.ps1
 
-      # The neural sentence models are downloaded from the chinese-ime-lm release pinned in
-      # neural-model/lock.json and checked against the SHA256 recorded there. Prepare-PackageFiles.ps1
-      # asserts they exist, so this has to run before the payload is collected.
       - name: Download the neural sentence models
         shell: pwsh
         run: ./scripts/fetch-neural-model.ps1
@@ -574,17 +389,9 @@ jobs:
         env:
           CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
-          CERTIFICATE_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT }}
-          SIGNING_PROVIDER: ${{ needs.prepare.outputs.signing_provider }}
-          SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          SIGNPATH_SIGNING_POLICY_SLUG: ${{ needs.prepare.outputs.signing_policy }}
+          SIGNING_PROVIDER: certificate
         run: ./scripts/ci/detect-release-signing.ps1
 
-      # -IncludeSymbols is what makes the published installer carry the PDBs matching its binaries.
-      # Staging symbols is opt-in because they are ~140 MB against ~20 MB of binaries and Inno Setup
-      # compresses them with solid LZMA2, which is why the local test scripts leave them out.
       - name: Collect the installer payload
         shell: pwsh
         working-directory: installer
@@ -604,59 +411,14 @@ jobs:
           --windows-commit "$env:WINDOWS_COMMIT"
           --output installer/app_data/product-manifest.json
 
-      # Every payload EXE/DLL, not just the uiAccess server. The server is the only one that
-      # technically requires a signature (uiAccess=true is ignored without one), but Microsoft
-      # Defender blocks the unsigned helper processes -- settings page, emoji panel, watchdog --
-      # and the user sees an input method that installs and then cannot open its own panels.
       - name: Sign the payload binaries
-        if: ${{ steps.signing.outputs.signing_provider == 'certificate' }}
         shell: pwsh
         working-directory: installer
         env:
           CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
-          CERTIFICATE_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT }}
           TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
         run: ../scripts/ci/sign-binaries.ps1 -Recurse -Path 'server_exe', 'tsf_dll'
-
-      # The SignPath path signs the same files minus the third-party DLLs, which SignPath Foundation does not allow a project to sign. See scripts/ci/signpath-files.ps1 and installer/signpath/.
-      - name: Stage the payload binaries for SignPath
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        shell: pwsh
-        working-directory: installer
-        run: ../scripts/ci/signpath-files.ps1 -Mode Stage -Set Payload -Directory "$env:RUNNER_TEMP/signpath-payload-unsigned"
-
-      - name: Upload the unsigned payload for SignPath
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        id: signpath-payload
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: signpath-payload-unsigned
-          path: ${{ runner.temp }}/signpath-payload-unsigned
-          if-no-files-found: error
-
-      - name: Sign the payload binaries with SignPath
-        id: signed_payload
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          api-token: ${{ secrets.SIGNPATH_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ needs.prepare.outputs.signing_policy }}
-          artifact-configuration-slug: payload
-          github-artifact-id: ${{ steps.signpath-payload.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: ${{ runner.temp }}/signpath-payload-signed
-
-      - name: Put the signed payload binaries back
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        shell: pwsh
-        working-directory: installer
-        env:
-          EXPECTED_SIGNER: ${{ steps.test_certificate.outputs.thumbprint }}
-        run: ../scripts/ci/signpath-files.ps1 -ExpectedSignerThumbprint "$env:EXPECTED_SIGNER" -AllowUntrustedSigner:${{ inputs.test_signing }} -Mode Restore -Set Payload -Directory "$env:RUNNER_TEMP/signpath-payload-signed"
 
       - name: Install the Chinese language file for Inno Setup
         shell: pwsh
@@ -668,73 +430,14 @@ jobs:
         run: pwsh -File ./Compile-Installer.ps1
 
       - name: Sign the installer
-        if: ${{ steps.signing.outputs.signing_provider == 'certificate' }}
         shell: pwsh
         working-directory: installer
         env:
           CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
-          CERTIFICATE_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT }}
           TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
           TARGET_VERSION: ${{ needs.prepare.outputs.version }}
         run: ../scripts/ci/sign-binaries.ps1 -Path "Output/MetasequoiaIME_Setup_v$env:TARGET_VERSION.exe"
-
-      - name: Stage the installer for SignPath
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        shell: pwsh
-        working-directory: installer
-        env:
-          TARGET_VERSION: ${{ needs.prepare.outputs.version }}
-        run: ../scripts/ci/signpath-files.ps1 -Mode Stage -Set Installer -Version $env:TARGET_VERSION -Directory "$env:RUNNER_TEMP/signpath-installer-unsigned"
-
-      - name: Upload the unsigned installer for SignPath
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        id: signpath-installer
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: signpath-installer-unsigned
-          path: ${{ runner.temp }}/signpath-installer-unsigned
-          if-no-files-found: error
-
-      - name: Sign the installer with SignPath
-        id: signed_installer
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          api-token: ${{ secrets.SIGNPATH_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ needs.prepare.outputs.signing_policy }}
-          artifact-configuration-slug: installer
-          github-artifact-id: ${{ steps.signpath-installer.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: ${{ runner.temp }}/signpath-installer-signed
-
-      - name: Put the signed installer back
-        if: ${{ steps.signing.outputs.signing_provider == 'signpath' }}
-        shell: pwsh
-        working-directory: installer
-        env:
-          TARGET_VERSION: ${{ needs.prepare.outputs.version }}
-          EXPECTED_SIGNER: ${{ steps.test_certificate.outputs.thumbprint }}
-        run: ../scripts/ci/signpath-files.ps1 -ExpectedSignerThumbprint "$env:EXPECTED_SIGNER" -AllowUntrustedSigner:${{ inputs.test_signing }} -Mode Restore -Set Installer -Version $env:TARGET_VERSION -Directory "$env:RUNNER_TEMP/signpath-installer-signed"
-
-      - name: Record the signing request links for review
-        if: ${{ always() && steps.signing.outputs.signing_provider == 'signpath' }}
-        shell: pwsh
-        env:
-          PAYLOAD_REQUEST: ${{ steps.signed_payload.outputs.signing-request-web-url }}
-          INSTALLER_REQUEST: ${{ steps.signed_installer.outputs.signing-request-web-url }}
-          TEST_SIGNING: ${{ inputs.test_signing }}
-        run: |
-          $mode = if ($env:TEST_SIGNING -eq 'true') { 'Test signing (not for distribution)' } else { 'Release signing' }
-          @(
-            "## SignPath: $mode"
-            "GitHub Actions run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-            "Payload request: $env:PAYLOAD_REQUEST"
-            "Installer request: $env:INSTALLER_REQUEST"
-          ) >> $env:GITHUB_STEP_SUMMARY
 
       - name: Name the asset and record its checksum
         id: asset
@@ -742,36 +445,19 @@ jobs:
         working-directory: installer
         env:
           TARGET_VERSION: ${{ needs.prepare.outputs.version }}
-          ASSET_SUFFIX: ${{ inputs.test_signing && '-test-signed' || steps.signing.outputs.asset_suffix }}
+          ASSET_SUFFIX: ${{ steps.signing.outputs.asset_suffix }}
         run: ../scripts/ci/name-installer-asset.ps1
 
       - name: Upload the installer as a workflow artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ inputs.test_signing && 'installer-test-signed' || 'installer' }}
+          name: installer
           path: |
             ${{ steps.asset.outputs.asset_path }}
             installer/app_data/product-manifest.json
           if-no-files-found: error
 
-      - name: Attest the installer's build provenance
-        if: ${{ !inputs.test_signing }}
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: ${{ steps.asset.outputs.asset_path }}
-
-      - name: Revalidate the draft release target
-        if: ${{ !inputs.test_signing }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
-          TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
-        run: bash scripts/ci/revalidate-draft-release.sh
-
-      - name: Upload and publish the release
-        if: ${{ !inputs.test_signing }}
+      - name: Prepare assets and optionally create an unpublished draft
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -782,6 +468,13 @@ jobs:
           ASSET_SHA256: ${{ steps.asset.outputs.asset_sha256 }}
           SIGNING_ENABLED: ${{ steps.signing.outputs.signing_enabled }}
           PRODUCT_MANIFEST: installer/app_data/product-manifest.json
-          RELEASE_TRIGGER: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
           TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
         run: bash scripts/ci/publish-release.sh
+
+      - name: Upload the complete release assets for review
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: release-assets/
+          if-no-files-found: error

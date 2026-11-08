@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop, main]
+    branches: [yudatou/main]
   pull_request:
+    branches: [yudatou/main]
   workflow_dispatch:
 
   merge_group:
@@ -21,7 +22,7 @@ jobs:
 
   lock:
     name: Product inputs
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       # The engine is vendored in-tree, so a plain checkout already carries the contracts this job
@@ -43,7 +44,7 @@ jobs:
 
   windows:
     name: Windows ${{ matrix.name }}
-    runs-on: depot-windows-2025-8
+    runs-on: windows-2025
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -107,7 +108,7 @@ jobs:
   # sanitized build would; it covers it on every pull request.
   sanitizers:
     name: Sanitizers
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out source
@@ -127,7 +128,7 @@ jobs:
   server:
     name: Server
     needs: lock
-    runs-on: depot-windows-2025-8
+    runs-on: windows-2025
     timeout-minutes: 90
     # sccache caches individual MSVC compiles across runs so an incremental change recompiles only
     # what it touched instead of the whole server + engine tree. It needs SCCACHE_GHA_ENABLED for
@@ -213,7 +214,7 @@ jobs:
   engine:
     name: Engine
     needs: lock
-    runs-on: depot-windows-2025-8
+    runs-on: windows-2025
     timeout-minutes: 60
     # Same sccache setup as the Server job. SCCACHE_IGNORE_SERVER_IO_ERROR lets a compile fall back
     # to plain cl.exe when the sccache server is unreachable, so a GitHub cache outage costs time
@@ -283,7 +284,7 @@ jobs:
 
   gui:
     name: GUI framework
-    runs-on: depot-windows-2025-8
+    runs-on: windows-2025
     timeout-minutes: 30
     steps:
       - name: Check out source
@@ -304,7 +305,7 @@ jobs:
   # enforces plus the example's installer; both run against the example and the skins/ collection.
   skins:
     name: Skins
-    runs-on: depot-windows-2025-8
+    runs-on: windows-2025
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -327,7 +328,7 @@ jobs:
 
   packaging:
     name: Package contents
-    runs-on: depot-windows-2025-8
+    runs-on: windows-2025
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
