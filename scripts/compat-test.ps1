@@ -14,6 +14,8 @@ param(
     [string]$Only = '',
     [string]$Scratch = 'E:\yantai-wt\compat-scratch'
 )
+# pwsh -File 传不了数组，逗号分隔的一个字符串在这里拆开。
+$Apps = @($Apps | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
@@ -42,13 +44,14 @@ public static class U {
 New-Item -ItemType Directory -Force -Path $OutDir, $Scratch | Out-Null
 $results = New-Object System.Collections.Generic.List[object]
 $script:hwnd = [IntPtr]::Zero      # 本项测试允许的前台窗口
+$script:allowPid = 0              # 同一进程的其他窗口（启动闪屏后的主窗口、对话框）也算测试窗口
 $script:loose = $null              # 开始菜单搜索这类没法按窗口认定时，按进程名放行
 $VK = @{ Space = 0x20; Enter = 0x0D; Esc = 0x1B; Back = 0x08; Shift = 0x10; Ctrl = 0x11; Alt = 0x12; A = 0x41; C = 0x43; Del = 0x2E; Win = 0x5B }
 
 function FgName { $p = [U]::Pid([U]::GetForegroundWindow()); try { (Get-Process -Id $p).ProcessName } catch { '?' } }
 function Guard {
     $fg = [U]::GetAncestor([U]::GetForegroundWindow(), 3)   # GA_ROOTOWNER
-    if ($script:hwnd -ne [IntPtr]::Zero -and $fg -ne $script:hwnd) { throw "ABORT: 前台不是测试窗口（现在是 $(FgName)）" }
+    if ($script:hwnd -ne [IntPtr]::Zero -and $fg -ne $script:hwnd -and [U]::Pid($fg) -ne $script:allowPid) { throw "ABORT: 前台不是测试窗口（现在是 $(FgName)）" }
     if ($script:loose -and (FgName) -notmatch $script:loose) { throw "ABORT: 前台不是测试窗口（现在是 $(FgName)）" }
 }
 function Down([byte]$vk) { [U]::keybd_event($vk, [byte][U]::MapVirtualKey($vk, 0), 0, [UIntPtr]::Zero) }
@@ -139,10 +142,24 @@ function Launch([scriptblock]$start, [string]$procRegex, [int]$timeoutSec = 25) 
 }
 function Focus($h) {
     for ($i = 0; $i -lt 10; $i++) {
-        if ([U]::GetAncestor([U]::GetForegroundWindow(), 3) -eq $h) { return $true }
+        $fg = [U]::GetAncestor([U]::GetForegroundWindow(), 3)
+        if ($fg -eq $h -or [U]::Pid($fg) -eq [U]::Pid($h)) { return $true }
         Down $VK.Alt; [void][U]::SetForegroundWindow($h); Up $VK.Alt; Start-Sleep -Milliseconds 400
     }
     return $false
+}
+
+function Close-Owned($o) {
+        try {
+        if ($o.kill -and $o.kill -match '\\') {
+            Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($o.kill) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        } elseif ($o.kill) {
+            Stop-Process -Id $o.pid -Force -ErrorAction SilentlyContinue
+        } else {
+            if ($o.app -eq 'notepad' -and (Focus $o.hwnd)) { $script:hwnd = $o.hwnd; Clear-Field; $script:hwnd = [IntPtr]::Zero }
+            [void][U]::PostMessage($o.hwnd, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)
+        }
+    } catch {}
 }
 
 $page = Join-Path $Scratch 'ime-test.html'
@@ -154,7 +171,7 @@ $owned = New-Object System.Collections.Generic.List[object]
 try {
     foreach ($app in $Apps) {
         Write-Host "== $app"
-        $script:hwnd = [IntPtr]::Zero; $script:loose = $null
+        $script:hwnd = [IntPtr]::Zero; $script:loose = $null; $script:allowPid = 0
         $skip = $null; $read = $true; $post = { }; $h = [IntPtr]::Zero; $kill = $null
         switch ($app) {
             'notepad' {
@@ -168,7 +185,7 @@ try {
             }
             'edge' {
                 $prof = Join-Path $Scratch 'edge-profile'; $kill = $prof
-                $h = Launch { Start-Process 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe' -ArgumentList "--user-data-dir=$prof", '--no-first-run', '--no-default-browser-check', '--new-window', $pageUrl } '^msedge$'
+                $h = Launch { Start-Process 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe' -ArgumentList "--user-data-dir=$prof", '--inprivate', '--no-first-run', '--no-default-browser-check', '--new-window', $pageUrl } '^msedge$'
                 $post = { Start-Sleep 1 }
             }
             'word' {
@@ -177,7 +194,7 @@ try {
             }
             'excel' {
                 if (Get-Process EXCEL -ErrorAction SilentlyContinue) { $skip = '测试前 Excel 已在运行，跳过' }
-                else { $h = Launch { Start-Process 'C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE' } '^EXCEL$' 40; $kill = 'EXCEL'; $read = $false; $post = { Tap $VK.Esc; Start-Sleep 1 } }
+                else { $csv = Join-Path $Scratch 'ime-test.csv'; '' | Set-Content -LiteralPath $csv; $h = Launch { Start-Process 'C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE' -ArgumentList "`"$csv`"" } '^EXCEL$' 40; $kill = 'EXCEL'; $read = $false; $post = { Start-Sleep 1 } }
             }
             'terminal' {
                 $h = Launch { Start-Process wt -ArgumentList '-w', 'new', 'pwsh', '-NoProfile', '-NoLogo' } '^WindowsTerminal$'; $read = $false; $post = { Start-Sleep 2 }
@@ -189,33 +206,25 @@ try {
             default { $skip = '未知程序' }
         }
         if ($app -ne 'startsearch' -and -not $skip -and $h -eq [IntPtr]::Zero) { $skip = '没等到它的窗口出现' }
-        if ($h -ne [IntPtr]::Zero) { $owned.Add([pscustomobject]@{ app = $app; hwnd = $h; kill = $kill }) }
+        if ($h -ne [IntPtr]::Zero) { $owned.Add([pscustomobject]@{ app = $app; hwnd = $h; kill = $kill; pid = [U]::Pid($h) }) }
         if ($skip) { $results.Add([pscustomobject]@{ app = $app; case = '-'; text = ''; pass = $null; cand = ''; note = $skip }); continue }
         if ($app -ne 'startsearch') {
             if (-not (Focus $h)) { $results.Add([pscustomobject]@{ app = $app; case = '-'; text = ''; pass = $null; cand = ''; note = '切不到前台' }); continue }
-            $script:hwnd = $h
+            $script:hwnd = $h; $script:allowPid = [U]::Pid($h)
         }
         & $post
         Run-Suite $app $read
         if ($app -eq 'startsearch') { Tap $VK.Esc }
         $script:hwnd = [IntPtr]::Zero; $script:loose = $null
+        # 测完马上关，免得它在测下一个程序时跳回前台
+        foreach ($o in @($owned | Where-Object app -eq $app)) { Close-Owned $o; [void]$owned.Remove($o) }
+        Start-Sleep -Seconds 1
     }
 }
 catch { Write-Host "$_" }
 finally {
     $script:hwnd = [IntPtr]::Zero; $script:loose = $null
-    foreach ($o in $owned) {
-        try {
-            if ($o.kill -and $o.kill -match '\\') {
-                Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($o.kill) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-            } elseif ($o.kill) {
-                Stop-Process -Id ([U]::Pid($o.hwnd)) -Force -ErrorAction SilentlyContinue
-            } else {
-                if ($o.app -eq 'notepad' -and (Focus $o.hwnd)) { $script:hwnd = $o.hwnd; Clear-Field; $script:hwnd = [IntPtr]::Zero }
-                [void][U]::PostMessage($o.hwnd, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)
-            }
-        } catch {}
-    }
+    foreach ($o in $owned) { Close-Owned $o }
     try { if ($savedClip) { [System.Windows.Forms.Clipboard]::SetText($savedClip) } } catch {}
     $md = @('| 程序 | 用例 | 结果 | 上屏 | 候选窗 | 备注 |', '|---|---|---|---|---|---|')
     foreach ($r in $results) {
