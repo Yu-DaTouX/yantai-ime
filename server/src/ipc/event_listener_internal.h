@@ -20,6 +20,7 @@
 #include "ipc/candidate_selection_policy.h"
 #include "ipc/candidate_text_policy.h"
 #include "ipc/candidate_ui_owner.h"
+#include "ipc/english_gloss_policy.h"
 #include "ipc/event_listener_task_class.h"
 #include "ipc/traditional_variant_expansion_policy.h"
 #include "ipc/event_listener.h"
@@ -71,6 +72,12 @@ extern bool g_translation_candidates_active;
 // 两者互斥，共用下面这份保存的候选与页码，退出时原样放回。
 extern bool g_date_time_page_active;
 extern std::string g_date_time_page_keyword;
+// 英文词义清单页（Ctrl+Shift+Enter）：选中一个候选后把候选框换成它在这个词下的全部英文词义。
+// 和译文页、日期页一样不动输入串，三者互斥；退出时把进入前那一屏的候选、页码与高亮原样放回。
+// 清单页不占 ui.items（那一屏还要留着选词时判断是哪条中文字），只把 senses 画成 page_views。
+extern bool g_english_senses_page_active;
+extern std::string g_english_senses_page_word;
+extern std::vector<FanyImeIpc::EnglishSense> g_english_senses_page_senses;
 extern std::vector<WordItem> g_translation_saved_items;
 extern int g_translation_saved_page_index;
 extern int g_translation_saved_selected_index;
@@ -79,6 +86,9 @@ extern bool g_dedicated_english_answer_pending;
 extern int g_authoritative_cn_mode;
 
 std::string TranslationIdentity(const EnglishIme::TranslationQuery &query);
+// 候选词英文上屏（英文行 + 词义清单）是否在用：英文行开着，或两条键位里至少一条绑定了键。
+// 关掉时候选页不必去查释义，译文缓存也照旧清掉。
+bool EnglishGlossFeatureEnabled();
 // 译文页或日期页正占着候选框：items 不是这次输入的候选，异步结果不能往里合并，也不能按会话扩展。
 bool IsCandidateSubPageActive();
 // 把界面线程记下的鼠标操作落到 candidate_ui.selection_started。工作线程每取一个任务先调一次，
@@ -176,6 +186,21 @@ void RefreshCandidatePageUi(bool show_window);
 
 // event_listener_pipes.cpp
 void WakeNamedPipeListenersForShutdown();
+// event_listener_english_gloss.cpp
+// 当前高亮候选的中译英释义原文（没有时为空）。只在任务线程上调用。
+std::string HighlightedEnglishGloss();
+// 英文行右侧的淡色提示（跟着 [keybindings] commit_english 走），未绑定或写错时为空。
+std::wstring EnglishLineHint();
+// Ctrl+Enter：上屏英文行显示的那一条词义。没有释义时返回 false（这颗键什么都不做）。
+bool CommitEnglishLine(uint64_t client_id, uint64_t activation_epoch);
+// Ctrl+Shift+Enter：把候选框换成当前高亮候选的英文词义清单；没有释义时也打开（清单显示「没有英文释义」）。
+bool EnterEnglishSensesPage(uint64_t client_id, uint64_t activation_epoch);
+// 上屏一段英文：只覆盖部分拼音时把这一段换成英文，剩下的拼音继续组字；不调频、不写用户词库。
+// 调用前必须已经退出清单页（它按当前页的高亮候选算组合怎么推进）。
+bool CommitEnglishGlossText(const std::string &english, uint64_t client_id, uint64_t activation_epoch);
+// 把清单页开关告诉当前候选属主（TSF 只在这条打开时把 Esc / Backspace 交给服务端）。
+void NotifyEnglishSensesPage(bool active);
+
 } // namespace event_listener_detail
 
 namespace FanyNamedPipe

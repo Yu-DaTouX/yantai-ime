@@ -168,6 +168,14 @@ bool IsCandidateNavigationKey(UINT keycode)
            keycode == VK_NEXT || keycode == VK_UP || keycode == VK_DOWN;
 }
 
+// [keybindings] 里的字符串键位是否就是这颗键（空串、写错都不匹配）。
+bool MatchesConfiguredBinding(const std::string &binding, UINT keycode, UINT modifiers_down)
+{
+    FanyImeKeyChord::Binding parsed;
+    return FanyImeKeyChord::Parse(binding, parsed) &&
+           parsed.Matches(keycode, modifiers_down & FanyImeIpc::kKeyModifierMask);
+}
+
 bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool client_supports_restore,
                              bool &composition_restored)
 {
@@ -535,9 +543,13 @@ void ExitCandidateSubPage()
     {
         return;
     }
+    const bool was_english_senses_page = g_english_senses_page_active;
     g_translation_candidates_active = false;
     g_date_time_page_active = false;
     g_date_time_page_keyword.clear();
+    g_english_senses_page_active = false;
+    g_english_senses_page_word.clear();
+    g_english_senses_page_senses.clear();
     auto &ui = Global::candidate_ui;
     ui.set_items(std::move(g_translation_saved_items));
     g_translation_saved_items.clear();
@@ -548,6 +560,10 @@ void ExitCandidateSubPage()
     g_translation_saved_selected_index = 0;
     g_translation_saved_selection_started = false;
     RefreshCandidatePageUi(false);
+    if (was_english_senses_page)
+    {
+        NotifyEnglishSensesPage(false);
+    }
     if (CandidateListCharacterSet() != GetConfiguredCharacterSet())
         RespellCandidatesForCharacterSetChange();
 }
@@ -654,6 +670,85 @@ void HandleTranslationCommitKey(uint64_t client_id, uint64_t activation_epoch, u
     g_translation_candidates_active = true;
     RefreshCandidatePageUi(true);
     SendCurrentDataToClient(client_id, activation_epoch, request_id);
+}
+
+// 英文词义清单页上的按键：数字/空格/回车选一条上屏，方向键移动高亮，Esc/Backspace 只退回原中文候选。
+// 返回 true 表示这颗键已经在清单里处理完；返回 false 时清单已经关掉，按键按普通候选键继续处理。
+bool HandleEnglishSensesPageKey(uint32_t keycode, uint64_t client_id, uint64_t activation_epoch, uint64_t request_id)
+{
+    if (!g_english_senses_page_active)
+    {
+        return false;
+    }
+
+    auto &ui = Global::candidate_ui;
+    const uint32_t modifiers = Global::ModifiersDown & FanyImeIpc::kKeyModifierMask;
+    const int count = static_cast<int>(g_english_senses_page_senses.size());
+
+    const auto reply_and_repaint = [&](UINT reply_type) {
+        Global::MsgTypeToTsf = reply_type;
+        SendCurrentDataToClient(client_id, activation_epoch, request_id);
+        RefreshCandidatePageUi(true);
+        RequestShowCandidateWindow();
+    };
+
+    // 没有释义：清单只有一行「没有英文释义」，任意键都退回原中文候选。
+    if (count == 0)
+    {
+        ExitCandidateSubPage();
+        reply_and_repaint(Global::DataFromServerMsgType::NavigationIgnored);
+        return true;
+    }
+
+    // Esc / Backspace：只退回原中文候选，候选与高亮不变。清单页打开时 TSF 把这两个键当服务端候选键
+    // 发过来（见 EnglishSensesPageChanged），所以这里不会取消组合、也不会删字符。
+    if ((keycode == VK_ESCAPE || keycode == VK_BACK) && modifiers == 0)
+    {
+        ExitCandidateSubPage();
+        reply_and_repaint(Global::DataFromServerMsgType::NavigationIgnored);
+        return true;
+    }
+
+    // 数字 1-9 直接选；空格/回车选高亮那一条。
+    if (keycode == VK_SPACE || keycode == VK_RETURN || (keycode >= '1' && keycode <= '9'))
+    {
+        const int index =
+            (keycode == VK_SPACE || keycode == VK_RETURN) ? ui.selected_index_in_page : static_cast<int>(keycode - '1');
+        if (index < 0 || index >= count)
+        {
+            Global::MsgTypeToTsf = Global::DataFromServerMsgType::OutofRange;
+            SendCurrentDataToClient(client_id, activation_epoch, request_id);
+            return true;
+        }
+        const std::string english = g_english_senses_page_senses[static_cast<size_t>(index)].text;
+        // 先退回原中文候选：上屏按那一屏的高亮候选推进组合（部分上屏时要接着组剩下的拼音）。
+        ExitCandidateSubPage();
+        if (!CommitEnglishGlossText(english, client_id, activation_epoch))
+        {
+            Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
+        }
+        SendCurrentDataToClient(client_id, activation_epoch, request_id);
+        return true;
+    }
+
+    // 方向键和翻页键在清单里移动高亮。
+    if (IsCandidateNavigationKey(keycode))
+    {
+        const bool move_next = keycode == VK_DOWN || keycode == VK_RIGHT || keycode == VK_NEXT || keycode == VK_TAB ||
+                               keycode == VK_OEM_PLUS;
+        const int next = std::clamp(ui.selected_index_in_page + (move_next ? 1 : -1), 0, count - 1);
+        const bool moved = next != ui.selected_index_in_page;
+        ui.selected_index_in_page = next;
+        ui.selection_started = true;
+        reply_and_repaint(moved ? (move_next ? Global::DataFromServerMsgType::MoveSelectionNext
+                                             : Global::DataFromServerMsgType::MoveSelectionPrevious)
+                                : Global::DataFromServerMsgType::NavigationIgnored);
+        return true;
+    }
+
+    // 其它键先退回原中文候选，再按普通候选键处理（和译文页、日期页同一套）。
+    ExitCandidateSubPage();
+    return false;
 }
 
 // Bring the candidate page in step with the CompositionRestored frame just sent.
@@ -853,6 +948,41 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     {
         const uint32_t digit_position = FanyImeIpc::TranslationDigitPosition(Global::Keycode, Global::ModifiersDown);
         HandleTranslationCommitKey(client_id, activation_epoch, request_id, static_cast<int>(digit_position) - 1);
+        return;
+    }
+    // 候选词英文上屏：[keybindings] commit_english 上屏候选条下面的英文行，english_senses 展开全部词义。
+    // 老的「候选词翻译」在用 Ctrl+Enter 上屏译文，两者同时开时把 Ctrl+Enter 留给它（TSF 侧同样不抢）。
+    if (!GetConfiguredCandidateTranslationsEnabled() &&
+        MatchesConfiguredBinding(GetConfiguredCommitEnglishBinding(), Global::Keycode, Global::ModifiersDown))
+    {
+        if (g_english_senses_page_active)
+        {
+            // 清单里再按一次就是选高亮那一条。
+            HandleEnglishSensesPageKey(VK_SPACE, client_id, activation_epoch, request_id);
+            return;
+        }
+        if (!CommitEnglishLine(client_id, activation_epoch))
+        {
+            // 没有释义：这颗键已经被 TSF 吃掉，必须回一条什么都不做的回复。
+            Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
+        }
+        SendCurrentDataToClient(client_id, activation_epoch, request_id);
+        return;
+    }
+    // 展开全部词义不和「候选词翻译」抢键：那条功能只用 Ctrl+Enter 与 Ctrl+数字。
+    if (MatchesConfiguredBinding(GetConfiguredEnglishSensesBinding(), Global::Keycode, Global::ModifiersDown))
+    {
+        if (!g_english_senses_page_active)
+        {
+            EnterEnglishSensesPage(client_id, activation_epoch);
+        }
+        Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
+        SendCurrentDataToClient(client_id, activation_epoch, request_id);
+        return;
+    }
+    // 英文词义清单页只认自己的那几个键，其余按键先退回原中文候选再照常处理。
+    if (HandleEnglishSensesPageKey(Global::Keycode, client_id, activation_epoch, request_id))
+    {
         return;
     }
     // 横排候选左右键决定移高亮还是移光标（规则见 ShouldArrowMoveCandidateSelection）。

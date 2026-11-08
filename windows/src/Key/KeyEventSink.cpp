@@ -200,6 +200,28 @@ bool IsPinyinCommitShortcut(UINT code, UINT modifiers)
                                           code, modifiers, windowsKeyDown);
 }
 
+// 候选词英文上屏：[keybindings] commit_english（上屏英文行）与 english_senses（展开全部词义）。
+// 只在候选列表面板显示时吃键（调用点判 _candidateMode），空串或写错的配置解析成 key 0，自然不吃。
+// 老的「候选词翻译」用 Ctrl+Enter 上屏译文：两者同时开时把 Ctrl+Enter 留给它，避免一条键两个含义。
+bool IsEnglishCommitShortcut(UINT code, UINT modifiers)
+{
+    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0 ||
+        FanyUtils::ReadConfiguredCandidateTranslationsEnabled())
+    {
+        return false;
+    }
+    return FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_english.Matches(code, modifiers);
+}
+
+bool IsEnglishSensesShortcut(UINT code, UINT modifiers)
+{
+    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0)
+    {
+        return false;
+    }
+    return FanyUtils::ReadConfiguredSwitchLanguageHotkeys().english_senses.Matches(code, modifiers);
+}
+
 bool IsCharacterSetInputModeToggle(UINT code, UINT modifiers)
 {
     return FanyImeProtocol::IsCharacterSetShortcut(code, modifiers) && (GetAsyncKeyState(VK_LWIN) & 0x8000) == 0 &&
@@ -414,14 +436,32 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
         }
 
         // Ctrl+Enter commits the translation shown next to the highlighted candidate, Ctrl+1..9
-        // the translation of the candidate at that position. Shift+Enter commits the Server's
+        // the translation of the candidate at that position. The English-line chords
+        // ([keybindings] commit_english / english_senses) commit the highlighted word's English
+        // gloss or expand its senses. Shift+Enter commits the Server's
         // converted spelling, including compositions without candidates, unless the user turned
         // that chord off in settings -- then it must fall through to the plain Enter path.
         if (!freshCompositionState &&
             ((_candidateMode != CANDIDATE_NONE && (IsTranslationCommitShortcut(*pCodeOut, shortcutModifiers) ||
-                                                   IsTranslationDigitShortcut(*pCodeOut, shortcutModifiers))) ||
+                                                   IsTranslationDigitShortcut(*pCodeOut, shortcutModifiers) ||
+                                                   IsEnglishCommitShortcut(*pCodeOut, shortcutModifiers) ||
+                                                   IsEnglishSensesShortcut(*pCodeOut, shortcutModifiers))) ||
              (!_serverUnavailableFallbackActive && pCompositionProcessorEngine->GetVirtualKeyLength() > 0 &&
               IsPinyinCommitShortcut(*pCodeOut, shortcutModifiers))))
+        {
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_SERVER_CANDIDATE_KEY;
+            }
+            return TRUE;
+        }
+
+        // 英文词义清单页：Esc / Backspace 只退回原中文候选，由 Server 处理。不能落到下面的本地分类，
+        // 否则 Esc 会取消整个组合、Backspace 会删掉一个字母。
+        if (Global::EnglishSensesPageActive.load(std::memory_order_relaxed) &&
+            (*pCodeOut == VK_ESCAPE || *pCodeOut == VK_BACK) && shortcutModifiers == 0 &&
+            _candidateMode != CANDIDATE_NONE)
         {
             if (pKeyState)
             {

@@ -138,6 +138,10 @@ struct CandidatePresenter::Impl
     std::shared_ptr<msimeui::StackPanel> root;
     std::shared_ptr<msimeui::Card> card;
     std::shared_ptr<msimeui::TextBlock> preedit;
+    // 英文词义清单页的页眉；平时高度为 0。
+    std::shared_ptr<msimeui::TextBlock> header;
+    // 候选条下面那行英文。
+    std::shared_ptr<CandidateEnglishLine> englishLine;
     std::shared_ptr<msimeui::CandidateList> list;
     // 皮肤关掉翻页箭头时为空。
     std::shared_ptr<msimeui::PagerArrows> pager;
@@ -224,6 +228,8 @@ void CandidatePresenter::RebuildScene()
     impl_->root = impl_->scene.Root();
     impl_->card = impl_->scene.CardVisual();
     impl_->preedit = impl_->scene.Preedit();
+    impl_->header = impl_->scene.Header();
+    impl_->englishLine = impl_->scene.EnglishLine();
     impl_->list = impl_->scene.List();
     impl_->pager = impl_->scene.Pager();
     impl_->expandToggle = impl_->scene.ExpandToggle();
@@ -278,7 +284,9 @@ void CandidatePresenter::ApplySkin()
     settings.skinsRoot = std::filesystem::path(AssetRoot()) / L"skins";
     settings.skinId = skinId;
     settings.light = candLight;
-    settings.horizontal = GetConfiguredCandidateWindowLayout() == "horizontal";
+    // 英文词义清单页不管用户选横排还是竖排，都按竖排画。
+    settings.horizontal = !sensesPage_ && GetConfiguredCandidateWindowLayout() == "horizontal";
+    settings.englishSensesPage = sensesPage_;
     settings.fontSize = static_cast<float>((std::max)(12, GetConfiguredCandidateFontSize()));
     settings.preeditFontSize = static_cast<float>((std::max)(12, GetConfiguredCandidateWindowPreeditFontSize()));
     settings.fontFamily = string_to_wstring(ResolveSystemFontFamilyForCss(GetConfiguredCandidateEnglishFont()));
@@ -339,6 +347,28 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
 {
     const Global::CandidatePageSnapshotPtr page = Global::LoadCandidatePageSnapshot();
     const bool translationsEnabled = GetConfiguredCandidateTranslationsEnabled();
+    // 英文行：内容与显隐都来自 Server（“本页有没有释义”是它的判断）。
+    if (impl_->englishLine)
+    {
+        impl_->englishLine->SetLineVisible(page->english_line_visible);
+        impl_->englishLine->SetContent(page->english_line_word, page->english_line_pos, page->english_line_hint);
+    }
+    if (impl_->header)
+    {
+        if (page->english_senses_page)
+        {
+            impl_->header->SetText(page->english_senses_header);
+            impl_->header->ClearHeight();
+            impl_->header->SetMargin({0.0f, 0.0f, 0.0f, 0.0f});
+        }
+        else
+        {
+            impl_->header->SetText(L"");
+            impl_->header->SetHeight(0.0f);
+            // 隐藏时把 body 的两处 2 DIP 行距一起抵掉，平时候选框和没有这一行时一模一样。
+            impl_->header->SetMargin({0.0f, -kCandidateBodyRowSpacingDip, 0.0f, -kCandidateBodyRowSpacingDip});
+        }
+    }
     std::vector<msimeui::CandidateList::Item> items;
     items.reserve(page->page_views.size());
     std::vector<CandidateSkinScene::PageWord> words;
@@ -351,7 +381,12 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         item.label = std::to_wstring(i + 1);
         item.text = words.back().text + words.back().badge;
         item.annotation = string_to_wstring(view.annotation);
-        if (translationsEnabled)
+        if (page->english_senses_page)
+        {
+            // 清单页：右边那条小字是词性，靠右、比词义小一号，不上屏。
+            item.translation = string_to_wstring(view.english_pos);
+        }
+        else if (translationsEnabled)
         {
             // 逐段转成 UTF-16 再拼起来，区间按拼出来的串计。
             for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(view.translation))
@@ -370,6 +405,8 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         }
         items.push_back(std::move(item));
     }
+    // 清单页没有释义时只有一行灰字。
+    impl_->list->SetEmptyMessage(page->english_senses_page && page->page_views.empty() ? L"没有英文释义" : L"");
     ignoreSelectionCallback_ = true;
     impl_->list->SetItems(std::move(items));
     impl_->list->SetSelectedIndex(static_cast<size_t>((std::max)(0, page->selected_index_in_page)));
@@ -941,6 +978,8 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
         return;
     }
     CloseContextMenu(false);
+    // 这一帧要画的是哪种页，套皮肤之前就得知道（清单页固定竖排、候选行单行省略）。
+    sensesPage_ = Global::LoadCandidatePageSnapshot()->english_senses_page;
     ApplySkin();
     // 减少动画的系统开关可能随时改，每次显示都重读；v1 皮肤从不播放。动画从候选窗出现时起算，
     // 同一次显示里的按键不会让它重头开始。
@@ -997,9 +1036,11 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
     const float maxH = limits.maxHeightDip > 1.0 ? static_cast<float>(limits.maxHeightDip) : 640.0f;
     float widthDip = 0.0f;
     float heightDip = 0.0f;
+    // 英文词义清单页的卡片内容宽上限 320 DIP（外框留给阴影的留白不算在里面）。
+    const float layoutMaxW = sensesPage_ ? (320.0f + kShadowPadLeft + kShadowPadRight) : maxW;
     auto layoutRoot = [&]() {
         impl_->root->InvalidateMeasure();
-        const msimeui::SizeF measured = impl_->root->MeasureInLayout({maxW, maxH});
+        const msimeui::SizeF measured = impl_->root->MeasureInLayout({layoutMaxW, maxH});
         widthDip = (std::max)(measured.width, cardMinWidthDip_ + kShadowPadLeft + kShadowPadRight);
         heightDip = (std::max)(measured.height, 36.0f);
         impl_->root->InvalidateArrange();
@@ -1024,6 +1065,9 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
         std::wstring stickyKey = GetPreeditWithCaretMarker();
         stickyKey += L'#';
         stickyKey += std::to_wstring(Global::candidate_ui.page_index);
+        // 英文词义清单页是另一种页面，尺寸不跟原中文候选条互相撑住。
+        if (sensesPage_)
+            stickyKey += L"#senses";
         // 展开与收起是两种尺寸，不能互相撑住。
         if (expanded_)
             stickyKey += L"#expanded";
@@ -1034,7 +1078,7 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
             stickyCardHeightDip_ = 0.0f;
         }
         const msimeui::RectF natural = impl_->card->GetBounds();
-        const float maxCardWidthDip = (std::max)(cardMinWidthDip_, maxW - kShadowPadLeft - kShadowPadRight);
+        const float maxCardWidthDip = (std::max)(cardMinWidthDip_, layoutMaxW - kShadowPadLeft - kShadowPadRight);
         // fit_content 的卡片严格跟随文字宽度，只保留高度的只增不减。
         stickyCardWidthDip_ = fitContent_
                                   ? natural.width

@@ -331,6 +331,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_translations", GetConfiguredCandidateTranslationsEnabled()},
             {"candidate_translation_show_pos", GetConfiguredCandidateTranslationShowPos()},
             {"candidate_translation_single_sense", GetConfiguredCandidateTranslationSingleSense()},
+            {"english_line", GetConfiguredEnglishLineEnabled()},
             {"cn_en_mixed_input_min_chars", GetConfiguredEnglishMixedInputMinChars()},
             {"cn_en_mixed_input_first_page_count", GetConfiguredEnglishMixedInputFirstPageCount()},
             {"emoji_mixed_input", GetConfiguredEmojiMixedInputEnabled()},
@@ -641,6 +642,8 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCandidateTranslationShowPos(json::value_to<bool>(data.at("value")));
     if (path == "general.candidate_translation_single_sense")
         return SetConfiguredCandidateTranslationSingleSense(json::value_to<bool>(data.at("value")));
+    if (path == "general.english_line")
+        return SetConfiguredEnglishLineEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.cn_en_mixed_input_min_chars")
         return SetConfiguredEnglishMixedInputMinChars(static_cast<int>(data.at("value").as_int64()));
     if (path == "general.cn_en_mixed_input_first_page_count")

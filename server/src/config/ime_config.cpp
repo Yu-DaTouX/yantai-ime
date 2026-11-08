@@ -93,6 +93,9 @@ bool g_english_candidates_enabled = false;
 bool g_candidate_translations_enabled = false;
 std::atomic_bool g_candidate_translation_show_pos{true};
 std::atomic_bool g_candidate_translation_single_sense{false};
+bool g_english_line_enabled = true;
+std::string g_commit_english_binding = "Ctrl+Enter";
+std::string g_english_senses_binding = "Ctrl+Shift+Enter";
 int g_english_mixed_input_min_chars = kEnglishMixedInputMinCharsDefault;
 int g_english_mixed_input_first_page_count = kEnglishMixedInputFirstPageCountDefault;
 // 整句候选来源与去重补位开关：词格、Google 和神经速度档默认开，神经效果档与去重补位默认关。
@@ -419,6 +422,7 @@ bool LoadImeConfig()
                                                std::memory_order_relaxed);
         g_candidate_translation_single_sense.store(tbl["general"]["candidate_translation_single_sense"].value_or(false),
                                                    std::memory_order_relaxed);
+        g_english_line_enabled = tbl["general"]["english_line"].value_or(true);
         {
             const int min_chars =
                 tbl["general"]["cn_en_mixed_input_min_chars"].value_or(kEnglishMixedInputMinCharsDefault);
@@ -562,6 +566,15 @@ bool LoadImeConfig()
                 tbl["keybindings"]["switch_language_ctrl_alt_space"].value_or(legacy_ctrl_alt_space);
             g_character_set_shortcut_enabled = tbl["keybindings"]["toggle_character_set_ctrl_shift_f"].value_or(true);
             g_commit_pinyin_shift_enter_enabled = tbl["keybindings"]["commit_pinyin_shift_enter"].value_or(true);
+            // 候选词英文上屏的两条键位：空串表示未绑定；类型不对的按未绑定处理（Parse 会拒绝）。
+            {
+                const auto read_binding = [&tbl](const char *key, const char *fallback) {
+                    const auto value = tbl["keybindings"][key];
+                    return value ? value.value_or(std::string(FanyImeKeyChord::InvalidValue)) : std::string(fallback);
+                };
+                g_commit_english_binding = read_binding("commit_english", "Ctrl+Enter");
+                g_english_senses_binding = read_binding("english_senses", "Ctrl+Shift+Enter");
+            }
             for (std::size_t i = 0; i < g_input_state_shortcuts.size(); ++i)
             {
                 const auto &definition = FanyImeInputStateShortcuts::Definitions[i];

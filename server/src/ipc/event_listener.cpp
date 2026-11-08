@@ -77,6 +77,9 @@ std::string g_candidate_translation_signature;
 bool g_translation_candidates_active = false;
 bool g_date_time_page_active = false;
 std::string g_date_time_page_keyword;
+bool g_english_senses_page_active = false;
+std::string g_english_senses_page_word;
+std::vector<FanyImeIpc::EnglishSense> g_english_senses_page_senses;
 std::vector<WordItem> g_translation_saved_items;
 int g_translation_saved_page_index = 0;
 int g_translation_saved_selected_index = 0;
@@ -89,7 +92,7 @@ std::string TranslationIdentity(const EnglishIme::TranslationQuery &query)
 
 bool IsCandidateSubPageActive()
 {
-    return g_translation_candidates_active || g_date_time_page_active;
+    return g_translation_candidates_active || g_date_time_page_active || g_english_senses_page_active;
 }
 
 void LatchCandidateUiInteraction()
@@ -736,6 +739,11 @@ void PushUiLessCandidatesToOwner()
 
 void ClearState()
 {
+    // 清单页的开关要先告诉候选属主，下面的 ClearCandidateUiOwner 之后就没有对象可发了。
+    if (g_english_senses_page_active)
+    {
+        NotifyEnglishSensesPage(false);
+    }
     ClearSpecialModeTriggers();
     ClearCandidateUiOwner();
     UpdateEnglishInput("");
@@ -746,6 +754,9 @@ void ClearState()
     g_translation_candidates_active = false;
     g_date_time_page_active = false;
     g_date_time_page_keyword.clear();
+    g_english_senses_page_active = false;
+    g_english_senses_page_word.clear();
+    g_english_senses_page_senses.clear();
     g_translation_saved_items.clear();
     g_translation_saved_page_index = 0;
     g_translation_saved_selected_index = 0;

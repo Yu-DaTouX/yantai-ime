@@ -259,6 +259,7 @@ set(SRC_FILES
     "./src/ipc/event_listener.h"
     "./src/ipc/event_listener_async_candidates.cpp"
     "./src/ipc/event_listener_candidates.cpp"
+    "./src/ipc/event_listener_english_gloss.cpp"
     "./src/ipc/event_listener_internal.h"
     "./src/ipc/event_listener_keys.cpp"
     "./src/ipc/event_listener_pipes.cpp"

@@ -2676,6 +2676,20 @@ void TextBlock::SetTextAlignment(DWRITE_TEXT_ALIGNMENT alignment)
     InvalidateVisual();
 }
 
+void TextBlock::SetEllipsisEnabled(bool enabled)
+{
+    if (ellipsis_ == enabled)
+    {
+        return;
+    }
+
+    ellipsis_ = enabled;
+    // 换行方式写在缓存的 TextFormat 上，切开关时那份也要一起作废。
+    InvalidateTextFormatCache();
+    InvalidateTextLayoutCache();
+    InvalidateMeasure();
+}
+
 void TextBlock::SetFontFamily(std::wstring fontFamily)
 {
     if (fontFamilyOverride_ == fontFamily)
@@ -2817,7 +2831,7 @@ SizeF TextBlock::MeasureText(const SizeF &availableSize)
                 }
             }
 
-            format->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+            format->SetWordWrapping(ellipsis_ ? DWRITE_WORD_WRAPPING_NO_WRAP : DWRITE_WORD_WRAPPING_WRAP);
             format->SetTextAlignment(textAlignment_);
             if (hasCustomFontFallback_)
                 ApplyFontFallback(dwriteFactory, format.Get(), fallbackFontFamilies_);
@@ -2851,6 +2865,18 @@ SizeF TextBlock::MeasureText(const SizeF &availableSize)
             {
                 layout1->SetCharacterSpacing(0.0f, letterSpacing_, 0.0f,
                                              DWRITE_TEXT_RANGE{0, static_cast<UINT32>(layoutText.size())});
+            }
+        }
+
+        if (ellipsis_)
+        {
+            // 单行 + 末尾省略号：布局宽度就是这一行能占的宽度，超出的部分画成 …。
+            Microsoft::WRL::ComPtr<IDWriteInlineObject> ellipsisSign;
+            if (SUCCEEDED(
+                    dwriteFactory->CreateEllipsisTrimmingSign(cachedTextLayout_.Get(), ellipsisSign.GetAddressOf())))
+            {
+                const DWRITE_TRIMMING trimming{DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0};
+                cachedTextLayout_->SetTrimming(&trimming, ellipsisSign.Get());
             }
         }
 

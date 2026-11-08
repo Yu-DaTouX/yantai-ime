@@ -63,6 +63,9 @@ candidate_translations = false
 candidate_translation_show_pos = true
 # 候选译文只显示第一条释义，关闭时最多显示两条
 candidate_translation_single_sense = false
+# 候选词英文行：候选条下面固定一行，显示当前高亮候选的第一个英文词义（词性小号灰字跟随）。
+# 默认打开；关闭后 Ctrl+Enter / Ctrl+Shift+Enter 仍可用。
+english_line = true
 # 中文输入状态下输入恰好等于 emoji 关键词时显示 emoji 候选（排在候选项列表最后，不做前缀匹配）
 emoji_mixed_input = false
 # 中文输入状态下显示颜文字前缀候选（排在 emoji 之后）
@@ -314,6 +317,10 @@ toggle_punctuation = "Ctrl+Period"
 toggle_character_set_ctrl_shift_f = true
 # Shift + Enter 提交转换后的全拼；关闭后 Shift + Enter 按 Enter 处理（提交原始输入）
 commit_pinyin_shift_enter = true
+# 候选词英文上屏：Ctrl+Enter 上屏英文行显示的那个词义；Ctrl+Shift+Enter 展开全部词义的竖排清单。
+# 键位只支持 Ctrl / Ctrl+Shift + 一个键名（如 Ctrl+Enter、Ctrl+Shift+Enter、Ctrl+Period）；空字符串表示关闭。
+commit_english = "Ctrl+Enter"
+english_senses = "Ctrl+Shift+Enter"
 
 #
 # Dictionary

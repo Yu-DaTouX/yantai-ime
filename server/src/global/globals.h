@@ -67,6 +67,8 @@ struct CreatingWordState
     // （GetTsfPreedit），界面线程上的候选窗预编辑（GetPreedit）。界面线程不碰会话与转换器，所以算好存成字段。
     std::string prefix_text;
     bool active = false;
+    // 已选的段里有英文（候选词英文上屏的部分上屏）：这个词只用来显示与撤回，不能写进用户词库。
+    bool includes_english = false;
     // 已选的每一段都是第 1 页第 1 位。首词命中率按整次上屏记账，任一段没选首位就不算命中。
 
     void clear()
@@ -79,6 +81,7 @@ struct CreatingWordState
         first_segment_character_set.clear();
         prefix_text.clear();
         active = false;
+        includes_english = false;
     }
 };
 
@@ -445,6 +448,15 @@ struct CandidatePageSnapshot
     // 第一个的绝对下标是 expanded_start。点选时连同文字一起交回工作线程核对。
     std::vector<std::wstring> expanded_words;
     int expanded_start = 0;
+    // 英文词义清单页（Ctrl+Shift+Enter）：page_views 里每一项的 text 是一条英文词义、
+    // english_pos 是它右对齐的词性；header 是顶部那行「<中文原词> → 英文」。
+    bool english_senses_page = false;
+    std::wstring english_senses_header;
+    // 候选条下面那行英文：本页只要有一个候选查得到释义就显示；高亮候选没有释义时 word 是「—」。
+    bool english_line_visible = false;
+    std::wstring english_line_word;
+    std::wstring english_line_pos;
+    std::wstring english_line_hint;
     // Generation stamped by the worker at publish time. The UI thread echoes this exact value back
     // after painting, which is what lets a selection distinguish "what the user sees" from "what
     // the worker has just rebuilt".

@@ -185,6 +185,13 @@ bool GetConfiguredCandidateTranslationShowPos();
 bool SetConfiguredCandidateTranslationShowPos(bool show);
 bool GetConfiguredCandidateTranslationSingleSense();
 bool SetConfiguredCandidateTranslationSingleSense(bool single);
+// 候选词英文行：候选条下面固定一行，显示当前高亮候选的第一条英文词义。默认开。
+bool GetConfiguredEnglishLineEnabled();
+bool SetConfiguredEnglishLineEnabled(bool enabled);
+// [keybindings] commit_english / english_senses 的原样配置（"Ctrl+Enter" / "Ctrl+Shift+Enter"）。
+// 空串表示关闭；解析由调用方用 FanyImeKeyChord::Parse 完成。
+const std::string &GetConfiguredCommitEnglishBinding();
+const std::string &GetConfiguredEnglishSensesBinding();
 int GetConfiguredEnglishMixedInputMinChars();
 bool SetConfiguredEnglishMixedInputMinChars(int min_chars);
 int GetConfiguredEnglishMixedInputFirstPageCount();
