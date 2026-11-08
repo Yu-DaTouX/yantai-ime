@@ -5,6 +5,7 @@
 #include "defines/globals.h"
 #include "global/globals.h"
 #include "ipc/event_listener.h"
+#include "translation/translation_mode.h"
 #include "ipc/ipc.h"
 #include "log/ftb_diag_log.h"
 #include "settings/settings_launcher.h"
@@ -644,6 +645,10 @@ void FloatingToolbarPresenter::RebuildScene()
                                       FanyNamedPipe::EnqueueRefreshCandidatePageTask();
                                   }));
     }
+    if (items.translate)
+        specs.push_back(TextSpec("translate", translation_mode::Active() ? "on" : "off", L"译",
+                                 translation_mode::Active(),
+                                 []() { FanyNamedPipe::EnqueueToolbarTranslationToggleTask(); }));
     if (items.settings)
     {
         specs.push_back(GlyphSpec("settings", "", kIconSettings, []() { OpenSettingsApplication(); }));

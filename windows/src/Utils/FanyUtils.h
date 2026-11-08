@@ -32,6 +32,7 @@ struct SwitchLanguageHotkeys
     // Ctrl+Shift+Enter。未配置、空串或写错时 key 为 0，表示这两条不在 TSF 侧吃键。
     FanyImeKeyChord::Binding commit_english{0x0d, FanyImeKeyChord::Control};
     FanyImeKeyChord::Binding english_senses{0x0d, FanyImeKeyChord::Control | FanyImeKeyChord::Shift};
+    FanyImeKeyChord::Binding translate_mode{'T', FanyImeKeyChord::Control};
     FanyImeInputStateShortcuts::Snapshot input_state;
 };
 // Read keybindings.switch_language_* from shared config.toml.

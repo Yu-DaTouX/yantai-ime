@@ -95,6 +95,7 @@ std::atomic_bool g_candidate_translation_show_pos{true};
 std::atomic_bool g_candidate_translation_single_sense{false};
 bool g_english_line_enabled = true;
 std::string g_commit_english_binding = "Ctrl+Enter";
+std::string g_translate_mode_binding = "Ctrl+T";
 std::string g_english_senses_binding = "Ctrl+Shift+Enter";
 int g_english_mixed_input_min_chars = kEnglishMixedInputMinCharsDefault;
 int g_english_mixed_input_first_page_count = kEnglishMixedInputFirstPageCountDefault;
@@ -396,6 +397,7 @@ bool LoadImeConfig()
         g_floating_toolbar_items.fullwidth = tbl["general"]["floating_toolbar_fullwidth"].value_or(true);
         g_floating_toolbar_items.punctuation = tbl["general"]["floating_toolbar_punctuation"].value_or(true);
         g_floating_toolbar_items.character_set = tbl["general"]["floating_toolbar_character_set"].value_or(true);
+        g_floating_toolbar_items.translate = tbl["general"]["floating_toolbar_translate"].value_or(true);
         g_floating_toolbar_items.settings = tbl["general"]["floating_toolbar_settings"].value_or(true);
         {
             const double scale = tbl["general"]["floating_toolbar_scale"].value_or(1.0);
@@ -573,6 +575,7 @@ bool LoadImeConfig()
                     return value ? value.value_or(std::string(FanyImeKeyChord::InvalidValue)) : std::string(fallback);
                 };
                 g_commit_english_binding = read_binding("commit_english", "Ctrl+Enter");
+                g_translate_mode_binding = read_binding("translate_mode", "Ctrl+T");
                 g_english_senses_binding = read_binding("english_senses", "Ctrl+Shift+Enter");
             }
             for (std::size_t i = 0; i < g_input_state_shortcuts.size(); ++i)

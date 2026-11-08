@@ -34,7 +34,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgType::UiLessComposition, 11u);
     REQUIRE(Global::DataFromServerMsgType::UiLessComposition > Global::DataFromServerMsgType::CommitExactText);
     REQUIRE_EQ(Global::DataFromServerMsgType::Reserved15, 15u);
-    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::Reserved15);
+    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::TranslationCommitEnd);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady, 8u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady, 9u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::InsertText, 10u);
@@ -72,7 +72,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady, 40u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41, 41u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged, 42u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 42u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 44u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady >
             Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady >
@@ -138,7 +138,22 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown,
-               Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged);
+               Global::DataFromServerMsgTypeToTsfWorkerThread::TranslationCompositionChanged);
+}
+
+TEST_CASE(ipc_translation_mode_capability_is_optional_and_preserves_old_layout)
+{
+    const auto hello = FanyImeProtocol::Hello(1, 2, FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode);
+    const auto old_server = FanyImeProtocol::Negotiate(hello);
+    REQUIRE(old_server.accepted);
+    REQUIRE((old_server.capabilities & FanyImeProtocol::TranslationMode) == 0);
+    const auto new_server =
+        FanyImeProtocol::Negotiate(hello, FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode);
+    REQUIRE(new_server.accepted);
+    REQUIRE((new_server.capabilities & FanyImeProtocol::TranslationMode) != 0);
+    REQUIRE_EQ(sizeof(FanyImeNamedpipeDataToTsf), size_t(416));
+    REQUIRE_EQ(FanyImeReplyType::TranslationCommitPart, 16u);
+    REQUIRE_EQ(FanyImeReplyType::TranslationCommitEnd, 17u);
 }
 
 TEST_CASE(ipc_client_suspension_is_a_distinct_nonterminal_route_reset)

@@ -63,6 +63,12 @@ struct ModelSpec
     const wchar_t *prompt;  // 导入对话框的标题
     // 文件被 Server 映射期间删不掉时，是否改为留删除标记、待重启后删除（见 kPendingDeleteMarker）。
     bool deferred_delete;
+    // Optional multi-file component installer, called on the download/import worker ONLY
+    // after SHA256 verification. On success ModelFile becomes a tiny ready receipt containing
+    // the archive digest (not a retained copy of the archive). Existing single-file specs
+    // leave this null and retain their byte-for-byte installation behavior.
+    bool (*install_archive)(const std::filesystem::path &archive, const std::filesystem::path &directory,
+                            std::string &error) = nullptr;
 };
 
 struct ModelStatus

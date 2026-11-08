@@ -100,6 +100,18 @@ bool SetConfiguredEnglishLineEnabled(bool enabled)
     return true;
 }
 
+const std::string &GetConfiguredTranslateModeBinding()
+{
+    return g_translate_mode_binding;
+}
+bool SetConfiguredTranslateModeBinding(const std::string &binding)
+{
+    if (!WriteConfiguredValue("keybindings", "translate_mode", EscapeTomlBasicString(binding)))
+        return false;
+    g_translate_mode_binding = binding;
+    return true;
+}
+
 const std::string &GetConfiguredCommitEnglishBinding()
 {
     return g_commit_english_binding;

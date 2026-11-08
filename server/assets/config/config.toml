@@ -26,6 +26,7 @@ caret_state_indicator_position = "top-left"
 floating_toolbar_fullwidth = true
 floating_toolbar_punctuation = true
 floating_toolbar_character_set = true
+floating_toolbar_translate = true
 floating_toolbar_settings = true
 # 悬浮工具栏用户缩放（相对系统 DPI），可选：0.75 / 1.0 / 1.25 / 1.5
 floating_toolbar_scale = 1.0
@@ -321,6 +322,8 @@ commit_pinyin_shift_enter = true
 # 键位只支持 Ctrl / Ctrl+Shift + 一个键名（如 Ctrl+Enter、Ctrl+Shift+Enter、Ctrl+Period）；空字符串表示关闭。
 commit_english = "Ctrl+Enter"
 english_senses = "Ctrl+Shift+Enter"
+# Only intercepted while composing or in translation mode; idle Ctrl+T belongs to the host.
+translate_mode = "Ctrl+T"
 
 #
 # Dictionary

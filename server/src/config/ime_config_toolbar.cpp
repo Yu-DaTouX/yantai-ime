@@ -80,6 +80,8 @@ bool SetConfiguredFloatingToolbarItemEnabled(const std::string &item, bool enabl
         target = &g_floating_toolbar_items.punctuation;
     else if (item == "character_set")
         target = &g_floating_toolbar_items.character_set;
+    else if (item == "translate")
+        target = &g_floating_toolbar_items.translate;
     else if (item == "settings")
         target = &g_floating_toolbar_items.settings;
     else

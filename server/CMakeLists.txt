@@ -225,6 +225,11 @@ if(MSVC)
 endif()
 
 set(SRC_FILES
+    "./src/translation/translation_state.cpp"
+    "./src/translation/translation_mode.cpp"
+    "./src/translation/translation_worker.cpp"
+    "./src/translation/local_engine.cpp"
+    "./src/translation/local_inference.cpp"
     "./src/clipboard/clipboard_history.cpp"
     "./src/clipboard/clipboard_history.h"
     "./src/config/credential_protection.cpp"
@@ -429,6 +434,7 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/neural_model.cpp"
     "./src/settings/neural_model.h"
     "./src/settings/lattice_model.cpp"
+    "./src/settings/translation_model.cpp"
     "./src/settings/lattice_model.h"
     "./src/settings/model_download.cpp"
     "./src/settings/model_download.h"

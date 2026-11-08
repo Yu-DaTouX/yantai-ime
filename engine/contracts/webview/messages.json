@@ -134,6 +134,18 @@
         "settings"
       ]
     },
+    "translationModelDownload": {
+      "surfaces": ["settings"]
+    },
+    "translationModelImport": {
+      "surfaces": ["settings"]
+    },
+    "translationModelDelete": {
+      "surfaces": ["settings"]
+    },
+    "translationModelStatusRequest": {
+      "surfaces": ["settings"]
+    },
     "restartServer": {
       "surfaces": [
         "settings"

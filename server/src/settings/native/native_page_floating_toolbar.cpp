@@ -230,6 +230,7 @@ VisualPtr BuildFloatingToolbarPage(PageContext &context)
     components->Add(MakeRow(L"工具栏组件", L"勾选要显示在悬浮工具栏中的功能", nullptr));
     auto list = std::make_shared<Column>(0.0f);
     list->Add(std::make_shared<RequiredOption>());
+    list->Add(BindCheck(context, L"整句翻译「译」", "general.floating_toolbar_translate"));
     const wchar_t *labels[4] = {L"全角 / 半角", L"中英文标点", L"简繁切换", L"设置"};
     for (int i = 0; i < 4; ++i)
     {

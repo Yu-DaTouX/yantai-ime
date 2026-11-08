@@ -553,6 +553,9 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
     });
     body_ = std::make_shared<msimeui::StackPanel>(kCandidateBodyRowSpacingDip);
     body_->SetPadding({0.0f, 0.0f, 0.0f, 0.0f});
+    translationDraft_ = std::make_shared<CandidateTranslationPanel>(true);
+    translationEnglish_ = std::make_shared<CandidateTranslationPanel>(false);
+    body_->AddChild(translationDraft_);
     body_->AddChild(preedit_);
     body_->AddChild(header_);
     pager_.reset();
@@ -606,6 +609,7 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
     }
     // 英文行固定在候选条最下面一行（横排竖排都是）。
     body_->AddChild(englishLine_);
+    body_->AddChild(translationEnglish_);
     msimeui::Brush brush;
     brush.fill = D2D1::ColorF(0x202020);
     brush.stroke = D2D1::ColorF(0x9B9B9B, 0x2E / 255.0f);
@@ -680,6 +684,8 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
         package ? &(candLight ? package->light : package->dark) : nullptr;
     const CandidateSkinPalette palette =
         ResolveCandidateSkinPalette(baseLook, candLight, settings.textColor, packageColors);
+    translationDraft_->SetAppearance(settings.fontFamily, fontSize * 0.85f, palette.text, tokens.number);
+    translationEnglish_->SetAppearance(settings.fontFamily, fontSize * 0.78f, tokens.translation, tokens.number);
     tokens.surface = palette.surface;
     tokens.border = palette.border;
     tokens.text = palette.text;

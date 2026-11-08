@@ -404,6 +404,11 @@ SwitchLanguageHotkeys ParseSwitchLanguageHotkeys(const std::filesystem::path &co
         {
             result.character_set_ctrl_shift_f = ParseTomlBool(raw, true);
         }
+        else if (key == "translate_mode")
+        {
+            result.translate_mode = {};
+            FanyImeKeyChord::Parse(FanyImeKeyChord::TomlString(raw), result.translate_mode);
+        }
         else if (key == "commit_pinyin_shift_enter")
         {
             result.commit_pinyin_shift_enter = ParseTomlBool(raw, true);

@@ -6,6 +6,8 @@
 #include "global/globals.h"
 #include "ipc/candidate_translation_policy.h"
 #include "ipc/event_listener.h"
+#include "translation/translation_mode.h"
+#include "settings/settings_launcher.h"
 #include "ipc/ipc.h"
 #include "log/candidate_diag_log.h"
 #include "skin/candidate_skin_catalog.h"
@@ -355,11 +357,15 @@ void CandidatePresenter::ApplySkin()
 std::uint64_t CandidatePresenter::FillItemsFromUi()
 {
     const Global::CandidatePageSnapshotPtr page = Global::LoadCandidatePageSnapshot();
+    const auto translation = translation_mode::Snapshot();
+    impl_->scene.TranslationDraft()->SetContent(translation->active, translation->draft, translation->latest, L"");
+    impl_->scene.TranslationEnglish()->SetContent(translation->active, translation->english, L"", translation->hint);
+    impl_->scene.TranslationEnglish()->SetOnClick([] { OpenSettingsTranslationApplication(); });
     const bool translationsEnabled = GetConfiguredCandidateTranslationsEnabled();
     // 英文行：内容与显隐都来自 Server（“本页有没有释义”是它的判断）。
     if (impl_->englishLine)
     {
-        impl_->englishLine->SetLineVisible(page->english_line_visible);
+        impl_->englishLine->SetLineVisible(page->english_line_visible && !translation->active);
         impl_->englishLine->SetContent(page->english_line_word, page->english_line_pos, page->english_line_hint);
     }
     if (impl_->header)

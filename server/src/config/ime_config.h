@@ -158,6 +158,7 @@ struct FloatingToolbarItemsConfig
     bool punctuation = true;
     bool character_set = true;
     bool settings = true;
+    bool translate = true;
 };
 const FloatingToolbarItemsConfig &GetConfiguredFloatingToolbarItems();
 bool SetConfiguredFloatingToolbarItemEnabled(const std::string &item, bool enabled);
@@ -191,6 +192,8 @@ bool SetConfiguredEnglishLineEnabled(bool enabled);
 // [keybindings] commit_english / english_senses 的原样配置（"Ctrl+Enter" / "Ctrl+Shift+Enter"）。
 // 空串表示关闭；解析由调用方用 FanyImeKeyChord::Parse 完成。
 const std::string &GetConfiguredCommitEnglishBinding();
+const std::string &GetConfiguredTranslateModeBinding();
+bool SetConfiguredTranslateModeBinding(const std::string &binding);
 const std::string &GetConfiguredEnglishSensesBinding();
 int GetConfiguredEnglishMixedInputMinChars();
 bool SetConfiguredEnglishMixedInputMinChars(int min_chars);

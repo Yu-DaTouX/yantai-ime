@@ -6,6 +6,7 @@
 #include "settings/settings_launcher.h"
 #include "settings/collocation_model.h"
 #include "settings/lattice_model.h"
+#include "settings/translation_model.h"
 #include "settings/neural_model.h"
 #include "settings/default_input_method.h"
 #include "settings/game_compat_name.h"
@@ -56,6 +57,7 @@ constexpr wchar_t kWindowTitle[] = L"Metasequoia IME Settings";
 constexpr wchar_t kSingleInstanceMutex[] = L"Local\\MetasequoiaImeSettings.SingleInstance";
 constexpr UINT kActivateExistingWindow = WM_APP + 1;
 constexpr UINT kOpenAboutSection = WM_APP + 2;
+constexpr UINT kOpenTranslationSection = WM_APP + 7;
 constexpr UINT kScanSkinCatalog = WM_APP + 3;
 constexpr UINT kWorkerCompleted = WM_APP + 4;
 // Sent by settings_launcher.cpp (the Server exiting) and by the installer: close for real.
@@ -74,6 +76,7 @@ std::unique_ptr<native_settings::SettingsWindow> g_native;
 
 bool g_window_minimized = false;
 bool g_open_about_on_ready = false;
+bool g_open_translation_on_ready = false;
 HWND g_settings_hwnd = nullptr;
 std::optional<CandidateSkinCatalog::ScanResult> g_candidate_skin_catalog;
 uint64_t g_candidate_skin_catalog_revision = 0;
@@ -321,6 +324,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"floating_toolbar_fullwidth", toolbar.fullwidth},
             {"floating_toolbar_punctuation", toolbar.punctuation},
             {"floating_toolbar_character_set", toolbar.character_set},
+            {"floating_toolbar_translate", toolbar.translate},
             {"floating_toolbar_settings", toolbar.settings},
             {"floating_toolbar_scale", GetConfiguredFloatingToolbarScale()},
             {"floating_toolbar_font_size", GetConfiguredFloatingToolbarFontSize()},
@@ -355,6 +359,12 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
                                        {"deletePending", status.delete_pending}};
              }()},
             {"sentence_wordlattice_model_url", lattice_model::SourceUrl()},
+            {"translation_model_status", [] {
+                 const auto status = translation_model::GetModelStatus();
+                 return nlohmann::json{{"state", status.state}, {"progress", status.progress},
+                     {"error", status.error}, {"deletePending", status.delete_pending}};
+             }()},
+            {"translation_model_url", translation_model::SourceUrl()},
             {"sentence_google", GetConfiguredAssocSentenceGoogle()},
             {"sentence_neural_desktop", GetConfiguredAssocSentenceNeuralDesktop()},
             {"sentence_neural_desktop_model_status", [] {
@@ -394,7 +404,8 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
                  return catalog;
              }()}}},
           {"keybindings",
-           {{"switch_language_shift", GetConfiguredSwitchLanguageShiftEnabled()},
+           {{"translate_mode", GetConfiguredTranslateModeBinding()},
+            {"switch_language_shift", GetConfiguredSwitchLanguageShiftEnabled()},
             {"switch_language_ctrl", GetConfiguredSwitchLanguageCtrlEnabled()},
             {"switch_language_ctrl_alt_space", GetConfiguredSwitchLanguageCtrlAltSpaceEnabled()},
             {"toggle_character_set_ctrl_shift_f", GetConfiguredCharacterSetShortcutEnabled()},
@@ -726,6 +737,8 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCandidateArrowNavigationEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.candidate_horizontal_arrow_navigation")
         return SetConfiguredCandidateHorizontalArrowNavigationEnabled(json::value_to<bool>(data.at("value")));
+    if (path == "keybindings.translate_mode")
+        return SetConfiguredTranslateModeBinding(json::value_to<std::string>(data.at("value")));
     if (path == "keybindings.switch_language_shift")
         return SetConfiguredSwitchLanguageShiftEnabled(json::value_to<bool>(data.at("value")));
     if (path == "keybindings.switch_language_ctrl")
@@ -930,6 +943,27 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
             PostConfig(false);
         }
         else if (type == "latticeModelStatusRequest")
+        {
+            PostConfig(false);
+        }
+        else if (type == "translationModelDownload")
+        {
+            translation_model::StartDownload();
+            PostConfig(false);
+        }
+        else if (type == "translationModelImport")
+        {
+            const auto source = translation_model::PromptForModelFile(hwnd);
+            if (!source.empty())
+                translation_model::ImportModel(source);
+            PostConfig(false);
+        }
+        else if (type == "translationModelDelete")
+        {
+            translation_model::DeleteModel();
+            PostConfig(false);
+        }
+        else if (type == "translationModelStatusRequest")
         {
             PostConfig(false);
         }
@@ -1277,6 +1311,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
     case kActivateExistingWindow:
         ActivateWindow(hwnd);
         return 0;
+    case kOpenTranslationSection:
+        ActivateWindow(hwnd);
+        if (g_native)
+            g_native->ShowPage("input");
+        return 0;
     case kOpenAboutSection:
         ActivateWindow(hwnd);
         ShowAboutSection();
@@ -1433,6 +1472,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         return elevated_result;
     const std::wstring arguments = command_line ? command_line : L"";
     g_open_about_on_ready = arguments.find(L"--about") != std::wstring::npos;
+    g_open_translation_on_ready = arguments.find(L"--translation") != std::wstring::npos;
     // Older shortcuts may still pass --d2d / --webview2, which used to pick the renderer
     // for one run. There is only the Direct2D window now; both are ignored.
     // The Direct2D window's first frame spends ~200ms bringing up the GPU driver. Start
@@ -1457,7 +1497,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         HWND existing = FindWindowW(kWindowClass, nullptr);
         if (existing)
         {
-            PostMessageW(existing, g_open_about_on_ready ? kOpenAboutSection : kActivateExistingWindow, 0, 0);
+            PostMessageW(existing,
+                         g_open_translation_on_ready ? kOpenTranslationSection
+                         : g_open_about_on_ready     ? kOpenAboutSection
+                                                     : kActivateExistingWindow,
+                         0, 0);
             SetForegroundWindow(existing);
         }
         return 0;
@@ -1538,7 +1582,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     native_settings::SettingsWindow::Callbacks callbacks;
     callbacks.postToHost = [hwnd](const std::string &message) { HandleClientMessage(hwnd, message); };
     g_native = std::make_unique<native_settings::SettingsWindow>(hwnd, std::move(callbacks),
-                                                                 g_open_about_on_ready ? "about-settings" : "");
+                                                                 g_open_translation_on_ready ? "input"
+                                                                 : g_open_about_on_ready     ? "about-settings"
+                                                                                             : "");
     g_native->SetLightTheme(g_settings_light);
     g_native->SetLaunchAnimation(launch_animation);
     TraceStartup("ui: native window built");
