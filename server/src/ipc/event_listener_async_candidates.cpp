@@ -122,8 +122,9 @@ void ApplyEnglishCandidates(std::vector<WordItem> candidates, const std::string 
 
 void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation)
 {
-    if (!EnglishIme::IsTranslationCurrent(generation) || !GetConfiguredCandidateTranslationsEnabled() ||
-        IsUiLessMode() || g_candidate_translation_signature.empty() || IsCandidateSubPageActive())
+    if (!EnglishIme::IsTranslationCurrent(generation) ||
+        !(GetConfiguredCandidateTranslationsEnabled() || EnglishGlossFeatureEnabled()) || IsUiLessMode() ||
+        g_candidate_translation_signature.empty() || IsCandidateSubPageActive())
         return;
 
     // The page reads its glosses from g_candidate_translation_glosses when it is

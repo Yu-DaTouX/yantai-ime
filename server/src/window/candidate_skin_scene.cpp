@@ -274,6 +274,109 @@ msimeui::RectF CandidateExpandToggle::Box() const
 }
 
 // ---------------------------------------------------------------------------------
+// CandidateEnglishLine
+// ---------------------------------------------------------------------------------
+CandidateEnglishLine::CandidateEnglishLine()
+{
+    word_ = std::make_shared<msimeui::TextBlock>(L"", appearance_.fontSize, appearance_.wordColor);
+    word_->SetTextLayoutPadding({0.0f, 1.0f, 0.0f, 1.0f});
+    word_->SetHorizontalAlignment(msimeui::HorizontalAlignment::Leading);
+    word_->SetEllipsisEnabled(true);
+    pos_ = std::make_shared<msimeui::TextBlock>(L"", appearance_.posFontSize, appearance_.posColor);
+    pos_->SetTextLayoutPadding({0.0f, 1.0f, 0.0f, 1.0f});
+    hint_ = std::make_shared<msimeui::TextBlock>(L"", appearance_.hintFontSize, appearance_.hintColor);
+    hint_->SetTextLayoutPadding({0.0f, 1.0f, 0.0f, 1.0f});
+    hint_->SetHorizontalAlignment(msimeui::HorizontalAlignment::Trailing);
+    AddChild(word_);
+    AddChild(pos_);
+    AddChild(hint_);
+}
+
+void CandidateEnglishLine::SetAppearance(const Appearance &appearance)
+{
+    appearance_ = appearance;
+    word_->SetFontSize(appearance_.fontSize);
+    word_->SetColor(appearance_.wordColor);
+    word_->SetFontFamily(appearance_.fontFamily);
+    word_->SetFallbackFontFamilies(appearance_.fallbackFontFamilies);
+    pos_->SetFontSize(appearance_.posFontSize);
+    pos_->SetColor(appearance_.posColor);
+    pos_->SetFontFamily(appearance_.fontFamily);
+    pos_->SetFallbackFontFamilies(appearance_.fallbackFontFamilies);
+    hint_->SetFontSize(appearance_.hintFontSize);
+    hint_->SetColor(appearance_.hintColor);
+    hint_->SetFontFamily(appearance_.fontFamily);
+    hint_->SetFallbackFontFamilies(appearance_.fallbackFontFamilies);
+    InvalidateMeasure();
+    InvalidateVisual();
+}
+
+void CandidateEnglishLine::SetContent(std::wstring word, std::wstring pos, std::wstring hint)
+{
+    word_->SetText(std::move(word));
+    pos_->SetText(std::move(pos));
+    hint_->SetText(std::move(hint));
+    InvalidateMeasure();
+    InvalidateVisual();
+}
+
+void CandidateEnglishLine::SetLineVisible(bool visible)
+{
+    if (visible_ == visible)
+        return;
+    visible_ = visible;
+    InvalidateMeasure();
+    InvalidateVisual();
+}
+
+msimeui::SizeF CandidateEnglishLine::Measure(const msimeui::SizeF &)
+{
+    // 宽度返回 0：这一行不能把候选条撑宽，实际宽度由父级拉伸给出。高度跟字号走。
+    if (!visible_)
+    {
+        lineHeight_ = 0.0f;
+        word_->SetHeight(0.0f);
+        pos_->SetHeight(0.0f);
+        hint_->SetHeight(0.0f);
+        return {0.0f, 0.0f};
+    }
+    lineHeight_ = std::ceil((std::max)(appearance_.fontSize, appearance_.hintFontSize) * 1.45f);
+    word_->ClearHeight();
+    pos_->ClearHeight();
+    hint_->ClearHeight();
+    return {0.0f, lineHeight_};
+}
+
+void CandidateEnglishLine::Arrange(const msimeui::RectF &finalRect)
+{
+    bounds_ = finalRect;
+    if (!visible_ || lineHeight_ <= 0.0f)
+        return;
+    const float available = (std::max)(bounds_.width - appearance_.padLeft - appearance_.padRight, 1.0f);
+    const float gap = appearance_.fontSize * 0.4f;
+    const msimeui::SizeF posDesired = pos_->MeasureInLayout({100000.0f, lineHeight_});
+    const msimeui::SizeF hintDesired = hint_->MeasureInLayout({100000.0f, lineHeight_});
+    const float posWidth = (std::min)(posDesired.width, available);
+    const float hintWidth = (std::min)(hintDesired.width, available * 0.6f);
+    float wordWidth = available - posWidth - hintWidth - gap * 2.0f;
+    wordWidth = (std::max)(wordWidth, 1.0f);
+    word_->MeasureInLayout({wordWidth, lineHeight_});
+    const float y = bounds_.y;
+    word_->ArrangeInLayout({bounds_.x + appearance_.padLeft, y, wordWidth, lineHeight_});
+    pos_->ArrangeInLayout({bounds_.x + appearance_.padLeft + wordWidth + gap, y, posWidth, lineHeight_});
+    hint_->ArrangeInLayout({bounds_.x + bounds_.width - appearance_.padRight - hintWidth, y, hintWidth, lineHeight_});
+}
+
+void CandidateEnglishLine::Render(msimeui::DeviceResources &deviceResources)
+{
+    if (!visible_ || lineHeight_ <= 0.0f)
+        return;
+    word_->Render(deviceResources);
+    pos_->Render(deviceResources);
+    hint_->Render(deviceResources);
+}
+
+// ---------------------------------------------------------------------------------
 // CandidateExpandContent
 // ---------------------------------------------------------------------------------
 CandidateExpandContent::CandidateExpandContent(std::shared_ptr<msimeui::CandidateList> list,
@@ -425,6 +528,13 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
     preedit_ = std::make_shared<msimeui::TextBlock>(L"", 14.0f, D2D1::ColorF(0xF5F5F5));
     preedit_->SetTextLayoutPadding({0.0f, 1.0f, 0.0f, 1.0f});
     preedit_->SetHorizontalAlignment(msimeui::HorizontalAlignment::Leading);
+    // 英文词义清单页的页眉，平时高度为 0（见 CandidatePresenter）。
+    header_ = std::make_shared<msimeui::TextBlock>(L"", 12.0f, D2D1::ColorF(0x8E8E93));
+    header_->SetTextLayoutPadding({0.0f, 1.0f, 0.0f, 1.0f});
+    header_->SetHorizontalAlignment(msimeui::HorizontalAlignment::Leading);
+    header_->SetEllipsisEnabled(true);
+    header_->SetHeight(0.0f);
+    englishLine_ = std::make_shared<CandidateEnglishLine>();
     list_ = std::make_shared<msimeui::CandidateList>(28.0f);
     list_->SetOnItemActivated([this](size_t index) {
         if (callbacks_.itemActivated)
@@ -437,6 +547,7 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
     body_ = std::make_shared<msimeui::StackPanel>(kCandidateBodyRowSpacingDip);
     body_->SetPadding({0.0f, 0.0f, 0.0f, 0.0f});
     body_->AddChild(preedit_);
+    body_->AddChild(header_);
     pager_.reset();
     expandToggle_.reset();
     expandGrid_.reset();
@@ -486,6 +597,8 @@ void CandidateSkinScene::Build(bool horizontal, bool pageArrows, bool expandPane
         if (pager_)
             body_->AddChild(pager_);
     }
+    // 英文行固定在候选条最下面一行（横排竖排都是）。
+    body_->AddChild(englishLine_);
     msimeui::Brush brush;
     brush.fill = D2D1::ColorF(0x202020);
     brush.stroke = D2D1::ColorF(0x9B9B9B, 0x2E / 255.0f);
@@ -643,6 +756,9 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     appearance.outerCornerRadius = tokens.outerItemRadius;
     appearance.outerTopCornersEnabled = preeditHidden;
     appearance.justifyHorizontalRows = tokens.justifyRows;
+    // 英文词义清单页：每行一条词义，词性贴右；都不换行，超出省略号。
+    appearance.translationAlignRight = settings.englishSensesPage;
+    appearance.ellipsisText = settings.englishSensesPage;
     // 隐藏的预编辑行高度为 0，但 body 仍在它和列表之间留 2px 行距；贴角皮肤把它抵掉，
     // 让首项贴着卡片的内容顶边。
     if (preeditHidden)
@@ -675,6 +791,28 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     appearance.rowFillPressed = tokens.selected;
     appearance.rowTextSelected = tokens.rowTextSelected;
     appearance.rowLabelSelected = tokens.rowLabelSelected;
+    if (header_)
+    {
+        header_->SetFontFamily(appearance.fontFamily);
+        header_->SetFallbackFontFamilies(appearance.fallbackFontFamilies);
+        header_->SetFontSize((std::max)(11.0f, fontSize * 0.8f));
+        header_->SetColor(tokens.number);
+    }
+    if (englishLine_)
+    {
+        CandidateEnglishLine::Appearance lineAppearance;
+        lineAppearance.fontFamily = appearance.fontFamily;
+        lineAppearance.fallbackFontFamilies = appearance.fallbackFontFamilies;
+        lineAppearance.fontSize = (std::max)(12.0f, fontSize * 0.82f);
+        lineAppearance.posFontSize = (std::max)(10.0f, fontSize * 0.7f);
+        lineAppearance.hintFontSize = (std::max)(10.0f, fontSize * 0.66f);
+        lineAppearance.wordColor = palette.candidateText;
+        lineAppearance.posColor = WithAlpha(tokens.number, 0.9f);
+        lineAppearance.hintColor = WithAlpha(tokens.number, 0.66f);
+        lineAppearance.padLeft = appearance.contentPadLeft + appearance.textPadLeft;
+        lineAppearance.padRight = appearance.contentPadLeft + appearance.textPadLeft;
+        englishLine_->SetAppearance(lineAppearance);
+    }
     list_->SetAppearance(appearance);
     list_->SetOrientation(horizontalLayout ? msimeui::CandidateList::Orientation::Horizontal
                                            : msimeui::CandidateList::Orientation::Vertical);

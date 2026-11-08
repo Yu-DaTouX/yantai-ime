@@ -542,6 +542,8 @@ class TextBlock : public Visual
     void SetColor(D2D1_COLOR_F color);
     void SetFontSize(float fontSize);
     void SetTextAlignment(DWRITE_TEXT_ALIGNMENT alignment);
+    // 单行显示，超出宽度时末尾省略号。用于只占总宽一行的短文字（候选条下面的英文行）。
+    void SetEllipsisEnabled(bool enabled);
     void SetFontFamily(std::wstring fontFamily);
     void SetFallbackFontFamilies(std::vector<std::wstring> families);
     void SetTextLayoutPadding(Thickness padding);
@@ -577,6 +579,7 @@ class TextBlock : public Visual
     Thickness textLayoutPadding_ = {0.0f, 3.0f, 0.0f, 3.0f};
     float letterSpacing_ = 0.0f;
     bool showCaret_ = false;
+    bool ellipsis_ = false;
     size_t caretIndex_ = 0;
     D2D1_COLOR_F background_ = D2D1::ColorF(0, 0.0f);
     float backgroundRadius_ = 0.0f;

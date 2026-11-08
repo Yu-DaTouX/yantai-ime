@@ -87,6 +87,29 @@ bool SetConfiguredCandidateTranslationSingleSense(bool single)
     return true;
 }
 
+bool GetConfiguredEnglishLineEnabled()
+{
+    return g_english_line_enabled;
+}
+
+bool SetConfiguredEnglishLineEnabled(bool enabled)
+{
+    if (!WriteConfiguredValue("general", "english_line", enabled ? "true" : "false"))
+        return false;
+    g_english_line_enabled = enabled;
+    return true;
+}
+
+const std::string &GetConfiguredCommitEnglishBinding()
+{
+    return g_commit_english_binding;
+}
+
+const std::string &GetConfiguredEnglishSensesBinding()
+{
+    return g_english_senses_binding;
+}
+
 int GetConfiguredEnglishMixedInputMinChars()
 {
     return g_english_mixed_input_min_chars;

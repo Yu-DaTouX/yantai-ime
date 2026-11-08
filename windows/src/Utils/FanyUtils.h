@@ -28,6 +28,10 @@ struct SwitchLanguageHotkeys
     bool ctrl_alt_space = true;
     bool character_set_ctrl_shift_f = true;
     bool commit_pinyin_shift_enter = true;
+    // 候选词英文上屏：[keybindings] commit_english / english_senses，默认 Ctrl+Enter /
+    // Ctrl+Shift+Enter。未配置、空串或写错时 key 为 0，表示这两条不在 TSF 侧吃键。
+    FanyImeKeyChord::Binding commit_english{0x0d, FanyImeKeyChord::Control};
+    FanyImeKeyChord::Binding english_senses{0x0d, FanyImeKeyChord::Control | FanyImeKeyChord::Shift};
     FanyImeInputStateShortcuts::Snapshot input_state;
 };
 // Read keybindings.switch_language_* from shared config.toml.

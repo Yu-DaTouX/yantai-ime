@@ -721,6 +721,38 @@ void WorkerThread()
         case TaskType::UiCommitCandidate:
         case TaskType::UiCommitCandidateAt: {
             int index_in_page = task.candidate_one_based_index - 1;
+            if (g_english_senses_page_active && task.type == TaskType::UiCommitCandidate)
+            {
+                // 英文词义清单页点选：上屏点中的那条词义，按点击前那一屏的高亮候选推进组合。
+                const int sense_index = index_in_page;
+                if (sense_index < 0 || sense_index >= static_cast<int>(g_english_senses_page_senses.size()))
+                {
+                    break;
+                }
+                const std::string english = g_english_senses_page_senses[static_cast<size_t>(sense_index)].text;
+                ExitCandidateSubPage();
+                if (!CommitEnglishGlossText(english, task.client_id, task.activation_epoch))
+                {
+                    break;
+                }
+                if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)
+                {
+                    if (SendToTsfWorkerThreadClientViaNamedpipe(
+                            task.client_id, task.activation_epoch,
+                            Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidate,
+                            Global::candidate_ui.selected_text))
+                    {
+                        ClearState();
+                    }
+                }
+                else if (SendCurrentDataToClient(task.client_id, task.activation_epoch, 0))
+                {
+                    SendToTsfWorkerThreadClientViaNamedpipe(
+                        task.client_id, task.activation_epoch,
+                        Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidate, L"");
+                }
+                break;
+            }
             if (task.type == TaskType::UiCommitCandidateAt)
             {
                 index_in_page = MoveToExpandedCandidate(task.candidate_absolute_index, task.candidate_expected_text);
@@ -866,6 +898,23 @@ void WorkerThread()
         case TaskType::UiPageUp:
         case TaskType::UiPageDown: {
             const int offset = (task.type == TaskType::UiPageDown) ? 1 : -1;
+            if (g_english_senses_page_active)
+            {
+                // 清单页只有一屏，滚轮就是在词义之间移动高亮。
+                const int count = static_cast<int>(g_english_senses_page_senses.size());
+                if (count > 0)
+                {
+                    auto &ui = Global::candidate_ui;
+                    const int next = std::clamp(ui.selected_index_in_page + offset * task.page_steps, 0, count - 1);
+                    if (next != ui.selected_index_in_page)
+                    {
+                        ui.selected_index_in_page = next;
+                        ui.selection_started = true;
+                    }
+                    RefreshCandidatePageUi(true);
+                }
+                break;
+            }
             // A coalesced burst of wheel notches replays as several page moves
             // and a single refresh at the end, so a fast scroll costs one redraw
             // rather than one per notch.

@@ -16,6 +16,12 @@ struct CandidateViewItem
     std::string badge;
     std::string translation;
     bool fixed_position = false;
+    // 这个候选的中译英释义原文（只有中→英方向才填）；候选窗的英文行和 Ctrl+Enter 都从这里取。
+    // translation 是给「候选词翻译」显示的格式化文字，和这里的原文不是一回事。
+    // 放在 fixed_position 之后：已有的 5 字段聚合初始化（测试里的 CandidateViewItem{...}）保持不变。
+    std::string english_gloss;
+    // 英文词义清单页上这一项的词性（"n." / "adj."），右对齐小号灰字，不上屏。
+    std::string english_pos;
 };
 
 inline std::string EscapeCandidateViewHtml(const std::string &text)

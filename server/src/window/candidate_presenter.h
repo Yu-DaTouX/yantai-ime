@@ -70,6 +70,8 @@ class CandidatePresenter
     bool bound_ = false;
     bool hoverArmed_ = false;
     bool ignoreSelectionCallback_ = false;
+    // 当前这一帧画的是英文词义清单页（Ctrl+Shift+Enter）：固定竖排、单行省略、宽上限 320 DIP。
+    bool sensesPage_ = false;
     // Set while PlaceAndShow resizes the host; it presents right afterwards.
     bool placingHost_ = false;
     bool cardOriginPinned_ = false;

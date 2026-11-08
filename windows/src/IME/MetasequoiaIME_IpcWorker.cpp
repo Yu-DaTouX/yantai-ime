@@ -421,6 +421,7 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PipeReady ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::FocusSessionReady ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged ||
+                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::EnglishSensesPageChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateInstallerReady)
             {
                 continue;
@@ -466,6 +467,11 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
             // 安装包已经下好并校验过。这里只问用户，不联网、不启动程序：确认后发 Aux 通知，
             // 由 Server 拉起安装包并退出，让安装程序不必和正在映射的 TSF DLL 抢文件。
             PromptUpdateInstaller(buf.data);
+        }
+        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::EnglishSensesPageChanged)
+        {
+            // 英文词义清单页打开时，Esc / Backspace 要交给 Server 退回原中文候选（见 _IsKeyEaten）。
+            Global::EnglishSensesPageActive.store(buf.data[0] == L'1', std::memory_order_relaxed);
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged)
         {

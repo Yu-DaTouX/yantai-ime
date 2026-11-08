@@ -445,7 +445,10 @@ constexpr std::uint32_t HorizontalArrowSelectionChanged = 39;
 constexpr std::uint32_t UpdateInstallerReady = 40;
 // Retired shuangpin direct-helpcode end trigger setting; do not reuse.
 constexpr std::uint32_t Reserved41 = 41;
-constexpr std::uint32_t MaxKnown = Reserved41;
+// 英文词义清单页是否打开。Payload "1"/"0"。打开时 TSF 把 Esc / Backspace 当作服务端候选键
+// 发给 Server（只退回中文候选，不取消组合、不删字符）；关闭后恢复本来的本地行为。
+constexpr std::uint32_t EnglishSensesPageChanged = 42;
+constexpr std::uint32_t MaxKnown = EnglishSensesPageChanged;
 // Source compatibility for the Server's historical spellings.
 constexpr std::uint32_t SwitchToEn = SwitchToEnglish;
 constexpr std::uint32_t SwitchToCn = SwitchToChinese;

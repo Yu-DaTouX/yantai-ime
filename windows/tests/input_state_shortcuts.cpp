@@ -93,6 +93,11 @@ int main()
     for (const auto &key : NamedKeys)
         CHECK(KeyCode(key.name) == key.key);
     Binding binding;
+    // Enter is a named key so the candidate gloss chords can be configured as "Ctrl+Enter".
+    CHECK(Parse("Ctrl+Enter", binding) && binding.key == 0x0d && binding.modifiers == Control);
+    CHECK(Parse("Ctrl+Shift+Enter", binding) && binding.key == 0x0d && binding.modifiers == (Control | Shift));
+    CHECK(Parse("Ctrl+Enter", binding) && binding.Matches(0x0d, Control));
+    CHECK(!binding.Matches(0x0d, Control | Shift));
     for (const auto value : {"Alt+KeyJ", "Alt+Shift+KeyJ", "Ctrl+Alt+Period", "Win+KeyA", "Shift+KeyA", "Ctrl+",
                              "Ctrl+F13", "Ctrl+Keya", "true"})
         CHECK(!Parse(value, binding) && binding.key == 0);

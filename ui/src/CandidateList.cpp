@@ -249,17 +249,28 @@ ComPtr<IDWriteTextLayout> CandidateList::TextLayoutFor(IDWriteFactory *factory, 
     }
     const float width = std::max(box.width, 1.0f);
     const float height = std::max(box.height, 1.0f);
-    std::wstring key = TextCacheKey(L'l', text, {fontSize, width, height});
+    std::wstring key = TextCacheKey(appearance_.ellipsisText ? L'e' : L'l', text, {fontSize, width, height});
     if (const auto found = textLayoutCache_.find(key); found != textLayoutCache_.end())
     {
         return found->second;
     }
-    ComPtr<IDWriteTextLayout> layout = CreateCachedTextLayout(
-        factory, fontFamily, text, fontSize, DWRITE_FONT_WEIGHT_NORMAL, width, height, DWRITE_TEXT_ALIGNMENT_LEADING,
-        DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_WRAP, appearance_.fallbackFontFamilies);
+    ComPtr<IDWriteTextLayout> layout =
+        CreateCachedTextLayout(factory, fontFamily, text, fontSize, DWRITE_FONT_WEIGHT_NORMAL, width, height,
+                               DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER,
+                               appearance_.ellipsisText ? DWRITE_WORD_WRAPPING_NO_WRAP : DWRITE_WORD_WRAPPING_WRAP,
+                               appearance_.fallbackFontFamilies);
     if (!layout)
     {
         return {};
+    }
+    if (appearance_.ellipsisText)
+    {
+        ComPtr<IDWriteInlineObject> ellipsisSign;
+        if (SUCCEEDED(factory->CreateEllipsisTrimmingSign(layout.Get(), ellipsisSign.GetAddressOf())))
+        {
+            const DWRITE_TRIMMING trimming{DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0};
+            layout->SetTrimming(&trimming, ellipsisSign.Get());
+        }
     }
     if (textLayoutCache_.size() >= kMaxTextLayoutEntries)
     {
@@ -282,6 +293,15 @@ void CandidateList::SetHoverEnabled(bool enabled)
     {
         hoveredIndex_ = static_cast<size_t>(-1);
     }
+    InvalidateVisual();
+}
+
+void CandidateList::SetEmptyMessage(std::wstring message)
+{
+    if (emptyMessage_ == message)
+        return;
+    emptyMessage_ = std::move(message);
+    InvalidateMeasure();
     InvalidateVisual();
 }
 
@@ -352,8 +372,22 @@ CandidateList::ItemGeometry CandidateList::MeasureItem(size_t index, float width
     const float labelW = std::max(EstimateTextWidth(item.label, appearance_.labelFontSize), 9.0f);
     const float textX = labelX + labelW + appearance_.labelGap;
     const float contentWidth = std::max(width - textX - appearance_.contentPadRight, 1.0f);
-    const float textW = std::min(std::max(EstimateTextWidth(item.text, appearance_.fontSize), 8.0f), contentWidth);
-    const float textH = std::max(appearance_.itemHeight, MeasureTextHeight(item.text, appearance_.fontSize, textW));
+    // 词性右对齐时先给它留出右边那一列，文字在它左边截止。
+    const bool right_aligned_translation =
+        orientation_ == Orientation::Vertical && appearance_.translationAlignRight && !item.translation.empty();
+    float translationReserve = 0.0f;
+    float rightTranslationWidth = 0.0f;
+    if (right_aligned_translation)
+    {
+        rightTranslationWidth =
+            std::min(EstimateTextWidth(item.translation, appearance_.fontSize * 0.78f), contentWidth);
+        translationReserve = rightTranslationWidth + appearance_.fontSize * 0.65f;
+    }
+    const float textW = std::min(std::max(EstimateTextWidth(item.text, appearance_.fontSize), 8.0f),
+                                 (std::max)(contentWidth - translationReserve, 1.0f));
+    const float textH = appearance_.ellipsisText ? appearance_.itemHeight
+                                                 : std::max(appearance_.itemHeight,
+                                                            MeasureTextHeight(item.text, appearance_.fontSize, textW));
     geometry.label = {labelX, 0.0f, labelW, appearance_.itemHeight};
     geometry.text = {textX, 0.0f, textW, textH};
     float height = textH;
@@ -386,16 +420,24 @@ CandidateList::ItemGeometry CandidateList::MeasureItem(size_t index, float width
         const float gap = appearance_.fontSize * 0.65f;
         const float naturalTranslationWidth = EstimateTextWidth(item.translation, fontSize);
         const float translationW = std::min(naturalTranslationWidth, contentWidth);
-        const bool inlineTranslation = orientation_ == Orientation::Vertical && geometry.annotation.y == 0.0f &&
-                                       lineEnd + gap + translationW <= contentWidth;
+        const bool inlineTranslation = !right_aligned_translation && orientation_ == Orientation::Vertical &&
+                                       geometry.annotation.y == 0.0f && lineEnd + gap + translationW <= contentWidth;
         const float translationH =
-            inlineTranslation
+            inlineTranslation || (right_aligned_translation && appearance_.ellipsisText)
                 ? textH
                 : (naturalTranslationWidth <= contentWidth
                        ? fontSize * 1.25f
                        : std::max(fontSize * 1.25f, MeasureTextHeight(item.translation, fontSize, translationW)));
-        geometry.translation = {textX + (inlineTranslation ? lineEnd + gap : 0.0f),
-                                inlineTranslation ? 0.0f : height - padBelow, translationW, translationH};
+        if (right_aligned_translation)
+        {
+            geometry.translation = {(std::max)(width - appearance_.contentPadRight - rightTranslationWidth, 0.0f), 0.0f,
+                                    rightTranslationWidth, translationH};
+        }
+        else
+        {
+            geometry.translation = {textX + (inlineTranslation ? lineEnd + gap : 0.0f),
+                                    inlineTranslation ? 0.0f : height - padBelow, translationW, translationH};
+        }
         height = std::max(height, geometry.translation.y + translationH + (inlineTranslation ? 0.0f : padBelow));
     }
     geometry.bounds = {0.0f, 0.0f, width, height};
@@ -521,6 +563,15 @@ SizeF CandidateList::Measure(const SizeF &availableSize)
     }
     layoutWidth_ = measuredWidth;
     const float height = items_.empty() ? appearance_.itemHeight : y + rowHeight;
+    if (items_.empty() && !emptyMessage_.empty())
+    {
+        // 空列表的一行灰字：宽度跟文字走，但不超过可用宽度。
+        const float messageWidth =
+            (std::min)(availableWidth, (std::max)(EstimateTextWidth(emptyMessage_, appearance_.fontSize * 0.9f) +
+                                                      appearance_.contentPadLeft + appearance_.contentPadRight,
+                                                  80.0f));
+        return {messageWidth, (std::min)(appearance_.itemHeight, availableSize.height)};
+    }
     return {measuredWidth, std::min(height, availableSize.height)};
 }
 
@@ -541,6 +592,31 @@ void CandidateList::Render(DeviceResources &deviceResources)
     }
 
     const std::wstring &fontFamily = ResolvedFontFamily();
+
+    if (items_.empty() && !emptyMessage_.empty())
+    {
+        const float messageWidth =
+            (std::max)(bounds_.width - appearance_.contentPadLeft - appearance_.contentPadRight, 1.0f);
+        const RectF messageRect{appearance_.contentPadLeft, 0.0f, messageWidth, appearance_.itemHeight};
+        const ComPtr<IDWriteTextLayout> messageLayout =
+            TextLayoutFor(factory, fontFamily, emptyMessage_, appearance_.fontSize * 0.9f, messageRect);
+        if (messageLayout)
+        {
+            D2D1_COLOR_F color = appearance_.labelColor;
+            if (color.a <= 0.001f)
+            {
+                color = appearance_.textColor;
+                color.a *= 0.62f;
+            }
+            if (ID2D1SolidColorBrush *brush = deviceResources.GetSolidColorBrush(color))
+            {
+                const D2D1_POINT_2F origin = SnapTextOriginToPixelGrid(
+                    target, messageLayout.Get(), D2D1::Point2F(bounds_.x + messageRect.x, bounds_.y + messageRect.y));
+                target->DrawTextLayout(origin, messageLayout.Get(), brush, kColorClipTextOptions);
+            }
+        }
+        return;
+    }
 
     // The list's corners in list coordinates: its arranged width (the list is
     // stretched to its container) and the bottom of the last row of items.

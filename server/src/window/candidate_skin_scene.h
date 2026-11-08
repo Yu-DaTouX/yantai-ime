@@ -17,6 +17,52 @@
 
 class CandidateSkinOverlay;
 
+// 候选条下面那行英文：左边是高亮候选的第一条英文词义（超长末尾省略号），后面跟小号灰字的词性，
+// 右边贴一条淡色提示（如「Ctrl+↵ 上屏」）。宽度跟着候选条走：Measure 宽度返回 0，不把卡片撑宽。
+class CandidateEnglishLine : public msimeui::Panel
+{
+  public:
+    struct Appearance
+    {
+        std::wstring fontFamily;
+        std::vector<std::wstring> fallbackFontFamilies;
+        float fontSize = 13.0f;
+        float posFontSize = 11.0f;
+        float hintFontSize = 11.0f;
+        D2D1_COLOR_F wordColor = D2D1::ColorF(0xE9E8E8);
+        D2D1_COLOR_F posColor = D2D1::ColorF(0x8E8E93);
+        D2D1_COLOR_F hintColor = D2D1::ColorF(0x8E8E93, 0.72f);
+        float padLeft = 5.0f;
+        float padRight = 5.0f;
+    };
+
+    CandidateEnglishLine();
+
+    void SetAppearance(const Appearance &appearance);
+    void SetContent(std::wstring word, std::wstring pos, std::wstring hint);
+    void SetLineVisible(bool visible);
+    bool IsLineVisible() const
+    {
+        return visible_;
+    }
+
+    msimeui::SizeF Measure(const msimeui::SizeF &availableSize) override;
+    void Arrange(const msimeui::RectF &finalRect) override;
+    void Render(msimeui::DeviceResources &deviceResources) override;
+    bool HitTest(const msimeui::PointF &) const override
+    {
+        return false;
+    }
+
+  private:
+    std::shared_ptr<msimeui::TextBlock> word_;
+    std::shared_ptr<msimeui::TextBlock> pos_;
+    std::shared_ptr<msimeui::TextBlock> hint_;
+    Appearance appearance_{};
+    bool visible_ = false;
+    float lineHeight_ = 0.0f;
+};
+
 // 卷轴展开皮肤在候选行右端的展开按钮：收起时画“∨”，展开时画“∧”。按钮贴在槽位的右上角，
 // 竖直位置由外边距对齐到首行中间。
 class CandidateExpandToggle : public msimeui::Visual
@@ -147,6 +193,8 @@ class CandidateSkinScene
         msimeui::Thickness framePadding{32.0f, 20.0f, 32.0f, 40.0f};
         // 能用系统材质（亚克力 / 云母）时为真；为假时要材质的皮肤退回不透明底色。
         bool backdropAvailable = false;
+        // 英文词义清单页：候选行单行省略、词性靠右。布局固定竖排，由调用方传 horizontal=false。
+        bool englishSensesPage = false;
     };
 
     // 用户在场景里的操作，由调用方接到候选窗的消息或忽略（设置页预览）。
@@ -202,6 +250,16 @@ class CandidateSkinScene
     const std::shared_ptr<msimeui::TextBlock> &Preedit() const
     {
         return preedit_;
+    }
+    // 英文词义清单页的页眉（「<中文原词> → 英文」），平时高度为 0。
+    const std::shared_ptr<msimeui::TextBlock> &Header() const
+    {
+        return header_;
+    }
+    // 候选条下面的英文行。
+    const std::shared_ptr<CandidateEnglishLine> &EnglishLine() const
+    {
+        return englishLine_;
     }
     const std::shared_ptr<msimeui::CandidateList> &List() const
     {
@@ -262,6 +320,8 @@ class CandidateSkinScene
     std::shared_ptr<msimeui::Container> frame_;
     std::shared_ptr<msimeui::StackPanel> body_;
     std::shared_ptr<msimeui::TextBlock> preedit_;
+    std::shared_ptr<msimeui::TextBlock> header_;
+    std::shared_ptr<CandidateEnglishLine> englishLine_;
     std::shared_ptr<msimeui::CandidateList> list_;
     std::shared_ptr<msimeui::PagerArrows> pager_;
     std::shared_ptr<CandidateExpandToggle> expandToggle_;

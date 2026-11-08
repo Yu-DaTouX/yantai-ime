@@ -700,6 +700,12 @@ class CandidateList : public Visual
         D2D1_COLOR_F translationDelimiterColor = D2D1::ColorF(0, 0.0f);
         D2D1_COLOR_F rowTranslationSecondarySelected = D2D1::ColorF(0, 0.0f);
         D2D1_COLOR_F rowTranslationDelimiterSelected = D2D1::ColorF(0, 0.0f);
+        // Vertical only: put the translation (a part-of-speech tag on the English
+        // senses page) at the row's right edge and let the text stop before it.
+        bool translationAlignRight = false;
+        // Single line with a trailing ellipsis for both text and translation:
+        // neither wraps, and overlong text is trimmed to the row's width.
+        bool ellipsisText = false;
     };
 
     using SelectionChangedHandler = std::function<void(size_t selectedIndex)>;
@@ -722,6 +728,8 @@ class CandidateList : public Visual
     void SetAppearance(Appearance appearance);
     void SetOrientation(Orientation orientation);
     void SetHoverEnabled(bool enabled);
+    // 列表为空时画的一行灰字（例如英文词义清单页的「没有英文释义」）。空串表示不画。
+    void SetEmptyMessage(std::wstring message);
 
     SizeF Measure(const SizeF &availableSize) override;
     void Arrange(const RectF &finalRect) override;
@@ -770,6 +778,7 @@ class CandidateList : public Visual
 
     std::vector<Item> items_;
     std::vector<ItemGeometry> itemGeometry_;
+    std::wstring emptyMessage_;
     mutable std::unordered_map<std::wstring, float> textMetricCache_;
     mutable std::wstring textMetricFamily_;
     std::unordered_map<std::wstring, Microsoft::WRL::ComPtr<IDWriteTextLayout>> textLayoutCache_;

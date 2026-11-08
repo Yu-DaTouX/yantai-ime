@@ -290,6 +290,9 @@ inline std::atomic_bool HorizontalArrowSelectionEnabled{false};
 // V 模式（数字转中文、算式计算）由哪个前缀开启：全拼 V、v 都认，关着时不开。V 后面的数字和
 // . + - * / ( ) 按 engine/contracts/v_mode_input.h 的规则当编码键吃掉。
 inline std::atomic<FanyImeVModeInput::Trigger> VModeTrigger{FanyImeVModeInput::Trigger::Off};
+// 英文词义清单页打开中（Server 发 EnglishSensesPageChanged）。开着时候选态的 Esc / Backspace
+// 交给 Server（只退回中文候选、不取消组合也不删字符），收到下一个焦点会话或开关帧后复位。
+inline std::atomic_bool EnglishSensesPageActive{false};
 // Enabled only after a supporting Server sends the persisted setting.
 inline std::atomic_bool CapsLockEnabled{false};
 

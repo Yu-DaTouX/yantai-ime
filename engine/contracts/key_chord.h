@@ -21,7 +21,8 @@ struct KeyName
 constexpr KeyName NamedKeys[] = {{"Space", 0x20, "Space"},  {"Semicolon", 0xba, ";"},    {"Equal", 0xbb, "="},
                                  {"Comma", 0xbc, ","},      {"Minus", 0xbd, "-"},        {"Period", 0xbe, "."},
                                  {"Slash", 0xbf, "/"},      {"Backquote", 0xc0, "`"},    {"BracketLeft", 0xdb, "["},
-                                 {"Backslash", 0xdc, "\\"}, {"BracketRight", 0xdd, "]"}, {"Quote", 0xde, "'"}};
+                                 {"Backslash", 0xdc, "\\"}, {"BracketRight", 0xdd, "]"}, {"Quote", 0xde, "'"},
+                                 {"Enter", 0x0d, "Enter"}};
 inline constexpr unsigned KeyCode(std::string_view code)
 {
     if (code.size() == 4 && code.substr(0, 3) == "Key" && code[3] >= 'A' && code[3] <= 'Z')

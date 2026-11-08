@@ -246,6 +246,36 @@ std::string BuildCurrentCandidatePage()
     const int start = ui.current_page_start();
     const int loop = ui.current_page_count();
 
+    // 英文词义清单页：候选框里装的是当前高亮候选的英文词义，不是这次输入的候选。每一项的
+    // text 是要上屏的英文、english_pos 是右对齐的词性；页眉由快照另外带。
+    if (g_english_senses_page_active)
+    {
+        int maxCount = 0;
+        std::string candidate_string;
+        for (size_t i = 0; i < g_english_senses_page_senses.size(); ++i)
+        {
+            const auto &sense = g_english_senses_page_senses[i];
+            CandidateViewItem view;
+            view.text = sense.text;
+            view.english_pos = sense.part_of_speech;
+            if (i != 0)
+                candidate_string += ",";
+            candidate_string += CandidateViewHtml(view);
+            ui.page_words.push_back(string_to_wstring(sense.text));
+            ui.page_views.push_back(std::move(view));
+            maxCount = (std::max)(maxCount, static_cast<int>(utf8::distance(sense.text.begin(), sense.text.end())));
+        }
+        if (maxCount > 2)
+            ui.cur_page_max_word_len = maxCount;
+        ui.cur_page_item_cnt = static_cast<int>(ui.page_words.size());
+        ui.selected_index_in_page = ui.page_words.empty() ? 0
+                                                          : std::clamp(ui.selected_index_in_page, 0,
+                                                                       static_cast<int>(ui.page_words.size()) - 1);
+        if (!ui.page_words.empty())
+            ui.selected_text = ui.page_words[static_cast<size_t>(ui.selected_index_in_page)];
+        return candidate_string;
+    }
+
     int maxCount = 0;
     std::string candidate_string;
     for (int i = 0; i < loop; i++)
@@ -298,9 +328,11 @@ std::string BuildCurrentCandidatePage()
         ApplyFixedPositionBadge(view, show_fixed_badge, fixed_badge_style);
         std::string raw_translation;
         bool dictionary_translation = false;
+        bool chinese_to_english = false;
         EnglishIme::TranslationQuery translation_query;
         if (!translation_page && BuildTranslationQuery(item, translation_query))
         {
+            chinese_to_english = translation_query.direction == EnglishIme::TranslationDirection::ChineseToEnglish;
             const auto gloss = g_candidate_translation_glosses.find(TranslationIdentity(translation_query));
             if (gloss != g_candidate_translation_glosses.end())
             {
@@ -308,9 +340,17 @@ std::string BuildCurrentCandidatePage()
                 dictionary_translation = gloss->second.from_dictionary;
             }
         }
-        view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(
-            raw_translation, show_translation_pos, single_translation_sense,
-            single_translation_sense && dictionary_translation);
+        // 英文行、Ctrl+Enter 与词义清单只用中→英方向的原义，英文候选那边的中文释义不参加。
+        if (chinese_to_english)
+            view.english_gloss = raw_translation;
+        // 「候选词翻译」关着时不把释义放进给宿主/共享内存的候选串：候选词英文上屏自己也需要释义缓存，
+        // 但那是候选条下面单独一行，平时候选项不能因此又拖上一段英文。
+        if (GetConfiguredCandidateTranslationsEnabled())
+        {
+            view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(
+                raw_translation, show_translation_pos, single_translation_sense,
+                single_translation_sense && dictionary_translation);
+        }
         const std::string visible = view.text + view.annotation + view.badge;
         const int display_length = static_cast<int>(utf8::distance(visible.begin(), visible.end()));
         candidate_string += CandidateViewHtml(view);
@@ -340,11 +380,14 @@ std::string BuildCurrentCandidatePage()
 
 void PrepareCandidateTranslationRequest()
 {
-    const bool enabled = GetConfiguredCandidateTranslationsEnabled() && !IsUiLessMode();
+    // 候选词翻译和候选词英文上屏（英文行、Ctrl+Enter、词义清单）共用这一份译文缓存：只要其中
+    // 一个开着就得查，否则英文行与清单拿不到释义。
+    const bool enabled =
+        (GetConfiguredCandidateTranslationsEnabled() || EnglishGlossFeatureEnabled()) && !IsUiLessMode();
     auto &ui = Global::candidate_ui;
     if (IsCandidateSubPageActive())
     {
-        // 译文页、日期页不再查译文。已经取出的 glosses 也不能清，退出子模式后原候选还要用。
+        // 译文页、日期页、英文词义清单页不再查译文。已经取出的 glosses 也不能清，退出子模式后原候选还要用。
         return;
     }
     if (!enabled)
@@ -403,6 +446,51 @@ void PublishBuiltCandidatePage(const std::wstring &candidate_string)
     snapshot->has_previous_page = ui.has_prev_page();
     snapshot->has_next_page =
         ui.has_next_page() || (ui.is_current_page_full() && FanyNamedPipe::CanExpandCandidatesKeepingPagePosition());
+    // 英文词义清单页：页眉是「<中文原词> → 英文」，英文行不画（这张列表本身就是英文）。
+    snapshot->english_senses_page = g_english_senses_page_active;
+    if (g_english_senses_page_active)
+    {
+        snapshot->english_senses_header = string_to_wstring(g_english_senses_page_word) + L" → 英文";
+        // 清单只有一屏：没有翻页箭头，也没有卷轴展开。
+        snapshot->page_count = 1;
+        snapshot->page_item_count = static_cast<int>(g_english_senses_page_senses.size());
+        snapshot->has_previous_page = false;
+        snapshot->has_next_page = false;
+        snapshot->expanded_words.clear();
+    }
+    else if (GetConfiguredEnglishLineEnabled() && !IsUiLessMode())
+    {
+        // 英文行：本页只要有一个候选查得到英文就保留（否则高亮到没释义的词时会跳一下），
+        // 高亮那条没有释义时显示「—」；整页都没有就不画。
+        bool any_english = false;
+        std::string highlighted_gloss;
+        for (size_t i = 0; i < snapshot->page_views.size(); ++i)
+        {
+            if (!snapshot->page_views[i].english_gloss.empty())
+            {
+                any_english = true;
+                if (static_cast<int>(i) == snapshot->selected_index_in_page)
+                    highlighted_gloss = snapshot->page_views[i].english_gloss;
+            }
+        }
+        if (any_english)
+        {
+            snapshot->english_line_visible = true;
+            const auto senses = FanyImeIpc::SplitEnglishSenses(highlighted_gloss, 1);
+            if (senses.empty())
+            {
+                snapshot->english_line_word = L"\u2014";
+            }
+            else
+            {
+                snapshot->english_line_word = string_to_wstring(senses.front().text);
+                snapshot->english_line_pos = string_to_wstring(senses.front().part_of_speech);
+                // 「候选词翻译」开着时 Ctrl+Enter 归它，别在英文行上写一条会误导的提示。
+                if (!GetConfiguredCandidateTranslationsEnabled())
+                    snapshot->english_line_hint = EnglishLineHint();
+            }
+        }
+    }
     if (Global::candidate_expand_panel_open.load(std::memory_order_acquire) && !IsUiLessMode())
     {
         // 展开面板只显示文字，徽标与译文仍只在首行（当前页）上。

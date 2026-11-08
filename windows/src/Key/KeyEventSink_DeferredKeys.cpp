@@ -406,7 +406,7 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
     }
 
     // 同上：译文上屏（Ctrl+Enter 高亮那条、Ctrl+数字指定序号那条）也要在这条 Ctrl/Alt 拦截之前
-    // 分类，否则这颗键会被交还给应用。
+    // 分类，否则这颗键会被交还给应用。英文行上屏/展开全部词义同理。
     const bool projectedCandidateActive =
         _deferredKeyProjectionValid ? _deferredProjectedCandidateActive : (_candidateMode == CANDIDATE_ORIGINAL);
     const bool projectedInputActive = _deferredKeyProjectionValid
@@ -414,7 +414,9 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
                                           : _pCompositionProcessorEngine->GetVirtualKeyLength() > 0;
     if (projectedImeOpen && !_IsKeyboardDisabled() &&
         ((projectedCandidateActive && (IsTranslationCommitShortcut(*classifiedCode, capturedModifiers) ||
-                                       IsTranslationDigitShortcut(*classifiedCode, capturedModifiers))) ||
+                                       IsTranslationDigitShortcut(*classifiedCode, capturedModifiers) ||
+                                       IsEnglishCommitShortcut(*classifiedCode, capturedModifiers) ||
+                                       IsEnglishSensesShortcut(*classifiedCode, capturedModifiers))) ||
          (!_serverUnavailableFallbackActive && projectedInputActive &&
           IsPinyinCommitShortcut(*classifiedCode, capturedModifiers))))
     {
@@ -554,6 +556,12 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
     if (shadow.imeOpen && shadow.inputLength > 0)
     {
         const bool candidateKey = shadow.candidateActive;
+        // 英文词义清单页：Esc / Backspace 交给 Server 退回原中文候选，本机不加锁、不取消、不删字。
+        if (Global::EnglishSensesPageActive.load(std::memory_order_relaxed) && candidateKey &&
+            (*classifiedCode == VK_ESCAPE || *classifiedCode == VK_BACK) && (capturedModifiers & 0b00000111u) == 0)
+        {
+            return setKeyState(CATEGORY_CANDIDATE, FUNCTION_SERVER_CANDIDATE_KEY);
+        }
         switch (*classifiedCode)
         {
         case VK_BACK:

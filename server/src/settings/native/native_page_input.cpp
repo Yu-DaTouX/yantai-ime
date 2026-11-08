@@ -982,6 +982,12 @@ VisualPtr BuildInputPage(PageContext &context)
         s->translationsToggle = master;
     }
 
+    // ---- 候选词英文行 ----
+    page.AddSection(MakeRow(L"候选词英文行",
+                            L"在候选条下面固定一行，显示当前高亮候选的第一个英文词义；Ctrl+Enter 直接上屏，"
+                            L"Ctrl+Shift+Enter 查看全部词义",
+                            Toggle(context, "general.english_line")));
+
     // ---- 以词定字 ----
     {
         s->wordKeysBrackets = PaddedRadio(s->wordKeys->Add(L"[ / ]", "brackets"));
