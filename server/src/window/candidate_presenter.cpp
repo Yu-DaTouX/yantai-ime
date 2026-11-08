@@ -23,6 +23,7 @@
 
 #include "msimeui/Controls.h"
 #include "msimeui/DeviceResources.h"
+#include "msimeui/Fonts.h"
 #include "msimeui/Layout.h"
 #include "msimeui/Scene.h"
 #include "msimeui/Theme.h"
@@ -280,7 +281,13 @@ void CandidatePresenter::ApplySkin()
     animationClockRunning_ = false;
     impl_->resources.ClearImageCaches();
 
+    // 区域旗帜要用 Segoe UI Emoji 里没有的图案，随包装了一份 Twemoji Mozilla（COLRv0）。
+    // 只作为私有字体集加载给候选窗，不安装到系统；文件缺失时旗帜退回方框字母，不影响其他候选。
+    static const std::shared_ptr<IDWriteFontCollection> flagFont = msimeui::LoadPrivateFontCollection(
+        (std::filesystem::path(AssetRoot()) / L"assets" / L"fonts" / L"Twemoji.Mozilla.ttf").wstring());
     CandidateSkinScene::Settings settings;
+    settings.flagFontFamily = L"Twemoji Mozilla";
+    settings.flagFontCollection = flagFont;
     settings.skinsRoot = std::filesystem::path(AssetRoot()) / L"skins";
     settings.skinId = skinId;
     settings.light = candLight;

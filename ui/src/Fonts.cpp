@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <dwrite_2.h>
+#include <dwrite_3.h>
 #include <map>
 #include <mutex>
 #include <utility>
@@ -239,6 +240,39 @@ void ApplyUiFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format)
     {
         format1->SetFontFallback(cachedFallback.Get());
     }
+}
+
+std::shared_ptr<IDWriteFontCollection> LoadPrivateFontCollection(const std::wstring &path)
+{
+    IDWriteFactory *factory = SharedFactory();
+    if (!factory || path.empty())
+        return {};
+    ComPtr<IDWriteFactory5> factory5;
+    if (FAILED(factory->QueryInterface(IID_PPV_ARGS(&factory5))))
+        return {};
+    ComPtr<IDWriteFontFile> file;
+    if (FAILED(factory5->CreateFontFileReference(path.c_str(), nullptr, file.GetAddressOf())))
+        return {};
+
+    ComPtr<IDWriteFontSetBuilder> builder;
+    if (FAILED(factory5->CreateFontSetBuilder(builder.GetAddressOf())))
+        return {};
+    ComPtr<IDWriteFontSetBuilder1> builder1;
+    if (FAILED(builder->QueryInterface(IID_PPV_ARGS(&builder1))))
+        return {};
+    // 字体文件里的所有字面一次加进字体集，元数据由 CreateFontSet 从文件里读。
+    if (FAILED(builder1->AddFontFile(file.Get())))
+        return {};
+    ComPtr<IDWriteFontSet> fontSet;
+    if (FAILED(builder->CreateFontSet(fontSet.GetAddressOf())))
+        return {};
+    ComPtr<IDWriteFontCollection1> collection;
+    if (FAILED(factory5->CreateFontCollectionFromFontSet(fontSet.Get(), collection.GetAddressOf())))
+        return {};
+    IDWriteFontCollection *base = nullptr;
+    if (FAILED(collection->QueryInterface(IID_PPV_ARGS(&base))))
+        return {};
+    return std::shared_ptr<IDWriteFontCollection>(base, [](IDWriteFontCollection *value) { value->Release(); });
 }
 
 void ApplyFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format, const std::vector<std::wstring> &families)

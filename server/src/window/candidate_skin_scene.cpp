@@ -736,6 +736,9 @@ CandidateSkinScene::Result CandidateSkinScene::Apply(const Settings &settings)
     }
     for (const auto &font : settings.fallbackFontFamilies)
         appearance.fallbackFontFamilies.push_back(font);
+    // 区域旗帜用安装目录里的私有字体；其他 emoji 仍用系统自带的 Segoe UI Emoji。
+    appearance.flagFontFamily = settings.flagFontFamily;
+    appearance.flagFontCollection = settings.flagFontCollection;
     appearance.itemHeight = fontSize * 1.35f + tokens.itemExtraHeight;
     appearance.itemGap = tokens.itemGap;
     appearance.fontSize = fontSize;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dwrite.h>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,10 @@ struct TextVerticalMetrics
 TextVerticalMetrics ResolveTextVerticalMetrics(const std::wstring &fontFamily,
                                                const std::vector<std::wstring> &fallbackFamilies,
                                                const std::wstring &text);
+
+// 从字体文件加载私有字体集（不安装到系统字体）。区域旗帜用的 Twemoji Mozilla 这样随安装包
+// 放到数据目录、只给候选窗用。文件不存在、不是字体或系统不支持 COLR 字体集时返回空。
+std::shared_ptr<IDWriteFontCollection> LoadPrivateFontCollection(const std::wstring &path);
 
 // Ordered, per-format fallback for missing glyphs, followed by the system mappings.
 void ApplyFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format, const std::vector<std::wstring> &families);

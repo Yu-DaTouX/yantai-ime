@@ -66,6 +66,11 @@ $tsf32Pdb = Join-Path $RepoRoot (Join-Path $TsfDirectory 'build32-release\Releas
 $tsf64Pdb = Join-Path $RepoRoot (Join-Path $TsfDirectory 'build64-release\Release\MetasequoiaImeTsf.pdb')
 # 原生（Direct2D）设置窗口用到的图标与图片，按原相对路径装到数据目录的 assets\settings\。
 $settingsAssets = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\settings')
+# 区域旗帜 emoji 用的 Twemoji Mozilla：Segoe UI Emoji 没有国旗图案，候选窗把它当私有字体集加载。
+# 版本、来源与 SHA256 见该目录的 README.md；下面的摘要核对防止替换时漏掉。
+$fontAssets = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\fonts')
+$flagFont = Join-Path $fontAssets 'Twemoji.Mozilla.ttf'
+$flagFontSha256 = '6d90152ee0d29e82fe2a87793af5aa4b7ad13e6538360889e141e81ed299ee8e'
 $defaultSkinsSource = Join-Path $RepoRoot 'skins\default'
 $bundledSkinsSource = Join-Path $RepoRoot 'skins'
 $serverConfig = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\config\config.toml')
@@ -114,6 +119,10 @@ Assert-PathExists -LiteralPath $tipIcon -Description '输入法语言配置图�
 Assert-PathExists -LiteralPath $thirdPartyNotices -Description '第三方声明 THIRD_PARTY_NOTICES.txt'
 Assert-PathExists -LiteralPath $license -Description '许可证 LICENSE'
 Assert-PathExists -LiteralPath $settingsAssets -Description '设置窗口图片资源目录'
+Assert-PathExists -LiteralPath $flagFont -Description '区域旗帜 emoji 字体 Twemoji.Mozilla.ttf'
+if ((Get-FileHash -LiteralPath $flagFont -Algorithm SHA256).Hash.ToLowerInvariant() -ne $flagFontSha256) {
+    throw "区域旗帜 emoji 字体与记录的 SHA256 不一致（见 server/assets/fonts/README.md）：$flagFont"
+}
 Assert-PathExists -LiteralPath $defaultSkinsSource -Description '内置皮肤设置清单 skins\default'
 
 if (-not $Light) {
@@ -231,6 +240,8 @@ if (Test-Path -LiteralPath $targetAssets) {
     Remove-Item -LiteralPath $targetAssets -Recurse -Force
 }
 Copy-DirectoryContents -Source $settingsAssets -Destination $targetSettingsAssets
+# 区域旗帜字体随包到数据目录的 assets\fonts（轻量包也要，候选窗在任何打包形态下都用到它）。
+Copy-DirectoryContents -Source $fontAssets -Destination (Join-Path $targetAssets 'fonts')
 
 # 内置皮肤的出厂清单（开关与完整外观，含 canvas 基底）。安装脚本每次都整份覆盖到数据目录的
 # skins\default，用户在那里的改动升级后不保留。
