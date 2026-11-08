@@ -52,8 +52,26 @@ foreach ($model in $lock.models) {
                 break
             }
             catch {
-                if ($attempt -eq 3) { throw }
                 Write-Warning "下载失败（第 $attempt 次）：$($_.Exception.Message)"
+                # 直链（github.com/.../releases/download）有时整段时间都回 504，而 REST API 仍能取到
+                # 同一资产；下面的 SHA256 校验照旧把关。
+                if ($model.url -match '^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/]+)$') {
+                    try {
+                        $headers = @{ 'User-Agent' = 'msime-fetch'; 'Accept' = 'application/vnd.github+json' }
+                        $token = if ($env:GH_TOKEN) { $env:GH_TOKEN } else { $env:GITHUB_TOKEN }
+                        if ($token) { $headers['Authorization'] = "Bearer $token" }
+                        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$($Matches[1])/$($Matches[2])/releases/tags/$($Matches[3])" -Headers $headers
+                        $asset = $release.assets | Where-Object name -eq ([uri]::UnescapeDataString($Matches[4])) | Select-Object -First 1
+                        if ($asset) {
+                            $headers['Accept'] = 'application/octet-stream'
+                            Invoke-WebRequest -Uri $asset.url -Headers $headers -OutFile $dest
+                            $downloaded = $true
+                            break
+                        }
+                    }
+                    catch { Write-Warning "API 下载也失败：$($_.Exception.Message)" }
+                }
+                if ($attempt -eq 3) { throw }
                 Start-Sleep -Seconds (10 * $attempt)
             }
         }

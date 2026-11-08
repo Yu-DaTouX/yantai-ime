@@ -566,6 +566,8 @@ jobs:
       # asserts they exist, so this has to run before the payload is collected.
       - name: Download the neural sentence models
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/fetch-neural-model.ps1
 
       - name: Decide the signing mode
