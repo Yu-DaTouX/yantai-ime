@@ -1427,7 +1427,6 @@ struct InputPage
         showPosBlock->SetDisabled(!enabled);
         singleSenseBlock->SetDisabled(!enabled);
     }
-
 };
 
 // Section card that can be hidden (`hidden` attribute) without leaving its margin behind.
@@ -1568,13 +1567,10 @@ VisualPtr BuildInputPage(PageContext &context)
     {
         auto quanpin = s->schemeGroup->Add(L"全拼", "quanpin");
         auto shuangpin = s->schemeGroup->Add(L"双拼", "shuangpin");
-        auto wubi = s->schemeGroup->Add(L"五笔", "wubi");
         s->schemeGroup->SetValue("quanpin");
         s->schemeGroup->SetOnChanged([model](const std::string &value) { model->Update("input.schema", value); });
         // .input-option-content: margin-top 12px, gap 8px
-        auto options = Col({quanpin, std::make_shared<Divider>(Divider::Kind::Option), shuangpin,
-                            std::make_shared<Divider>(Divider::Kind::Option), wubi},
-                           8.0f);
+        auto options = Col({quanpin, std::make_shared<Divider>(Divider::Kind::Option), shuangpin}, 8.0f);
         options->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
         s->chineseSections.push_back(AddHideableSection(page, Col({MakeTitle(L"输入方案"), options})));
     }
@@ -1635,39 +1631,6 @@ VisualPtr BuildInputPage(PageContext &context)
         row->Add(actions);
         s->chineseSections.push_back(AddHideableSection(page, row));
     }
-
-    // ---- 五笔方案 ----
-    {
-        Dropdown::Options settings;
-        settings.paddingLeft = 9.0f;
-        settings.minWidth = 110.0f;
-        settings.menuMinWidth = 110.0f;
-        auto scheme = BindDropdown(context, "input.wubi_schema", Options({{"wubi86", L"86 五笔"}}), settings);
-        // z 键只剩通配两态，配置值仍是字符串 off | wildcard。
-        auto zMode = std::make_shared<ToggleSwitch>(false);
-        zMode->SetOnChanged([model](bool on) { model->Update("input.wubi_z_mode", on ? "wildcard" : "off"); });
-        std::weak_ptr<ToggleSwitch> weakZ = zMode;
-        context.OnConfig([weakZ, model]() {
-            if (auto toggle = weakZ.lock())
-                toggle->SetChecked(model->GetString("input.wubi_z_mode") == "wildcard");
-        });
-        s->chineseSections.push_back(AddHideableSection(
-            page,
-            Col({MakeRow(L"五笔方案", L"", scheme),
-                 ItemSetting(L"拼音混输", L"同一串字母同时给五笔码表和全拼，五笔候选在前",
-                             Toggle(context, "input.wubi_mixed_pinyin"), true, false),
-                 ItemSetting(L"z 键通配", L"开启后 z 可匹配码表中该位置的任意字母（含首位），常用于首码不确定时起头",
-                             zMode, false, false),
-                 ItemSetting(L"四码唯一时自动上屏",
-                             L"敲满四码且码表只给一个候选时第四键直接上屏，不必再按空格；关闭后候选窗停留，等你选",
-                             Toggle(context, "input.wubi_four_code_auto_commit"), false, false),
-                 ItemSetting(L"第五码将首选上屏",
-                             L"完整四码后再敲字母时上屏首选，并把该字母留作下一组合开头；关闭只在拼音混输开启时生效，"
-                             L"这个字母并入混输串；混输关闭时仍按顶字上屏，不会丢字",
-                             Toggle(context, "input.wubi_fifth_code_top_commit"), false, true)})));
-    }
-
-    // ---- 日语方案 ----
 
     // ---- 输入纠错 ----
     page.AddSection(
@@ -2068,7 +2031,7 @@ VisualPtr BuildInputPage(PageContext &context)
     context.OnConfig([s, state, model, host, &context]() {
         (void)state;
         const std::string schema = model->GetString("input.schema");
-        if (schema == "quanpin" || schema == "shuangpin" || schema == "wubi")
+        if (schema == "quanpin" || schema == "shuangpin")
             s->schemeGroup->SetValue(schema);
 
         // Custom shuangpin schemas follow the built-in ones; broken ones are listed greyed out.
@@ -2244,10 +2207,10 @@ VisualPtr BuildInputPage(PageContext &context)
                             meta += L" · ";
                         meta += Widen(part);
                     }
-                    ModelRow row = MakeModelRow(context, id, Widen(entry.value("displayName", id)), meta,
-                                                entry.value("url", std::string()), true, "collocationModelDownload",
-                                                "collocationModelImport", "collocationModelDelete",
-                                                "collocationModelCheckUpdate");
+                    ModelRow row =
+                        MakeModelRow(context, id, Widen(entry.value("displayName", id)), meta,
+                                     entry.value("url", std::string()), true, "collocationModelDownload",
+                                     "collocationModelImport", "collocationModelDelete", "collocationModelCheckUpdate");
                     if (msimeui::Window *window = context.host.Window())
                         row.view->Attach(window);
                     s->collocationList->Add(row.view);
@@ -2278,11 +2241,11 @@ VisualPtr BuildInputPage(PageContext &context)
                 // 待重启时按钮直接变成可点的「重启」，点下去走设置页已有的 restartServer。
                 // 已就绪且没有已知更新时按钮是「检查更新」：点了才向远端发探测请求，不点不联网。
                 const bool can_check = stateName == "ready" && !update_available && row.checkAction;
-                row.download->SetText(pending  ? L"重启输入法"
+                row.download->SetText(pending            ? L"重启输入法"
                                       : update_available ? L"更新"
                                       : can_check        ? L"检查更新"
                                                          : L"下载");
-                row.download->SetOnClick(pending  ? row.restartAction
+                row.download->SetOnClick(pending     ? row.restartAction
                                          : can_check ? row.checkAction
                                                      : row.downloadAction);
                 row.download->SetDisabled(pending ? false : ((stateName == "ready" && !can_check) || anyBusy));

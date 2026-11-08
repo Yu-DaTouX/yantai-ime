@@ -1,9 +1,6 @@
 #include "ipc/input_key_policy.h"
 #include "tests/includes/test_framework.h"
 
-
-
-
 TEST_CASE(pinyin_commit_requires_shift_enter)
 {
     REQUIRE(FanyImeIpc::IsPinyinCommitKey(0x0D, 1));
@@ -399,7 +396,6 @@ TEST_CASE(minus_key_respects_word_to_character_switch)
     REQUIRE_EQ(FanyImeIpc::WordToCharacterDirection(0xBD, '-', 0, false, true), 0);
 }
 
-
 TEST_CASE(caret_resegmentation_requires_negotiated_non_uiless_pinyin_composition)
 {
     using FanyImeIpc::ShouldResegmentCompositionByCaret;
@@ -463,49 +459,4 @@ TEST_CASE(create_word_frame_carries_caret_only_for_negotiated_mid_string_caret)
     REQUIRE(!ShouldCreateWordFrameCarryCaret(false, 0, 14));
     REQUIRE(!ShouldCreateWordFrameCarryCaret(false, 3, 14));
     REQUIRE(!ShouldCreateWordFrameCarryCaret(false, 14, 14));
-}
-
-TEST_CASE(wubi_unique_four_code_commit_follows_its_switch_and_guards_its_preconditions)
-{
-    using FanyImeIpc::ShouldAutoCommitCompleteWubiCode;
-    // Switch on (the default): a unique complete four-letter code commits on the fourth key.
-    REQUIRE(ShouldAutoCommitCompleteWubiCode(true, true, false));
-    // The engine did not report a complete unique four-letter code.
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(true, false, false));
-    // A word is being created: the raw is a prefix, so the composition stays open.
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(true, true, true));
-    // Switch off: the code stays in the candidate window whatever the engine reports, so the
-    // engine-side facts above can never drag the commit back on.
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(false, true, false));
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(false, false, false));
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(false, true, true));
-}
-
-TEST_CASE(wubi_top_word_commit_follows_its_switch_and_guards_its_preconditions)
-{
-    using FanyImeIpc::ShouldCommitCompleteWubiCodeOnNextKey;
-    // Arguments: top_commit_enabled, mixed_pinyin_enabled, four_code_is_complete, key_is_letter,
-    // caret_at_end, creating_word_active.
-    for (const bool mixed : {false, true})
-    {
-        REQUIRE(ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, true, true, false));
-        // Not a complete table-answered code: nothing to commit, the key belongs to the composition.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, false, true, true, false));
-        // Not a letter key (Backspace, arrows, space): those edit or commit the code in place.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, false, true, false));
-        // The caret is inside the code, so the user is editing it, not typing past it.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, true, false, false));
-        // A word being created owns the raw as a prefix; committing it would end the word early.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, true, true, true));
-    }
-    // Switch off with mixed input on: the letter grows the composition into a mixed spelling, so
-    // nothing is committed.
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, true, true, true, true, false));
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, true, true, true, true, true));
-    // Switch off with mixed input off: the engine would clip the letter away while a raw-preedit
-    // client already shows it, so the top commit still runs and the key is never lost.
-    REQUIRE(ShouldCommitCompleteWubiCodeOnNextKey(false, false, true, true, true, false));
-    // The fallback keeps every other guard.
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, false, false, true, true, false));
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, false, true, true, true, true));
 }

@@ -107,10 +107,6 @@ class InputSession
     bool set_english_input_options(EnglishInputOptions options);
     const EnglishInputOptions &english_input_options() const;
     void set_mixed_expressive_options(MixedExpressiveOptions options);
-    void set_wubi_input_options(metasequoia::WubiInputOptions options);
-    // 读回当前五笔设置：公开 Session 的运行期开关要按字段改，不能整份覆盖（否则会把另一个
-    // 独立开关复位）。
-    const metasequoia::WubiInputOptions &wubi_input_options() const;
     const MixedExpressiveOptions &mixed_expressive_options() const;
     void set_dedicated_english_mode(bool enabled);
     bool dedicated_english_mode() const;
@@ -141,10 +137,6 @@ class InputSession
     struct SelectionTransition
     {
         bool continues_composition = false;
-        // 刚选中的候选由五笔码表产出。上屏推进与造词都按它决定：五笔候选一次消耗整串编码，
-        // 拼音候选则只消耗自己那段、把剩余字母继续留在组合里。混输组合里两类候选共存，
-        // 不能再按会话方案一刀切。
-        bool wubi_native = false;
         std::string full_pure_pinyin;
         std::string current_segmentation;
         std::string current_segmentation_with_cases;
@@ -229,9 +221,8 @@ class InputSession
     ShuangpinPreeditForms get_shuangpin_preedit_forms() const;
     // Offsets in get_pinyin_sequence_with_cases() where one input unit starts,
     // always including 0 (when non-empty) and raw.size(). A unit is one syllable:
-    // the `ma` of ni'hao'ma, one 1-2 key syllable in shuangpin. Schemes and
-    // local modes without the unit model (wubi, U/K/E/M/J/Y and the
-    // dedicated English scheme) return an empty vector, and hosts then fall back
+    // the `ma` of ni'hao'ma, one 1-2 key syllable in shuangpin. Local modes and
+    // the dedicated English scheme have no unit model and return an empty vector, and hosts then fall back
     // to single-character editing. An active autocorrect/helpcode display is
     // mapped back to the raw spans the engine actually cut, so a deleted unit
     // can never leave half a segment or a stray separator behind. Consumed by
@@ -244,37 +235,18 @@ class InputSession
     // 双拼按完整音节码、末尾允许单独一个声母键。不要求音节完整，也不看词库有没有词。混输里用它
     // 决定英文前缀补全词的默认位置：能读成拼音的输入，用户多半在打中文，补全词默认退到首页末位。
     bool reads_as_pinyin() const;
-    // The current composition is a complete four-letter wubi code the wubi table answered with
-    // exactly one row. Hosts decide whether to auto-commit on this; the engine only reports the fact.
-    // The pinyin candidates mixed input appends are deliberately not counted: a code the table did
-    // not answer is not a unique wubi code, and committing a pinyin answer as one would take away
-    // the extra letters mixed input exists to allow.
-    bool wubi_unique_four_code() const;
-    // The current composition is a complete four-letter wubi code the wubi table answered, regardless
-    // of how many candidates it has. Hosts use it to commit the first candidate when the user types
-    // past the fourth letter: a complete code that keeps growing must not silently swallow the extra
-    // letters. In mixed input the appended pinyin candidates do not count; only the code's own rows
-    // make it complete. See wubi_unique_four_code for the uniqueness part.
-    bool wubi_four_code_is_complete() const;
     bool has_active_helpcode() const;
 
     void set_pinyin_sequence(const std::string &pinyin_sequence);
     void set_pinyin_sequence_with_cases(const std::string &pinyin_sequence);
-    // Marks the pending sequence as a special mode's literal input on a wubi session (T mode's
-    // Tdate, V mode's V1+2): kept as typed, never queried, never a complete code. Applies to the
-    // sequence set alongside it and is dropped with it, so a host that does not call it gets an
-    // ordinary code. Other schemes keep every typed character anyway and ignore it.
-    void set_wubi_literal_input(bool literal);
 
     int store_user_phrase(std::string pinyin, std::string word);
     int store_user_phrase_from_canonical_pinyin(std::string pinyin, std::string word);
-    // 混输组合里五笔与拼音候选共存，删除必须由调用方指明候选自己的方案，不能按会话方案。
     int remove_candidate(std::string pinyin, std::string word, SchemeType scheme);
     int cache_dynamic_candidate(const std::string &pinyin, const std::string &word, CandidateSource source);
     SelectionTransition advance_composition_after_selection(const std::string &selected_pinyin,
                                                             const std::string &selected_word,
-                                                            const std::string &selected_canonical_pinyin,
-                                                            SchemeType selected_scheme = SchemeType::Quanpin);
+                                                            const std::string &selected_canonical_pinyin);
     CloudQueryState get_cloud_query_state() const;
     CreatingWordProgress update_creating_word_progress(const std::string &current_pinyin,
                                                        const std::string &current_word,
@@ -320,12 +292,6 @@ class InputSession
     // 读音与敲的字母不再逐音节相同，重建式比对永远过不了，只会退回字面切分。
     std::string build_pinyin_segmentation_with_cases(bool shuangpin_raw) const;
     bool is_shuangpin() const;
-    bool is_wubi() const;
-    // 候选是否由五笔码表产出。混输组合里五笔候选在前、拼音候选追加在后，调频、删除、固定
-    // 位置与上屏推进都按候选自己的方案走，不再按会话方案一刀切。
-    static bool is_wubi_native_candidate(const WordItem &item);
-    // 当前列表里五笔码表候选的条数；顶字与四码自动上屏只认它，追加的拼音候选不算。
-    std::size_t wubi_native_candidate_count() const;
     void clear_pending_sequence();
     void apply_pending_sequence();
 
@@ -354,7 +320,7 @@ class InputSession
     std::optional<std::string> update_local_candidates();
     void update_mixed_candidates();
     void apply_candidate_positions(std::vector<WordItem> &items);
-    std::string position_context(bool english, bool wubi) const;
+    std::string position_context(bool english) const;
     bool fixed_positions_enabled_ = false;
     void update_dedicated_english_candidates();
     void reset_composition();
@@ -385,7 +351,6 @@ class InputSession
     std::string pending_pinyin_sequence_with_cases_;
     bool has_pending_pinyin_sequence_ = false;
     bool has_pending_pinyin_sequence_with_cases_ = false;
-    bool pending_wubi_literal_input_ = false;
 
     RuntimePaths paths_;
     CandidateQueries candidate_queries_;

@@ -35,7 +35,7 @@ export type ClientMessage =
   | { "type": "apiCredentialTest"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "translation.tencent" | "translation.aliyun" | "translation.niutrans" | "translation.custom" | "translation.ai" | "voice.asr" | "voice.polish" | "ai.assistant"; "config": { [key: string]: unknown } } }
   | { "type": "apiModelList"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "ai.assistant" | "voice.asr" | "voice.polish"; "config": { [key: string]: unknown } } }
   | { "type": "aiProviderSync"; "protocolVersion"?: 1; "data": { "requestId": string; "entries": Array<{ "id": string; "name": string; "endpoint": string; "token": string; "model": string }> } }
-  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
+  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
   | { "type": "candidate"; "protocolVersion"?: 1; "data": number }
@@ -56,7 +56,7 @@ export type ClientMessage =
   | { "type": "settings"; "protocolVersion"?: 1 }
   | { "type": "about"; "protocolVersion"?: 1 }
   | { "type": "voiceInput"; "protocolVersion"?: 1 }
-  | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" | "shuangpin" | "wubi" }
+  | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" | "shuangpin" }
   | { "type": "inputSchemeSubmenu"; "protocolVersion"?: 1; "data": { "open": boolean; "width": number } }
   | { "type": "ready"; "protocolVersion"?: 1 }
   | { "type": "exitEnglishInputMode"; "protocolVersion"?: 1 }
@@ -111,7 +111,7 @@ export type SettingsMessage =
   | { "type": "apiCredentialTest"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "translation.tencent" | "translation.aliyun" | "translation.niutrans" | "translation.custom" | "translation.ai" | "voice.asr" | "voice.polish" | "ai.assistant"; "config": { [key: string]: unknown } } }
   | { "type": "apiModelList"; "protocolVersion"?: 1; "data": { "requestId": string; "service": "ai.assistant" | "voice.asr" | "voice.polish"; "config": { [key: string]: unknown } } }
   | { "type": "aiProviderSync"; "protocolVersion"?: 1; "data": { "requestId": string; "entries": Array<{ "id": string; "name": string; "endpoint": string; "token": string; "model": string }> } }
-  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
+  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } };
 declare global {

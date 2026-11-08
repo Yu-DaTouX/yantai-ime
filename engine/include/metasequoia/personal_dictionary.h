@@ -11,7 +11,6 @@ namespace metasequoia
 enum class PersonalDictionaryKind
 {
     Pinyin,
-    Wubi,
     QuickPhrase,
     English
 };
@@ -19,7 +18,7 @@ struct PersonalDictionaryEntry
 {
     PersonalDictionaryKind kind = PersonalDictionaryKind::Pinyin;
     // Pinyin uses complete syllables separated by apostrophes (spaces and capitals are normalized).
-    // Wubi uses 1..4 letters; quick phrases use 1..32 letters/digits; English uses 1..64 letters.
+    // Quick phrases use 1..32 letters/digits; English uses 1..64 letters.
     std::string key;
     std::string value;
     std::int64_t weight = 100000;

@@ -90,14 +90,6 @@ bool IsPinyinAnnotatableHan(uint32_t codepoint)
     return codepoint >= 0x4E00 && codepoint <= 0x9FFF;
 }
 
-// 五笔按字查 wubi86，不受 cpp-pinyin 的范围限制：扩展 A、兼容表意字，以及 2/3 平面上的
-// 扩展 B 及以后各区都放行，查不到码的字交给取码那一步去报「缺少编码」。
-bool IsWubiComposableHan(uint32_t codepoint)
-{
-    return (codepoint >= 0x3400 && codepoint <= 0x4DBF) || IsPinyinAnnotatableHan(codepoint) ||
-           (codepoint >= 0xF900 && codepoint <= 0xFAFF) || (codepoint >= 0x20000 && codepoint <= 0x3FFFF);
-}
-
 bool IsPureHanPhrase(const std::string &word, bool (*is_han)(uint32_t) = IsPinyinAnnotatableHan)
 {
     if (word.empty())
@@ -237,11 +229,6 @@ json::object ExportUserDictionary(const std::string &dictionary)
         journal_kind = "pinyin";
         filename = "水杉IME-拼音用户词库.txt";
     }
-    else if (dictionary == "wubi")
-    {
-        journal_kind = "wubi";
-        filename = "水杉IME-五笔用户词库.txt";
-    }
     else if (dictionary == "english")
     {
         journal_kind = "english";
@@ -300,7 +287,7 @@ json::object ExportUserDictionary(const std::string &dictionary)
 
         if (dictionary == "quanpin" && HelpcodeUtils::count_utf8_chars(value) <= 1)
             continue;
-        if (dictionary == "quanpin" || dictionary == "wubi")
+        if (dictionary == "quanpin")
             content << value << '\t' << key << '\t' << weight << '\n';
         else if (dictionary == "quick")
             content << key << '\t' << value << '\t' << weight << '\n';
@@ -425,8 +412,7 @@ bool InsertChineseWord(sqlite3 *db, const quanpin::Segments &segments, const std
     return true;
 }
 
-// 拼音带码、纯汉字、英文、五笔四条导入路径此前各存一份逐字相同的 40 行汇总块。
-// 收口到这里，避免加「纯汉字导入五笔」时变成第四份副本。
+// 拼音带码、纯汉字、英文几条导入路径此前各存一份逐字相同的 40 行汇总块，收口到这里。
 // ImportQuickPhrase 刻意留在外面：它那份副本不调 NotifyImeServerClearDictCache，
 // 收编进来会凭空给快捷短语导入加上清缓存通知。改它要先确认这个差异是有意还是漏的。
 json::object SummarizeImport(int inserted, int skipped, int failed, const std::vector<std::string> &error_details)
@@ -464,91 +450,6 @@ json::object SummarizeImport(int inserted, int skipped, int failed, const std::v
     if (inserted > 0)
         NotifyImeServerClearDictCache();
     return Result(inserted > 0 || (failed == 0 && skipped > 0), message);
-}
-
-// 一次性把 wubi86 的单字行读进内存。wubi86 只有 UNIQUE(key,value) 与
-// idx(key,weight)，两个索引的首列都不是 value，所以「按字查码」是全表扫描——
-// EXPLAIN QUERY PLAN 走 SCAN wubi86 USING COVERING INDEX，实测 3.38ms/字，
-// 2000 字的人名文件要 6.8 秒。整表读一次约 25ms，之后全内存查。
-// 用户在设置页自造的单字码（日志里 user_inserted=1 的 wubi 单字行）。它们和出厂码同住
-// wubi86，只看 wubi86 分不出来；不排除的话，给「张」自造的 aaaa 会按字典序压过出厂的
-// xtay，此后每个含「张」的词都取错码，导入还照样报成功。读不到日志时返回空集，退回
-// 只看 wubi86 的行为。
-std::set<std::pair<std::string, std::string>> LoadUserInsertedWubiChars()
-{
-    std::set<std::pair<std::string, std::string>> entries;
-    const std::string path = user_dictionary::default_user_db_path();
-    std::error_code exists_error;
-    if (!std::filesystem::exists(path, exists_error))
-        return entries;
-
-    sqlite3 *raw = nullptr;
-    if (sqlite3_open_v2(path.c_str(), &raw, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK)
-    {
-        if (raw)
-            sqlite3_close(raw);
-        return entries;
-    }
-    Db db(raw);
-    sqlite3_busy_timeout(db.get(), 3000);
-
-    std::string error;
-    Stmt stmt = Prepare(db.get(),
-                        "SELECT key,value FROM user_dictionary_operations "
-                        "WHERE dictionary='wubi' AND operation='upsert' AND user_inserted=1 AND length(value)=1",
-                        error);
-    if (!stmt)
-        return entries;
-    while (sqlite3_step(stmt.get()) == SQLITE_ROW)
-    {
-        const unsigned char *key = sqlite3_column_text(stmt.get(), 0);
-        const unsigned char *value = sqlite3_column_text(stmt.get(), 1);
-        if (key && value)
-            entries.emplace(reinterpret_cast<const char *>(key), reinterpret_cast<const char *>(value));
-    }
-    return entries;
-}
-
-bool LoadWubiCharCodes(sqlite3 *db, Validation::WubiCharCodes &codes, std::string &error)
-{
-    // 排序是为了让「多个 4 级全码时取第一个」确定：同值内按 key 升序，先遇到的就是
-    // 字典序最小的那个，不依赖 SQLite 的扫描顺序。
-    Stmt stmt = Prepare(db, "SELECT key, value FROM wubi86 WHERE length(value)=1 ORDER BY value, key", error);
-    if (!stmt)
-        return false;
-    const auto text = [](sqlite3_stmt *s, int column) {
-        const unsigned char *raw = sqlite3_column_text(s, column);
-        return raw ? std::string(reinterpret_cast<const char *>(raw)) : std::string{};
-    };
-    const auto consider = [](Validation::WubiCharCodes &target, const std::string &value, const std::string &key) {
-        const auto existing = target.find(value);
-        if (existing == target.end())
-        {
-            target.emplace(value, key);
-            return;
-        }
-        // 全码(4 位)优先；都不是全码时取更长的那个。已有全码就不再被替换，
-        // 这同时实现了「多个全码取字典序第一个」。
-        if (existing->second.size() == 4)
-            return;
-        if (key.size() == 4 || key.size() > existing->second.size())
-            existing->second = key;
-    };
-
-    const auto user_inserted = LoadUserInsertedWubiChars();
-    Validation::WubiCharCodes user_codes;
-    while (sqlite3_step(stmt.get()) == SQLITE_ROW)
-    {
-        const std::string key = text(stmt.get(), 0);
-        const std::string value = text(stmt.get(), 1);
-        if (key.empty() || value.empty())
-            continue;
-        consider(user_inserted.count({key, value}) ? user_codes : codes, value, key);
-    }
-    // 自造码只给出厂码表里没有的字兜底（比如用户自己补的扩展区字），不和出厂码竞争。
-    for (auto &entry : user_codes)
-        codes.emplace(entry.first, std::move(entry.second));
-    return true;
 }
 
 bool ParseImportLine(const std::string &line, std::string &word, std::string &code, int &weight, std::string &message)
@@ -1004,97 +905,6 @@ json::object ImportHans(const json::object &request)
     return SummarizeImport(inserted, skipped, failed, error_details);
 }
 
-// 纯汉字词组 -> 五笔码的导入。与 ImportHans 同构，差别只在码从哪来：
-// 拼音走 cpp-pinyin 注音，五笔走 wubi86 单字码按 86 词组取码规则组合。
-json::object ImportHansWubi(const json::object &request)
-{
-    std::string content = StringValue(request, "content");
-    if (content.size() >= 3 && static_cast<unsigned char>(content[0]) == 0xEF &&
-        static_cast<unsigned char>(content[1]) == 0xBB && static_cast<unsigned char>(content[2]) == 0xBF)
-        content.erase(0, 3);
-    if (content.find_first_not_of(" \t\r\n") == std::string::npos)
-        return Result(false, "文件内容为空");
-
-    std::string error;
-    Db db = OpenDatabase("msime.db", error);
-    if (!db)
-        return Result(false, "打开五笔词库失败：" + error);
-
-    Validation::WubiCharCodes char_codes;
-    if (!LoadWubiCharCodes(db.get(), char_codes, error))
-        return Result(false, "读取五笔码表失败：" + error);
-    if (char_codes.empty())
-        return Result(false, "五笔码表未就绪，请确认词库完整");
-
-    Stmt insert = Prepare(db.get(),
-                          "INSERT INTO wubi86(key,value,weight) SELECT ?1,?2,?3 "
-                          "WHERE NOT EXISTS (SELECT 1 FROM wubi86 WHERE key=?1 AND value=?2)",
-                          error);
-    if (!insert)
-        return Result(false, "准备导入失败：" + error);
-
-    constexpr int kWeight = Validation::kDefaultWubiImportWeight;
-    int inserted = 0;
-    int skipped = 0;
-    int failed = 0;
-    std::vector<std::string> error_details;
-    const auto append_error = [&](int line_no, const std::string &detail) {
-        ++failed;
-        if (error_details.size() < 5)
-            error_details.push_back("第 " + std::to_string(line_no) + " 行：" + detail);
-    };
-
-    sqlite3_exec(db.get(), "BEGIN IMMEDIATE", nullptr, nullptr, nullptr);
-    std::istringstream stream(content);
-    std::string line;
-    int line_no = 0;
-    while (std::getline(stream, line))
-    {
-        ++line_no;
-        if (!line.empty() && line.back() == '\r')
-            line.pop_back();
-        const auto begin = line.find_first_not_of(" \t");
-        if (begin == std::string::npos)
-            continue;
-        const auto end = line.find_last_not_of(" \t");
-        const std::string word = line.substr(begin, end - begin + 1);
-
-        if (!IsPureHanPhrase(word, IsWubiComposableHan))
-        {
-            append_error(line_no, "仅支持纯汉字词组");
-            continue;
-        }
-        const std::string code = Validation::ComposeWubiPhraseCode(word, char_codes);
-        if (code.empty())
-        {
-            append_error(line_no, "五笔码表中缺少词内某字的编码");
-            continue;
-        }
-
-        sqlite3_reset(insert.get());
-        sqlite3_clear_bindings(insert.get());
-        const bool ok = BindText(insert.get(), 1, code) && BindText(insert.get(), 2, word) &&
-                        sqlite3_bind_int(insert.get(), 3, kWeight) == SQLITE_OK &&
-                        sqlite3_step(insert.get()) == SQLITE_DONE;
-        if (!ok)
-        {
-            append_error(line_no, "写入失败：" + std::string(sqlite3_errmsg(db.get())));
-            continue;
-        }
-        if (sqlite3_changes(db.get()) == 0)
-        {
-            ++skipped;
-            continue;
-        }
-        (void)user_dictionary::record_user_insert(user_dictionary::default_user_db_path(),
-                                                  user_dictionary::DictionaryKind::Wubi, code, word, kWeight);
-        ++inserted;
-    }
-    sqlite3_exec(db.get(), "COMMIT", nullptr, nullptr, nullptr);
-
-    return SummarizeImport(inserted, skipped, failed, error_details);
-}
-
 json::object MutateChinese(const json::object &request)
 {
     const std::string mode = StringValue(request, "dictionary");
@@ -1386,173 +1196,6 @@ json::object HandleEnglish(const json::object &request)
                          : std::string(label) + "失败：" + sqlite3_errmsg(db.get()));
 }
 
-json::object ImportWubi(const json::object &request)
-{
-    std::string content = StringValue(request, "content");
-    if (content.size() >= 3 && static_cast<unsigned char>(content[0]) == 0xEF &&
-        static_cast<unsigned char>(content[1]) == 0xBB && static_cast<unsigned char>(content[2]) == 0xBF)
-        content.erase(0, 3);
-    if (content.find_first_not_of(" \t\r\n") == std::string::npos)
-        return Result(false, "文件内容为空");
-
-    std::string error;
-    Db db = OpenDatabase("msime.db", error);
-    if (!db)
-        return Result(false, "打开五笔词库失败：" + error);
-    Stmt insert = Prepare(db.get(),
-                          "INSERT INTO wubi86(key,value,weight) SELECT ?1,?2,?3 "
-                          "WHERE NOT EXISTS (SELECT 1 FROM wubi86 WHERE key=?1 AND value=?2)",
-                          error);
-    if (!insert)
-        return Result(false, "准备导入失败：" + error);
-
-    const auto valid_code = [](const std::string &value) {
-        return !value.empty() &&
-               std::all_of(value.begin(), value.end(), [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; });
-    };
-    int inserted = 0;
-    int skipped = 0;
-    int failed = 0;
-    std::vector<std::string> error_details;
-    const auto append_error = [&](int line_no, const std::string &detail) {
-        ++failed;
-        if (error_details.size() < 5)
-            error_details.push_back("第 " + std::to_string(line_no) + " 行：" + detail);
-    };
-
-    sqlite3_exec(db.get(), "BEGIN IMMEDIATE", nullptr, nullptr, nullptr);
-    std::istringstream stream(content);
-    std::string line;
-    int line_no = 0;
-    bool in_yaml_header = false;
-    while (std::getline(stream, line))
-    {
-        ++line_no;
-        if (!line.empty() && line.back() == '\r')
-            line.pop_back();
-        if (Validation::ShouldSkipImportLine(line, in_yaml_header))
-            continue;
-
-        std::string word;
-        std::string code;
-        std::string message;
-        int weight = 0;
-        if (!Validation::ParseCodedImportLine(line, word, code, weight, message, Validation::kDefaultWubiImportWeight))
-        {
-            append_error(line_no, message);
-            continue;
-        }
-        std::transform(code.begin(), code.end(), code.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-        if (!valid_code(code))
-        {
-            append_error(line_no, "五笔编码只能包含英文字母");
-            continue;
-        }
-
-        sqlite3_reset(insert.get());
-        sqlite3_clear_bindings(insert.get());
-        const bool ok = BindText(insert.get(), 1, code) && BindText(insert.get(), 2, word) &&
-                        sqlite3_bind_int(insert.get(), 3, weight) == SQLITE_OK &&
-                        sqlite3_step(insert.get()) == SQLITE_DONE;
-        if (!ok)
-        {
-            append_error(line_no, "写入失败：" + std::string(sqlite3_errmsg(db.get())));
-            continue;
-        }
-        if (sqlite3_changes(db.get()) == 0)
-        {
-            ++skipped;
-            continue;
-        }
-        (void)user_dictionary::record_user_insert(user_dictionary::default_user_db_path(),
-                                                  user_dictionary::DictionaryKind::Wubi, code, word, weight);
-        ++inserted;
-    }
-    sqlite3_exec(db.get(), "COMMIT", nullptr, nullptr, nullptr);
-
-    return SummarizeImport(inserted, skipped, failed, error_details);
-}
-
-json::object HandleWubi(const json::object &request)
-{
-    const std::string action = StringValue(request, "action");
-    if (action == "import")
-        return ImportWubi(request);
-    std::string code = StringValue(request, "code");
-    const std::string word = StringValue(request, "word");
-    const int weight = (std::max)(0, IntValue(request, "weight", 10));
-    std::transform(code.begin(), code.end(), code.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    std::string error;
-    Db db = OpenDatabase("msime.db", error);
-    if (!db)
-        return Result(false, "打开五笔词库失败：" + error);
-    if (action == "query")
-    {
-        if (code.empty() ||
-            !std::all_of(code.begin(), code.end(), [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; }))
-            return Result(false, "请输入合法的五笔编码");
-        Stmt stmt = Prepare(db.get(),
-                            "SELECT key,value,weight FROM wubi86 WHERE key LIKE ?1 ORDER BY weight DESC,key,value" +
-                                Paging::Sql(request),
-                            error);
-        if (!stmt || !BindText(stmt.get(), 1, code + "%"))
-            return Result(false, "查询失败：" + error);
-        return Paging::Read(stmt.get(), request);
-    }
-    if (code.empty() || word.empty() ||
-        !std::all_of(code.begin(), code.end(), [](unsigned char ch) { return ch >= 'a' && ch <= 'z'; }))
-        return Result(false, "五笔编码和词条不能为空，编码只能包含英文字母");
-    const std::string old_code = StringValue(request, "oldCode");
-    const std::string old_word = StringValue(request, "oldWord");
-    std::string sql;
-    if (action == "create")
-        sql = "INSERT INTO wubi86(key,value,weight) VALUES(?1,?2,?3)";
-    else if (action == "update")
-        sql = "UPDATE wubi86 SET key=?1,value=?2,weight=?3 WHERE key=?4 AND value=?5";
-    else if (action == "delete")
-        sql = "DELETE FROM wubi86 WHERE key=?1 AND value=?2";
-    else
-        return Result(false, "未知操作");
-    Stmt stmt = Prepare(db.get(), sql, error);
-    bool ok = stmt != nullptr;
-    if (ok && action == "delete")
-        ok = BindText(stmt.get(), 1, old_code) && BindText(stmt.get(), 2, old_word);
-    else if (ok)
-    {
-        ok = BindText(stmt.get(), 1, code) && BindText(stmt.get(), 2, word) &&
-             sqlite3_bind_int(stmt.get(), 3, weight) == SQLITE_OK;
-        if (ok && action == "update")
-            ok = BindText(stmt.get(), 4, old_code) && BindText(stmt.get(), 5, old_word);
-    }
-    ok = ok && sqlite3_step(stmt.get()) == SQLITE_DONE && sqlite3_changes(db.get()) > 0;
-    if (ok)
-    {
-        const bool user_inserted = action == "create" || user_dictionary::is_user_inserted(
-                                                             user_dictionary::default_user_db_path(),
-                                                             user_dictionary::DictionaryKind::Wubi, old_code, old_word);
-        if (action == "delete")
-            (void)user_dictionary::record_delete(user_dictionary::default_user_db_path(),
-                                                 user_dictionary::DictionaryKind::Wubi, old_code, old_word);
-        else
-        {
-            if (action == "update" && (old_code != code || old_word != word))
-                (void)user_dictionary::record_delete(user_dictionary::default_user_db_path(),
-                                                     user_dictionary::DictionaryKind::Wubi, old_code, old_word);
-            if (user_inserted)
-                (void)user_dictionary::record_user_insert(user_dictionary::default_user_db_path(),
-                                                          user_dictionary::DictionaryKind::Wubi, code, word, weight);
-            else
-                (void)user_dictionary::record_weight_edit(user_dictionary::default_user_db_path(),
-                                                          user_dictionary::DictionaryKind::Wubi, code, word, weight);
-        }
-    }
-    const char *label = action == "create" ? "新增" : action == "update" ? "修改" : "删除";
-    return Result(ok, ok ? std::string("五笔词条") + label + "成功"
-                         : std::string(label) + "失败：" + sqlite3_errmsg(db.get()));
-}
-
 json::object ImportQuickPhrase(const json::object &request)
 {
     std::string content = StringValue(request, "content");
@@ -1809,19 +1452,15 @@ json::object HandleRequest(const json::object &request)
         return HandleLatin(request);
     if (action == "export")
         return ExportUserDictionary(dictionary);
-    // 纯汉字导入按目标词库分发出码方式：拼音走注音引擎，五笔走 wubi86 单字码组合。
+    // 纯汉字导入由注音引擎出码；收不了的词库明确报错，不静默写进拼音表。
     if (action == "importHans")
     {
-        if (dictionary == "wubi")
-            return ImportHansWubi(request);
         if (dictionary == "english" || dictionary == "quick")
             return Result(false, "该词库不支持纯汉字导入");
         return ImportHans(request);
     }
     if (dictionary == "english")
         return HandleEnglish(request);
-    if (dictionary == "wubi")
-        return HandleWubi(request);
     if (dictionary == "quick")
         return HandleQuickPhrase(request);
     if (dictionary != "quanpin")

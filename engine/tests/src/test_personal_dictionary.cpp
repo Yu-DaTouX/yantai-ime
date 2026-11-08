@@ -53,7 +53,6 @@ void run()
             "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
             "CREATE TABLE tbl_7_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
             "CREATE TABLE tbl_others_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-            "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
             "CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);");
     require(EnglishDictionary::ensure_schema(path_to_utf8(resources / assets::english_dictionary)),
             "English fixture failed");
@@ -66,7 +65,6 @@ void run()
     for (auto invalid : {PersonalDictionaryEntry{PersonalDictionaryKind::Pinyin, "nihao", "你好"},
                          PersonalDictionaryEntry{PersonalDictionaryKind::Pinyin, "ni''hao", "你好"},
                          PersonalDictionaryEntry{PersonalDictionaryKind::Pinyin, "ni'hao", "你"},
-                         PersonalDictionaryEntry{PersonalDictionaryKind::Wubi, "abcde", "词"},
                          PersonalDictionaryEntry{PersonalDictionaryKind::QuickPhrase, "bad;code", "text"},
                          PersonalDictionaryEntry{PersonalDictionaryKind::English, "hello", "different"},
                          PersonalDictionaryEntry{PersonalDictionaryKind::English, "hello", std::string("a\0b", 3)},
@@ -87,12 +85,10 @@ void run()
                 "Umlaut alias was not stored under the dictionary spelling");
         require(edit_personal_dictionary(paths, *found, std::nullopt).success, "Umlaut alias delete failed");
     }
-    PersonalDictionaryEntry wubi{PersonalDictionaryKind::Wubi, "wq", "拟好", 12345};
     PersonalDictionaryEntry english{PersonalDictionaryKind::English, "metasequoia", "Metasequoia", 12345};
     PersonalDictionaryEntry quick{PersonalDictionaryKind::QuickPhrase, "test1", "fixture\nsecond line", 12345};
-    for (auto entry : {wubi, english, quick})
+    for (auto entry : {english, quick})
         require(edit_personal_dictionary(paths, std::nullopt, entry).success, "Non-pinyin add failed");
-    require(has(paths, "wq", "拟好", SchemeType::Wubi), "Wubi entry is missing");
     require(has(paths, "metasequoia", "Metasequoia", SchemeType::Quanpin, true), "English entry is missing");
     {
         SessionOptions options;
@@ -132,7 +128,7 @@ void run()
     auto page = personal_dictionary_entries(paths, 0, 2);
     require(page.error.empty() && page.entries.size() == 2 && page.has_more, "First page failed");
     auto rest = personal_dictionary_entries(paths, 2, 2);
-    require(rest.error.empty() && rest.entries.size() == 2 && !rest.has_more, "Second page failed");
+    require(rest.error.empty() && rest.entries.size() == 1 && !rest.has_more, "Second page failed");
     require(!personal_dictionary_entries(paths, 0, 1001).error.empty(), "Unbounded page accepted");
     // Dictionary format contract: 7 uses a numbered table; 8 and 9 must use tbl_others_n.
     for (int count : {7, 8, 9})
@@ -177,13 +173,12 @@ void run()
     require(edit_personal_dictionary(paths, changed, std::nullopt).success, "Removal failed");
     auto upgraded = prepare_runtime_paths(resources, paths.user_data, paths.cache, "second");
     require(!has(upgraded, "nihao", "你好") && !has(upgraded, "nihao", "拟好") &&
-                has(upgraded, "wq", "拟好", SchemeType::Wubi) &&
                 has(upgraded, "metasequoia", "Metasequoia", SchemeType::Quanpin, true),
             "Personal edits did not survive dictionary upgrade");
     require(edit_personal_dictionary(upgraded, pinyin, changed, "edit-1").success && !has(upgraded, "nihao", "你好"),
             "Retry after upgrade resurrected a subsequently removed entry");
     auto entries = personal_dictionary_entries(upgraded);
-    require(entries.error.empty() && entries.entries.size() == 6, "Deleted entries leaked into personal list");
+    require(entries.error.empty() && entries.entries.size() == 5, "Deleted entries leaked into personal list");
 }
 } // namespace
 int main()

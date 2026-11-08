@@ -228,8 +228,8 @@ TEST_CASE(EngineShuangpinTerminalHelpcodeTransitionRoundTripsThroughSelectionHis
                 std::find_if(items.begin(), items.end(), [](const auto &item) { return item.word == "拟"; });
             REQUIRE(found != items.end());
             const auto picked = *found;
-            const auto transition = session.advance_composition_after_selection(picked.pinyin, picked.word,
-                                                                                picked.canonical_pinyin, picked.scheme);
+            const auto transition =
+                session.advance_composition_after_selection(picked.pinyin, picked.word, picked.canonical_pinyin);
             REQUIRE(transition.continues_composition);
             REQUIRE_EQ(transition.consumed_terminal_helpcode_with_cases, tail);
             REQUIRE_EQ(session.get_pinyin_sequence_with_cases(), std::string("hc"));
@@ -846,7 +846,6 @@ TEST_CASE(QuickPhraseGroupStaysWholeAndAheadOfAsyncCandidates)
     REQUIRE_EQ(items[1].word, std::string("nice"));
     REQUIRE_EQ(items[2].word, std::string("你"));
 }
-
 
 TEST_CASE(EngineShuangpinAiCandidateConsumesFullRawInput)
 {
@@ -1690,14 +1689,6 @@ TEST_CASE(SegmentBoundariesFollowShuangpinSyllableSegmentation)
     InputLetters(microsoft_greedy, "nihcb");
     microsoft_greedy.handle_key(VK_OEM_1, 0, L';');
     REQUIRE_EQ(microsoft_greedy.segment_raw_boundaries(), std::vector<std::size_t>({0, 2, 3, 5, 6}));
-}
-
-TEST_CASE(UnitlessSchemesReportNoSegmentBoundaries)
-{
-    EngineInputSession wubi(SchemeType::Wubi);
-    InputLetters(wubi, "nihao");
-    REQUIRE(wubi.segment_raw_boundaries().empty());
-
 }
 
 TEST_CASE(SegmentBoundariesKeepHelpcodeAndJianpinTailAsTheirOwnUnits)

@@ -1,6 +1,6 @@
 # 输入方案
 
-一个「输入方案」负责把按键序列变成一次候选查询。全拼、双拼、五笔、日文罗马字四种方案共用同一个接口，彼此不知道对方存在——加一种新方案（注音、粤拼、仓颉……）不需要改动任何一个已有方案。
+一个「输入方案」负责把按键序列变成一次候选查询。全拼与双拼共用同一个接口，彼此不知道对方存在——加一种新方案（注音、粤拼、仓颉……）不需要改动任何一个已有方案。
 
 这一页说明加一种方案要动哪几处、每一处要做什么。招募文档把「实现新的输入方案」列为门槛最高的方向，但此前这个目录下只有一个 17 行、零注释的纯虚基类。
 
@@ -40,13 +40,13 @@ class IInputScheme
 
 - `raw_input` 是规范化后的编码串（通常是小写），`raw_input_with_cases` 保留原始大小写。英文混输和以词定字要用后者。
 - `normalized_input` 是拿去查库的键。全拼里它是纠错、简拼展开之后的结果；一个不做这类处理的方案直接填成和 `raw_input` 一样即可。
-- `segmentation` / `raw_segmentation` / `normalized_segmentation` 是分词结果，音节之间用 `'` 分隔。不分音节的方案（五笔）留空。
+- `segmentation` / `raw_segmentation` / `normalized_segmentation` 是分词结果，音节之间用 `'` 分隔。不分音节的方案可以留空。
 - `key_strokes` 是原始按键序列。候选窗要还原用户实际敲了什么时用它，比如显示原始编码。
 - `enable_*` 那几个开关由会话按用户配置填写，方案不要自己设。
 
 ## 加一种新方案要动的地方
 
-以五笔为例走一遍（[`wubi_scheme.h`](wubi_scheme.h) / [`wubi_scheme.cpp`](wubi_scheme.cpp) 是最短的一个实现，适合照着看）：
+以现有的两个方案为参照走一遍（[`quanpin_scheme.h`](quanpin_scheme.h) / [`quanpin_scheme.cpp`](quanpin_scheme.cpp) 与 [`shuangpin_scheme.h`](shuangpin_scheme.h) / [`shuangpin_scheme.cpp`](shuangpin_scheme.cpp)）：
 
 1. **`../core/scheme_type.h`** — 在 `SchemeType` 里加一个枚举值。
 

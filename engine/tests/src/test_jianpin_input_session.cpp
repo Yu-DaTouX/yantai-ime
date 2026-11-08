@@ -212,11 +212,6 @@ int run_test()
     (void)quanpin_session.handle_character('J', true);
     require(quanpin_session.local_input_mode() != metasequoia::LocalInputMode::SuperJianpin,
             "Shift+J entered super-jianpin in quanpin; the shortcut is shuangpin-only.");
-    metasequoia::InputSession wubi(SchemeType::Wubi);
-    require(!wubi.handle_character('J', true).handled && !wubi.has_composition() &&
-                wubi.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Shift+J was swallowed outside a pinyin scheme.");
-
     user_dictionary::close_default_user_database();
     metasequoia::InputSession learning(SchemeType::Shuangpin);
     require(learning.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),

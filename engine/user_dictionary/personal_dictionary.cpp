@@ -42,10 +42,6 @@ PersonalDictionaryValidation validate_personal_dictionary_entry(PersonalDictiona
             return invalid("Each character must have one pinyin syllable (maximum 64)");
         break;
     }
-    case PersonalDictionaryKind::Wubi:
-        if (entry.key.size() > 4 || !std::all_of(entry.key.begin(), entry.key.end(), letters))
-            return invalid("Wubi codes contain one to four letters");
-        break;
     case PersonalDictionaryKind::QuickPhrase:
         if (entry.key.size() > 32 || !std::all_of(entry.key.begin(), entry.key.end(), [&](unsigned char ch) {
                 return letters(ch) || (ch >= '0' && ch <= '9');

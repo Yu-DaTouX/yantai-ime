@@ -617,10 +617,6 @@ InputSession::ShuangpinPreeditForms InputSession::get_shuangpin_preedit_forms() 
 
 std::string InputSession::build_pinyin_segmentation_with_cases(bool shuangpin_raw) const
 {
-    if (is_wubi())
-    {
-        return request().raw_input;
-    }
     // 句中辅助码的反引号段在切分串里只是一个 '，显示时按原样接回对应音节后面；
     // 末尾补 ' 也要看用户敲的原串，否则 ulpb`x 会显示成 ul'pb`x'。
     const std::string &typed = get_pinyin_sequence_with_cases();
@@ -706,10 +702,6 @@ std::string InputSession::get_quanpin() const
 
 bool InputSession::is_all_complete_pure_pinyin() const
 {
-    if (is_wubi())
-    {
-        return request().valid;
-    }
     if (is_shuangpin())
     {
         const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
@@ -747,56 +739,8 @@ bool InputSession::reads_as_pinyin() const
     return false;
 }
 
-bool InputSession::wubi_unique_four_code() const
-{
-    // Both modes spell words rather than codes; a wubi code is not composed inside them. No host
-    // sets either one on a wubi session today, but the guard keeps the pair meaningful if one does.
-    if (dedicated_english_mode_ || local_input_mode_ != LocalInputMode::None)
-    {
-        return false;
-    }
-    // A code holding z is a wildcard guess, not a code the typist committed to: the "only
-    // candidate" behind it is one arbitrary letter away from several others, and committing it
-    // silently takes away the one thing the key exists for -- seeing what matched. Same reason
-    // mixed input never reaches here (no table row contains z, so its z codes stay empty).
-    if (engine_.get_request().raw_input.find('z') != std::string::npos)
-    {
-        return false;
-    }
-    // is_wubi() covers "this is a wubi session", and engine_.wubi_code_is_complete() is false for
-    // every other scheme.
-    if (!is_wubi() || !engine_.wubi_code_is_complete())
-    {
-        return false;
-    }
-    // Only the code's own rows count: the pinyin candidates mixed input appends are not the answer
-    // the auto-commit looks for. A code the table answered with exactly one row is genuinely unique.
-    return wubi_native_candidate_count() == 1;
-}
-
-bool InputSession::wubi_four_code_is_complete() const
-{
-    // Same guards as wubi_unique_four_code minus the candidate count: hosts commit the first
-    // candidate on the next key whether or not the code has one candidate or many. The pinyin
-    // candidates mixed input appends do not make a code the table never answered complete.
-    if (dedicated_english_mode_ || local_input_mode_ != LocalInputMode::None)
-    {
-        return false;
-    }
-    // Wildcard codes neither auto-commit nor top-commit: see wubi_unique_four_code.
-    if (engine_.get_request().raw_input.find('z') != std::string::npos)
-    {
-        return false;
-    }
-    return is_wubi() && engine_.wubi_code_is_complete() && wubi_native_candidate_count() > 0;
-}
-
 bool InputSession::has_active_helpcode() const
 {
-    if (is_wubi())
-    {
-        return false;
-    }
     if (is_shuangpin())
     {
         return !request().end_helpcodes.empty() ||
@@ -815,11 +759,6 @@ void InputSession::set_pinyin_sequence_with_cases(const std::string &pinyin_sequ
 {
     pending_pinyin_sequence_with_cases_ = pinyin_sequence;
     has_pending_pinyin_sequence_with_cases_ = true;
-}
-
-void InputSession::set_wubi_literal_input(bool literal)
-{
-    pending_wubi_literal_input_ = literal;
 }
 
 int InputSession::store_user_phrase(std::string pinyin, std::string word)
@@ -847,9 +786,8 @@ int InputSession::store_user_phrase_from_canonical_pinyin(std::string pinyin, st
 std::optional<std::string> InputSession::learn_sentence_candidate(const WordItem &selected)
 {
     // 本地模式（U/K/E/M/J/Y、日期时间）和英文模式也用 Generated 装自己的候选，
-    // 那些不是拼音整句，不能往拼音用户词库里塞。五笔码表候选也不进这里：混输追加的整句
-    // 候选自带 Quanpin 方案，按候选自己的方案判断，不看会话方案。
-    if (local_input_mode_ != LocalInputMode::None || dedicated_english_mode_ || is_wubi_native_candidate(selected))
+    // 那些不是拼音整句，不能往拼音用户词库里塞。
+    if (local_input_mode_ != LocalInputMode::None || dedicated_english_mode_)
     {
         return std::nullopt;
     }
@@ -871,7 +809,7 @@ std::optional<std::string> InputSession::learn_sentence_candidate(const WordItem
 
 int InputSession::remove_candidate(std::string pinyin, std::string word, SchemeType scheme)
 {
-    if (!is_wubi() && remove_delimiters(request().raw_input).size() == 1)
+    if (remove_delimiters(request().raw_input).size() == 1)
     {
         return -1;
     }
@@ -886,19 +824,10 @@ int InputSession::cache_dynamic_candidate(const std::string &pinyin, const std::
 }
 
 InputSession::SelectionTransition InputSession::advance_composition_after_selection(
-    const std::string &selected_pinyin, const std::string &selected_word, const std::string &selected_canonical_pinyin,
-    SchemeType selected_scheme)
+    const std::string &selected_pinyin, const std::string &selected_word, const std::string &selected_canonical_pinyin)
 {
     SelectionTransition transition;
     transition.selected_canonical_pinyin = selected_canonical_pinyin;
-    transition.wubi_native = selected_scheme == SchemeType::Wubi;
-    if (transition.wubi_native)
-    {
-        transition.full_pure_pinyin = request().normalized_input;
-        transition.current_segmentation = request().normalized_input;
-        transition.current_segmentation_with_cases = request().raw_input;
-        return transition;
-    }
     if (is_shuangpin())
     {
         const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
@@ -1105,14 +1034,6 @@ InputSession::CloudQueryState InputSession::get_cloud_query_state() const
 {
     CloudQueryState state;
 
-
-    if (is_wubi())
-    {
-        state.cache_key = request().normalized_input;
-        state.committed_pinyin = request().normalized_input;
-        return state;
-    }
-
     if (is_shuangpin())
     {
         const auto base = ResolveShuangpinCompositionBase(request(), shuangpin_profile_);
@@ -1167,15 +1088,6 @@ InputSession::CreatingWordProgress InputSession::update_creating_word_progress(
     const SelectionTransition &selection_transition) const
 {
     CreatingWordProgress progress;
-    if (selection_transition.wubi_native)
-    {
-        progress.pinyin = current_pinyin.empty() ? selection_transition.full_pure_pinyin : current_pinyin;
-        progress.word = current_word + selected_word;
-        progress.preedit = progress.word;
-        progress.completed = true;
-        progress.can_store = false;
-        return progress;
-    }
 
     const std::string selected_canonical =
         normalize_canonical_pinyin_for_word(selection_transition.selected_canonical_pinyin, selected_word);
@@ -1197,30 +1109,12 @@ bool InputSession::is_shuangpin() const
     return current_scheme_type() == SchemeType::Shuangpin;
 }
 
-bool InputSession::is_wubi() const
-{
-    return current_scheme_type() == SchemeType::Wubi;
-}
-
-bool InputSession::is_wubi_native_candidate(const WordItem &item)
-{
-    return item.scheme == SchemeType::Wubi;
-}
-
-std::size_t InputSession::wubi_native_candidate_count() const
-{
-    return static_cast<std::size_t>(std::count_if(candidates().begin(), candidates().end(),
-                                                  [](const WordItem &item) { return is_wubi_native_candidate(item); }));
-}
-
-
 void InputSession::clear_pending_sequence()
 {
     pending_pinyin_sequence_.clear();
     pending_pinyin_sequence_with_cases_.clear();
     has_pending_pinyin_sequence_ = false;
     has_pending_pinyin_sequence_with_cases_ = false;
-    pending_wubi_literal_input_ = false;
 }
 
 void InputSession::apply_pending_sequence()
@@ -1237,9 +1131,6 @@ void InputSession::apply_pending_sequence()
         break;
     case SchemeType::Quanpin:
         engine_.replace_quanpin_raw_input(raw_input, raw_input_with_cases);
-        break;
-    case SchemeType::Wubi:
-        engine_.replace_wubi_raw_input(raw_input, raw_input_with_cases, pending_wubi_literal_input_);
         break;
     }
     clear_pending_sequence();

@@ -175,10 +175,8 @@ TEST_CASE(UserDictionaryReplayIsIdempotentAcrossAllSettingsDictionaries)
         TestDatabase main_db(main_path);
         main_db.exec("CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                      "CREATE TABLE tbl_others_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                     "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
                      "CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);"
-                     "INSERT INTO tbl_2_n VALUES('ni''hao','nh','旧词',1);"
-                     "INSERT INTO wubi86 VALUES('abcd','旧五笔',1);");
+                     "INSERT INTO tbl_2_n VALUES('ni''hao','nh','旧词',1);");
         TestDatabase english_db(english_path);
         english_db.exec("CREATE TABLE english_words(word TEXT PRIMARY KEY,display TEXT);"
                         "INSERT INTO english_words VALUES('obsolete','obsolete');");
@@ -190,10 +188,6 @@ TEST_CASE(UserDictionaryReplayIsIdempotentAcrossAllSettingsDictionaries)
                                            "旧词"));
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin,
                                            "shui'shan'shu'ru'fa'hai'ke'yi", "水杉输入法还可以", 5000));
-    REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Wubi, "wxyz",
-                                           "新五笔", 88));
-    REQUIRE(
-        user_dictionary::record_delete(test::Utf8(user_path), user_dictionary::DictionaryKind::Wubi, "abcd", "旧五笔"));
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::QuickPhrase, "mail",
                                            "example@example.com", 20));
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::English, "codex",
@@ -207,7 +201,7 @@ TEST_CASE(UserDictionaryReplayIsIdempotentAcrossAllSettingsDictionaries)
             user_dictionary::replay(test::Utf8(user_path), test::Utf8(main_path), test::Utf8(english_path));
         REQUIRE(replay.error.empty());
         REQUIRE_EQ(replay.failed, 0);
-        REQUIRE_EQ(replay.applied, 8);
+        REQUIRE_EQ(replay.applied, 6);
     }
 
     {
@@ -220,9 +214,6 @@ TEST_CASE(UserDictionaryReplayIsIdempotentAcrossAllSettingsDictionaries)
             main_db.scalar_int("SELECT COUNT(*) FROM tbl_others_s WHERE key='shui''shan''shu''ru''fa''hai''ke''yi' "
                                "AND value='水杉输入法还可以' AND jp='sssrfhky' AND weight=5000"),
             1);
-        REQUIRE_EQ(main_db.scalar_int("SELECT COUNT(*) FROM wubi86 WHERE key='wxyz' AND value='新五笔' AND weight=88"),
-                   1);
-        REQUIRE_EQ(main_db.scalar_int("SELECT COUNT(*) FROM wubi86 WHERE value='旧五笔'"), 0);
         REQUIRE_EQ(main_db.scalar_int("SELECT COUNT(*) FROM quick_parases WHERE key='mail' AND weight=20"), 1);
         TestDatabase english_db(english_path);
         REQUIRE_EQ(english_db.scalar_int("SELECT COUNT(*) FROM english_words WHERE word='codex' AND display='Codex'"),
@@ -255,13 +246,11 @@ TEST_CASE(UserDictionaryReplayKeepsNewShippedWeightsWhenTheDictionaryChanged)
             TestDatabase main_db(main_path);
             main_db.exec("CREATE TABLE tbl_1_l(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "CREATE TABLE tbl_2_z(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                         "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_1_l VALUES('le','l','了',52009647);"
                          "INSERT INTO tbl_1_l VALUES('le','l','乐',6501204);"
                          "INSERT INTO tbl_1_l VALUES('lai','l','来',9077734);"
                          "INSERT INTO tbl_2_z VALUES('zhi''dao','zd','知道',1807266);"
-                         "INSERT INTO tbl_2_z VALUES('zhi''dao','zd','直到',364449);"
-                         "INSERT INTO wubi86 VALUES('bnhn','了',900);");
+                         "INSERT INTO tbl_2_z VALUES('zhi''dao','zd','直到',364449);");
         }
         if (sha256 == nullptr)
         {
@@ -276,17 +265,15 @@ TEST_CASE(UserDictionaryReplayKeepsNewShippedWeightsWhenTheDictionaryChanged)
         english_db.exec("CREATE TABLE english_words(word TEXT PRIMARY KEY,display TEXT);");
     }
 
-    // Learned on the previous dictionary: 了 and 乐 by the old staircase, 直到 promoted past 知道,
-    // 了 in wubi. 来 was added by hand and 知道 lowered by hand in settings; both are replayed as
-    // written whatever the dictionary says.
+    // Learned on the previous dictionary: 了 and 乐 by the old staircase, 直到 promoted past 知道.
+    // 来 was added by hand and 知道 lowered by hand in settings; both are replayed as written
+    // whatever the dictionary says.
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin, "le", "了",
                                            6501704));
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin, "le", "乐",
                                            6501204));
     REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin, "zhi'dao",
                                            "直到", 5052903));
-    REQUIRE(user_dictionary::record_upsert(test::Utf8(user_path), user_dictionary::DictionaryKind::Wubi, "bnhn", "了",
-                                           100));
     REQUIRE(user_dictionary::record_user_insert(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin, "lai",
                                                 "来", 10000));
     REQUIRE(user_dictionary::record_weight_edit(test::Utf8(user_path), user_dictionary::DictionaryKind::Pinyin,
@@ -307,23 +294,20 @@ TEST_CASE(UserDictionaryReplayKeepsNewShippedWeightsWhenTheDictionaryChanged)
     replay = user_dictionary::replay(test::Utf8(user_path), test::Utf8(main_path), test::Utf8(english_path));
     REQUIRE(replay.error.empty());
     REQUIRE_EQ(replay.failed, 0);
-    REQUIRE_EQ(replay.applied, 6);
-    REQUIRE_EQ(replay.rebased, 2);
+    REQUIRE_EQ(replay.applied, 5);
+    // 只有「了」被改记成新出厂权重：「乐」的旧权重正好等于新出厂权重，不需要重写日志。
+    REQUIRE_EQ(replay.rebased, 1);
     {
         TestDatabase main_db(main_path);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='了'"), 52009647);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='乐'"), 6501204);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='直到'"), 5052903);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_2_z WHERE value='知道'"), 1);
-        REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM wubi86 WHERE value='了'"), 900);
         REQUIRE_EQ(main_db.scalar_int64("SELECT weight FROM tbl_1_l WHERE value='来'"), 10000);
         TestDatabase journal(user_path);
         REQUIRE_EQ(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='了' AND "
                                         "dictionary='pinyin'"),
                    52009647);
-        REQUIRE_EQ(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='了' AND "
-                                        "dictionary='wubi'"),
-                   900);
         REQUIRE_EQ(journal.scalar_int64("SELECT weight FROM user_dictionary_operations WHERE value='直到'"), 5052903);
         REQUIRE_EQ(journal.scalar_int("SELECT COUNT(*) FROM dictionary_state WHERE "
                                       "name='replayed_dictionary_sha256' AND value='a'"),
@@ -1061,45 +1045,6 @@ TEST_CASE(UserDictionaryRankingKeepsWritesOnTheEntryKeyWhenKeysAreReconstructed)
     std::filesystem::remove_all(directory);
 }
 
-TEST_CASE(UserDictionaryWubiPromoteUpdatesWubiTable)
-{
-    const auto directory = test::TempRoot() / ("msime-wubi-ranking-" + std::to_string(GetCurrentProcessId()));
-    std::filesystem::create_directories(directory);
-    const auto user_path = directory / "msime_user.db";
-    const auto main_path = directory / "msime.db";
-    {
-        TestDatabase db(main_path);
-        db.exec("CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
-                "CREATE TABLE tbl_1_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-                "INSERT INTO wubi86 VALUES('aaaa','工',100),('aaaa','或',50);"
-                "INSERT INTO tbl_1_a VALUES('aaaa','a','啊',1);");
-    }
-    std::vector<WordItem> candidates = {
-        {"aaaa", "工", 100},
-        {"aaaa", "或", 50},
-    };
-    bool ranking_changed = false;
-    REQUIRE(user_dictionary::adjust_candidate_ranking(test::Utf8(main_path), test::Utf8(user_path), "aaaa", candidates,
-                                                      "aaaa", "或", "promote", 1, 1, false, &ranking_changed,
-                                                      user_dictionary::DictionaryKind::Wubi));
-    REQUIRE(ranking_changed);
-    {
-        TestDatabase db(main_path);
-        REQUIRE(db.scalar_int64("SELECT weight FROM wubi86 WHERE value='或'") >
-                db.scalar_int64("SELECT weight FROM wubi86 WHERE value='工'"));
-        REQUIRE_EQ(db.scalar_int64("SELECT weight FROM tbl_1_a WHERE value='啊'"), 1);
-    }
-    {
-        TestDatabase user_db(user_path);
-        REQUIRE_EQ(user_db.scalar_int(
-                       "SELECT COUNT(*) FROM user_dictionary_operations WHERE dictionary='wubi' AND value='或'"),
-                   1);
-        REQUIRE_EQ(user_db.scalar_int("SELECT COUNT(*) FROM user_dictionary_operations WHERE dictionary='pinyin'"), 0);
-    }
-    std::filesystem::remove_all(directory);
-}
-
-// 日期时间格式按格式 ID 调频：日期文本每天都变，学到的顺序和固定位置都不能按文字记。
 TEST_CASE(DateTimeFormatOrderIsLearnedPinnedAndFixedByFormatId)
 {
     const auto directory = test::TempRoot() / ("msime-date-time-order-" + std::to_string(GetCurrentProcessId()));

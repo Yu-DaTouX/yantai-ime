@@ -96,6 +96,10 @@ std::string MergeTomlIntoTemplate(const std::string &template_text, std::map<std
     const auto mode = user_values.find(MakeTomlAssignmentId("input", "mode"));
     if (mode != user_values.end() && UnquoteTomlScalar(mode->second) == "japanese")
         user_values[MakeTomlAssignmentId("input", "schema")] = "\"quanpin\"";
+    const auto schema_id = MakeTomlAssignmentId("input", "schema");
+    const auto schema = user_values.find(schema_id);
+    if (schema != user_values.end() && UnquoteTomlScalar(schema->second) == "wubi")
+        user_values[schema_id] = "\"quanpin\"";
     const auto fallback_id = MakeTomlAssignmentId("appearance", "fallback_fonts");
     if (!user_values.empty() && user_values.find(fallback_id) == user_values.end())
     {

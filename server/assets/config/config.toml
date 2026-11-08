@@ -312,14 +312,12 @@ vim_mode_apps = []
 #   legacy + quanpin   -> 自动切换为新版引擎全拼会话
 #   engine + shuangpin -> 使用新版引擎双拼会话
 #   engine + quanpin   -> 使用新版引擎全拼会话
-#   任意 backend + wubi -> 使用新版引擎五笔会话
 # 会话后端，可选："legacy", "engine"
 # Historical "legacy" values are accepted as an alias for the shared engine.
 session_backend = "engine"
-# 输入方案，可选："quanpin", "shuangpin", "wubi"
+# 输入方案，可选："quanpin", "shuangpin"
 schema = "shuangpin"
 # schema = "quanpin"
-# schema = "wubi"
 # engine + shuangpin 时的 preedit 显示方式，可选："quanpin", "shuangpin"
 #   quanpin   -> 预编辑显示转换后的全拼分词
 #   shuangpin -> 预编辑显示原始双拼输入串
@@ -328,19 +326,6 @@ shuangpin_preedit_mode = "shuangpin"
 # 或 "custom/<文件名>"（数据目录 shuangpin\custom\<文件名>.toml 中的自定义方案，写法见 docs/custom-shuangpin.example.toml）
 # shuangpin_schema = "xiaohe"
 shuangpin_schema = "xiaohe"
-# 五笔方案，当前仅支持 "wubi86"；98 版待词库发布后另开任务接线
-wubi_schema = "wubi86"
-# 五笔拼音混输：同一串字母同时给五笔码表和全拼，五笔候选在前、拼音候选按权重追加在后
-wubi_mixed_pinyin = false
-# 五笔 z 键角色，可选："off", "wildcard"：
-#   off      -> z 不进码（默认）
-#   wildcard -> z 匹配码表中该位置的任意一个字母（含首位）
-wubi_z_mode = "off"
-# 五笔四码唯一时自动上屏：敲满四码且码表只给一个候选，第四键落下即上屏，不必再按空格
-wubi_four_code_auto_commit = true
-# 五笔顶字：完整四码后再敲一个字母时上屏首选，并把这个字母留作下一组合开头
-# 关闭只在混输开启时生效：第五个字母并入混输串；混输关闭时该字母无处容纳，仍按顶字上屏首选，不会丢字
-wubi_fifth_code_top_commit = true
 # 造词时按 Esc：true 只清掉还没选的拼音、保留已选的词，再按一次才整体取消（小狼毫风格）；false 直接整体取消
 escape_keeps_selected_word = false
 # 回车上屏英文时把该英文单词写入英文词库，下次可作为候选
@@ -576,13 +561,13 @@ mixed_candidates = true
 date_time_candidates = false # 全拼/双拼下输入 rq / riqi / date、sj / shijian / time、xq / xingqi / week 时，把当前日期、时间、星期混进候选
 date_time_menu = true # 日期时间混入候选时，在第三位放一个「📅日期」入口，选中后候选框换成全部日期格式（与 Shift+T 模式相同）
 radical_mode = true # Shift+U 进入 U 模式（部件拆字反查）：输入部件拼音连写，候选出汉字并反显注音
-date_time_mode = true # Shift+T 进入日期与时间快捷输入模式（全拼/双拼/五笔）
+date_time_mode = true # Shift+T 进入日期与时间快捷输入模式（全拼/双拼）
 emoji_mode = true # Shift+E 进入 Emoji 快捷输入模式（支持全拼/简拼/双拼/英文）
 kaomoji_mode = true # Shift+M 进入颜文字快捷输入模式（支持全拼/简拼/双拼/英文）
 symbol_mode = true # Shift+S 进入符号快捷输入模式：输入分组码（xl 希腊字母、sx 数学、szq 带圈数字、jt 箭头）或符号名（alpha、infinity）
 jianpin_mode = true # Shift+J 进入超级简拼模式（仅双拼生效；全拼直接输入声母即为简拼，无需该模式）
 y_mode = true # Shift+Y 进入临时英文模式（中文状态下直接打英文，上屏后回到中文）
-v_mode = true # V 模式：V 后接数字转中文（V123 → 一百二十三，V123.45 → 壹佰贰拾叁元肆角伍分）或计算算式（V1+2*3 → 7）；双拼和五笔用大写 V，全拼大小写均可
+v_mode = true # V 模式：V 后接数字转中文（V123 → 一百二十三，V123.45 → 壹佰贰拾叁元肆角伍分）或计算算式（V1+2*3 → 7）；双拼用大写 V，全拼大小写均可
 
 #
 # AI Assistant

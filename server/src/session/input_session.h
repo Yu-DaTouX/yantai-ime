@@ -67,13 +67,6 @@ class IInputSession
     virtual bool is_all_complete_pure_pinyin() const = 0;
     // 整串能否读成拼音（允许简拼声母和打到一半的音节），语义见 engine 同名方法。
     virtual bool reads_as_pinyin() const = 0;
-    // Engine fact for wubi auto-commit: the composition is a complete four-letter wubi code the
-    // table answered with exactly one candidate. The Server decides whether the setting makes that
-    // commit immediately; the engine only reports it.
-    virtual bool wubi_unique_four_code() const = 0;
-    // Engine fact for wubi top-word commit: a complete four-letter code the table answered, no
-    // uniqueness required. The Server commits the first candidate when the user types past it.
-    virtual bool wubi_four_code_is_complete() const = 0;
     virtual bool has_active_helpcode() const = 0;
     // 光标停在 caret 处时反引号能否作为句中辅助码插进编码串，语义见 engine
     // accepts_mid_sentence_helpcode_marker_at。默认不能。
@@ -117,11 +110,6 @@ class IInputSession
 
     virtual void set_pinyin_sequence(const std::string &pinyin_sequence) = 0;
     virtual void set_pinyin_sequence_with_cases(const std::string &pinyin_sequence) = 0;
-    // 随上面两个调用一起设：这一串是五笔会话里特殊模式（T/V）的字面输入，语义见 engine
-    // InputSession::set_wubi_literal_input。默认什么也不做。
-    virtual void set_wubi_literal_input(bool)
-    {
-    }
 
     // R2 光标前缀重算：把组合态光标喂给会话，nullopt = 串尾（整串解码，默认）。
     // 语义与 engine/core/input_session.h 的同名方法一致；只更新状态，候选在下一次
@@ -135,13 +123,11 @@ class IInputSession
 
     virtual int store_user_phrase(std::string pinyin, std::string word) = 0;
     virtual int store_user_phrase_from_canonical_pinyin(std::string pinyin, std::string word) = 0;
-    // 混输组合里五笔与拼音候选共存，删除必须带上候选自己的方案。
     virtual int remove_candidate(std::string pinyin, std::string word, SchemeType scheme) = 0;
     virtual int cache_dynamic_candidate(const std::string &pinyin, const std::string &word, CandidateSource source) = 0;
-    // SchemeType 标明被选中候选由哪个方案产出，五笔与拼音混输时上屏推进按它分流。
-    virtual SelectionTransition advance_composition_after_selection(
-        const std::string &selected_pinyin, const std::string &selected_word,
-        const std::string &selected_canonical_pinyin, SchemeType selected_scheme = SchemeType::Quanpin) = 0;
+    virtual SelectionTransition advance_composition_after_selection(const std::string &selected_pinyin,
+                                                                    const std::string &selected_word,
+                                                                    const std::string &selected_canonical_pinyin) = 0;
     virtual CloudQueryState get_cloud_query_state() const = 0;
     virtual std::optional<metasequoia::OnlineQuery> online_query() const = 0;
     virtual bool apply_online_candidate(const metasequoia::OnlineQuery &query, std::string candidate,

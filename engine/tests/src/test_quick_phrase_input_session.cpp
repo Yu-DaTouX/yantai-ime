@@ -154,13 +154,6 @@ void test_placement()
     require(first_quick_phrase(partial->candidates()) == partial->candidates().size(),
             "Quick phrases matched a code prefix instead of the exact code.");
 
-    metasequoia::InputSession wubi(SchemeType::Wubi);
-    wubi.enable_fixed_positions();
-    (void)wubi.handle_character('n');
-    (void)wubi.handle_character('i');
-    require(first_quick_phrase(wubi.candidates()) == wubi.candidates().size(),
-            "Quick phrases were mixed into a wubi composition.");
-
     // 混排关掉只影响候选，Shift+K 仍可用。
     metasequoia::InputSession disabled(SchemeType::Quanpin);
     disabled.enable_fixed_positions();

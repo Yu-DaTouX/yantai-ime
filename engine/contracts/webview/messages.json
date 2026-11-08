@@ -301,7 +301,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Active configuration path; removed Japanese input mode, schema, R-mode and trilingual-cycle settings are ignored."
+            "description": "Active configuration path; removed Japanese input mode, schema, R-mode, trilingual-cycle and Wubi settings are ignored."
           },
           "value": {
             "anyOf": [
@@ -458,7 +458,6 @@
             "type": "string",
             "enum": [
               "quanpin",
-              "wubi",
               "english",
               "quick",
               "latin"
@@ -852,8 +851,7 @@
         "type": "string",
         "enum": [
           "quanpin",
-          "shuangpin",
-          "wubi"
+          "shuangpin"
         ]
       }
     },

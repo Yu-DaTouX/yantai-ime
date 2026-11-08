@@ -47,7 +47,7 @@ Empty-composition movement is unhandled so normal host navigation can proceed.
 `pin(index)` promotes a currently visible dictionary candidate without selecting it or changing
 preedit. It persists through the session's user journal and working dictionaries, then refreshes
 the snapshot. Explicit pinning works even when automatic learning is disabled. Pinyin (including
-shuangpin canonical keys), Wubi and English dictionary candidates use their existing ranking
+shuangpin canonical keys) and English dictionary candidates use their existing ranking
 policy; generated, expressive, and online candidates are unhandled. English pinning
 changes dictionary order within the existing mixed/temporary-mode layout, so it does not move
 an English completion ahead of the temporary mode's raw-text entry. Invalid indices are unhandled;
@@ -55,7 +55,7 @@ a failed write returns a handled result with a diagnostic and no commit. Hosts s
 index action against the snapshot they display, just as they do for `select(index)`.
 
 `remove(index)` deletes a visible dictionary phrase without committing text or changing preedit.
-It uses the exact canonical pinyin key (or Wubi/English key), writes a deletion journal entry,
+It uses the exact canonical pinyin key (or English key), writes a deletion journal entry,
 and refreshes candidates. Automatic learning may be disabled. Single-character non-English
 candidates and non-dictionary sources are protected and return unhandled, as do invalid indices.
 A database or journal failure returns a diagnostic with no commit. The working-dictionary delete
@@ -73,7 +73,7 @@ snapshot without committing or changing preedit; persistence failure returns a d
 Unsupported sources and invalid indices/slots are unhandled. Fixed positions are applied
 during candidate refresh, so snapshot reads perform no extra database work. The public
 facade enables this ordering; compatibility InputSession callers retain their host-side
-ordering until migration. Pinyin, Wubi, super-jianpin and English contexts use the captured
+ordering until migration. Pinyin, super-jianpin and English contexts use the captured
 user layout, including temporary and mixed English candidates.
 
 The host first verifies the downloaded bundle using `contracts/assets/product.py` and its

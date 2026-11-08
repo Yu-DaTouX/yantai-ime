@@ -4,5 +4,4 @@ enum class SchemeType
 {
     Quanpin,
     Shuangpin,
-    Wubi,
 };

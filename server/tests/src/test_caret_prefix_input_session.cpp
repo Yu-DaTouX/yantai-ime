@@ -57,9 +57,6 @@ std::filesystem::path CreateCaretPrefixFixture()
             "INSERT INTO tbl_1_s VALUES('shi','sh','是',100);");
     execute("CREATE TABLE tbl_1_j(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
             "INSERT INTO tbl_1_j VALUES('jie','j','接',100);");
-    execute("CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO wubi86 VALUES('aaaa','工',100);"
-            "INSERT INTO wubi86 VALUES('aaaa','或',50);");
     sqlite3_close(database);
     return directory;
 }
@@ -273,33 +270,6 @@ TEST_CASE(CaretPrefixSuffixKeepsTheTypedCasing)
         session.set_caret(std::nullopt);
         session.recompute_candidates();
         REQUIRE_EQ(session.editing_text(), std::string("Hni'hao"));
-    }
-
-    std::filesystem::remove_all(directory);
-}
-
-// R9：五笔等无单元模型（segment_raw_boundaries 为空）的方案，caret 移动不量化、
-// 候选零变化，维持整串解码的现状。
-TEST_CASE(CaretPrefixLeavesSchemesWithoutUnitModelUntouched)
-{
-    const auto directory = CreateCaretPrefixFixture();
-    const auto paths = FixturePaths(directory);
-
-    {
-        metasequoia::InputSession session(SchemeType::Wubi, 0, true, true, false, paths);
-        TypeText(session, "aaaa");
-        REQUIRE(session.has_composition());
-        REQUIRE(CandidateWordIndex(session, "工") < session.candidates().size());
-        const auto native = CandidateWords(session);
-
-        for (const std::size_t caret : {std::size_t{0}, std::size_t{2}})
-        {
-            session.set_caret(caret);
-            session.recompute_candidates();
-            REQUIRE(SameCandidateWords(session, native));
-            REQUIRE_EQ(session.prefix_end(), std::size_t{4});
-            REQUIRE(session.pending_suffix().empty());
-        }
     }
 
     std::filesystem::remove_all(directory);

@@ -110,8 +110,6 @@ FanyImeVModeInput::Trigger CurrentVModeTrigger();
 bool IsVModeCompositionActive(const std::string &raw);
 void ClearSpecialModeTriggers();
 bool IsSpecialModeCompositionActive(const std::string &raw);
-// 五笔会话里属于 T/V 模式的串：交给引擎时标成字面输入，原样保留、不查码表、不算完整四码。
-bool IsWubiLiteralComposition(const std::string &raw);
 
 void PublishCandidateUiOwner(uint64_t client_id, uint64_t activation_epoch);
 FanyImeIpc::CandidateUiOwner SnapshotCandidateUiOwner();
@@ -221,11 +219,9 @@ std::pair<std::string, std::string> RankingKeysForCandidate(const WordItem &item
 // event_listener_worker.cpp
 void NoteTopCommitPushed(uint64_t client_id, uint64_t activation_epoch);
 void EnqueueTask(TaskType type, const FanyImeNamedpipeData &pipeData, uint64_t activation_epoch);
-// wubi 指明目标候选来自五笔码表；混输组合里拼音候选写拼音词典、五笔候选写码表，不能按会话方案判断。
 // ranking_candidates 为空时按当前候选页排位；句中辅助码组合传去掉约束后的候选。
-void EnqueueAdjustCandidateRankingTask(bool english, bool wubi, const std::string &context_key,
-                                       const std::string &entry_key, const std::string &word, uint64_t client_id,
-                                       uint64_t activation_epoch,
+void EnqueueAdjustCandidateRankingTask(bool english, const std::string &context_key, const std::string &entry_key,
+                                       const std::string &word, uint64_t client_id, uint64_t activation_epoch,
                                        const std::vector<WordItem> *ranking_candidates = nullptr);
 // 长词前缀补全（#1343）选中后的调频：只把它在自己的完整读音 key 下升到组内首位，不按排位挪位置。
 void EnqueueBumpPinyinWeightTask(const std::string &key, const std::string &word, uint64_t client_id,

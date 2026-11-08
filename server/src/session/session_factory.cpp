@@ -30,8 +30,6 @@ std::string ResolveEffectiveBackend(std::string configured_backend, SchemeType s
             return "engine-shuangpin";
         case SchemeType::Quanpin:
             return "engine-quanpin";
-        case SchemeType::Wubi:
-            return "engine-wubi";
         default:
             throw std::runtime_error("Unknown input scheme.");
         }
@@ -58,14 +56,9 @@ std::shared_ptr<IInputSession> CreateInputSessionFromConfig()
     {
         return std::make_shared<EngineInputSession>(SchemeType::Quanpin);
     }
-    if (backend == "engine-wubi")
-    {
-        return std::make_shared<EngineInputSession>(SchemeType::Wubi);
-    }
 
     throw std::runtime_error("Unsupported effective input session backend: " + backend);
 }
-
 
 std::string DescribeConfiguredInputSessionBackendFromConfig()
 {

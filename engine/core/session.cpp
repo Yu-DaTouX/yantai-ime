@@ -18,7 +18,6 @@ class Session::Impl
             throw std::invalid_argument("Invalid session options");
         session.set_local_mode_options(options.local_modes);
         session.set_mixed_expressive_options(options.expressive);
-        session.set_wubi_input_options(options.wubi);
         session.enable_fixed_positions();
     }
     InputSession session;
@@ -106,13 +105,6 @@ void Session::set_helpcode_enabled(bool enabled)
 void Session::set_dedicated_english(bool enabled)
 {
     impl_->session.set_dedicated_english_mode(enabled);
-}
-void Session::set_wubi_mixed_pinyin(bool enabled)
-{
-    // 只改混输这一个开关：整份构造 WubiInputOptions 会把运行期已生效的 z 通配一起复位。
-    metasequoia::WubiInputOptions options = impl_->session.wubi_input_options();
-    options.mixed_pinyin = enabled;
-    impl_->session.set_wubi_input_options(options);
 }
 SessionSnapshot Session::snapshot() const
 {
