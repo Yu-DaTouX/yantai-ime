@@ -28,14 +28,26 @@ CGetTextExtentEditSession::CGetTextExtentEditSession(_In_ CMetasequoiaIME *pText
     // GetTextExt can re-enter and end the composition. Retain the COM inputs;
     // the presenter is explicitly deleted by its owner, so AddRef cannot keep
     // it alive. Validate its identity/epoch before dereferencing it instead.
-    _pContextView->AddRef();
-    _pRangeComposition->AddRef();
+    if (_pContextView)
+    {
+        _pContextView->AddRef();
+    }
+    if (_pRangeComposition)
+    {
+        _pRangeComposition->AddRef();
+    }
 }
 
 CGetTextExtentEditSession::~CGetTextExtentEditSession()
 {
-    _pContextView->Release();
-    _pRangeComposition->Release();
+    if (_pContextView)
+    {
+        _pContextView->Release();
+    }
+    if (_pRangeComposition)
+    {
+        _pRangeComposition->Release();
+    }
 }
 
 //+---------------------------------------------------------------------------
@@ -50,7 +62,8 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
     BOOL isClipped = TRUE;
     HRESULT hr = S_OK;
 
-    if (!_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+    if (!_pContextView || !_pRangeComposition ||
+        !_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
         !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
     {
         return S_OK;
