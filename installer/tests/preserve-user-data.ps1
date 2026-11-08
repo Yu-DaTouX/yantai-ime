@@ -92,11 +92,11 @@ foreach ($name in $migrated) {
     if (-not $preserved.Contains($name)) { throw "清单不同步：$name 换数据目录时会搬走，覆盖安装时却会被删掉" }
 }
 
-# Server 侧库名是这份清单的源头。改了 stats.db 之类的名字而不同步安装器，升级又会清零一次。
-# 库名在 EnsureStatsStoreOpen 里，随首词命中率改动从 stats_pipe.cpp 挪到了 stats_candidate_capture.cpp。
-$statsSource = Join-Path $PSScriptRoot '../../server/src/statistics/stats_candidate_capture.cpp'
-$storeName = [regex]::Match([IO.File]::ReadAllText($statsSource), 'L"([\w.-]+\.db)"').Groups[1].Value
-if (-not $storeName) { throw "stats_candidate_capture.cpp no longer names a database file; update this test and the installer" }
+# 统计功能已退役，但现有用户的 stats.db 仍必须保留。以 Server 的用户数据 ACL
+# 清单交叉校验，不再引用已经删除的 stats_candidate_capture.cpp。
+$statsSource = Join-Path $PSScriptRoot '../../server/src/utils/ime_paths.cpp'
+$storeName = [regex]::Match([IO.File]::ReadAllText($statsSource), 'L"(stats\.db)"').Groups[1].Value
+if (-not $storeName) { throw "ime_paths.cpp no longer preserves legacy stats.db; review migration explicitly" }
 if (-not $preserved.Contains($storeName)) { throw "统计库 $storeName 不在 IsPreservedAppDataItem 名单里，覆盖安装会清空统计数据" }
 if (-not $migrated.Contains($storeName)) { throw "统计库 $storeName 不在 MigrateUserDataDir 的 robocopy 清单里，换数据目录会丢统计数据" }
 

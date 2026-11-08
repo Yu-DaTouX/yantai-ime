@@ -180,6 +180,12 @@ else {
     if (Test-Path -LiteralPath $dictionaryManifest) {
         Copy-Item -LiteralPath $dictionaryManifest -Destination (Join-Path $targetAppData 'dictionary-manifest.json') -Force
     }
+    # 白霜的逐项来源、转换修改与许可必须随安装包送到用户磁盘。
+    foreach ($notice in @('rime-frost-NOTICE.md', 'rime-frost-LICENSE.txt')) {
+        $sourceNotice = Join-Path (Split-Path -Parent $dictionaryDb) $notice
+        Assert-PathExists -LiteralPath $sourceNotice -Description '白霜来源与许可声明'
+        Copy-Item -LiteralPath $sourceNotice -Destination (Join-Path $targetAppData $notice) -Force
+    }
     # 神经整句速度档模型落在资源目录根下，文件名由 engine/contracts/assets 清单声明。
     # 缺文件时引擎静默不出神经整句候选（shared_sentence_model 返回 nullptr），不影响其它候选。
     Copy-Item -LiteralPath $neuralModelKeyboard -Destination (Join-Path $targetAppData 'sentence-model.safetensors') -Force

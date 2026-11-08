@@ -815,6 +815,8 @@ begin
     (CompareText(FileName, 'dict_pinyin.dat') = 0) or
     (CompareText(FileName, 'msime.db') = 0) or
     (CompareText(FileName, 'dictionary-manifest.json') = 0) or
+    (CompareText(FileName, 'rime-frost-NOTICE.md') = 0) or
+    (CompareText(FileName, 'rime-frost-LICENSE.txt') = 0) or
     (CompareText(FileName, 'MOZC_DICTIONARY_LICENSE.txt') = 0) or
     (CompareText(FileName, 'english.db') = 0) or
     (CompareText(FileName, 'others.db') = 0) or
