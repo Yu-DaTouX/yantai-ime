@@ -20,6 +20,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: '1'
+
 concurrency:
   group: release-v${{ inputs.version }}
   cancel-in-progress: false
@@ -52,8 +55,14 @@ jobs:
           CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          test "$SIGNING_PROVIDER" = certificate || { echo '::error::Set WINDOWS_SIGNING_PROVIDER=certificate'; exit 1; }
-          test -n "$CERTIFICATE_BASE64" && test -n "$CERTIFICATE_PASSWORD" || { echo '::error::Fixed certificate secrets are required'; exit 1; }
+          if [[ "$SIGNING_PROVIDER" != certificate ]]; then
+            echo '::error::Set WINDOWS_SIGNING_PROVIDER=certificate'
+            exit 1
+          fi
+          if [[ -z "$CERTIFICATE_BASE64" || -z "$CERTIFICATE_PASSWORD" ]]; then
+            echo '::error::Fixed certificate secrets are required'
+            exit 1
+          fi
 
   validate:
     name: Validate release automation
