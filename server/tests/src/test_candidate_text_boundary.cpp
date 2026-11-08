@@ -8,10 +8,10 @@ TEST_CASE(candidate_text_boundary_counts_valid_utf8_without_recovery)
 {
     int recoveries = 0;
     const auto recover = [&] { ++recoveries; };
-    REQUIRE_EQ(*FanyImeIpc::CandidateTextLength("", recover), size_t{0});
-    REQUIRE_EQ(*FanyImeIpc::CandidateTextLength("a", recover), size_t{1});
-    REQUIRE_EQ(*FanyImeIpc::CandidateTextLength("你好", recover), size_t{2});
-    REQUIRE_EQ(*FanyImeIpc::CandidateTextLength("\xF0\x9F\x98\x80", recover), size_t{1});
+    REQUIRE_EQ(FanyImeIpc::CandidateTextLength("", recover).value_or(size_t{99}), size_t{0});
+    REQUIRE_EQ(FanyImeIpc::CandidateTextLength("a", recover).value_or(size_t{99}), size_t{1});
+    REQUIRE_EQ(FanyImeIpc::CandidateTextLength("你好", recover).value_or(size_t{99}), size_t{2});
+    REQUIRE_EQ(FanyImeIpc::CandidateTextLength("\xF0\x9F\x98\x80", recover).value_or(size_t{99}), size_t{1});
     REQUIRE_EQ(recoveries, 0);
 }
 
