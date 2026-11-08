@@ -1,0 +1,85 @@
+{
+  "asset": "translate-zh-en-v1.zip",
+  "url": "https://github.com/Yu-DaTouX/yantai-ime/releases/download/translate-model-v1/translate-zh-en-v1.zip",
+  "size": 81237882,
+  "sha256": "c18b9d8b9962c1a1eea9b365b70b21d5f559299f35a8a35cec517f6507fe4cf1",
+  "engine_binary_bytes": 39347200,
+  "files": {
+    "NOTICE.md": {
+      "size": 1368,
+      "sha256": "6e0886099b725f3d044c7b35dabf534da7cb21ed765d53fb41225e805e4e10e7"
+    },
+    "abseil_dll.dll": {
+      "size": 2009088,
+      "sha256": "a71d9cb3907a8c054a77be46f4d6520405171292a4235ac9657ee4d66162240f"
+    },
+    "config.json": {
+      "size": 233,
+      "sha256": "72901fbd8abd89fb5cf4a388f26fc681f5c4c58a1e1a88b30b879f107270e7ee"
+    },
+    "dnnl.dll": {
+      "size": 34280960,
+      "sha256": "2172e9cc79f328cedae10b1e13cefe2f249cc8c9111ed25cb2657ad5cb4d895a"
+    },
+    "libprotobuf-lite.dll": {
+      "size": 1507328,
+      "sha256": "d0b2162f4cf6829646bcc36b3fbb4299468d1ebfa917b43a8c86966dc963ebc1"
+    },
+    "licenses/CTranslate2.txt": {
+      "size": 1137,
+      "sha256": "9c508db56103485f3f4985cd7793acd19e40692008e30af5d5b3426a11ad55ef"
+    },
+    "licenses/abseil.txt": {
+      "size": 11361,
+      "sha256": "c79a7fea0e3cac04cd43f20e7b648e5a0ff8fa5344e644b0ee09ca1162b62747"
+    },
+    "licenses/cpu_features.txt": {
+      "size": 13106,
+      "sha256": "34c5d6cb04305b64768e69d19aa2aff4247734c40689d7c55f6eec9f07939ec0"
+    },
+    "licenses/onednn.txt": {
+      "size": 11607,
+      "sha256": "e9fc874fc09801b9acf3411ba72394098473704d832d713404b6c4861a086318"
+    },
+    "licenses/protobuf.txt": {
+      "size": 1732,
+      "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+    },
+    "licenses/sentencepiece.txt": {
+      "size": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "licenses/spdlog.txt": {
+      "size": 1348,
+      "sha256": "a7241a379cb98d37788f82c2fc2e484c3ae85dae881fd3406f0637644850926f"
+    },
+    "licenses/utf8-range.txt": {
+      "size": 1091,
+      "sha256": "02de69b64fc36d9e938f418e52723e42f0b2b226d58a9cb3c8dcbdf7059f5074"
+    },
+    "licenses/yantai-GPL-3.0.txt": {
+      "size": 35148,
+      "sha256": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b"
+    },
+    "model.bin": {
+      "size": 79567635,
+      "sha256": "e4955858cae9542bef37424a9b79720e3db2f32501fe62264c0cd3eac6319777"
+    },
+    "shared_vocabulary.json": {
+      "size": 1368999,
+      "sha256": "55d071d6c63a2dab993f00e77077eca76573ac6964990e2e80de7462344401fb"
+    },
+    "source.spm": {
+      "size": 804677,
+      "sha256": "e27a3a1b539f4959ec72ea60e453f49156289f95d4e6000b29332efc45616203"
+    },
+    "target.spm": {
+      "size": 806530,
+      "sha256": "6a881f4717cd7265f53fea54fd3dc689c767c05338fac7a4590f3088cb2d7855"
+    },
+    "yantai_translate.dll": {
+      "size": 1549824,
+      "sha256": "9dc8f2a5b77c4f5c4e4c4a524f9c7097440a02d67ec9606e1d4ff36fa0e9a2cc"
+    }
+  }
+}
