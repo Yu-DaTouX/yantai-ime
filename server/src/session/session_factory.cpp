@@ -34,11 +34,15 @@ std::string ResolveEffectiveBackend(std::string configured_backend)
 
 std::shared_ptr<IInputSession> CreateInputSessionFromConfig()
 {
-    // The dictionary writer commits learned weights into msime.db while this
-    // session queries it on the key thread; in WAL mode those queries no longer
-    // wait for the commit. An installer upgrade ships a fresh rollback-mode file,
-    // so this runs at every session creation, not once.
-    (void)user_dictionary::enable_write_ahead_log(CommonUtils::get_ime_data_path() + "\\msime.db");
+    // The dictionary writer commits learned weights into both shipped dictionaries
+    // while this session (and the dedicated English/mixed workers) query them on
+    // the key path; in WAL mode those reads keep the last committed snapshot
+    // instead of waiting for the commit. english.db is written by the same writer
+    // (frequency adjustments, entered words, settings edits), and its read-only
+    // connection fails the whole candidate page with SQLITE_BUSY in rollback mode.
+    // An installer upgrade ships fresh rollback-mode files, so this runs at every
+    // session creation, not once.
+    user_dictionary::enable_dictionary_write_ahead_logs(CommonUtils::get_ime_data_path());
     const std::string backend = DescribeEffectiveInputSessionBackendFromConfig();
     if (backend == "engine-quanpin")
     {
