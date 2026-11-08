@@ -1,5 +1,18 @@
 set(TEST_EXECUTABLE_NAME "MetasequoiaImeServerTests")
 
+# Manual engine latency/evaluation tools use the same engine and CRT as the Server.
+# They are deliberately not ctest entries and only run against an isolated data copy.
+add_executable(bench_input_session "${MSIME_ENGINE_DIR}/tests/src/bench_input_session.cpp")
+target_link_libraries(bench_input_session PRIVATE MetasequoiaIme::Engine)
+add_executable(eval_quanpin_sentence "${MSIME_ENGINE_DIR}/tests/src/eval_quanpin_sentence.cpp")
+target_link_libraries(eval_quanpin_sentence PRIVATE MetasequoiaIme::Engine)
+
+# Keep the self-contained per-prefix candidate/cache equivalence regression in
+# the supported Server test command, not only in the standalone engine suite.
+add_executable(test_engine_candidate_consistency "${MSIME_ENGINE_DIR}/tests/src/test_candidate_consistency.cpp")
+target_link_libraries(test_engine_candidate_consistency PRIVATE MetasequoiaIme::Engine)
+add_test(NAME engine_candidate_consistency COMMAND test_engine_candidate_consistency)
+
 add_executable(test_native_settings_controls
     portable/main.cpp
     src/test_native_settings_controls.cpp
