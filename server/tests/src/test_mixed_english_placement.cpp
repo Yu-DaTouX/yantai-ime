@@ -983,7 +983,7 @@ TEST_CASE(QueriedLatinWordsMoveToTheFirstPageEndThroughTheRealEngine)
     const auto directory = CreateLatinWordFixture();
     const auto paths = LatinFixturePaths(directory);
     const auto quanpin = [&](const std::string &input, bool lattice) {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         if (lattice)
         {
             SentenceAssociationOptions association;

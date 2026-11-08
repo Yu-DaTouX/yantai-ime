@@ -2,7 +2,7 @@
 #include "quanpin_dictionary.h"
 #include "../user_dictionary/user_dictionary_journal.h"
 
-#include "../common/helpcode_utils.h"
+#include "../common/string_utils.h"
 #include "quanpin_query.h"
 #include "query_status.h"
 #include "quanpin_utils.h"
@@ -2287,7 +2287,7 @@ int QuanpinDictionary::create_word(std::string pinyin, std::string word)
 int QuanpinDictionary::create_word_from_canonical_pinyin(std::string pinyin, std::string word)
 {
     const auto segments = quanpin::split_segments(pinyin);
-    const size_t han_count = HelpcodeUtils::count_han_chars(word);
+    const size_t han_count = CommonUtils::count_han_chars(word);
     if (segments.empty() || segments.size() != han_count ||
         std::any_of(segments.begin(), segments.end(), [](const std::string &segment) {
             return segment.empty() || !quanpin::is_complete_pinyin_input(segment);
@@ -2331,7 +2331,7 @@ int QuanpinDictionary::update_weight_by_pinyin_and_word(std::string pinyin, std:
     // 别名拼写（nue/lue 等词库不存在的键）不得承载用户调频数据：改写为标准键，
     // 保证权重更新落在标准字典行上（PRD R3）。
     segments = normalize_umlaut_aliases(std::move(segments));
-    const size_t han_count = HelpcodeUtils::count_han_chars(word);
+    const size_t han_count = CommonUtils::count_han_chars(word);
     if (segments.size() > han_count)
         segments.resize(han_count);
     const std::string normalized = quanpin::join_segments(segments);
@@ -2786,7 +2786,7 @@ std::string QuanpinDictionary::build_sql_for_updating_word(std::string pinyin, c
         return "";
     }
 
-    size_t han_cnt = HelpcodeUtils::count_han_chars(word);
+    size_t han_cnt = CommonUtils::count_han_chars(word);
     auto segments = cuts.front();
     if (segments.size() > han_cnt)
     {
@@ -2834,7 +2834,7 @@ bool QuanpinDictionary::do_validate(const std::string &key, const std::string &j
         return false;
     }
 
-    const size_t han_count = HelpcodeUtils::count_han_chars(value);
+    const size_t han_count = CommonUtils::count_han_chars(value);
     if (jp.size() != han_count)
     {
         return false;

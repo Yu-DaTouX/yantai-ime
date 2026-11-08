@@ -1,4 +1,4 @@
-// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、上屏样式、辅助码、全拼纠错、模糊音和调频。
+// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、上屏样式、全拼纠错、模糊音和调频。
 #include "config/ime_config_internal.h"
 #include <cstdint>
 #include <iterator>
@@ -6,7 +6,6 @@
 #include <vector>
 #include "global/globals.h"
 #include "defines/defines.h"
-#include "engine/common/helpcode_utils.h"
 #include "engine/contracts/input_state_shortcuts.h"
 #include "engine/core/data_path.h"
 
@@ -249,21 +248,6 @@ void RefreshEffectiveTsfPreeditStyle()
 }
 } // namespace ime_config_detail
 
-bool GetConfiguredQuanpinHelpcodeEnabled()
-{
-    return g_quanpin_helpcode_enabled;
-}
-
-bool SetConfiguredQuanpinHelpcodeEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("helpcode", "quanpin_helpcode", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_quanpin_helpcode_enabled = enabled;
-    return true;
-}
-
 bool GetConfiguredQuanpinAutocorrectTransposition()
 {
     return g_quanpin_autocorrect_transposition;
@@ -410,54 +394,6 @@ bool SetConfiguredFuzzyPinyinRule(const std::string &key, bool enabled)
         g_fuzzy_pinyin_rules |= bit;
     else
         g_fuzzy_pinyin_rules &= ~bit;
-    return true;
-}
-
-const std::string &GetConfiguredQuanpinHelpcodeSchema()
-{
-    return g_quanpin_helpcode_schema;
-}
-
-bool SetConfiguredQuanpinHelpcodeSchema(const std::string &schema)
-{
-    if (!IsHelpcodeSchemaAvailable(schema))
-        return false;
-    if (!WriteConfiguredValue("helpcode", "quanpin_helpcode_schema", EscapeTomlBasicString(schema)))
-        return false;
-    g_quanpin_helpcode_schema = schema;
-    return true;
-}
-
-std::vector<CustomHelpcodeSchemaInfo> GetCustomHelpcodeSchemas()
-{
-    std::vector<CustomHelpcodeSchemaInfo> result;
-    for (const auto &schema : HelpcodeUtils::list_custom_helpcode_schemas(metasequoia::data_directory()))
-    {
-        const std::string &name = schema.name.empty() ? schema.name_en : schema.name;
-        const std::string &name_en = schema.name_en.empty() ? schema.name : schema.name_en;
-        result.push_back(
-            {schema.schema, name.empty() ? schema.file_stem : name, name_en.empty() ? schema.file_stem : name_en});
-    }
-    return result;
-}
-
-std::string GetCustomHelpcodeDirectory()
-{
-    return metasequoia::path_to_utf8(HelpcodeUtils::custom_helpcode_directory(metasequoia::data_directory()));
-}
-
-bool GetConfiguredShowQuanpinHelpcodeInCandidateWindow()
-{
-    return g_show_quanpin_helpcode_in_candidate_window;
-}
-
-bool SetConfiguredShowQuanpinHelpcodeInCandidateWindow(bool enabled)
-{
-    if (!WriteConfiguredValue("helpcode", "show_qp_helpcode_in_candidate_window", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_show_quanpin_helpcode_in_candidate_window = enabled;
     return true;
 }
 

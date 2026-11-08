@@ -364,7 +364,7 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
         {
             return true;
         }
-        // 0：上面已经整串改写过（直接辅助码下的 ;），没有要插入的字符。
+        // 0：上面已经整串改写过，没有要插入的字符。
         if (input != 0)
         {
             raw.insert(raw.begin() + static_cast<std::ptrdiff_t>(composition.caret_position), input);

@@ -51,9 +51,6 @@ std::string canonical_umlaut_spelling(std::string syllable);
 // 云输入）认的 ü 写法：nve→nue、lve→lue、jv→ju……只在送进这两个解码器前用，
 // 词库与词格查询要的是 canonical_umlaut_spelling 那一侧的写法。
 std::string to_google_spelling(const std::string &segmentation);
-size_t detect_active_helpcode_length(const std::string &raw_input, const std::string &raw_input_with_cases);
-std::string strip_active_helpcodes(const std::string &raw_input, const std::string &raw_input_with_cases);
-std::string strip_active_helpcodes_with_cases(const std::string &raw_input, const std::string &raw_input_with_cases);
 std::vector<Segments> sparse_pinyin_fallback_segments(const Segments &segments);
 
 // Autocorrection type bits passed to autocorrect_cut. One mask lets the dictionary
@@ -85,7 +82,7 @@ inline constexpr unsigned autocorrect_types_from_switches(const bool transpositi
 // 掩码下手误别名层（cut_pinyin_by_mode 的 include_correction_aliases）是否生效。
 // 别名层是「换位形状 / 多一个 h / 漏一个 g」这类拼写层改写，只归换位与邻键两个开关管，
 // 漏字 / 多字开关独立后也不带别名层：只带后两位的掩码按「关」处理。方案、词典、
-// 辅助码与排序上下文 key 都按这一条判断，避免各层对同一个掩码给出不同的切分。
+// 方案、词典与排序上下文 key 都按这一条判断，避免各层对同一个掩码给出不同的切分。
 inline constexpr bool correction_aliases_enabled(unsigned autocorrect_types)
 {
     return (autocorrect_types & (kAutocorrectTransposition | kAutocorrectNeighbor)) != 0;

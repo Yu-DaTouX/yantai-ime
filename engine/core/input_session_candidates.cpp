@@ -1,6 +1,6 @@
 #include "input_session.h"
 #include "data_path.h"
-#include "../common/helpcode_utils.h"
+#include "../common/string_utils.h"
 #include "../contracts/assets/assets.h"
 #include "../user_dictionary/user_dictionary_journal.h"
 #include "../quanpin/quanpin_utils.h"
@@ -49,12 +49,11 @@ void InputSession::apply_candidate_positions(std::vector<WordItem> &items)
     const bool regular = local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_;
     if (regular)
     {
-        user_dictionary::apply_fixed_positions(
-            journal, position_context(false), items, engine_.get_request().raw_input.size() == 1,
-            [this](const std::string &key, const std::string &word) {
-                return engine_.find_candidate(scheme(), key, word);
-            },
-            has_active_helpcode());
+        user_dictionary::apply_fixed_positions(journal, position_context(false), items,
+                                               engine_.get_request().raw_input.size() == 1,
+                                               [this](const std::string &key, const std::string &word) {
+                                                   return engine_.find_candidate(scheme(), key, word);
+                                               });
     }
     if (std::any_of(items.begin(), items.end(),
                     [](const auto &item) { return item.source == CandidateSource::EnglishDictionary; }))
@@ -98,7 +97,7 @@ KeyResult InputSession::remove_candidate(std::size_t index)
     const bool english = selected.source == CandidateSource::EnglishDictionary;
     if (!english &&
         ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase) ||
-         HelpcodeUtils::count_utf8_chars(selected.word) <= 1))
+         CommonUtils::count_utf8_chars(selected.word) <= 1))
         return {};
 
     const auto kind = english ? user_dictionary::DictionaryKind::English : user_dictionary::DictionaryKind::Pinyin;

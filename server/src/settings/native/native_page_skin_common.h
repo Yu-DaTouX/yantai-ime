@@ -117,7 +117,6 @@ class CandidatePreview : public msimeui::Container
     {
         bool horizontal = false;
         size_t pageSize = 6;
-        bool helpcode = true;
         bool preedit = true;
         // 0 takes the candidate font size.
         float preeditFontSize = 0.0f;

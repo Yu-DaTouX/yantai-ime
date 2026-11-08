@@ -40,7 +40,7 @@ std::string bytes(const std::filesystem::path &path)
 }
 void make_resources(const std::filesystem::path &path, const std::string &word)
 {
-    std::filesystem::create_directories(path / "helpcodes");
+    std::filesystem::create_directories(path);
     execute(path / assets::main_dictionary, "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                                             "INSERT INTO tbl_1_n VALUES('ni','n','" +
                                                 word +
@@ -53,8 +53,6 @@ void make_resources(const std::filesystem::path &path, const std::string &word)
     execute(path / assets::english_dictionary,
             "INSERT INTO english_words(word,display,weight) VALUES('hello','hello',10);");
     std::ofstream(path / assets::translations) << "hello\t" << word << "翻译\n";
-    std::ofstream(path / assets::helpcode_lantian) << word << "=aa\n拟=cc\n";
-    std::ofstream(path / assets::helpcode_xiaohe) << word << "=cc\n拟=aa\n";
 }
 void type(Session &session, const std::string &input)
 {
@@ -289,12 +287,8 @@ void test_runtime_isolation()
                 "Own online response was rejected");
         a.command(Command::Cancel);
         b.command(Command::Cancel);
-        require(a.set_helpcode_schema("lantian") && b.set_helpcode_schema("xiaohe"), "Cannot select helpcodes");
-        type(a, "niC");
-        type(b, "niC");
-        require(a.snapshot().candidates.front().word == "拟", "Session A helpcode changed with B");
-        require(b.snapshot().candidates.front().word == "妮", "Session B helpcode was not isolated");
-        require(a.punctuation('"').commit == "拟“", "Punctuation did not flush composition");
+        type(a, "ni");
+        require(a.punctuation('"').commit == "你“", "Punctuation did not flush composition");
         b.command(Command::Cancel);
         require(b.punctuation('"').commit == "“", "Quotation state leaked across sessions");
         const auto run_session = [](Session &session, const std::string &expected) {
@@ -336,12 +330,6 @@ void test_runtime_isolation()
         type(session, "ni");
         require(session.finish(9999).commit == "ni", "Invalid highlight did not preserve raw input");
 
-        session.set_helpcode_enabled(false);
-        type(session, "ni");
-        require(!session.character('C').handled, "Disabled helpcode still consumed uppercase input");
-        session.set_helpcode_enabled(true);
-        require(session.character('C').handled && session.snapshot().candidates.front().word == "拟",
-                "Re-enabling helpcode did not update this composition");
         session.command(Command::Cancel);
         session.set_dedicated_english(true);
         require(session.snapshot().dedicated_english, "Empty dedicated English mode was lost in the snapshot");
@@ -631,23 +619,6 @@ void test_runtime_isolation()
         // Debug 构建里由 matrixsearch.cpp 的 remain_num > 0 断言拦住。
         for (const char *input : {"zan'l", "zanl", "zan'le", "zan'l"})
             (void)decoder_a.sentence(input);
-
-        // 句中辅助码：约束在解码器建格子时生效，被锁住的字带着上下文重新整句解码；约束不能
-        // 漏到之后不带约束的增量搜索里。
-        const std::string plain = decoder_a.sentence("ni'hao");
-        require(plain.size() == 6, "Plain two-syllable decode failed");
-        std::vector<DecoderCharConstraint> constraints;
-        constraints.push_back({0, [](const std::string &hanzi) { return hanzi == "泥"; }});
-        const std::string first_pinned = decoder_a.sentence("ni'hao", constraints);
-        require(first_pinned.size() == 6 && first_pinned.substr(0, 3) == "泥",
-                "Decoder ignored the first-syllable constraint");
-        constraints = {{3, [](const std::string &hanzi) { return hanzi == "号"; }}};
-        const std::string second_pinned = decoder_a.sentence("ni'hao", constraints);
-        require(second_pinned.size() == 6 && second_pinned.substr(3) == "号",
-                "Decoder ignored the second-syllable constraint");
-        require(decoder_a.sentence("ni'hao") == plain, "A decoder constraint leaked into the next search");
-        require(decoder_a.sentence("ni'haoma") == decoder_b.sentence("ni'haoma"),
-                "Incremental search after a constrained one diverged from a fresh search");
     }
 
     // 词格打分用的三元模型：按路径共享一份实例，缺模型时退化成可用的空模型。

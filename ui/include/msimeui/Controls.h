@@ -678,7 +678,7 @@ class CandidateList : public Visual
         // the normal textColor/labelColor; skins that fill the selected row
         // with an opaque accent set these to the contrasting color (e.g. white
         // on the WeChat green first row). rowTextSelected also drives the
-        // annotation (辅助码) and translation on that row, matching the CSS
+        // annotation and translation on that row, matching the CSS
         // where both inherit the color of `.first .text`.
         D2D1_COLOR_F rowTextSelected = D2D1::ColorF(0, 0.0f);
         D2D1_COLOR_F rowLabelSelected = D2D1::ColorF(0, 0.0f);

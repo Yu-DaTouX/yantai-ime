@@ -158,7 +158,7 @@ KeyResult InputSession::insert_at_caret(char character)
             accepted = FanyImeDateTimeInput::AcceptsAt(text.data(), text.size(), caret, character);
             break;
         case LocalInputMode::None:
-            accepted = lower || (upper && scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_);
+            accepted = lower;
             if (character == '\'')
                 accepted = caret > 0;
             break;

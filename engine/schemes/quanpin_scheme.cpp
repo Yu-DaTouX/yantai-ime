@@ -1,5 +1,4 @@
 #include "quanpin_scheme.h"
-#include "../common/helpcode_utils.h"
 #include "../quanpin/quanpin_query.h"
 #include "../quanpin/quanpin_utils.h"
 #include <cctype>
@@ -151,9 +150,7 @@ QueryRequest QuanpinScheme::build_request() const
     }
     request.key_strokes = key_strokes_;
 
-    const size_t helpcode_length =
-        quanpin::detect_active_helpcode_length(request.raw_input, request.raw_input_with_cases);
-    std::string normalized_source = quanpin::strip_active_helpcodes(request.raw_input, request.raw_input_with_cases);
+    const std::string &normalized_source = request.raw_input;
 
     request.normalized_input.reserve(normalized_source.size());
     for (const char ch : normalized_source)
@@ -184,23 +181,13 @@ QueryRequest QuanpinScheme::build_request() const
         request.normalized_segmentation = normalized_source;
     }
 
-    std::string cased_source = request.raw_input_with_cases;
-    if (helpcode_length > 0 && cased_source.size() >= helpcode_length)
-    {
-        cased_source = cased_source.substr(0, cased_source.size() - helpcode_length);
-    }
+    const std::string &cased_source = request.raw_input_with_cases;
 
     request.raw_segmentation = ApplySegmentationCases(request.normalized_segmentation, cased_source);
     if (!cased_source.empty() && cased_source.back() == '\'' &&
         (request.raw_segmentation.empty() || request.raw_segmentation.back() != '\''))
     {
         request.raw_segmentation.push_back('\'');
-    }
-    if (helpcode_length > 0)
-    {
-        request.raw_segmentation += "'";
-        request.raw_segmentation +=
-            request.raw_input_with_cases.substr(request.raw_input_with_cases.size() - helpcode_length, helpcode_length);
     }
     request.segmentation = request.normalized_segmentation;
 

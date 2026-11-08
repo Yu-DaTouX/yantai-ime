@@ -47,7 +47,7 @@ struct Table
     }
 };
 
-// 生成脚本不会写 BOM，但保留与 helpcode 相同的防御：表由外部工具产出，首行多一个 BOM
+// 生成脚本不会写 BOM，但保留与其它外部表格相同的防御：表由外部工具产出，首行多一个 BOM
 // 不该让整张表失效。
 constexpr char kUtf8Bom[] = "\xEF\xBB\xBF";
 

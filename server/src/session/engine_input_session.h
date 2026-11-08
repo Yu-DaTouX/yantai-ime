@@ -1,7 +1,6 @@
 #pragma once
 
 #include "input_session.h"
-#include "engine/common/helpcode_utils.h"
 #include "engine/core/input_session.h"
 
 // 模型包的确定性布局解析：<DataDir>/models/<id>/<id>.gram。配置 id 留空 = 未选择任何
@@ -35,7 +34,6 @@ class EngineInputSession : public IInputSession
     const std::vector<WordItem> &get_candidates() const override;
     bool can_expand_initial_candidates() const override;
     bool expand_initial_candidates() override;
-    std::string get_helpcode_annotation(const std::string &word, bool uppercase_all) const override;
     std::optional<WordItem> find_candidate(const std::string &key, const std::string &value) override;
     std::vector<WordItem> query_radical(const std::string &code) const override;
 
@@ -48,7 +46,6 @@ class EngineInputSession : public IInputSession
     std::string get_quanpin() const override;
     bool is_all_complete_pure_pinyin() const override;
     bool reads_as_pinyin() const override;
-    bool has_active_helpcode() const override;
     void set_rescoring_context(std::string context) override;
     void set_pinyin_sequence(const std::string &pinyin_sequence) override;
     void set_pinyin_sequence_with_cases(const std::string &pinyin_sequence) override;
@@ -77,6 +74,4 @@ class EngineInputSession : public IInputSession
     void ApplyConfiguration();
     const metasequoia::RuntimePaths paths_;
     metasequoia::InputSession session_;
-    std::string helpcode_schema_;
-    HelpcodeUtils::SharedKeymap helpcode_keymap_;
 };

@@ -454,7 +454,7 @@ std::shared_ptr<Label> Description(std::wstring text, float marginTop = 4.0f)
     return label;
 }
 
-// `.helpcode-custom-button`: transparent, muted 12px text, 30px tall, 6px radius.
+// `.ghost-button`: transparent, muted 12px text, 30px tall, 6px radius.
 class GhostButton : public msimeui::Visual
 {
   public:

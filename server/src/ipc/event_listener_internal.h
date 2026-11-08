@@ -209,7 +209,7 @@ std::pair<std::string, std::string> RankingKeysForCandidate(const WordItem &item
 // event_listener_worker.cpp
 void NoteTopCommitPushed(uint64_t client_id, uint64_t activation_epoch);
 void EnqueueTask(TaskType type, const FanyImeNamedpipeData &pipeData, uint64_t activation_epoch);
-// ranking_candidates 为空时按当前候选页排位；句中辅助码组合传去掉约束后的候选。
+// ranking_candidates 为空时按当前候选页排位。
 void EnqueueAdjustCandidateRankingTask(bool english, const std::string &context_key, const std::string &entry_key,
                                        const std::string &word, uint64_t client_id, uint64_t activation_epoch,
                                        const std::vector<WordItem> *ranking_candidates = nullptr);

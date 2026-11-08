@@ -12,7 +12,7 @@
 
 [CmdletBinding()]
 param(
-    # 轻量包：跳过词库、辅助码、拼音表和出厂配置，只刷新 TSF、Server 和设置窗口图片资源。
+    # 轻量包：跳过词库、拼音表和出厂配置，只刷新 TSF、Server 和设置窗口图片资源。
     # 适用：只改了 TSF 或 Server，本机已有完整安装（词库已在
     # %LOCALAPPDATA%\metasequoiaime）。不要用轻量包做首次安装。
     [switch]$Light,

@@ -1,5 +1,5 @@
 #include "input_session.h"
-#include "../common/helpcode_utils.h"
+#include "../common/string_utils.h"
 #include "../quanpin/quanpin_query.h"
 #include "../quanpin/quanpin_utils.h"
 #include <algorithm>
@@ -68,7 +68,7 @@ std::string normalize_canonical_pinyin_for_word(const std::string &pinyin, const
     }
 
     const auto segments = quanpin::split_segments(pinyin);
-    if (segments.empty() || segments.size() != HelpcodeUtils::count_han_chars(word))
+    if (segments.empty() || segments.size() != CommonUtils::count_han_chars(word))
     {
         return {};
     }
@@ -95,15 +95,9 @@ std::string append_canonical_pinyin(const std::string &prefix, const std::string
     return prefix + "'" + suffix;
 }
 
-bool HasActiveQuanpinHelpcode(const QueryRequest &request)
-{
-    return request.enable_quanpin_helpcode &&
-           quanpin::detect_active_helpcode_length(request.raw_input, request.raw_input_with_cases) > 0;
-}
-
 std::string ResolveQuanpinCloudCacheKey(const QueryRequest &request)
 {
-    return quanpin::strip_active_helpcodes(request.raw_input, request.raw_input_with_cases);
+    return request.raw_input;
 }
 
 // Adapter over the request fields: the switch -> mask rule itself lives in
@@ -312,7 +306,7 @@ std::string BuildQuanpinAutocorrectDisplay(const QueryRequest &request)
 // 首选是同一串字母的另一种字面切分时（yibananzhao 由 yi'ban'an'zhao 的「一般按照」领衔，
 // fangan 由 fang'an 的「方案」领衔），预编辑跟着首选分，而不是停在方案层的最少音节切分上，
 // 否则用户看着 yi'ba'nan'zhao 选「一般按照」。只认读音字母与敲的字母逐个相同、盖住整串、
-// 不带纠错标记的首选（辅助码、手动分隔符都不满足），而且音节数与方案层切分相同：那正是
+// 不带纠错标记的首选（手动分隔符也不满足），而且音节数与方案层切分相同：那正是
 // 只差一处 n/ng 边界的等长歧义；音节数不同的读法（nue 的字面整词「怒鹅」nu'e）不在此列，
 // 预编辑照旧。否则返回空串。
 std::string BuildQuanpinDisplayFromLiteralHead(const QueryRequest &request, const WordItem &head)
@@ -355,7 +349,7 @@ std::string BuildQuanpinDisplayFromLiteralHead(const QueryRequest &request, cons
 // 罕见音节替换（lia -> lai）不在 k-best 里，它是换位、字母数不变，按读法音节长度分。
 // 切不成合法音节的输入同理：上下文把贵档读法提到首位时（shiideya 出「是的呀」），
 // 预编辑要跟着它分成 shii'de'ya，而不是 k-best 首条的 shi'ide'ya。
-// 只在首选带纠错标记、读法恰好盖住整串时生效（辅助码、手动分隔符都不满足），否则
+// 只在首选带纠错标记、读法恰好盖住整串时生效（手动分隔符也不满足），否则
 // 返回空串。
 std::string BuildQuanpinDisplayFromLeadingCorrection(const QueryRequest &request, const WordItem &head)
 {
@@ -556,19 +550,12 @@ bool InputSession::is_all_complete_pure_pinyin() const
 
 bool InputSession::reads_as_pinyin() const
 {
-    if (has_active_helpcode())
-        return true;
     std::string raw = remove_delimiters(request().raw_input);
     std::transform(raw.begin(), raw.end(), raw.begin(),
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     if (raw.empty())
         return false;
     return !quanpin::cut_one_piece_min_segments(raw, false).empty();
-}
-
-bool InputSession::has_active_helpcode() const
-{
-    return HasActiveQuanpinHelpcode(request());
 }
 
 void InputSession::set_pinyin_sequence(const std::string &pinyin_sequence)
@@ -651,29 +638,26 @@ InputSession::SelectionTransition InputSession::advance_composition_after_select
         request().normalized_segmentation.empty() ? request().segmentation : request().normalized_segmentation;
     const std::string current_segmentation_with_cases = get_pinyin_segmentation_with_cases();
     const std::string selected_pure_pinyin = remove_delimiters(selected_pinyin);
-    const std::string raw_input_without_helpcodes =
-        quanpin::strip_active_helpcodes(request().raw_input, request().raw_input_with_cases);
-    const std::string raw_input_with_cases_without_helpcodes =
-        quanpin::strip_active_helpcodes_with_cases(request().raw_input, request().raw_input_with_cases);
+    const std::string &raw_input = request().raw_input;
+    const std::string &raw_input_with_cases = request().raw_input_with_cases;
 
     // 纠错读音按它在原始输入里盖住的字母消耗：多字、漏字纠错和原始字母不等长，按读音
     // 长度消耗会剩下或多吞字母（buuhui 选「不会」剩个 i）。
     size_t consumed_letters = selected_pure_pinyin.size();
     const unsigned autocorrect_types = QuanpinAutocorrectTypes(request());
-    const bool literal_mixed_prefix =
-        current_scheme_type() == SchemeType::Quanpin && !candidates().empty() &&
-        quanpin::literal_mixed_pinyin_match(raw_input_without_helpcodes, candidates().front().pinyin,
-                                            candidates().front().canonical_pinyin) &&
-        raw_input_without_helpcodes.compare(0, consumed_letters, selected_pure_pinyin) == 0;
-    if (autocorrect_types != 0 && !literal_mixed_prefix && raw_input_without_helpcodes.find('\'') == std::string::npos)
+    const bool literal_mixed_prefix = current_scheme_type() == SchemeType::Quanpin && !candidates().empty() &&
+                                      quanpin::literal_mixed_pinyin_match(raw_input, candidates().front().pinyin,
+                                                                          candidates().front().canonical_pinyin) &&
+                                      raw_input.compare(0, consumed_letters, selected_pure_pinyin) == 0;
+    if (autocorrect_types != 0 && !literal_mixed_prefix && raw_input.find('\'') == std::string::npos)
     {
         if (const auto aligned = quanpin::corrected_reading_raw_length(
-                raw_input_without_helpcodes, quanpin::split_segments(selected_pinyin), autocorrect_types))
+                raw_input, quanpin::split_segments(selected_pinyin), autocorrect_types))
         {
             consumed_letters = *aligned;
         }
-        else if (const auto fault_aligned = quanpin::fault_reading_raw_length(raw_input_without_helpcodes,
-                                                                              quanpin::split_segments(selected_pinyin)))
+        else if (const auto fault_aligned =
+                     quanpin::fault_reading_raw_length(raw_input, quanpin::split_segments(selected_pinyin)))
         {
             // 长句容错仲裁的读音（句中简拼展开、槽内漏字变体）不在 k-best 切分里，
             // corrected_reading_raw_length 对不上；按槽位模型对回原始字母。
@@ -681,18 +665,17 @@ InputSession::SelectionTransition InputSession::advance_composition_after_select
         }
     }
 
-    size_t consumed_raw_length =
-        raw_length_for_effective_prefix(raw_input_with_cases_without_helpcodes, consumed_letters);
-    transition.consumed_raw_input_with_cases = raw_input_with_cases_without_helpcodes.substr(0, consumed_raw_length);
+    size_t consumed_raw_length = raw_length_for_effective_prefix(raw_input_with_cases, consumed_letters);
+    transition.consumed_raw_input_with_cases = raw_input_with_cases.substr(0, consumed_raw_length);
 
     transition.continues_composition = !selected_pure_pinyin.empty() &&
                                        consumed_letters < transition.full_pure_pinyin.size() &&
-                                       consumed_raw_length < raw_input_without_helpcodes.size();
+                                       consumed_raw_length < raw_input.size();
 
     if (transition.continues_composition)
     {
-        std::string rest_raw_input = raw_input_without_helpcodes.substr(consumed_raw_length);
-        std::string rest_raw_input_with_cases = raw_input_with_cases_without_helpcodes.substr(consumed_raw_length);
+        std::string rest_raw_input = raw_input.substr(consumed_raw_length);
+        std::string rest_raw_input_with_cases = raw_input_with_cases.substr(consumed_raw_length);
         remove_consumed_leading_separators(rest_raw_input, rest_raw_input_with_cases);
         engine_.replace_active_raw_input(rest_raw_input, rest_raw_input_with_cases);
         online_requests_.invalidate();
@@ -713,11 +696,6 @@ InputSession::CloudQueryState InputSession::get_cloud_query_state() const
 
     state.committed_pinyin = request().normalized_input;
     state.cache_key = ResolveQuanpinCloudCacheKey(request());
-
-    if (has_active_helpcode())
-    {
-        return state;
-    }
 
     state.should_query = !request().normalized_input.empty();
     // 云端要按用户看到的分词来查：手动把 qi'e'huan 分成三段，就该带着音节边界发给云接口，

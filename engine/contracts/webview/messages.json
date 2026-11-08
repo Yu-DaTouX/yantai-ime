@@ -21,11 +21,6 @@
         "settings"
       ]
     },
-    "openHelpcodeDirectory": {
-      "surfaces": [
-        "settings"
-      ]
-    },
     "collocationModelDownload": {
       "surfaces": [
         "settings"
@@ -296,7 +291,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Active configuration path; removed Japanese input mode, schema, R-mode, trilingual-cycle, Wubi and shuangpin settings are ignored."
+            "description": "Active configuration path; removed Japanese input mode, schema, R-mode, trilingual-cycle, Wubi, shuangpin and helpcode settings are ignored."
           },
           "value": {
             "anyOf": [

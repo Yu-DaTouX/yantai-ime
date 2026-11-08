@@ -301,7 +301,6 @@ jobs:
           pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion $env:TARGET_VERSION
           -RepoRoot (Resolve-Path '..').Path
           -TsfDirectory windows -ServerDirectory server -NoticesDirectory .
-          -HelpCodeDirectory engine/helpcode
       # Same signer as the release path, different certificate: the pinned nightly one. A missing
       # secret fails the run instead of silently publishing an unsigned installer, because an
       # unsigned nightly would lose uiAccess and report it only as a mystery at runtime.

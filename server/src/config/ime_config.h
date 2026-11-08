@@ -112,8 +112,6 @@ bool GetConfiguredEnterLearnsEnglishWord();
 bool SetConfiguredEnterLearnsEnglishWord(bool enabled);
 const std::string &GetConfiguredTsfPreeditStyle();
 bool SetConfiguredTsfPreeditStyle(const std::string &style);
-bool GetConfiguredQuanpinHelpcodeEnabled();
-bool SetConfiguredQuanpinHelpcodeEnabled(bool enabled);
 bool GetConfiguredQuanpinAutocorrectTransposition();
 bool SetConfiguredQuanpinAutocorrectTransposition(bool enabled);
 bool GetConfiguredQuanpinAutocorrectNeighbor();
@@ -143,21 +141,6 @@ metasequoia::FuzzyPinyinOptions GetConfiguredFuzzyPinyinOptions();
 metasequoia::FuzzyPinyinOptions GetConfiguredFuzzyPinyinRuleStates();
 // key is the config key without section, e.g. "fuzzy_n_l"; unknown keys return false.
 bool SetConfiguredFuzzyPinyinRule(const std::string &key, bool enabled);
-const std::string &GetConfiguredQuanpinHelpcodeSchema();
-bool SetConfiguredQuanpinHelpcodeSchema(const std::string &schema);
-// User helpcode tables under <data>/helpcodes/custom, rescanned on every call so a file dropped
-// there shows up the next time the settings page asks. Names fall back to the file stem.
-struct CustomHelpcodeSchemaInfo
-{
-    std::string schema;
-    std::string name;
-    std::string name_en;
-};
-std::vector<CustomHelpcodeSchemaInfo> GetCustomHelpcodeSchemas();
-// UTF-8 path of the folder GetCustomHelpcodeSchemas scans.
-std::string GetCustomHelpcodeDirectory();
-bool GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
-bool SetConfiguredShowQuanpinHelpcodeInCandidateWindow(bool enabled);
 bool GetConfiguredFloatingToolbarEnabled();
 bool SetConfiguredFloatingToolbarEnabled(bool enabled);
 bool GetConfiguredCaretStateIndicatorEnabled();

@@ -37,7 +37,6 @@ class IInputSession
     // 只判断还能不能展开首字母候选，不改候选；候选窗据此决定满页末页的下一页箭头。
     virtual bool can_expand_initial_candidates() const = 0;
     virtual bool expand_initial_candidates() = 0;
-    virtual std::string get_helpcode_annotation(const std::string &word, bool uppercase_all) const = 0;
     virtual std::optional<WordItem> find_candidate(const std::string &, const std::string &)
     {
         return std::nullopt;
@@ -61,7 +60,6 @@ class IInputSession
     virtual bool is_all_complete_pure_pinyin() const = 0;
     // 整串能否读成拼音（允许简拼声母和打到一半的音节），语义见 engine 同名方法。
     virtual bool reads_as_pinyin() const = 0;
-    virtual bool has_active_helpcode() const = 0;
     // 本会话最近上屏的文本，给神经整句重排当前文。空实现：除引擎会话外没人需要前文。
     virtual void set_rescoring_context(std::string)
     {

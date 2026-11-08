@@ -1,6 +1,6 @@
 #include "input_session.h"
 
-#include "../common/helpcode_utils.h"
+#include "../common/string_utils.h"
 #include "../contracts/date_time_input.h"
 #include "../local_modes/date_time_query.h"
 #include "../local_modes/emoji_query.h"
@@ -50,14 +50,13 @@ std::string online_identity(const QueryRequest &request)
 
 } // namespace
 
-InputSession::InputSession(SchemeType scheme_type, unsigned quanpin_autocorrect_types, bool helpcode_enabled,
-                           bool chinese_punctuation_enabled, bool candidate_learning_enabled, RuntimePaths paths)
+InputSession::InputSession(SchemeType scheme_type, unsigned quanpin_autocorrect_types, bool chinese_punctuation_enabled,
+                           bool candidate_learning_enabled, RuntimePaths paths)
     : paths_(std::move(paths)), candidate_queries_(paths_), engine_(scheme_type, paths_),
-      quanpin_autocorrect_types_(quanpin_autocorrect_types), quanpin_helpcode_enabled_(helpcode_enabled),
-      chinese_punctuation_enabled_(chinese_punctuation_enabled), candidate_learning_enabled_(candidate_learning_enabled)
+      quanpin_autocorrect_types_(quanpin_autocorrect_types), chinese_punctuation_enabled_(chinese_punctuation_enabled),
+      candidate_learning_enabled_(candidate_learning_enabled)
 {
     engine_.set_quanpin_autocorrect_types(quanpin_autocorrect_types_);
-    engine_.set_quanpin_helpcode_enabled(quanpin_helpcode_enabled_);
 }
 
 KeyResult InputSession::handle_character(char character, bool shift_only)
@@ -131,9 +130,7 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
     }
 
     const bool lowercase_letter = character >= 'a' && character <= 'z';
-    const bool active_helpcode = character >= 'A' && character <= 'Z' && has_composition() &&
-                                 scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_;
-    if (!lowercase_letter && !active_helpcode && character != '\'')
+    if (!lowercase_letter && character != '\'')
     {
         return {};
     }
@@ -305,8 +302,8 @@ KeyResult InputSession::select_candidate_edge(std::size_t index, CandidateEdge e
     }
 
     const std::string &candidate = candidates()[index].word;
-    std::string character = edge == CandidateEdge::FirstHan ? HelpcodeUtils::get_first_han_char(candidate)
-                                                            : HelpcodeUtils::get_last_han_char(candidate);
+    std::string character = edge == CandidateEdge::FirstHan ? CommonUtils::get_first_han_char(candidate)
+                                                            : CommonUtils::get_last_han_char(candidate);
     if (character.empty())
     {
         return {};
@@ -314,37 +311,6 @@ KeyResult InputSession::select_candidate_edge(std::size_t index, CandidateEdge e
 
     reset_composition();
     return {true, std::move(character), std::nullopt};
-}
-
-void InputSession::set_quanpin_helpcode_enabled(bool enabled)
-{
-    if (quanpin_helpcode_enabled_ == enabled)
-    {
-        return;
-    }
-    quanpin_helpcode_enabled_ = enabled;
-    engine_.set_quanpin_helpcode_enabled(enabled);
-    update_mixed_candidates();
-    online_requests_.invalidate();
-}
-
-bool InputSession::is_supported_helpcode_schema(const std::string &schema)
-{
-    return HelpcodeUtils::is_supported_helpcode_schema(schema);
-}
-
-bool InputSession::set_helpcode_schema(const std::string &schema)
-{
-    if (!HelpcodeUtils::is_supported_helpcode_schema(schema))
-        return false;
-    engine_.set_helpcode_keymap(HelpcodeUtils::load_helpcode_keymap(paths_.resources, schema));
-    update_mixed_candidates();
-    return true;
-}
-
-bool InputSession::select_helpcode_schema(const std::string &schema)
-{
-    return HelpcodeUtils::select_helpcode_schema(schema);
 }
 
 bool InputSession::set_frequency_adjustment(FrequencyAdjustmentOptions options)
@@ -590,11 +556,6 @@ unsigned InputSession::quanpin_autocorrect_types() const
     return quanpin_autocorrect_types_;
 }
 
-bool InputSession::helpcode_enabled() const
-{
-    return scheme() == SchemeType::Quanpin && quanpin_helpcode_enabled_;
-}
-
 bool InputSession::chinese_punctuation_enabled() const
 {
     return chinese_punctuation_enabled_;
@@ -750,7 +711,7 @@ bool InputSession::mixed_candidates_active() const
             scheme() == SchemeType::Quanpin);
 }
 
-// 不看辅助码：整串精确等于用户编码时按短语处理。
+// 整串精确等于用户编码时按短语处理。
 std::optional<std::string> InputSession::quick_phrase_code() const
 {
     if (!local_mode_options_.quick_phrase_candidates || local_input_mode_ != LocalInputMode::None ||

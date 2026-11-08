@@ -6,7 +6,6 @@ param(
     # Historical or custom layouts remain available through explicit overrides.
     [string]$TsfDirectory = 'windows',
     [string]$ServerDirectory = 'server',
-    [string]$HelpCodeDirectory = 'engine/helpcode',
     # U 模式的部件拆字反查表（decomposition.txt）随包发布到数据目录的 radical\ 下。
     [string]$RadicalDirectory = 'engine/radical',
     # Google 解码器的系统词典。仓库里有两份完全相同的副本：这一份是 engine/contracts/assets
@@ -73,7 +72,6 @@ $serverConfig = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\config\c
 $factoryConfig = Join-Path $PSScriptRoot 'default_config\config.default.toml'
 $pinyinTable = Join-Path $RepoRoot (Join-Path $ServerDirectory 'assets\tables\pinyin.txt')
 $pinyinModel = Join-Path $RepoRoot (Join-Path $PinyinModelDirectory 'dict_pinyin.dat')
-$helpcodeSource = Join-Path $RepoRoot (Join-Path $HelpCodeDirectory 'helpcodes')
 $radicalTable = Join-Path $RepoRoot (Join-Path $RadicalDirectory 'decomposition.txt')
 $appIcon = Join-Path $RepoRoot (Join-Path $ServerDirectory 'src\resource\MetasequoiaIME.ico')
 # 输入法语言配置的图标，与 TSF DLL 里的 IDIS_METASEQUOIAIME 是同一个文件。安装器把它放到固定路径，
@@ -122,7 +120,6 @@ if (-not $Light) {
     Assert-PathExists -LiteralPath $factoryConfig -Description '出厂配置 default_config\config.default.toml'
     Assert-PathExists -LiteralPath $pinyinTable -Description '完整拼音音节表 pinyin.txt'
     Assert-PathExists -LiteralPath $pinyinModel -Description 'Google 解码器系统词典 dict_pinyin.dat'
-    Assert-PathExists -LiteralPath $helpcodeSource -Description '辅助码目录'
     Assert-PathExists -LiteralPath $radicalTable -Description 'U 模式部件拆字表 decomposition.txt'
     Assert-PathExists -LiteralPath $dictionaryDb -Description '词库数据库 msime.db'
     Assert-PathExists -LiteralPath $englishDb -Description '英文词库数据库 english.db'
@@ -149,7 +146,7 @@ $targetTsf = Join-Path $PSScriptRoot 'tsf_dll'
 $targetDictionarySource = Join-Path $PSScriptRoot 'dictionary_source'
 
 if ($Light) {
-    Write-Host '轻量模式：跳过词库、辅助码、拼音表和出厂配置，只刷新 TSF、Server 和设置窗口图片资源。'
+    Write-Host '轻量模式：跳过词库、拼音表和出厂配置，只刷新 TSF、Server 和设置窗口图片资源。'
     New-Item -ItemType Directory -Path $targetAppData -Force | Out-Null
 }
 else {
@@ -216,10 +213,6 @@ else {
             Remove-Item -LiteralPath $stagedPath -Force
         }
     }
-
-    $targetHelpcodes = Join-Path $targetAppData 'helpcodes'
-    Reset-Directory -LiteralPath $targetHelpcodes
-    Copy-DirectoryContents -Source $helpcodeSource -Destination $targetHelpcodes
 
     # U 模式的拆字表落在数据目录的 radical\ 下，路径由 engine/contracts/assets 清单声明。
     $targetRadical = Join-Path $targetAppData 'radical'

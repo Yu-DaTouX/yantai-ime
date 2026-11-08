@@ -1,6 +1,5 @@
 #include "engine_input_session.h"
 #include "config/ime_config.h"
-#include "engine/common/helpcode_utils.h"
 #include "engine/contracts/assets/assets.h"
 #include "engine/core/data_path.h"
 #include "engine/core/sentence_association_options.h"
@@ -53,26 +52,13 @@ std::string ResolveLatticeLanguageModelPath()
 }
 
 EngineInputSession::EngineInputSession(SchemeType scheme)
-    : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, 0, true, true, true, paths_)
+    : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, 0, true, true, paths_)
 {
     ApplyConfiguration();
 }
 
 void EngineInputSession::ApplyConfiguration()
 {
-    const auto &schema = GetConfiguredQuanpinHelpcodeSchema();
-    if (schema != helpcode_schema_)
-    {
-        // Keep filtering and annotations on this session's captured resource layout.
-        // Applying unchanged settings on each key must not reload the tables.
-        auto keymap = HelpcodeUtils::load_helpcode_keymap(paths_.resources, schema);
-        if (session_.set_helpcode_schema(schema))
-        {
-            helpcode_schema_ = schema;
-            helpcode_keymap_ = std::move(keymap);
-        }
-    }
-    session_.set_quanpin_helpcode_enabled(GetConfiguredQuanpinHelpcodeEnabled());
     // One config key per correction type, no linkage: the server-side session carries the
     // same four-bit mask the engine and the preedit rebuild derive from the same request
     // bools (product-reachable masks are every combination of the four bits). Rule:
@@ -246,11 +232,6 @@ bool EngineInputSession::reads_as_pinyin() const
     return session_.reads_as_pinyin();
 }
 
-bool EngineInputSession::has_active_helpcode() const
-{
-    return session_.has_active_helpcode();
-}
-
 void EngineInputSession::set_rescoring_context(std::string context)
 {
     return session_.set_rescoring_context(std::move(context));
@@ -334,11 +315,4 @@ IInputSession::CreatingWordProgress EngineInputSession::update_creating_word_pro
 std::vector<IInputSession::WordItem> EngineInputSession::query_radical(const std::string &code) const
 {
     return metasequoia::local_modes::query_radical(paths_.resource(metasequoia::assets::radical_decomposition), code);
-}
-
-std::string EngineInputSession::get_helpcode_annotation(const std::string &word, bool uppercase_all) const
-{
-    if (!helpcode_keymap_ || session_.scheme() != SchemeType::Quanpin)
-        return {};
-    return HelpcodeUtils::compute_helpcodes(word, uppercase_all, helpcode_keymap_.get());
 }

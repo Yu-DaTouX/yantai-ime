@@ -31,11 +31,6 @@ class ProviderRegistry
     int cache_dynamic_candidate_for_request(const QueryRequest &request, const std::string &word,
                                             CandidateSource source);
 
-    void set_helpcode_keymap(HelpcodeUtils::SharedKeymap table)
-    {
-        pinyin_provider_.set_helpcode_keymap(std::move(table));
-    }
-
   private:
     PinyinCandidateProvider pinyin_provider_;
 };

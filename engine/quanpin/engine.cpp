@@ -1,5 +1,4 @@
 #include "engine.h"
-#include "../common/helpcode_utils.h"
 #include "quanpin_query.h"
 #include "quanpin_utils.h"
 
@@ -16,9 +15,7 @@ unsigned autocorrect_types_from_request(const QueryRequest &request)
 }
 } // namespace
 
-QuanpinEngine::QuanpinEngine(metasequoia::RuntimePaths paths)
-    : dictionary_({}, paths),
-      helpcodes_(HelpcodeUtils::load_helpcode_keymap(paths.resources, HelpcodeUtils::selected_helpcode_schema()))
+QuanpinEngine::QuanpinEngine(metasequoia::RuntimePaths paths) : dictionary_({}, paths)
 {
 }
 
@@ -41,41 +38,7 @@ std::vector<WordItem> QuanpinEngine::query(const QueryRequest &request)
     // 前文同理随请求下发；换了前文，按旧前文重排出来的缓存顺序作废。
     dictionary_.set_rescoring_context(request.rescoring_context);
 
-    const size_t helpcode_length =
-        request.enable_quanpin_helpcode
-            ? quanpin::detect_active_helpcode_length(request.raw_input, request.raw_input_with_cases)
-            : 0;
-    // 辅助码筛过、重排过的列表不补：首选是按辅码挑出来的，补出来的长词不一定满足同样的约束。
-    dictionary_.set_prefix_completion(helpcode_length == 0 ? request.prefix_completion
-                                                           : metasequoia::PrefixCompletionOptions{});
-    // 辅助码路径自己切出底串的显式切分交给词典，词典不会再按掩码重切，所以这里要和方案的
-    // build_request 走同一个开关，否则关掉纠错后带辅助码的输入仍被别名层改写。
-    const bool correction_aliases = quanpin::correction_aliases_enabled(autocorrect_types_from_request(request));
-
-    if (helpcode_length == 2)
-    {
-        const std::string base_raw_input =
-            quanpin::strip_active_helpcodes(request.raw_input, request.raw_input_with_cases);
-        const auto cuts = quanpin::cut_pinyin_by_mode(base_raw_input, "correction", correction_aliases);
-        const std::string base_segmentation = quanpin::join_segments(cuts.front());
-        const std::string help_codes = request.raw_input.substr(request.raw_input.size() - 2, 2);
-        const auto base_candidates = dictionary_.query(base_raw_input, base_segmentation,
-                                                       autocorrect_types_from_request(request), request.fuzzy_pinyin);
-        return HelpcodeUtils::filter_candidates_with_double_helpcodes(base_candidates, help_codes, helpcodes_.get());
-    }
-
-    if (helpcode_length == 1)
-    {
-        const std::string base_raw_input =
-            quanpin::strip_active_helpcodes(request.raw_input, request.raw_input_with_cases);
-        const auto cuts = quanpin::cut_pinyin_by_mode(base_raw_input, "correction", correction_aliases);
-        const std::string base_segmentation = quanpin::join_segments(cuts.front());
-        const std::string help_code = request.raw_input.substr(request.raw_input.size() - 1, 1);
-        const auto base_candidates = dictionary_.query(base_raw_input, base_segmentation,
-                                                       autocorrect_types_from_request(request), request.fuzzy_pinyin);
-        return HelpcodeUtils::reorder_candidates_with_single_helpcode(base_candidates, help_code, helpcodes_.get());
-    }
-
+    dictionary_.set_prefix_completion(request.prefix_completion);
     return dictionary_.query(request.raw_input, request.segmentation, autocorrect_types_from_request(request),
                              request.fuzzy_pinyin);
 }
@@ -85,9 +48,7 @@ namespace
 // 能展开首字母候选时返回那个首字母，否则返回空串。
 std::string expandable_initial_code(const QueryRequest &request)
 {
-    if (request.scheme != SchemeType::Quanpin ||
-        (request.enable_quanpin_helpcode &&
-         quanpin::detect_active_helpcode_length(request.raw_input, request.raw_input_with_cases) > 0))
+    if (request.scheme != SchemeType::Quanpin)
     {
         return {};
     }

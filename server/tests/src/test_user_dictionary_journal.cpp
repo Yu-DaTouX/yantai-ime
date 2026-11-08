@@ -469,8 +469,8 @@ TEST_CASE(UserDictionarySupportsFixedPositionsAndDeferredSafeRanking)
 
     REQUIRE(user_dictionary::clear_fixed_position(test::Utf8(user_path), "ni", "ni", "己"));
 
-    // With a helpcode active the caller already ordered the suggestions, so they
-    // must not be hoisted back to slots 1 and 2.
+    // With keep_dynamic_candidate_positions the caller already ordered the
+    // suggestions, so they must not be hoisted back to slots 1 and 2.
     candidates = {{"ni", "甲", 100}, {"ni", "乙", 90}, {"ni", "丙", 80}};
     candidates.insert(candidates.begin(), {"ni", "AI", 1, CandidateSource::AiSuggestion});
     candidates.insert(candidates.begin() + 3, {"ni", "云", 1, CandidateSource::CloudSuggestion});

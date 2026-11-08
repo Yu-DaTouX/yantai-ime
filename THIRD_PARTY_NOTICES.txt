@@ -2,7 +2,7 @@ Metasequoia IME for Windows - Third-Party Notices
 =================================================
 
 The installer ships the TSF text service, the Server process and its helper
-executables, the settings window's image assets, and the dictionary and helpcode
+executables, the settings window's image assets, and the dictionary
 data. Every binary in it statically links the input engine in engine/, which is
 licensed under the GNU General Public License version 3, so the product as a
 whole is distributed under the GPLv3; see the LICENSE file for its full text.
@@ -1064,21 +1064,20 @@ That's all there is to it!
 Bundled data files
 ------------------------------------------------------------------------------
 
-The installer writes dictionary and helpcode data from these sources:
+The installer writes dictionary data from these sources:
 
   dictionaries              downloaded at build time from the dict-* release
                             pinned in product-lock.json
-  helpcodes                 engine/helpcode/ in this repository
   language model            converted at build time from the libime ARPA corpus
                             pinned in language-model/lock.json
   pinyin decoder dictionary engine/googlepinyinime-rev/data/ in this repository,
                             under that component's own terms (see above)
-  (originally the archived MSIME-Dict and MSIME-HelpCode; the upstream
-   attribution below is retained)
+  (originally the archived MSIME-Dict; the upstream attribution below is
+   retained)
 
 Installed as msime.db, others.db, english.db, sc.lm,
-dict_pinyin.dat, pinyin.txt, helpcodes/*.txt and radical/decomposition.txt
-under the application data directory.
+dict_pinyin.dat, pinyin.txt and radical/decomposition.txt under the
+application data directory.
 
 The sources do not declare a license of their own, because most of their content
 is not their own work. They aggregate word lists and code tables from upstream
@@ -1108,19 +1107,6 @@ sc.lm is the Simplified Chinese trigram language model distributed with libime, 
 
   libime                  LGPL-2.1+  https://github.com/fcitx/libime
 
-Sources of helpcodes/*.txt, via MSIME-HelpCode:
-
-  helpcode.txt                    lantian      蓝天小雨点 helpcode scheme
-  zrm_helpcode_big_unique.txt     ziranma      自然码, derived from
-                                               https://github.com/copperay/ZRM_Aux-code
-  shouyou2_0_helpcode.txt         shouyou2_0   首右 2.0 helpcode scheme
-  shouyouplus_helpcode.txt        shouyouplus  首右 plus helpcode scheme
-  xiaohe_helpcode.txt             xiaohe       小鹤 shape-code scheme
-  jiajia_helpcode.txt             jiajia       加加辅助码, aligned with the helpcode table
-                                               embedded in the commercial 拼音加加 5.x
-                                               installer (fzm.bin); not an official
-                                               拼音加加 table
-
 Sources of radical/decomposition.txt, the U-mode radical-reverse-lookup table:
 
   rime-radical-pinyin  GPL-3.0  https://github.com/mirtlecn/rime-radical-pinyin
@@ -1129,4 +1115,4 @@ Sources of radical/decomposition.txt, the U-mode radical-reverse-lookup table:
                                yi-bai/ids (MIT); the converted table keeps the
                                GPL-3.0 terms
 
-Unresolved: CustomPinyinDictionary, rime-jp_sela and ZRM_Aux-code publish no license; the English word list in english.db includes word forms extracted from a commercial dictionary, whose rights belong to its publisher; and the helpcode tables reproduce input schemes whose rights belong to their respective authors. jiajia_helpcode.txt additionally aligns its codes with a data table extracted from the commercial 拼音加加 5.x installer. Redistributors who need an explicit grant for those parts should raise it with the Metasequoia IME maintainers rather than assume one. This notice will be updated as those terms are clarified.
+Unresolved: CustomPinyinDictionary and rime-jp_sela publish no license, and the English word list in english.db includes word forms extracted from a commercial dictionary, whose rights belong to its publisher. Redistributors who need an explicit grant for those parts should raise it with the Metasequoia IME maintainers rather than assume one. This notice will be updated as those terms are clarified.

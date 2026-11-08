@@ -28,8 +28,7 @@ new platform features when they can use editing intents and snapshots.
 Desktop hosts may call `finish(highlighted_index)` to commit the highlighted first candidate
 and all remaining segments through Engine's existing composition policy. `finish()` retains
 the leading-candidate behavior. Snapshots include `dedicated_english` even with empty preedit,
-so hosts need not maintain a second mode flag. `set_helpcode_enabled` applies to both pinyin
-schemes; a host with separate persisted preferences applies the selected flag on scheme change.
+so hosts need not maintain a second mode flag.
 
 For quanpin, `character(';')` follows the ordinary punctuation path; the
 decoder's existing position validation. Other profiles leave this character unhandled.
@@ -92,7 +91,6 @@ auto paths = metasequoia::prepare_runtime_paths(
     resource_directory, user_directory, cache_directory, verified_bundle_digest);
 metasequoia::SessionOptions options;
 options.paths = paths;
-options.helpcode_schema = "xiaohe";
 metasequoia::Session session(options);
 
 auto result = session.character('n');
@@ -104,7 +102,7 @@ The directory ownership is explicit:
 
 | Directory | Contents and lifecycle |
 | --- | --- |
-| `resources` | Verified immutable DB inputs, models, helpcodes, translation sidecar, notices |
+| `resources` | Verified immutable DB inputs, models, translation sidecar, notices |
 | `user_data` | Durable `msime_user.db`, decoder user dictionary, and working DB generations |
 | `user_data/dictionaries/<content ID>` | Writable `msime.db`/`english.db` copies used by learning |
 | `cache` | Disposable host cache; deleting it must not delete user dictionaries |
@@ -125,15 +123,12 @@ layout once for compatibility. Existing sessions are never redirected by later e
 changes. Directories and models must not be replaced in place while a session uses them.
 
 Translation overlays are loaded from `resources` even when `english.db` is a writable user
-copy. File names and helpcode scheme mappings come from generated `contracts/assets/assets.h`.
+copy. File names come from generated `contracts/assets/assets.h`.
 
 ## Isolation and lifetime
 
 A host serializes calls on each session. Different sessions may run concurrently and can
-use different paths, profiles and helpcode schemes. Profiles are owned values, helpcode
-maps are immutable per-session values.
-`set_helpcode_schema()` affects only that session. Legacy static `select_helpcode_schema()`
-changes the default for subsequently created sessions; it no longer changes live sessions.
+use different paths and profiles. Profiles are owned values.
 
 Google Pinyin internally uses global search, spelling, language-model and lemma-cache state.
 `PinyinDecoder` is the sole caller of its C API. One mutex covers model/user selection,
@@ -165,7 +160,7 @@ session is rejected even if the two sessions contain identical input.
 ## Verification
 
 The root CTest targets include public-header compilation, two independent resource/user
-layouts, per-session helpcodes and punctuation, local query paths, concurrent sessions,
+layouts, per-session punctuation, local query paths, concurrent sessions,
 Real Google Pinyin model interleaving/concurrency,
 per-path sharing and missing-model degradation of the kenlm trigram, Unicode
 resource paths, user phrase replay, return to a previous generation and failed replay

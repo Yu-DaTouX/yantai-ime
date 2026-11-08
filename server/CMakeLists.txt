@@ -462,7 +462,6 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/native/native_settings_window.h"
     "./src/settings/native/native_page_appearance.cpp"
     "./src/settings/native/native_page_input.cpp"
-    "./src/settings/native/native_page_helpcode.cpp"
     "./src/settings/native/native_page_shortcut.cpp"
     "./src/settings/native/native_page_dictionary.cpp"
     "./src/settings/native/native_page_dictionary_panel.cpp"

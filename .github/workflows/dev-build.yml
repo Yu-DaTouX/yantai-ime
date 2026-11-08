@@ -316,7 +316,6 @@ jobs:
           pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion $env:TARGET_VERSION
           -RepoRoot (Resolve-Path '..').Path
           -TsfDirectory windows -ServerDirectory server -NoticesDirectory .
-          -HelpCodeDirectory engine/helpcode
       - name: Sign the payload binaries
         shell: pwsh
         working-directory: installer

@@ -5,8 +5,8 @@ its stable ID, installation path, role, source and profiles. `user` entries name
 user files and are deliberately excluded from shipping profiles. Dictionary database
 format/schema compatibility remains owned by `contracts/dictionary/`.
 
-- `generate.py` produces `assets.h` for C++ resource lookup and helpcode scheme selection.
-  This is the live part: roughly twenty engine translation units include that header.
+- `generate.py` produces `assets.h` for C++ resource lookup. This is the live part: roughly twenty
+  engine translation units include that header.
 - `product.py` reads the inventory for packaging and verifies the exact ZIP member set,
   individual sizes/digests, contract version, dictionary product and source-commit agreement.
 

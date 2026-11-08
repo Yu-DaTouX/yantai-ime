@@ -6,7 +6,7 @@
 #include "ipc/candidate_translation_policy.h"
 
 // Built once on the candidate worker. Renderers only adapt this presentation data;
-// they do not query dictionaries, derive helpcodes or decide which source gets a badge.
+// they do not query dictionaries or decide which source gets a badge.
 struct CandidateViewItem
 {
     std::string text;

@@ -111,7 +111,6 @@ const std::vector<PageInfo> &Pages();
 
 VisualPtr BuildAppearancePage(PageContext &context);
 VisualPtr BuildInputPage(PageContext &context);
-VisualPtr BuildHelpcodePage(PageContext &context);
 VisualPtr BuildShortcutPage(PageContext &context);
 VisualPtr BuildDictionaryPage(PageContext &context);
 VisualPtr BuildSkinPage(PageContext &context);

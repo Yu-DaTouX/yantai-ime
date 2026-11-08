@@ -27,7 +27,6 @@ endif()
 get_target_property(METASEQUOIA_IME_SPDLOG_INCLUDE_DIRS spdlog::spdlog_header_only INTERFACE_INCLUDE_DIRECTORIES)
 
 set(METASEQUOIA_IME_ENGINE_SOURCES
-    common/helpcode_utils.cpp
     common/string_utils.cpp
     core/session.cpp
     core/candidate_queries.cpp

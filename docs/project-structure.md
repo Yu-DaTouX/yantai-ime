@@ -6,7 +6,7 @@ Windows 端的全部一方源码都在本仓，一次 clone 就能拿到完整�
 |---|---|
 | [`windows/`](../windows/) | 核心 TSF 文本服务 DLL：按键预判、焦点、edit session、与 Server 的管道协议 |
 | [`server/`](../server/) | Server 端：算法调度、候选窗与工具栏宿主、设置程序、词库管理 |
-| [`engine/`](../engine/) | 输入引擎：输入会话、候选查询、辅助码、跨进程契约、语音模块 |
+| [`engine/`](../engine/) | 输入引擎：输入会话、候选查询、跨进程契约 |
 | [`ui/`](../ui/) | 自研原生 GUI 框架（`msimeui`）：Win32 宿主窗口，Direct2D / DirectWrite 渲染 |
 | [`installer/`](../installer/) | 收集各组件产物、自签名、Inno Setup 打包 |
 | [`vendor/`](../vendor/) | submodule：opencc 与 cpp-pinyin 两个第三方依赖 |

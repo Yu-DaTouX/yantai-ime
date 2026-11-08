@@ -1350,12 +1350,8 @@ void test_quanpin_autocorrect_display()
     const fs::path session_dir = regression_temp_root() / "msime-quanpin-autocorrect-display-session";
     std::error_code cleanup_ec;
     fs::remove_all(session_dir, cleanup_ec);
-    fs::create_directories(session_dir / "helpcodes");
+    fs::create_directories(session_dir);
     fs::copy_file(db_path, session_dir / "msime.db", fs::copy_options::overwrite_existing);
-    {
-        std::ofstream helpcodes(session_dir / "helpcodes" / "helpcode.txt");
-        helpcodes << "你=ab\n";
-    }
     metasequoia::RuntimePaths paths;
     paths.resources = session_dir;
     paths.user_data = session_dir;
@@ -1363,7 +1359,7 @@ void test_quanpin_autocorrect_display()
     paths.dictionaries = session_dir;
 
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "sahng");
         expect(session.get_pinyin_segmentation_with_cases() == "sahng",
                "The preedit must show the typed letters, not the alias rewrite (AC7).");
@@ -1372,7 +1368,7 @@ void test_quanpin_autocorrect_display()
                "The first candidate for 'sahng' must be the corrected 上 with corrected_from.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "sahnghao");
         expect(session.get_pinyin_segmentation_with_cases() == "sahng'hao",
                "The preedit must keep the typed letters and re-separate at the cut positions.");
@@ -1381,7 +1377,7 @@ void test_quanpin_autocorrect_display()
                "The full-length candidate for 'sahnghao' must be marked.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         session.set_pinyin_sequence("sahng");
         session.set_pinyin_sequence_with_cases("saHng");
         session.recompute_candidates();
@@ -1391,7 +1387,7 @@ void test_quanpin_autocorrect_display()
                "Marking for cased input must carry the folded typed letters.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "shabg");
         expect(session.get_pinyin_segmentation_with_cases() == "shabg",
                "A BFS-corrected input with untouched letters must redraw separators from the raw spans.");
@@ -1400,27 +1396,27 @@ void test_quanpin_autocorrect_display()
                "The BFS-corrected candidate for 'shabg' must be marked.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, paths);
         type_display_session(session, "shabg");
         expect(session.get_pinyin_segmentation_with_cases() == "sha'b'g",
                "With both switches off the legacy greedy separators must stay.");
         expect(count_marked(session.candidates()) == 0, "No corrected candidate exists with both switches off.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, paths);
         type_display_session(session, "sahng");
         expect(session.get_pinyin_segmentation_with_cases() == "sahng",
                "Even with both switches off the alias rewrite must be undone in the preedit.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, paths);
         type_display_session(session, "sahng");
         expect(!session.candidates().empty() && session.candidates().front().word == "上" &&
                    session.candidates().front().corrected_from == "sahng",
                "Transposition-only must correct 'sahng' end to end (AC2, mask must survive the session).");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, neighbor_only, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, neighbor_only, true, true, paths);
         type_display_session(session, "shabg");
         expect(!session.candidates().empty() && session.candidates().front().word == "上" &&
                    session.candidates().front().corrected_from == "shabg",
@@ -1431,7 +1427,7 @@ void test_quanpin_autocorrect_display()
     {
         // 空基础切分的丢声母错拼（jian -> ian）：会话层同样要走到纠错候选，
         // 预编辑按不等长切分的 raw 区间重绘分隔（ian'du）。
-        metasequoia::InputSession session(SchemeType::Quanpin, all, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, all, true, true, paths);
         type_display_session(session, "iandu");
         expect(session.get_pinyin_segmentation_with_cases() == "ian'du",
                "A dropped initial must redraw separators from the raw spans (ian'du).");
@@ -1440,13 +1436,13 @@ void test_quanpin_autocorrect_display()
                "An InputSession-level dropped initial must reach the corrected candidate.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, paths);
         type_display_session(session, "shabg");
         expect(count_marked(session.candidates()) == 0,
                "Transposition-only must not correct the neighbor case 'shabg' (AC3).");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, neighbor_only, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, neighbor_only, true, true, paths);
         type_display_session(session, "sahng");
         // 邻键开关关不掉别名层（现状基线），sahng 仍由别名层给出「上」并标记。
         expect(session.get_pinyin_segmentation_with_cases() == "sahng",
@@ -1456,34 +1452,34 @@ void test_quanpin_autocorrect_display()
                "Neighbor-only keeps the alias-layer baseline for 'sahng'.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "keneng");
         expect(session.get_pinyin_segmentation_with_cases() == "ke'neng",
                "A legal spelling must keep its exact preedit.");
         expect(count_marked(session.candidates()) == 0, "A legal spelling must produce no marks.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "xi'an");
         expect(session.get_pinyin_segmentation_with_cases() == "xi'an",
                "A manual delimiter input must keep its exact preedit.");
         expect(count_marked(session.candidates()) == 0, "A manual delimiter input must produce no marks.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "zheg");
         expect(session.get_pinyin_segmentation_with_cases() == "zhe'g",
                "The jianpin shape 'zheg' must keep its raw letters and separator.");
         expect(count_marked(session.candidates()) == 0, "The jianpin shape 'zheg' must produce no marks.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "wj");
         expect(session.get_pinyin_segmentation_with_cases() == "w'j", "Pure jianpin must keep its greedy preedit.");
         expect(count_marked(session.candidates()) == 0, "Pure jianpin must produce no marks (AC5).");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, paths);
         type_display_session(session, "nv");
         expect(session.get_pinyin_segmentation_with_cases() == "nv",
                "The u-umlaut spelling must keep its exact preedit.");
@@ -1495,7 +1491,7 @@ void test_quanpin_autocorrect_display()
         // 阶段 3：deletion 位改由自己的开关控制；显式四位 mask 下 zheg 的 preedit
         // 必须仍走简拼守卫，不被漏字表重排为 zheng。
         const unsigned all_three = transposition_only | neighbor_only | quanpin::kAutocorrectDeletion;
-        metasequoia::InputSession session(SchemeType::Quanpin, all_three, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, all_three, true, true, paths);
         type_display_session(session, "zheg");
         expect(session.get_pinyin_segmentation_with_cases() == "zhe'g",
                "The jianpin guard must hold with the deletion bit enabled (phase 3).");
@@ -1505,8 +1501,7 @@ void test_quanpin_autocorrect_display()
     {
         // 阶段 3：漏字输入的 display —— 切分段携带不等长 raw span，rebuild 后
         // preedit 显示原始字母（无分隔，单段纠错）。
-        metasequoia::InputSession session(SchemeType::Quanpin, both | quanpin::kAutocorrectDeletion, true, true, true,
-                                          paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, both | quanpin::kAutocorrectDeletion, true, true, paths);
         type_display_session(session, "shng");
         expect(session.get_pinyin_segmentation_with_cases() == "shng",
                "A deletion-corrected input must show its typed letters in the preedit.");
@@ -1517,14 +1512,14 @@ void test_quanpin_autocorrect_display()
     {
         // 开关拆分后：仅开 transposition 不再带出 deletion 位 —— "shng" 只由邻键位
         // 读成 sang，不能出现 shng -> shang 的漏字纠错（D2 联动已废除）。
-        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, paths);
         type_display_session(session, "shng");
         expect(std::none_of(session.candidates().begin(), session.candidates().end(),
                             [](const WordItem &item) { return item.corrected_from == "shng"; }),
                "Transposition-only must not enable the deletion reading of 'shng' (no linkage).");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, paths);
         type_display_session(session, "shng");
         // 门控按纠错标记验证：前缀查询可能以 'sh' 命中「上」，那与纠错无关；
         // 开关全关时不得存在任何带 corrected_from 的候选。
@@ -1537,7 +1532,7 @@ void test_quanpin_autocorrect_display()
         // 字母（无分隔，单段纠错），用中间误插 "sghang" 避开首尾简拼形状
         const unsigned all_four =
             transposition_only | neighbor_only | quanpin::kAutocorrectDeletion | quanpin::kAutocorrectInsertion;
-        metasequoia::InputSession session(SchemeType::Quanpin, all_four, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, all_four, true, true, paths);
         type_display_session(session, "sghang");
         expect(session.get_pinyin_segmentation_with_cases() == "sghang",
                "An insertion-corrected input must show its typed letters in the preedit.");
@@ -1548,7 +1543,7 @@ void test_quanpin_autocorrect_display()
     {
         // 阶段 4：插入开关独立后，仅开 transposition 不再带出 insertion 位 ——
         // "sghang" 不得出现 sghang -> shang 的多字纠错（D4 联动已废除）。
-        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, paths);
         type_display_session(session, "sghang");
         expect(std::none_of(session.candidates().begin(), session.candidates().end(),
                             [](const WordItem &item) { return item.corrected_from == "sghang"; }),
@@ -1559,7 +1554,7 @@ void test_quanpin_autocorrect_display()
         // 词典门在 BFS 之前拦截：preedit 保持 zhe'r，无任何纠错标记（AC2）。
         const unsigned all_four =
             transposition_only | neighbor_only | quanpin::kAutocorrectDeletion | quanpin::kAutocorrectInsertion;
-        metasequoia::InputSession session(SchemeType::Quanpin, all_four, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, all_four, true, true, paths);
         type_display_session(session, "zher");
         // 守卫拦下纠错后，preedit 保持方案层自身的贪心切分（zh + er），
         // 不重绘为 insertion 键的字母区间。
@@ -1569,7 +1564,7 @@ void test_quanpin_autocorrect_display()
                "The jianpin shape 'zher' must stay unmarked (insertion key inside the guard). ");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, paths);
         type_display_session(session, "sghang");
         expect(std::none_of(session.candidates().begin(), session.candidates().end(),
                             [](const WordItem &item) { return !item.corrected_from.empty(); }),

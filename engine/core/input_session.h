@@ -29,8 +29,8 @@ class InputSession
     // Frontends pass their persisted options at session creation so every platform uses the same
     // engine configuration and commit policy.
     explicit InputSession(SchemeType scheme_type = SchemeType::Quanpin, unsigned quanpin_autocorrect_types = 0,
-                          bool helpcode_enabled = true, bool chinese_punctuation_enabled = true,
-                          bool candidate_learning_enabled = true, RuntimePaths paths = RuntimePaths::legacy());
+                          bool chinese_punctuation_enabled = true, bool candidate_learning_enabled = true,
+                          RuntimePaths paths = RuntimePaths::legacy());
 
     // Feeds one lowercase ASCII letter or an in-composition apostrophe. Other input is rejected as
     // unhandled so the frontend can pass it through to the client application.
@@ -52,11 +52,6 @@ class InputSession
     KeyResult remove_candidate(std::size_t index);
     KeyResult set_candidate_position(std::size_t index, int position);
     void enable_fixed_positions();
-    void set_quanpin_helpcode_enabled(bool enabled);
-    static bool is_supported_helpcode_schema(const std::string &schema);
-    bool set_helpcode_schema(const std::string &schema);
-    // Compatibility default for subsequently created sessions.
-    static bool select_helpcode_schema(const std::string &schema);
     bool set_frequency_adjustment(FrequencyAdjustmentOptions options);
     const FrequencyAdjustmentOptions &frequency_adjustment() const;
     void set_local_mode_options(LocalModeOptions options);
@@ -74,7 +69,6 @@ class InputSession
 
     SchemeType scheme_type() const;
     unsigned quanpin_autocorrect_types() const;
-    bool helpcode_enabled() const;
     bool chinese_punctuation_enabled() const;
     bool candidate_learning_enabled() const;
     // Switching schemes discards the current composition. A frontend that promises to preserve
@@ -98,12 +92,6 @@ class InputSession
         std::string current_segmentation;
         std::string current_segmentation_with_cases;
         std::string selected_canonical_pinyin;
-        // Continuing word-final helpcode selection splits the exact typed raw
-        // into P + S + H: consumed prefix P, remaining suffix S, and consumed
-        // terminal helpcode H (the active block at the end of the entire raw).
-        // The fields below store P and H; the session retains S. Retraction uses
-        // P + current S + H so later suffix edits survive. For nihc|fR selecting
-        // 拟, P = ni, S = hc, H = |fR.
         // Raw spelling the selection consumed from the active scheme's input,
         // in the exact form the user typed it. A host that lets the user retract
         // a selected segment must replay this spelling, not the pre-selection
@@ -111,9 +99,6 @@ class InputSession
         // may have deleted since the selection. Sources that consume no input
         // (cloud, associative, whole-word commits) leave it empty.
         std::string consumed_raw_input_with_cases;
-        // A terminal helpcode consumed separately from the prefix. Retraction
-        // appends this exact spelling after the current (possibly edited) suffix.
-        std::string consumed_terminal_helpcode_with_cases;
     };
 
     struct CloudQueryState
@@ -171,7 +156,7 @@ class InputSession
     // always including 0 (when non-empty) and raw.size(). A unit is one syllable:
     // the `ma` of ni'hao'ma. Local modes and
     // the dedicated English scheme have no unit model and return an empty vector, and hosts then fall back
-    // to single-character editing. An active autocorrect/helpcode display is
+    // to single-character editing. An active autocorrect display is
     // mapped back to the raw spans the engine actually cut, so a deleted unit
     // can never leave half a segment or a stray separator behind. Consumed by
     // segment deletion (Ctrl+Backspace), so any later caret-movement feature
@@ -183,7 +168,6 @@ class InputSession
     // 不要求音节完整，也不看词库有没有词。混输里用它决定英文前缀补全词的默认位置：能读成拼音的
     // 输入，用户多半在打中文，补全词默认退到首页末位。
     bool reads_as_pinyin() const;
-    bool has_active_helpcode() const;
 
     void set_pinyin_sequence(const std::string &pinyin_sequence);
     void set_pinyin_sequence_with_cases(const std::string &pinyin_sequence);
@@ -265,8 +249,8 @@ class InputSession
     void reset_composition();
     void discard_abandoned_phrase_progress();
     std::optional<std::string> learn_candidate(std::size_t index);
-    // 当前组合可以混入快捷短语时返回它的编码：全拼、非本地模式、未造词、无光标前缀和
-    // 辅助码，且原始输入全是小写字母。
+    // 当前组合可以混入快捷短语时返回它的编码：全拼、非本地模式、未造词、无光标前缀，
+    // 且原始输入全是小写字母。
     std::optional<std::string> quick_phrase_code() const;
     // candidates() 返回混排列表（固定位置、英文/表情/颜文字混排任一开启）的条件。
     bool mixed_candidates_active() const;
@@ -276,7 +260,7 @@ class InputSession
     std::optional<std::string> learn_sentence_candidate(const WordItem &selected);
     std::optional<std::string> adjust_candidate_frequency(std::size_t index, FrequencyAdjustmentOptions options,
                                                           bool force_top);
-    // 拼音候选的调频，排位参照 ranked 而不是当前列表；句中辅助码组合用不带约束的候选作参照。
+    // 拼音候选的调频，排位参照 ranked 而不是当前列表。
     std::optional<std::string> adjust_pinyin_candidate_frequency(const WordItem &selected,
                                                                  const std::vector<WordItem> &ranked,
                                                                  FrequencyAdjustmentOptions options, bool force_top);
@@ -295,7 +279,6 @@ class InputSession
     ImeSession engine_;
     // 位掩码（quanpin::kAutocorrect* 位），不是 bool：bool 会把邻键位截断丢失。
     unsigned quanpin_autocorrect_types_ = 0;
-    bool quanpin_helpcode_enabled_ = true;
     bool chinese_punctuation_enabled_ = true;
     bool candidate_learning_enabled_ = true;
     PunctuationPolicy punctuation_;

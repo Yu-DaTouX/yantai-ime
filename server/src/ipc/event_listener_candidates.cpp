@@ -17,7 +17,7 @@
 #include "utils/hanzi_pinyin.h"
 #include <utf8.h>
 #include "global/globals.h"
-#include "engine/common/helpcode_utils.h"
+#include "engine/common/string_utils.h"
 #include "engine/quanpin/quanpin_query.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "english/english_ime.h"
@@ -86,7 +86,7 @@ bool BuildTranslationQuery(const WordItem &item, EnglishIme::TranslationQuery &q
         query = {std::move(normalized), EnglishIme::TranslationDirection::EnglishToChinese};
         return true;
     }
-    if (HelpcodeUtils::count_han_chars(visible) > 0)
+    if (CommonUtils::count_han_chars(visible) > 0)
     {
         query = {visible, EnglishIme::TranslationDirection::ChineseToEnglish};
         return true;
@@ -105,7 +105,7 @@ bool IsQuickPhraseInput(const std::string &raw)
 // 没截断时出现。整组插在第 slot 个普通候选之前，槽位由调频学出来，最大是每页候选数减一：
 // 组前面最多有这么多个普通候选。放置在繁体写法展开之前，按候选个数数；前面的候选展开出多种写法时，
 // 组在显示上随之后移，可能落到第二页。
-// 不看辅助码：整串精确等于用户自定义的编码时，按短语处理。
+// 整串精确等于用户自定义的编码时，按短语处理。
 void PlaceQuickPhrases(std::vector<WordItem> &items, const std::string &current_input)
 {
     const SchemeType scheme = g_inputSession->current_scheme_type();
@@ -221,16 +221,10 @@ std::string BuildCurrentCandidatePage()
 {
     auto &ui = Global::candidate_ui;
     ui.clear_page();
-    const SchemeType current_scheme = g_inputSession->current_scheme_type();
-    const bool uppercase_all_helpcodes = current_scheme == SchemeType::Quanpin;
     // 副候选框里装的是译文，不是这次输入的候选：助记码、云/AI 角标和「右侧译文」都不适用，
     // 而且 g_candidate_translation_glosses 还留着原候选的译文，照常查会把译文再标注一遍。
     const bool translation_page = g_translation_candidates_active;
-    const bool show_helpcodes = !translation_page && current_scheme == SchemeType::Quanpin &&
-                                GetConfiguredQuanpinHelpcodeEnabled() &&
-                                GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
-    // U 模式（部件拆字反查）：候选上反显该字的注音。annotation 在这个模式下专属注音，辅助码
-    // 提示不在该模式出现（候选来源是 Generated，本来也不走辅助码的整句规则）。
+    // U 模式（部件拆字反查）：候选上反显该字的注音。annotation 在这个模式下专属注音。
     const bool radical_mode = IsRadicalCandidateListActive();
 
     // 组页时读一次徽标配置，循环内不再逐条查
@@ -281,21 +275,6 @@ std::string BuildCurrentCandidatePage()
                 view.annotation = " " + pinyin;
             }
         }
-        else if (item.source == CandidateSource::Generated && show_helpcodes)
-        {
-            // Generated whole-sentence candidates carry the raw spelling in
-            // item.pinyin.  When helpcodes are enabled, do not expose that
-            // full preedit; sentence annotations must use the normal
-            // first/last-character helpcode rule instead.  If the helpcode
-            // cannot be computed, leave the annotation empty rather than
-            // falling back to the raw preedit.
-            view.annotation = g_inputSession->get_helpcode_annotation(item.word, uppercase_all_helpcodes);
-        }
-        if (show_helpcodes && item.source != CandidateSource::EnglishDictionary &&
-            item.source != CandidateSource::QuickPhrase && item.source != CandidateSource::Emoji &&
-            item.source != CandidateSource::Kaomoji && item.source != CandidateSource::Symbol &&
-            item.source != CandidateSource::DateTime && item.source != CandidateSource::Generated)
-            view.annotation = g_inputSession->get_helpcode_annotation(item.word, uppercase_all_helpcodes);
         // 整句来源标签与设置页名称保持一致，方便同时比较四个来源。两家选中同一句时只剩一行，
         // 标签归先保留下来的来源；开启去重补位后，其余来源会改为显示自己的下一条不同结果。
         // Generated/Fallback 也被原样上屏、英文、日期等合成候选借用，只有引擎标了整句联想的才挂标签。
@@ -424,7 +403,7 @@ void PublishBuiltCandidatePage(const std::wstring &candidate_string)
         ui.has_next_page() || (ui.is_current_page_full() && FanyNamedPipe::CanExpandCandidatesKeepingPagePosition());
     if (Global::candidate_expand_panel_open.load(std::memory_order_acquire) && !IsUiLessMode())
     {
-        // 展开面板只显示文字，徽标、辅助码与译文仍只在首行（当前页）上。
+        // 展开面板只显示文字，徽标与译文仍只在首行（当前页）上。
         const size_t start = static_cast<size_t>(ui.current_page_start() + ui.current_page_count());
         const size_t end = (std::min)(ui.items.size(), start + kExpandedCandidateLimit);
         snapshot->expanded_start = static_cast<int>(start);
@@ -443,7 +422,7 @@ void RefreshCandidatePageUi(bool show_window)
 {
     PrepareCandidateTranslationRequest();
     const std::string candidate_string = BuildCurrentCandidatePage();
-    // Host-drawn UI wants plain words (Microsoft IME style), not helpcodes.
+    // Host-drawn UI wants plain words (Microsoft IME style).
     const std::wstring published = IsUiLessMode() ? BuildUiLessCandidatePageW() : string_to_wstring(candidate_string);
     ::WriteDataToSharedMemory(published, true);
     PublishBuiltCandidatePage(published);
@@ -561,8 +540,7 @@ bool ExpandCandidatesKeepingPagePosition()
     auto expanded = g_inputSession->get_candidates();
     user_dictionary::apply_fixed_positions(
         user_dictionary::default_user_db_path(), CurrentRankingContextKey(), expanded, true,
-        [](const std::string &key, const std::string &value) { return g_inputSession->find_candidate(key, value); },
-        g_inputSession->has_active_helpcode());
+        [](const std::string &key, const std::string &value) { return g_inputSession->find_candidate(key, value); });
     PlaceQuickPhrases(expanded, g_inputSession->get_pinyin_sequence_with_cases());
     expanded = WithTraditionalVariants(std::move(expanded));
     return FanyImeIpc::SetExpandedCandidatesKeepingPagePosition(ui, std::move(expanded),
@@ -633,7 +611,7 @@ std::string CandidateDatabaseKey(const WordItem &item, const std::string &contex
     if (g_inputSession->get_pinyin_sequence().size() == 1)
         return item.pinyin;
     auto segments = quanpin::split_segments(context_key);
-    const size_t han_count = HelpcodeUtils::count_han_chars(item.word);
+    const size_t han_count = CommonUtils::count_han_chars(item.word);
     if (segments.empty() || han_count == 0)
         return item.pinyin;
     if (segments.size() > han_count)
@@ -752,11 +730,11 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     {
         items = g_inputSession->get_candidates();
         queryMs = segment.Split();
-        user_dictionary::apply_fixed_positions(
-            user_dictionary::default_user_db_path(), CurrentRankingContextKey(), items,
-            g_inputSession->get_pinyin_sequence().size() == 1,
-            [](const std::string &key, const std::string &value) { return g_inputSession->find_candidate(key, value); },
-            g_inputSession->has_active_helpcode());
+        user_dictionary::apply_fixed_positions(user_dictionary::default_user_db_path(), CurrentRankingContextKey(),
+                                               items, g_inputSession->get_pinyin_sequence().size() == 1,
+                                               [](const std::string &key, const std::string &value) {
+                                                   return g_inputSession->find_candidate(key, value);
+                                               });
         PlaceQuickPhrases(items, current_input);
         fixedPosMs = segment.Split();
         // 异步候选还没回来，字母词也要先在默认位置上；混输开关全关时这里就是它的最终位置。

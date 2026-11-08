@@ -9,8 +9,6 @@
 | --- | --- | --- |
 | `decomposition.txt` | `<部件拼音连写>\t<汉字>\t<字频>`，整表按字频降序 | 由 [mirtlecn/rime-radical-pinyin](https://github.com/mirtlecn/rime-radical-pinyin) 的 `radical_pinyin.dict.yaml` 转换。上游为 **GPL-3.0**，其拆字数据又聚合自 [chaizi](https://github.com/kfcd/chaizi)（CC-BY-3.0）、[CHISE](https://www.chise.org/)（GPL-2.0-or-later）、[yi-bai/ids](https://github.com/yi-bai/ids)（MIT）。本项目按 GPL-3.0 分发，转换后的表沿用同一许可。 |
 
-`engine/helpcode/` 里的 `jiajia` 表也用到了同一份 rime-radical-pinyin 拆字数据来重建，
-那边的登记见 `engine/helpcode/NOTICE.md`。
 
 ## 本项目自建部分
 

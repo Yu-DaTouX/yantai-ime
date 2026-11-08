@@ -268,7 +268,6 @@ try {
         -TsfDirectory windows `
         -ServerDirectory server `
         -NoticesDirectory . `
-        -HelpCodeDirectory engine/helpcode
 
     # 整包签名，而不只是 MetasequoiaImeServer.exe。它是唯一一个「必须」签的——uiAccess=true
     # 没有可信签名就会被 Windows 忽略——但其余辅助进程和 DLL 不签名会被 Defender 拦截，
