@@ -225,6 +225,9 @@ bool SetConfiguredAssocSentenceCollocationEnabled(bool enabled);
 std::string GetConfiguredAssocSentenceCollocationModel();
 bool SetConfiguredAssocSentenceCollocationModel(const std::string &model_id);
 double GetConfiguredAssocSentenceCollocationWeight();
+// 词格高权重多音节整词的边加成（log10，0 = 关闭）及其词库权重门槛。
+double GetConfiguredAssocSentencePhraseBonus();
+long long GetConfiguredAssocSentencePhraseBonusMinWeight();
 int GetConfiguredAssocSentenceCollocationMaxLength();
 int GetConfiguredAssocSentenceCollocationMinLength();
 double GetConfiguredAssocSentenceCollocationPenalty();

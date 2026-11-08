@@ -100,6 +100,8 @@ void EngineInputSession::ApplyConfiguration()
     association.collocation_model =
         collocation_enabled ? ResolveCollocationModelPath(GetConfiguredAssocSentenceCollocationModel()) : std::string();
     association.collocation_weight = GetConfiguredAssocSentenceCollocationWeight();
+    association.phrase_bonus = GetConfiguredAssocSentencePhraseBonus();
+    association.phrase_bonus_min_weight = GetConfiguredAssocSentencePhraseBonusMinWeight();
     association.collocation_rerank = collocation_enabled && !association.collocation_model.empty();
     // octagram 六参数（万象现行默认），随配置下发；这些键不进设置页，只由配置文件调。
     association.collocation_grammar.collocation_max_length = GetConfiguredAssocSentenceCollocationMaxLength();

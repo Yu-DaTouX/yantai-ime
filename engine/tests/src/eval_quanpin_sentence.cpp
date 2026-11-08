@@ -16,6 +16,7 @@
 //                          [--rounds 3] [--timeout 2000] [--settle 80] [--detail]
 //                          [--sc-lm <path|none>] [--neural-desktop <path>]
 //                          [--gram <id>=<path>] [--context <text>] [--fuzzy=<rules>] [--weight=<w>]
+//                          [--phrase-bonus=<log10>] [--phrase-min-weight=<n>]
 //
 // 口径：
 // - 每键耗时只算 handle_character 的同步耗时，逐轮汇总后取 3 轮的中位数；预热轮不计。
@@ -390,6 +391,8 @@ int main(int argc, char **argv)
     std::vector<std::string> mode_specs;
     metasequoia::FuzzyPinyinOptions fuzzy;
     double collocation_weight = -1.0;
+    double phrase_bonus = -1.0;
+    long long phrase_min_weight = -1;
     std::string legacy_model;
     bool legacy_lattice = false;
     bool legacy_octagram = false;
@@ -449,6 +452,10 @@ int main(int argc, char **argv)
             context_override = argv[++i];
             context_given = true;
         }
+        else if (arg.rfind("--phrase-bonus=", 0) == 0)
+            phrase_bonus = std::strtod(arg.c_str() + 15, nullptr);
+        else if (arg.rfind("--phrase-min-weight=", 0) == 0)
+            phrase_min_weight = std::strtoll(arg.c_str() + 20, nullptr, 10);
         else if (arg.rfind("weight=", 0) == 0)
             collocation_weight = std::strtod(arg.c_str() + 7, nullptr);
         else if (arg.rfind("model=", 0) == 0)
@@ -510,6 +517,10 @@ int main(int argc, char **argv)
         }
         if (collocation_weight >= 0.0)
             plan->options.collocation_weight = collocation_weight;
+        if (phrase_bonus >= 0.0)
+            plan->options.phrase_bonus = phrase_bonus;
+        if (phrase_min_weight >= 0)
+            plan->options.phrase_bonus_min_weight = phrase_min_weight;
         plan->settle_ms = settle_ms;
         plans.push_back(std::move(*plan));
     }

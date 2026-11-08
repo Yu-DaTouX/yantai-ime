@@ -274,6 +274,16 @@ double GetConfiguredAssocSentenceCollocationWeight()
     return g_assoc_sentence_collocation_weight;
 }
 
+double GetConfiguredAssocSentencePhraseBonus()
+{
+    return g_assoc_sentence_phrase_bonus;
+}
+
+long long GetConfiguredAssocSentencePhraseBonusMinWeight()
+{
+    return g_assoc_sentence_phrase_bonus_min_weight;
+}
+
 int GetConfiguredAssocSentenceCollocationMaxLength()
 {
     return g_assoc_sentence_collocation_max_length;

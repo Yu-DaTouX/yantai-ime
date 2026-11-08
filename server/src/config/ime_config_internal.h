@@ -167,6 +167,8 @@ extern bool g_assoc_sentence_source_badge;
 extern bool g_assoc_sentence_collocation_enabled;
 extern std::string g_assoc_sentence_collocation_model;
 extern double g_assoc_sentence_collocation_weight;
+extern double g_assoc_sentence_phrase_bonus;
+extern long long g_assoc_sentence_phrase_bonus_min_weight;
 // octagram 六参数（万象现行默认）。不进设置页，供配置文件高级调参。
 extern int g_assoc_sentence_collocation_max_length;
 extern int g_assoc_sentence_collocation_min_length;
