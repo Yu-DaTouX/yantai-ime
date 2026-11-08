@@ -105,7 +105,7 @@ bool IsQuickPhraseInput(const std::string &raw)
 // 没截断时出现。整组插在第 slot 个普通候选之前，槽位由调频学出来，最大是每页候选数减一：
 // 组前面最多有这么多个普通候选。放置在繁体写法展开之前，按候选个数数；前面的候选展开出多种写法时，
 // 组在显示上随之后移，可能落到第二页。
-// 不看辅助码：整串精确等于用户自定义的编码时，按短语处理。
+// 整串精确等于用户自定义的编码时，按短语处理。
 void PlaceQuickPhrases(std::vector<WordItem> &items, const std::string &current_input)
 {
     const SchemeType scheme = g_inputSession->current_scheme_type();

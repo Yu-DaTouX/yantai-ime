@@ -40,6 +40,7 @@ std::string bytes(const std::filesystem::path &path)
 }
 void make_resources(const std::filesystem::path &path, const std::string &word)
 {
+    std::filesystem::create_directories(path);
     execute(path / assets::main_dictionary, "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                                             "INSERT INTO tbl_1_n VALUES('ni','n','" +
                                                 word +
@@ -286,7 +287,8 @@ void test_runtime_isolation()
                 "Own online response was rejected");
         a.command(Command::Cancel);
         b.command(Command::Cancel);
-        require(a.punctuation('"').commit == "拟“", "Punctuation did not flush composition");
+        type(a, "ni");
+        require(a.punctuation('"').commit == "你“", "Punctuation did not flush composition");
         b.command(Command::Cancel);
         require(b.punctuation('"').commit == "“", "Quotation state leaked across sessions");
         const auto run_session = [](Session &session, const std::string &expected) {

@@ -73,6 +73,7 @@ int run_test()
                       ("msime-remove-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     test::ScopedDataDirectoryCleanup cleanup(root);
     const auto resources = root / "resources";
+    std::filesystem::create_directories(resources);
     execute(resources / assets::main_dictionary,
             "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
             "INSERT INTO tbl_1_n VALUES('ni','n','你',10000);"

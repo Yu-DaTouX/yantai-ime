@@ -94,9 +94,9 @@ pwsh -File .\import-nightly-trust.ps1
 
 ## CI 契约
 
-根 `.github/workflows/release.yml` **不加修改地调用本目录的 `Prepare-PackageFiles.ps1` 和 `Compile-Installer.ps1`**。源目录名是 `Prepare-PackageFiles.ps1` 的参数，不是写死在脚本里的字面量：默认值为 `windows/`、`server/` 和仓根授权文件；旧目录或自定义布局通过参数覆盖。回归检查同时执行默认路径和显式参数的打包。辅助码默认读取 `engine/helpcode/`，词库缓存位于 `MetasequoiaImeDict/out/`。
+根 `.github/workflows/release.yml` **不加修改地调用本目录的 `Prepare-PackageFiles.ps1` 和 `Compile-Installer.ps1`**。源目录名是 `Prepare-PackageFiles.ps1` 的参数，不是写死在脚本里的字面量：默认值为 `windows/`、`server/` 和仓根授权文件；旧目录或自定义布局通过参数覆盖。回归检查同时执行默认路径和显式参数的打包。词库缓存位于 `MetasequoiaImeDict/out/`。
 
-合仓后 release workflow 传的是本仓的目录名，辅助码随固定 Engine gitlink 检出，词库按产品锁下载到仓根缓存：
+合仓后 release workflow 传的是本仓的目录名，词库按产品锁下载到仓根缓存：
 
 ```powershell
 pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion 1.2.3 -RepoRoot .. `
@@ -119,7 +119,7 @@ pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion 1.2.3 -RepoRoot .. `
 
 - 默认值 `%LOCALAPPDATA%\metasequoiaime`；升级安装时默认沿用上次的位置
 - 选择写进 `HKLM\Software\Metasequoia\MetasequoiaIME` 的 `DataDir`。这是运行期唯一的权威来源：Server（`server/src/utils/ime_paths.cpp`）、TSF DLL（`windows/src/Utils/FanyUtils.cpp`）和引擎（`engine/core/data_path.h`）各自按 `METASEQUOIA_IME_DATA_DIR` 环境变量 → 该注册表值 → `%LOCALAPPDATA%\metasequoiaime` 的顺序解析，三处必须保持一致。32 位 TSF DLL 用 `KEY_WOW64_64KEY` 读，所以这个值必须写在 64 位视图里
-- 升级时改了位置，安装器会把用户词库（`msime_user.db` 及其 WAL/SHM）、输入统计库（`stats.db` 及其 WAL/SHM）、`config.toml`、`config.base.toml`、`custom_translations.txt`，以及 `skins\`、`helpcodes\custom\`、`models\` 搬到新目录，再删掉旧目录。`config.toml` 或 `custom_translations.txt` 在新旧目录里各有一份且内容不同时，安装器拒绝这个目录，不覆盖任何一份；`custom_translations.txt` 没搬成会中止安装；词库和设置窗口的图片资源由本次安装重新写入，不搬
+- 升级时改了位置，安装器会把用户词库（`msime_user.db` 及其 WAL/SHM）、输入统计库（`stats.db` 及其 WAL/SHM）、`config.toml`、`config.base.toml`、`custom_translations.txt`，以及 `skins\`、`models\` 搬到新目录，再删掉旧目录。`config.toml` 或 `custom_translations.txt` 在新旧目录里各有一份且内容不同时，安装器拒绝这个目录，不覆盖任何一份；`custom_translations.txt` 没搬成会中止安装；词库和设置窗口的图片资源由本次安装重新写入，不搬
 - **数据目录必须整个归输入法**（[#537](https://github.com/metasequoiaime/MSIME-Windows/issues/537)）。用户选的目录里已经有别的文件、或者选了驱动器根目录时，安装器改用其中的 `metasequoiaime` 子目录，并在向导里把实际位置告诉用户；连那个子目录也不空就拒绝。输入法用过的目录（有标记，或历史默认位置）原样沿用
 - 安装器在数据目录里放一个 `.metasequoiaime-data` 标记文件。只有标记里带 `exclusive: adopted empty by the installer` 这一行（安装时目录是空的），或目录就是历史默认位置，覆盖安装才整目录清理、卸载才整目录删除
 - 旧版安装器不管目录里原来有什么都写标记，所以只有旧标记（没有那一行）的目录不能再信：覆盖安装、换目录和卸载都只按 `IsShippedAppDataItem` / `IsRuntimeAppDataItem` / `IsPreservedAppDataItem` 名单删输入法自己的条目，`assets`、`logs`、`skins` 这种通用目录名（以及已退役的 `html`）只删输入法写进去的部分，最后目录空了才删目录。包里新增顶层文件要同步 `IsShippedAppDataItem`，`tests/package-files.ps1` 会拿真实打出的 `app_data` 核对；Server 在数据目录根下新写文件要同步 `IsRuntimeAppDataItem`
@@ -161,7 +161,6 @@ Windows CI 运行 `installer/tests/cloud-choice.ps1`，用 Inno Setup 跑隔离�
 - 词格整句打分用的 `sc.lm` 不随包发布，`Invoke-LocalTest.ps1` 不再生成它。本地跑引擎测试或评测需要它时，仍可用 `scripts\build-language-model.ps1` 从 `language-model\lock.json` 钉住的上游语料转换出来。
 - 本地打完整包前，可以直接运行 `scripts\prepare-package-inputs.ps1`，一次准备好神经整句模型、`sc.lm` 和词库。模型按各自的锁校验 SHA256，已就绪的直接跳过；词库用 `build-dictionary.py --if-stale` 从本地 `msime-dictionary` 构建。
 - 想在本地从 msime-dictionary 的文本源数据构建词库，运行 `python scripts\build-dictionary.py [--dictionary <msime-dictionary checkout>]`（默认读与本仓同级的 `msime-dictionary`，需要 `pip install pypinyin`）：它按 msime Rust 构建器的规则读 `sources/` 与 `custom/`，加上 `scripts\dictionary_build\inputs.lock.json` 固定的仓外文件，生成本仓现有的 `msime.db` / `english.db` / `others.db` 布局写到 `MetasequoiaImeDict\out\`（产品锁的旧词库先备份到 `out.bak\`）。加 `--compare-release dict-vX.Y.Z` 会与官方 Release 逐表对比。加 `--if-stale` 时，`out\` 已由当前 `msime-dictionary` 提交和当前构建脚本构建、且工作区干净就跳过，否则重建；`Invoke-LocalTest.ps1` 与 `prepare-package-inputs.ps1` 都这样调用。CI 与正式发布仍按产品锁取词库。
-- `engine/helpcode/helpcodes/` 是本仓的目录，普通检出即有，无需旧 HelpCode 仓库，也无需初始化 submodule。
 
 ## 本地打包路径
 
@@ -236,7 +235,7 @@ pwsh -File .\package-simplysign-light.ps1 1.2.4
 （加 `-IncludeSymbols` 时是 `_light_with_pdb`）。轻量包和 `test-light.ps1` 用的是同一个
 `/DLightPackage=1` 编译开关，因此有同样的限制：
 
-- **只能覆盖安装在已有的完整安装之上。** 包里没有词库、辅助码、拼音表、神经模型和出厂配置模板，
+- **只能覆盖安装在已有的完整安装之上。** 包里没有词库、拼音表、神经模型和出厂配置模板，
   安装程序也不检查本机是否装过完整包；新用户装它会得到一个没有词库的输入法。对外发布时要写清楚，
   下载页和自动更新清单仍应指向完整包。
 - **hotfix 不能新增配置项。** 升级时 Server 以用户数据目录里的 `config.default.toml` 为骨架合并配置，

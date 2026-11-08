@@ -359,11 +359,11 @@ CandidateList::ItemGeometry CandidateList::MeasureItem(size_t index, float width
     float height = textH;
     float lineEnd = textW;
     // height 末尾属于行底内边距的部分：只有单行高度（itemHeight）里才含这段内边距，
-    // 换到下方的辅助码和翻译从它上面开始排，排完再把它补回最后一行下面。
+    // 换到下方的注解和翻译从它上面开始排，排完再把它补回最后一行下面。
     const float padBottom = std::clamp(appearance_.contentPadBottom, 0.0f, appearance_.itemHeight * 0.5f);
     float padBelow = textH > appearance_.itemHeight ? 0.0f : padBottom;
 
-    // 短字段保持原有并排方式；空间不足时让辅助码和翻译完整换行。
+    // 短字段保持原有并排方式；空间不足时让注解和翻译完整换行。
     if (!item.annotation.empty())
     {
         const float annotationW =
@@ -630,7 +630,7 @@ void CandidateList::Render(DeviceResources &deviceResources)
             highlighted && appearance_.rowTextSelected.a > 0.001f ? appearance_.rowTextSelected : appearance_.textColor;
         ID2D1SolidColorBrush *labelBrush = deviceResources.GetSolidColorBrush(labelColor);
         ID2D1SolidColorBrush *textBrush = deviceResources.GetSolidColorBrush(textColor);
-        // 辅助码与翻译在 CSS 里都是 .text 的子节点（.cand-content / .cand-translation），
+        // 注解与翻译在 CSS 里都是 .text 的子节点（.cand-content / .cand-translation），
         // 颜色继承自 .text，选中行的 `.first .text { color: ... }` 会一并覆盖它们。
         // D2D 端分开绘制，所以这里显式跟随选中行文字色，translation 再乘 CSS 的 opacity .62。
         const D2D1_COLOR_F &annotationColor = highlighted && appearance_.rowTextSelected.a > 0.001f

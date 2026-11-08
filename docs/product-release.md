@@ -2,7 +2,7 @@
 
 一个 Windows 版本的完整一方源码就是本仓的一个提交：TSF、Server、引擎、GUI 框架、页面和安装器都是目录，不需要再被清单钉住。
 
-`product-lock.json` 只覆盖仍来自仓外的输入，现在只剩词库 Release 的 source commit 和每个产物的 SHA256。辅助码在 `engine/helpcode/`，引擎本身也已内嵌，两者都由这个提交钉住，不再单列。
+`product-lock.json` 只覆盖仍来自仓外的输入，现在只剩词库 Release 的 source commit 和每个产物的 SHA256。引擎本身也已内嵌，由这个提交钉住，不再单列。
 
 引擎没有 `repositories` 条目是刻意的：它不再有 gitlink，清单里写一个上游 commit 就等于声称这棵树仍等于上游，而第一个 Windows 专门化的改动落地时这句话就假了，也没有任何 CI 能发现。来源改记在 [engine/UPSTREAM.md](../engine/UPSTREAM.md)。
 

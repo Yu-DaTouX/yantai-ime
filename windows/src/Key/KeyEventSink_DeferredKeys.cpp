@@ -124,8 +124,7 @@ void ApplyDeferredKeyState(DeferredShadowState &shadow, const _KEYSTROKE_STATE &
     case FUNCTION_MOVE_LEFT_CANDIDATE:
     case FUNCTION_MOVE_RIGHT_CANDIDATE:
         // How much one unit covers is Server-owned, as is whether a candidate
-        // arrow moves the highlight or the caret (or how the direct helpcode end
-        // trigger rewrites the spelling), so the future raw and caret
+        // arrow moves the highlight or the caret, so the future raw and caret
         // cannot be predicted here. Invalidate the projection instead of
         // advancing it by one character; the next key re-reads the real
         // composition.

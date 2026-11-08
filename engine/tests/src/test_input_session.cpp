@@ -2079,21 +2079,20 @@ void run_caret_prefix_session_tests(const std::filesystem::path &data_directory)
                 "An intra-first-unit caret must decode exactly like the whole 'ya'");
     }
 
-    // pending_suffix 保留原始大小写：大写字母从光标处插入后原样留在后缀里。
+    // pending_suffix 保留原始输入：从光标处插入的字母原样留在后缀里。
     {
         metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         type(session, "ni'hao");
         session.handle_command(metasequoia::Command::MoveHome);
-        require(session.handle_character('H').handled, "The uppercase insert at the caret was rejected");
-        require(session.editing_text() == "Hni'hao" && session.caret_position() == 1,
-                "The uppercase insert lost its case or position");
+        require(session.handle_character('h').handled, "The insert at the caret was rejected");
+        require(session.editing_text() == "hni'hao" && session.caret_position() == 1, "The insert lost its position");
         session.set_caret(0);
         session.recompute_candidates();
-        require(session.prefix_end() == 0 && session.pending_suffix() == "Hni'hao",
-                "The pending suffix must preserve the typed casing");
+        require(session.prefix_end() == 0 && session.pending_suffix() == "hni'hao",
+                "The pending suffix must preserve the typed input");
         session.set_caret(std::nullopt);
         session.recompute_candidates();
-        require(session.editing_text() == "Hni'hao", "Restoring the end caret altered the raw text");
+        require(session.editing_text() == "hni'hao", "Restoring the end caret altered the raw text");
     }
 
     std::filesystem::remove_all(directory);

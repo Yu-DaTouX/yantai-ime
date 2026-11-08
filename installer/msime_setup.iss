@@ -90,8 +90,6 @@ Name: "{commonpf64}\metasequoiaime\server"
 ; 用户数据（词库、配置、皮肤、界面资源）。默认在 LocalAppData，安装时可以改到别的盘，
 ; 选择写进 HKLM 的 DataDir，Server / TSF DLL / 引擎三方都从那里读。
 Name: "{code:GetDataDir}"; Permissions: users-modify
-; 用户自己的辅助码方案放这里，Server 扫描后列进设置页，升级时保留。
-Name: "{code:GetDataDir}\helpcodes\custom"
 
 [Files]
 ; 独立安装应用图标，供 Windows“已安装的应用”列表稳定显示。
@@ -157,7 +155,7 @@ Source: "{#MySourceRoot}\bundled_skins\*"; \
 Source: "{#MySourceRoot}\bundled_skins.manifest"; Flags: dontcopy
 
 #ifdef LightPackage
-; 轻量包只覆盖设置窗口的图片资源，不带词库/辅助码/出厂配置。
+; 轻量包只覆盖设置窗口的图片资源，不带词库/出厂配置。
 Source: "{#MySourceRoot}\app_data\assets\settings\*"; \
     DestDir: "{code:GetDataDir}\assets\settings"; \
     Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
@@ -1206,35 +1204,6 @@ begin
 end;
 #endif
 
-{ helpcodes 里的内置表由本次安装重写，custom 子目录是用户自己放的辅助码，升级不得清掉。}
-procedure CleanHelpcodesExceptCustom(const HelpcodesPath: String);
-var
-  FindRec: TFindRec;
-  ItemPath: String;
-begin
-  if FindFirst(AddBackslash(HelpcodesPath) + '*', FindRec) then
-  begin
-    try
-      repeat
-        if
-          (FindRec.Name <> '.') and
-          (FindRec.Name <> '..') and
-          (CompareText(FindRec.Name, 'custom') <> 0)
-        then
-        begin
-          ItemPath := AddBackslash(HelpcodesPath) + FindRec.Name;
-          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
-            TryDeleteTree(ItemPath)
-          else
-            DeleteFile(ItemPath);
-        end;
-      until not FindNext(FindRec);
-    finally
-      FindClose(FindRec);
-    end;
-  end;
-end;
-
 procedure CleanAppDataExceptUserFiles;
 var
   Exclusive: Boolean;
@@ -1265,8 +1234,6 @@ begin
           ItemPath := AddBackslash(AppDataPath) + FindRec.Name;
           if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
             DeleteFile(ItemPath)
-          else if CompareText(FindRec.Name, 'helpcodes') = 0 then
-            CleanHelpcodesExceptCustom(ItemPath)
           else if Exclusive then
             TryDeleteTree(ItemPath)
           else
@@ -1456,7 +1423,7 @@ begin
 end;
 
 { 用户改了数据目录：把上一处的用户数据搬过来。只搬真正属于用户、装不回来的东西——
-  词库主体、界面资源和辅助码都会由本次安装重新写入新目录。
+  词库主体和界面资源都会由本次安装重新写入新目录。
   用 robocopy 而不是 RenameFile：跨盘移动目录时 MoveFile 会直接失败。}
 function MigrateUserDataDir(const OldDir, NewDir: String): String;
 var
@@ -1493,19 +1460,6 @@ begin
       Exec(
         ExpandConstant('{sys}\robocopy.exe'),
         '"' + AddBackslash(OldDir) + 'skins" "' + AddBackslash(NewDir) + 'skins" ' +
-        '/E /MOVE /R:2 /W:1 /NJH /NJS /NP /NFL /NDL',
-        '',
-        SW_HIDE,
-        ewWaitUntilTerminated,
-        ResultCode
-      ) and (ResultCode < 8) and Moved;
-
-  { 自定义辅助码也是用户自己放进来的。}
-  if DirExists(AddBackslash(OldDir) + 'helpcodes\custom') then
-    Moved :=
-      Exec(
-        ExpandConstant('{sys}\robocopy.exe'),
-        '"' + AddBackslash(OldDir) + 'helpcodes\custom" "' + AddBackslash(NewDir) + 'helpcodes\custom" ' +
         '/E /MOVE /R:2 /W:1 /NJH /NJS /NP /NFL /NDL',
         '',
         SW_HIDE,

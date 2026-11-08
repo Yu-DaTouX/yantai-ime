@@ -12,7 +12,7 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 |---|---|---|
 | `windows/` | TSF 文本服务 DLL：按键预判、焦点、edit session、管道客户端 | [windows/AGENTS.md](windows/AGENTS.md) |
 | `server/` | 常驻后端：候选状态、配置、词库、管道服务，以及候选窗、悬浮工具栏、托盘菜单和设置窗口（均由 `msimeui` 以 Direct2D 绘制） | [server/AGENTS.md](server/AGENTS.md) |
-| `engine/` | 输入引擎：输入会话、候选查询、辅助码、跨进程契约 | [engine/AGENTS.md](engine/AGENTS.md) |
+| `engine/` | 输入引擎：输入会话、候选查询、跨进程契约 | [engine/AGENTS.md](engine/AGENTS.md) |
 | `ui/` | 通用 Win32 / Direct2D / DirectWrite 控件库 `msimeui` | [ui/AGENTS.md](ui/AGENTS.md) |
 | `installer/` | 收集产物、自签名、Inno Setup 打包 | [installer/README.md](installer/README.md) |
 | `skins/` | 外部皮肤合集，每个子目录一个 `skin.toml` 皮肤包；除素材授权未核实的外随安装包装到数据目录，同名且改过的旧版改名 `.bak` 保留 | [skins/README.md](skins/README.md) |
@@ -32,7 +32,6 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 - **`engine/` 是本仓的一等代码，不是 vendored 第三方。** 需要为 Windows 改引擎就直接改，和改 `server/` 一样评审和测试，不用绕上游。唯一例外是 `engine/` 下的 `ngram/kenlm/`、`ngram/octagram/darts.h`和 `utfcpp/`，那几个是上游副本，保留原格式与许可；`darts.h` 按精确路径单独排除，同目录的 `octagram_gram.{h,cpp}` 是我们的代码，仍受格式门禁管。`googlepinyinime-rev/` 已与上游解绑，可以直接改，但保留它原有的格式与许可，本地改动记在 UPSTREAM.md。来源与裁剪清单见 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
 
 Server 当前仍使用引擎的兼容 `InputSession`，尚未迁移公共 `Session` facade。
-辅助码筛选与候选提示都按会话配置，禁止用全局默认码表驱动活动会话。
 `RuntimePaths::legacy()` 在适配器创建时捕获现有安装布局；完整资源包和用户数据代际切换仍待接入。
 
 ## 构建
@@ -74,7 +73,7 @@ cmake -S ui      -B ui/build -A x64                # GUI 框架
 
 ## 产品输入清单
 
-`product-lock.json` 只记录仍来自仓外的东西，现在只剩一项：词库 Release 的 tag、source commit 和每个产物的 SHA256。**引擎、Server、GUI 框架和安装器都不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。辅助码在 `engine/helpcode/`，同理。
+`product-lock.json` 只记录仍来自仓外的东西，现在只剩一项：词库 Release 的 tag、source commit 和每个产物的 SHA256。**引擎、Server、GUI 框架和安装器都不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。
 
 - 引擎没有 `repositories` 条目，这是有意的。它不再有 gitlink，锁里写一个上游 commit 就等于声称这棵树仍等于上游——第一个 Windows 专门化的改动落地时这句话就假了，而且没有任何 CI 能发现。来源改记在 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
 - `refresh` 不解析任何浮动源码引用，词库取自指定 tag。词库清单里记录了构建它的 commit 和当时工作树是否干净，`verify-assets` 一并校验——摘要只能证明字节是评审过的字节，证明不了它来自一个能重建的源。
@@ -139,7 +138,7 @@ release workflow 里的每一段 shell 都抽在 `scripts/ci/` 下，workflow �
 | `revalidate-draft-release.sh` | 发布前复查 draft 仍指向被构建的那个 commit |
 | `publish-release.sh` | 上传产物、追加说明、发布 |
 
-合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -NoticesDirectory . -HelpCodeDirectory engine/helpcode`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
+合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -NoticesDirectory .`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
 
 词库不在 CI 里现建，从产品锁指定仓库的 `dict-*` release 下载并校验 SHA256。**建库流水线不在本仓**——它随引擎的专门化一并裁掉了（见 [engine/UPSTREAM.md](engine/UPSTREAM.md)），现有 MSIME-Dict release 作为不可变旧产物保留；换发布源要在 `product_lock.py` 里明确评审，不是改个 tag 就能悄悄完成的事。词库改了要先在上游把新词库发布出来，再发 Windows 版本；通过 `scripts/product_lock.py refresh --dictionary-tag <tag>` 更新产品锁并评审摘要变更；发布构建不能临时覆盖词库版本。
 

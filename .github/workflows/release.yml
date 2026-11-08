@@ -472,8 +472,6 @@ jobs:
       # outside, so it lands beside the components in the one checkout.
       STAGING_ROOT: .
     steps:
-      # The helpcodes are collected out of engine/helpcode, which is a directory of this repository,
-      # so a plain checkout of the release commit already carries them.
       - name: Check out the release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -596,7 +594,7 @@ jobs:
           pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion $env:TARGET_VERSION
           -RepoRoot (Resolve-Path '..').Path
           -TsfDirectory windows -ServerDirectory server -NoticesDirectory .
-          -HelpCodeDirectory engine/helpcode -IncludeSymbols
+          -IncludeSymbols
 
       - name: Embed the exact product dependency manifest
         env:

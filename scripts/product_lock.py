@@ -30,7 +30,7 @@ DICTIONARY_REPOSITORY = "metasequoiaime/MSIME-Engine"
 
 # The tip, the server, the GUI framework, the pages, the installer and now the engine are all
 # components of this repository, so a commit of this repository already pins them and there is
-# nothing left to lock. The helpcodes live in the engine, so they are pinned the same way. What
+# nothing left to lock. The engine is part of this repository, so it is pinned the same way. What
 # survives is the dictionary release alone, which is fetched at build time rather than built here.
 #
 # The engine's upstream provenance is recorded in engine/UPSTREAM.md, not here. A lock entry would

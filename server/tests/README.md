@@ -7,7 +7,6 @@ This project now includes a lightweight regression test target wired into the ma
 Current tests focus on high-value IME behaviors that are easy to accidentally break during refactors:
 
 - `quanpin` scheme request construction
-- full-helpcode detection
 - cloud suggestion trigger timing
 
 The goal is not to fully simulate the whole IME UI pipeline yet. The goal is to protect the core input rules and
@@ -25,7 +24,6 @@ $env:LOCALAPPDATA = Join-Path $PWD 'build/test-data/user-local'
 $env:METASEQUOIA_IME_DATA_DIR = Join-Path $env:LOCALAPPDATA 'metasequoiaime'
 New-Item -ItemType Directory -Force $env:METASEQUOIA_IME_DATA_DIR | Out-Null
 Copy-Item MetasequoiaImeDict/out/* $env:METASEQUOIA_IME_DATA_DIR -Force
-Copy-Item engine/helpcode/helpcodes $env:METASEQUOIA_IME_DATA_DIR -Recurse -Force
 Copy-Item server/assets/tables/* $env:METASEQUOIA_IME_DATA_DIR -Force
 Copy-Item server/assets/config/config.toml $env:METASEQUOIA_IME_DATA_DIR -Force
 .\server\tests\scripts\llaunch.ps1 -Configuration Release
@@ -115,7 +113,6 @@ When you change input behavior, add a regression test if the change affects:
 
 - input segmentation
 - space/enter/backspace behavior
-- helpcode handling
 - continuation after candidate selection
 - create-word flow
 - cloud suggestion timing

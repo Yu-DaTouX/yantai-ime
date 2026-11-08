@@ -22,7 +22,7 @@ $required = @(
 )
 
 # 目录类用户数据由 MigrateUserDataDir 单独 robocopy，迁移清单按文件解析取不到它们。
-$preservedDirectories = @('skins', 'helpcodes\custom', 'models')
+$preservedDirectories = @('skins', 'models')
 
 function Get-PascalBody([string]$Text, [string]$Signature) {
     $start = [regex]::Match($Text, [regex]::Escape($Signature) + '\s*\(')
@@ -56,7 +56,7 @@ function Get-PreservedItems([string]$Text) {
 function Get-MigratedFiles([string]$Text) {
     # robocopy 的文件清单是 Pascal 字符串拼接。带双引号的是路径片段（含旧目录根、旧新子目录
     # 拼接），以 / 开头的是 robocopy 开关，没有扩展名的是日志文本——三类都剔掉，剩下的才是
-    # 被搬走的文件。要求扩展名同时把 skins、helpcodes\custom 这类目录排除在外。
+    # 被搬走的文件。要求扩展名同时把 skins 这类目录排除在外。
     $body = Get-PascalBody $Text 'function MigrateUserDataDir'
     $files = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($literal in [regex]::Matches($body, "'([^']*)'")) {

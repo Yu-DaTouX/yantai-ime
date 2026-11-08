@@ -32,7 +32,6 @@ try {
         'server/assets/config/config.toml',
         'server/src/resource/MetasequoiaIME.ico',
         'windows/image/msime.ico',
-        'engine/helpcode/helpcodes/helpcode.txt',
         'engine/radical/decomposition.txt',
         'engine/googlepinyinime-rev/data/dict_pinyin.dat',
         'MetasequoiaImeDict/source/mozc_dictionary_oss/README.txt',
@@ -76,7 +75,7 @@ with sqlite3.connect(out / "others.db") as db:
                          'tsf_dll/64/MetasequoiaImeTsf.dll', 'tsf_dll/64/MetasequoiaImeTsf.pdb',
                          'server_exe/MetasequoiaImeServer.pdb',
                          'server_exe/MetasequoiaImeDictionaryReplay.pdb',
-                         'app_data/helpcodes/helpcode.txt', 'app_data/radical/decomposition.txt',
+                         'app_data/radical/decomposition.txt',
                          'default_skins/fluent/skin.toml',
                          'THIRD_PARTY_NOTICES.txt', 'LICENSE.txt', 'MetasequoiaImeTip.ico')) {
         if (-not (Test-Path (Join-Path $installer $file))) { throw "Missing packaged file: $file" }

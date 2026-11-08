@@ -1,7 +1,7 @@
 // 光标驱动的前缀解码（PRD R2–R7/R9，引擎 Stage 1）的 CI 回归。
 // 同一组断言已先落在 engine/tests/src/test_input_session.cpp 的
-// run_caret_prefix_session_tests，但 engine/tests 不进 CI（见 engine spec 的 helpcode
-// 接入契约），PRD AC9 要求单测 CI 可跑，因此按 server 测试框架移植一份等价实现；
+// run_caret_prefix_session_tests，但 engine/tests 不进 CI，PRD AC9 要求单测 CI 可跑，
+// 因此按 server 测试框架移植一份等价实现；
 // 两侧语义以引擎侧为准，这里只消费 set_caret / recompute_candidates / prefix_end /
 // pending_suffix 这些公开访问器。
 #include "tests/includes/test_framework.h"

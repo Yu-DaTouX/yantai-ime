@@ -27,7 +27,6 @@ $devLocalData = Join-Path $PWD 'build/dev-local'
 $devData = Join-Path $devLocalData 'metasequoiaime'
 New-Item -ItemType Directory -Force $devData | Out-Null
 Copy-Item MetasequoiaImeDict/out/* $devData -Force
-Copy-Item engine/helpcode/helpcodes $devData -Recurse -Force
 Copy-Item server/assets/tables/* $devData -Force
 Copy-Item server/assets/config/config.toml $devData -Force
 $devAssets = Join-Path $devData 'assets'
