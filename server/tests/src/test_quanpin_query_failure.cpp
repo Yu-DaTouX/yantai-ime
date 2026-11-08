@@ -67,15 +67,18 @@ TEST_CASE(quanpin_query_discards_partial_rows_and_reuses_failed_statement)
 {
     QueryDatabase fixture;
     Fault fault;
-    REQUIRE_EQ(sqlite3_create_function(fixture.db, "fail_second", 1, SQLITE_UTF8, &fault, FailSecondRow,
-                                       nullptr, nullptr), SQLITE_OK);
+    REQUIRE_EQ(
+        sqlite3_create_function(fixture.db, "fail_second", 1, SQLITE_UTF8, &fault, FailSecondRow, nullptr, nullptr),
+        SQLITE_OK);
     fixture.execute("CREATE VIEW faulty AS SELECT key,fail_second(value) AS value,weight FROM tbl_1_n;");
     // Verify the fault really arrives after a row was available, not during
     // prepare or the sort. The weight index makes this a streaming scan.
     sqlite3_stmt *raw = nullptr;
-    REQUIRE_EQ(sqlite3_prepare_v2(fixture.db,
-                                  "SELECT key,value,weight FROM faulty WHERE key>=?1 AND key<?2 ORDER BY weight DESC LIMIT 10",
-                                  -1, &raw, nullptr), SQLITE_OK);
+    REQUIRE_EQ(
+        sqlite3_prepare_v2(fixture.db,
+                           "SELECT key,value,weight FROM faulty WHERE key>=?1 AND key<?2 ORDER BY weight DESC LIMIT 10",
+                           -1, &raw, nullptr),
+        SQLITE_OK);
     {
         std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> probe(raw, sqlite3_finalize);
         REQUIRE_EQ(sqlite3_bind_text(raw, 1, "ni", -1, SQLITE_STATIC), SQLITE_OK);
@@ -161,11 +164,13 @@ TEST_CASE(latin_words_failed_refresh_preserves_previous_snapshot_and_retries)
     auto words = quanpin::refresh_latin_words(nullptr, stale, version, fixture.db, fixture.statements);
     REQUIRE(!words->empty());
     Fault fault;
-    REQUIRE_EQ(sqlite3_create_function(fixture.db, "fail_second", 1, SQLITE_UTF8, &fault, FailSecondRow,
-                                       nullptr, nullptr), SQLITE_OK);
-    fixture.execute("ALTER TABLE latin_words RENAME TO latin_source;"
-                    "INSERT INTO latin_source VALUES('a''q','阿Q',50,0);"
-                    "CREATE VIEW latin_words AS SELECT key,fail_second(value) AS value,weight,exact_only FROM latin_source;");
+    REQUIRE_EQ(
+        sqlite3_create_function(fixture.db, "fail_second", 1, SQLITE_UTF8, &fault, FailSecondRow, nullptr, nullptr),
+        SQLITE_OK);
+    fixture.execute(
+        "ALTER TABLE latin_words RENAME TO latin_source;"
+        "INSERT INTO latin_source VALUES('a''q','阿Q',50,0);"
+        "CREATE VIEW latin_words AS SELECT key,fail_second(value) AS value,weight,exact_only FROM latin_source;");
     stale = true;
     const auto failed = quanpin::refresh_latin_words(words, stale, version, fixture.db, fixture.statements);
     REQUIRE(failed == words);

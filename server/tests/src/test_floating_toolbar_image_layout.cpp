@@ -29,8 +29,7 @@ Package ColumnSkin()
 }
 
 const std::vector<ToolbarImageButtonRequest> kAllButtons = {
-    {"status", "cn"}, {"fullwidth", "half"}, {"punctuation", "cn"}, {"character_set", "simplified"},
-    {"settings", ""},
+    {"status", "cn"}, {"fullwidth", "half"}, {"punctuation", "cn"}, {"character_set", "simplified"}, {"settings", ""},
 };
 
 std::vector<ToolbarImageButtonRequest> Without(const std::string &key)

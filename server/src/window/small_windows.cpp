@@ -354,7 +354,6 @@ void UpdateFtbCharacterSetState()
     RevealAutoHiddenFloatingToolbar(L"input-state-changed");
 }
 
-
 void ApplyConfiguredFloatingToolbarItems()
 {
     RenderFloatingToolbarState();

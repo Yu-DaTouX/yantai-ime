@@ -41,6 +41,8 @@ jobs:
         run: python3 server/scripts/generate_quanpin_autocorrect.py --check
   dependencies:
     name: Dependency review
+    # The fork has no dependency graph; the action fails before reviewing anything.
+    if: ${{ github.repository != 'Yu-DaTouX/yantai-ime' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

@@ -476,8 +476,7 @@ int run(int argc, wchar_t **argv)
             fs::remove(sidecar, error);
             if (error)
             {
-                const std::string message =
-                    "cannot remove " + to_utf8(sidecar.wstring()) + ": " + error.message();
+                const std::string message = "cannot remove " + to_utf8(sidecar.wstring()) + ": " + error.message();
                 std::error_code ignored;
                 for (const auto &leftover : built)
                     fs::remove(leftover, ignored);

@@ -69,11 +69,7 @@ const ToolbarIcon kToolbarIcons[] = {
 // The skin's button keys for kToolbarIcons, in the same order, with the state each icon shows:
 // Chinese input, half width, Chinese punctuation, simplified.
 const ToolbarImageButtonRequest kToolbarButtons[] = {
-    {"status", "cn"},
-    {"fullwidth", "half"},
-    {"punctuation", "cn"},
-    {"character_set", "simplified"},
-    {"settings", ""},
+    {"status", "cn"}, {"fullwidth", "half"}, {"punctuation", "cn"}, {"character_set", "simplified"}, {"settings", ""},
 };
 static_assert(std::size(kToolbarButtons) == std::size(kToolbarIcons));
 

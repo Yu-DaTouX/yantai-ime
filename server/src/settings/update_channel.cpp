@@ -19,8 +19,7 @@ constexpr char kVersionPattern[] = R"(^\s*[vV]?(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]
 // 发布页地址的形状。仓库地址来自 update_source，仓库改名只改那一处。
 const std::regex &TagPattern()
 {
-    static const std::regex pattern("^" + update_source::RegexEscapedRepositoryUrl() +
-                                    "/releases/tag/([\\w.+-]+)$");
+    static const std::regex pattern("^" + update_source::RegexEscapedRepositoryUrl() + "/releases/tag/([\\w.+-]+)$");
     return pattern;
 }
 

@@ -131,9 +131,8 @@ VisualPtr BuildToolsPage(PageContext &context)
 
     // 剪贴板管理
     page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"剪贴板管理",
-                        L"开启后，复制过的文本会进入剪贴板历史。关闭后立即清空已保存的记录，"
-                        L"且只记录文本类型。"),
+        QuickTitleBlock(L"剪贴板管理", L"开启后，复制过的文本会进入剪贴板历史。关闭后立即清空已保存的记录，"
+                                       L"且只记录文本类型。"),
         BindToggle(context, "utility.clipboard_history"), 2.0f));
 
     // 候选混输
@@ -162,8 +161,7 @@ VisualPtr BuildToolsPage(PageContext &context)
             },
             hint);
         auto &details = *section.details;
-        details.Add(DetailsDescription(
-            L"全拼输入中文时，把下面这些内容直接混进候选，不用切换到对应的快捷模式。"));
+        details.Add(DetailsDescription(L"全拼输入中文时，把下面这些内容直接混进候选，不用切换到对应的快捷模式。"));
         details.Add(DetailsRow(context, L"中英混输", L"在候选项中补充英文单词", zhEn));
         auto triggerRow = MakeRow(L"英文触发字符数", L"预编辑字母达到该长度后才出现英文候选项", trigger, true);
         triggerRow->SetMargin({0.0f, 2.0f, 0.0f, 2.0f});
@@ -270,15 +268,13 @@ VisualPtr BuildToolsPage(PageContext &context)
                         L"词。"),
         BindToggle(context, "utility.radical_mode"), 2.0f));
     page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"Emoji 快捷输入(E 模式)",
-                        L"中文模式下按 Shift+E，再输入全拼 / 简拼 / 英文关键词即可输入 "
-                        L"emoji。例如 xiaolian、xl、xiaolian、laugh。空格上屏；数字选词"
-                        L"。"),
+        QuickTitleBlock(L"Emoji 快捷输入(E 模式)", L"中文模式下按 Shift+E，再输入全拼 / 简拼 / 英文关键词即可输入 "
+                                                   L"emoji。例如 xiaolian、xl、xiaolian、laugh。空格上屏；数字选词"
+                                                   L"。"),
         BindToggle(context, "utility.emoji_mode"), 2.0f));
     page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"颜文字快捷输入(M 模式)",
-                        L"中文模式下按 Shift+M，再输入全拼 / 简拼 / 英文关键词即可输入颜"
-                        L"文字。例如 haixiu、hx、zai xiang、zx、kiss。空格上屏；数字选词。"),
+        QuickTitleBlock(L"颜文字快捷输入(M 模式)", L"中文模式下按 Shift+M，再输入全拼 / 简拼 / 英文关键词即可输入颜"
+                                                   L"文字。例如 haixiu、hx、zai xiang、zx、kiss。空格上屏；数字选词。"),
         BindToggle(context, "utility.kaomoji_mode"), 2.0f));
     page.AddSection(std::make_shared<TopAlignedRow>(
         QuickTitleBlock(L"符号快捷输入(S 模式)",
@@ -296,12 +292,11 @@ VisualPtr BuildToolsPage(PageContext &context)
                  L"中文模式下按 Shift+Y，之后输入的字母按英文处理，不会当作拼音。空格上屏当前输入；数字可选英"
                  L"文词库中的单词。上屏后自动回到中文输入。",
                  "utility.y_mode"));
-    page.AddSection(
-        centered(L"数字与计算(V 模式)",
-                 L"中文模式下输入 V 再接数字或算式：V123 → 一百二十三 / 壹佰贰拾叁；V123.45 → "
-                 L"壹佰贰拾叁元肆角伍分；V1+2*3 → 7（支持 + - * / 和括号）。全拼大小写 v "
-                 L"都可以。空格上屏；数字键用来输入，Shift+数字选词。",
-                 "utility.v_mode"));
+    page.AddSection(centered(L"数字与计算(V 模式)",
+                             L"中文模式下输入 V 再接数字或算式：V123 → 一百二十三 / 壹佰贰拾叁；V123.45 → "
+                             L"壹佰贰拾叁元肆角伍分；V1+2*3 → 7（支持 + - * / 和括号）。全拼大小写 v "
+                             L"都可以。空格上屏；数字键用来输入，Shift+数字选词。",
+                             "utility.v_mode"));
 
     struct Holder : msimeui::Container
     {

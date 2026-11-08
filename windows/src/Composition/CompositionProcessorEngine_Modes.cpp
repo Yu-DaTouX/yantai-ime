@@ -373,7 +373,6 @@ HRESULT CCompositionProcessorEngine::SetKeyboardOpenCompartment(_In_ ITfThreadMg
     return result;
 }
 
-
 void CCompositionProcessorEngine::ReleaseConfiguredImeModeDefense()
 {
     if (!_defendConfiguredImeMode)

@@ -259,8 +259,9 @@ TEST_CASE(candidate_skin_catalog_rejects_invalid_toolbar_button_defaults_and_flo
         LoadFails(L"defaults-zero-size", std::string(kImageToolbar) + "[toolbar.button_defaults]\nwidth_dip = 0\n"));
     REQUIRE(LoadFails(L"defaults-missing-background",
                       std::string(kImageToolbar) + "[toolbar.button_defaults]\nbackground = \"assets/none.png\"\n"));
-    REQUIRE(LoadFails(L"button-missing-background",
-                      std::string(kImageToolbar) + "[toolbar.buttons.punctuation]\nbackground = \"assets/none.png\"\n"));
+    REQUIRE(
+        LoadFails(L"button-missing-background",
+                  std::string(kImageToolbar) + "[toolbar.buttons.punctuation]\nbackground = \"assets/none.png\"\n"));
 }
 
 TEST_CASE(candidate_skin_catalog_reads_decoration_candidate_overlay)

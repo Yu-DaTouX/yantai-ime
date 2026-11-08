@@ -283,8 +283,8 @@ bool SetOwnerOnlyDacl(const std::wstring &path)
     if (GetNamedSecurityInfoW(path.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl,
                               nullptr, &descriptor) == ERROR_SUCCESS)
     {
-        already_private = HasFullAccessAce(old_dacl, user_sid, directory) &&
-                          !(users_group && HasAceForSid(old_dacl, users_group));
+        already_private =
+            HasFullAccessAce(old_dacl, user_sid, directory) && !(users_group && HasAceForSid(old_dacl, users_group));
         LocalFree(descriptor);
     }
 
@@ -446,10 +446,10 @@ void ensure_ime_data_writable()
     // 给数据目录授过 BUILTIN\Users 的可写权限；这里换成「当前用户 + SYSTEM + Administrators」的
     // 保护型 DACL，并让子目录/文件继承，其他本地账户就不能再读到这些数据。
     static const wchar_t *const kPrivateFiles[] = {
-        L"msime_user.db",    L"msime_user.db-wal",       L"msime_user.db-shm",  L"user_dict.dat",
-        L"english.db",       L"english.db-wal",          L"english.db-shm",     L"stats.db",
-        L"stats.db-wal",     L"stats.db-shm",            L"clipboard_history.json", L"config.toml",
-        L"config.base.toml", L"config.default.toml",     L"config.toml.tmp"};
+        L"msime_user.db",    L"msime_user.db-wal",   L"msime_user.db-shm",      L"user_dict.dat",
+        L"english.db",       L"english.db-wal",      L"english.db-shm",         L"stats.db",
+        L"stats.db-wal",     L"stats.db-shm",        L"clipboard_history.json", L"config.toml",
+        L"config.base.toml", L"config.default.toml", L"config.toml.tmp"};
 
     const std::wstring dir = get_ime_config_dir_w();
     if (IsUsableAbsolutePath(dir))

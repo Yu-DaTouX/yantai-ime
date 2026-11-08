@@ -106,16 +106,16 @@ void WorkerLoop()
         if (request.emoji && expressive_prefix)
         {
             // emoji 和符号一样只认整串精确等于键，打到一半的前缀不混进来。
-            result.emoji = metasequoia::local_modes::query_mixed_emoji(
-                               request.input, request.scheme, others_db_path, kExpressiveCandidateLimit)
+            result.emoji = metasequoia::local_modes::query_mixed_emoji(request.input, request.scheme, others_db_path,
+                                                                       kExpressiveCandidateLimit)
                                .candidates;
             if (IsStale(observed_generation))
                 continue;
         }
         if (request.kaomoji && expressive_prefix)
         {
-            result.kaomoji = metasequoia::local_modes::query_kaomoji(
-                                 request.input, request.scheme, others_db_path, kExpressiveCandidateLimit)
+            result.kaomoji = metasequoia::local_modes::query_kaomoji(request.input, request.scheme, others_db_path,
+                                                                     kExpressiveCandidateLimit)
                                  .candidates;
             if (IsStale(observed_generation))
                 continue;

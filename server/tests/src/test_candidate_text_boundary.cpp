@@ -18,8 +18,8 @@ TEST_CASE(candidate_text_boundary_counts_valid_utf8_without_recovery)
 TEST_CASE(candidate_text_boundary_discards_bad_page_and_accepts_next_candidate)
 {
     // Bad lead byte, truncated sequence, overlong encoding and surrogate.
-    for (const std::string &bad : {std::string("\xFF"), std::string("\xE4\xBD"), std::string("\xC0\xAF"),
-                                   std::string("\xED\xA0\x80")})
+    for (const std::string &bad :
+         {std::string("\xFF"), std::string("\xE4\xBD"), std::string("\xC0\xAF"), std::string("\xED\xA0\x80")})
     {
         std::vector<std::string> page{bad};
         std::vector<std::string> cache{bad};

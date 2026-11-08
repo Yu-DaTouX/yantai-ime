@@ -11,8 +11,7 @@ namespace FanyImeIpc
 // must not unwind out of the input worker or be passed to a learning write.
 // Recovery owns the page/cache invalidation; it must not reset the composition
 // or reconnect the transport for a data error.
-template <typename Recover>
-std::optional<std::size_t> CandidateTextLength(const std::string &text, Recover &&recover)
+template <typename Recover> std::optional<std::size_t> CandidateTextLength(const std::string &text, Recover &&recover)
 {
     try
     {

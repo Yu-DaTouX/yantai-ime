@@ -323,8 +323,7 @@ struct CandidateSpellingSettings
  */
 inline WordItem WithFirstTraditionalSpellingOf(WordItem item, const CandidateSpellingSettings &settings)
 {
-    if (!ShouldConvertCandidateTextToTraditional(settings.traditional_character_set,
-                                                 settings.radical_candidate_list))
+    if (!ShouldConvertCandidateTextToTraditional(settings.traditional_character_set, settings.radical_candidate_list))
         return item;
     auto spelled = ExpandTraditionalVariants({item}, settings.index, settings.region);
     return spelled.empty() ? item : std::move(spelled.front());

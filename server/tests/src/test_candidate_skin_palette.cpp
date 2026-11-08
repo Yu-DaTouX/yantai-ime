@@ -21,7 +21,8 @@ TEST_CASE(candidate_skin_palette_falls_back_to_fluent_for_a_removed_builtin)
     const CandidateSkinPalette fluent = ResolveCandidateSkinPalette("fluent", false, "auto");
     REQUIRE_EQ(FlattenCandidateColor(removed.surface, removed.surface),
                FlattenCandidateColor(fluent.surface, fluent.surface));
-    REQUIRE_EQ(FlattenCandidateColor(removed.text, removed.surface), FlattenCandidateColor(fluent.text, fluent.surface));
+    REQUIRE_EQ(FlattenCandidateColor(removed.text, removed.surface),
+               FlattenCandidateColor(fluent.text, fluent.surface));
 }
 
 TEST_CASE(candidate_skin_palette_custom_missing_colors_inherit_package_base)

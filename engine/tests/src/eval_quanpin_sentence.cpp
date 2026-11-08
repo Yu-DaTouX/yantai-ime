@@ -145,11 +145,11 @@ struct Plan
 {
     std::string label;
     SentenceAssociationOptions options;
-    bool await = false;  // 有异步来源（神经重排 / 上文重排）
+    bool await = false;      // 有异步来源（神经重排 / 上文重排）
     bool neural_row = false; // 只在神经来源时用「整句行出现」当收敛判据
     // 只有上文重排时，空上文的输入压根不会排后台任务，这等不到回调，得直接跳过。
     bool context_only = false;
-    int settle_ms = 80;  // 回调停止多久算收敛，见 await_sentence
+    int settle_ms = 80; // 回调停止多久算收敛，见 await_sentence
     std::string summary;
 };
 
@@ -359,14 +359,15 @@ int main(int argc, char **argv)
 {
     if (argc < 2)
     {
-        std::fprintf(stderr, "usage: eval_quanpin_sentence <cases.tsv> [repeats] [lattice] [octagram] [weight=<w>] "
-                             "[model=<path>] [fuzzy=<rules>]\n"
-                             "       eval_quanpin_sentence <cases.tsv> --mode <spec> [--mode <spec>...] [--rounds N]\n"
-                             "                             [--timeout ms] [--settle ms] [--detail] [--sc-lm <path|none>]\n"
-                             "                             [--neural-desktop <path>] [--gram <id>=<path>]\n"
-                             "                             [--context <text>] [--fuzzy=<rules>] [--weight=<w>]\n"
-                             "  spec: unigram | trigram | neural_desktop | neural_keyboard | context | "
-                             "octagram:<id>, joined with '+'\n");
+        std::fprintf(stderr,
+                     "usage: eval_quanpin_sentence <cases.tsv> [repeats] [lattice] [octagram] [weight=<w>] "
+                     "[model=<path>] [fuzzy=<rules>]\n"
+                     "       eval_quanpin_sentence <cases.tsv> --mode <spec> [--mode <spec>...] [--rounds N]\n"
+                     "                             [--timeout ms] [--settle ms] [--detail] [--sc-lm <path|none>]\n"
+                     "                             [--neural-desktop <path>] [--gram <id>=<path>]\n"
+                     "                             [--context <text>] [--fuzzy=<rules>] [--weight=<w>]\n"
+                     "  spec: unigram | trigram | neural_desktop | neural_keyboard | context | "
+                     "octagram:<id>, joined with '+'\n");
         return 2;
     }
     const auto cases = load_cases(argv[1]);
@@ -454,7 +455,8 @@ int main(int argc, char **argv)
             legacy_model = arg.substr(6);
         else if (arg.rfind("fuzzy=", 0) == 0)
             fuzzy.rules = static_cast<std::uint32_t>(std::strtoul(arg.c_str() + 6, nullptr, 0));
-        else if (!arg.empty() && arg.front() != '-' && !legacy_repeats && std::isdigit(static_cast<unsigned char>(arg[0])))
+        else if (!arg.empty() && arg.front() != '-' && !legacy_repeats &&
+                 std::isdigit(static_cast<unsigned char>(arg[0])))
         {
             rounds = (std::max)(1, std::atoi(arg.c_str()));
             legacy_repeats = true;
@@ -472,9 +474,8 @@ int main(int argc, char **argv)
     if (!desktop_override.empty())
         models.neural_desktop = desktop_override;
     else
-        models.neural_desktop =
-            utf8(metasequoia::data_directory() / "models" / "neural-desktop" /
-                 metasequoia::assets::neural_model_desktop);
+        models.neural_desktop = utf8(metasequoia::data_directory() / "models" / "neural-desktop" /
+                                     metasequoia::assets::neural_model_desktop);
     for (const std::string &override_entry : gram_overrides)
     {
         const size_t equals = override_entry.find('=');
@@ -597,8 +598,7 @@ int main(int argc, char **argv)
                 }
                 const bool case_context = context_given ? !context_override.empty() : !item.context.empty();
                 const bool await_this = plan.await && (!plan.context_only || case_context);
-                const double ready_ms =
-                    await_this ? await_sentence(session, plan, timeout_ms, plan.settle_ms) : 0.0;
+                const double ready_ms = await_this ? await_sentence(session, plan, timeout_ms, plan.settle_ms) : 0.0;
                 if (bucket != nullptr && await_this)
                     bucket->ready_ms.push_back(ready_ms);
 
@@ -651,8 +651,8 @@ int main(int argc, char **argv)
             round_p95.push_back(percentile(round.key_ms, 0.95));
             round_median.push_back(percentile(round.key_ms, 0.5));
             round_ready.push_back(round.ready_ms.empty()
-                                       ? 0.0
-                                       : median_of(std::vector<double>(round.ready_ms.begin(), round.ready_ms.end())));
+                                      ? 0.0
+                                      : median_of(std::vector<double>(round.ready_ms.begin(), round.ready_ms.end())));
         }
         const double key_mean = median_of(round_mean);
         const double key_p95 = median_of(round_p95);
@@ -663,7 +663,7 @@ int main(int argc, char **argv)
         double working_set = 0.0;
         double peak_working_set = 0.0;
         if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&memory),
-                                sizeof(memory)))
+                                 sizeof(memory)))
         {
             working_set = megabytes(memory.WorkingSetSize);
             peak_working_set = megabytes(memory.PeakWorkingSetSize);
@@ -684,8 +684,8 @@ int main(int argc, char **argv)
             std::printf("  %-8s top1 %d/%d  top3 %d/%d\n", category.c_str(), counts.first, counts.second, three.first,
                         three.second);
         }
-        std::printf("  per key ms: mean %.3f  p95 %.3f  median %.3f   ready ms: %.1f%s\n", key_mean, key_p95, key_median,
-                    ready, plan.await && ready > 0 ? "" : " (no background result)");
+        std::printf("  per key ms: mean %.3f  p95 %.3f  median %.3f   ready ms: %.1f%s\n", key_mean, key_p95,
+                    key_median, ready, plan.await && ready > 0 ? "" : " (no background result)");
         std::printf("  working set %.1f MB  peak %.1f MB\n", working_set, peak_working_set);
         std::printf("RESULT\tmode=%s\tcases=%d\ttop1=%.2f\ttop3=%.2f\tsent1=%.2f\tkey_mean=%.4f\tkey_p95=%.4f\t"
                     "key_median=%.4f\tready_ms=%.1f\tws_mb=%.1f\tpeak_ws_mb=%.1f\tempty=%d\tnot_full_pinyin=%d\n\n",

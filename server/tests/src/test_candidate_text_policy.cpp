@@ -80,7 +80,6 @@ TEST_CASE(candidate_text_policy_never_converts_in_simplified_mode)
     REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kSimplified, kRadicalCandidateList));
 }
 
-
 // 切换字形后要不要换写法：只有中文方案下、不是 U 模式拆字列表、也不在英文状态时，列表才随字形变。
 TEST_CASE(candidate_text_policy_rebuilds_only_lists_that_follow_the_character_set)
 {
