@@ -3,6 +3,7 @@
 #include "msimeui/Controls.h"
 
 #include "msimeui/DeviceResources.h"
+#include "msimeui/Fonts.h"
 #include "msimeui/Theme.h"
 #include "msimeui/Window.h"
 
@@ -161,6 +162,11 @@ void CandidateList::SetOnContextMenu(ContextMenuHandler handler)
 const CandidateList::Item *CandidateList::GetItem(size_t index) const
 {
     return index < items_.size() ? &items_[index] : nullptr;
+}
+
+const CandidateList::Appearance &CandidateList::GetAppearance() const
+{
+    return appearance_;
 }
 
 void CandidateList::SetAppearance(Appearance appearance)
@@ -396,7 +402,21 @@ CandidateList::ItemGeometry CandidateList::MeasureItem(size_t index, float width
     const float textH = appearance_.ellipsisText ? appearance_.itemHeight
                                                  : std::max(appearance_.itemHeight,
                                                             MeasureTextHeight(item.text, appearance_.fontSize, textW));
-    geometry.label = {labelX, 0.0f, labelW, appearance_.itemHeight};
+    // 序号和候选文字的字号不同，行盒各自居中在同一高度上时，数字（cap height）的墨迹中线会比
+    // 汉字的高出约一个像素。按两者各自的墨迹中线对齐：把序号行整体下移这一段差值。
+    const std::wstring &family = ResolvedFontFamily();
+    const TextVerticalMetrics labelMetrics =
+        ResolveTextVerticalMetrics(family, appearance_.fallbackFontFamilies, item.label);
+    const TextVerticalMetrics textMetrics =
+        ResolveTextVerticalMetrics(family, appearance_.fallbackFontFamilies, item.text);
+    const float labelBaseline =
+        (appearance_.itemHeight - labelMetrics.lineHeightEm * appearance_.labelFontSize) * 0.5f +
+        labelMetrics.ascentEm * appearance_.labelFontSize;
+    const float textBaseline =
+        (textH - textMetrics.lineHeightEm * appearance_.fontSize) * 0.5f + textMetrics.ascentEm * appearance_.fontSize;
+    const float labelShift = (textBaseline - textMetrics.inkCenterEm * appearance_.fontSize) -
+                             (labelBaseline - labelMetrics.inkCenterEm * appearance_.labelFontSize);
+    geometry.label = {labelX, labelShift, labelW, appearance_.itemHeight};
     geometry.text = {textX, 0.0f, textW, textH};
     float height = textH;
     float lineEnd = textW;

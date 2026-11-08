@@ -365,8 +365,6 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         {
             impl_->header->SetText(L"");
             impl_->header->SetHeight(0.0f);
-            // 隐藏时把 body 的两处 2 DIP 行距一起抵掉，平时候选框和没有这一行时一模一样。
-            impl_->header->SetMargin({0.0f, -kCandidateBodyRowSpacingDip, 0.0f, -kCandidateBodyRowSpacingDip});
         }
     }
     std::vector<msimeui::CandidateList::Item> items;

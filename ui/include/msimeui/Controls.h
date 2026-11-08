@@ -663,7 +663,8 @@ class CandidateList : public Visual
         bool selectable = true;
         // Measure exactly to the content: no 80 DIP minimum list width and no
         // slack after the text beyond the annotation gap. Pair it with a
-        // contentPadRight equal to contentPadLeft + textPadLeft for even margins.
+        // contentPadRight equal to contentPadLeft so the row's padding is even on
+        // both sides of the card; the row then ends at the card's content edge.
         bool fitContent = false;
         float contentPadLeft = 5.0f;
         float contentPadRight = 5.0f;
@@ -733,6 +734,7 @@ class CandidateList : public Visual
     void SetOnItemActivated(ItemActivatedHandler handler);
     void SetOnContextMenu(ContextMenuHandler handler);
     void SetAppearance(Appearance appearance);
+    const Appearance &GetAppearance() const;
     void SetOrientation(Orientation orientation);
     void SetHoverEnabled(bool enabled);
     // 列表为空时画的一行灰字（例如英文词义清单页的「没有英文释义」）。空串表示不画。
