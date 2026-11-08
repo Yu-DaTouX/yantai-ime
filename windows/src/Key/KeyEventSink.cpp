@@ -8,6 +8,7 @@
 #include "KeyRepeatGuard.h"
 #include "CapsLockInputPolicy.h"
 #include "PinyinCommitShortcutPolicy.h"
+#include "KeyRoutingPolicy.h"
 #include "CaretAnchorPolicy.h"
 #include "Compartment.h"
 #include "MetasequoiaIMEBaseStructure.h"
@@ -179,8 +180,9 @@ static bool CanQueueHotkeyBehindBarrier(REFGUID hotkeyGuid)
 // from a chat box's "send" -- or Ctrl+1 from a tab switch -- for nothing in exchange.
 bool IsTranslationCommitShortcut(UINT code, UINT modifiers)
 {
-    return code == VK_RETURN && (modifiers & 0b00000111u) == 0b00000010u && (GetAsyncKeyState(VK_LWIN) & 0x8000) == 0 &&
-           (GetAsyncKeyState(VK_RWIN) & 0x8000) == 0 && FanyUtils::ReadConfiguredCandidateTranslationsEnabled();
+    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    return key_route_policy::IsTranslationCommitChord(FanyUtils::ReadConfiguredCandidateTranslationsEnabled(), code,
+                                                      modifiers, windowsKeyDown);
 }
 
 // Ctrl+1..9 commits the translation of the candidate at that page position; Ctrl+Enter is the
@@ -188,16 +190,16 @@ bool IsTranslationCommitShortcut(UINT code, UINT modifiers)
 // most hosts it is the shifted symbol on the key (Shift+1 types '!'), so it stays the host's.
 bool IsTranslationDigitShortcut(UINT code, UINT modifiers)
 {
-    const bool digit = (code >= L'1' && code <= L'9') || (code >= VK_NUMPAD1 && code <= VK_NUMPAD9);
-    return digit && (modifiers & 0b00000111u) == 0b00000010u && (GetAsyncKeyState(VK_LWIN) & 0x8000) == 0 &&
-           (GetAsyncKeyState(VK_RWIN) & 0x8000) == 0 && FanyUtils::ReadConfiguredCandidateTranslationsEnabled();
+    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    return key_route_policy::IsTranslationDigitChord(FanyUtils::ReadConfiguredCandidateTranslationsEnabled(), code,
+                                                     modifiers, windowsKeyDown);
 }
 
 bool IsPinyinCommitShortcut(UINT code, UINT modifiers)
 {
     const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-    return ShouldCommitPinyinOnShiftEnter(FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_pinyin_shift_enter,
-                                          code, modifiers, windowsKeyDown);
+    return key_route_policy::IsPinyinCommitChord(
+        FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_pinyin_shift_enter, code, modifiers, windowsKeyDown);
 }
 
 // 候选词英文上屏：[keybindings] commit_english（上屏英文行）与 english_senses（展开全部词义）。
@@ -205,21 +207,17 @@ bool IsPinyinCommitShortcut(UINT code, UINT modifiers)
 // 老的「候选词翻译」用 Ctrl+Enter 上屏译文：两者同时开时把 Ctrl+Enter 留给它，避免一条键两个含义。
 bool IsEnglishCommitShortcut(UINT code, UINT modifiers)
 {
-    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0 ||
-        FanyUtils::ReadConfiguredCandidateTranslationsEnabled())
-    {
-        return false;
-    }
-    return FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_english.Matches(code, modifiers);
+    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    return key_route_policy::IsEnglishCommitChord(
+        FanyUtils::ReadConfiguredCandidateTranslationsEnabled(),
+        FanyUtils::ReadConfiguredSwitchLanguageHotkeys().commit_english.Matches(code, modifiers), windowsKeyDown);
 }
 
 bool IsEnglishSensesShortcut(UINT code, UINT modifiers)
 {
-    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0)
-    {
-        return false;
-    }
-    return FanyUtils::ReadConfiguredSwitchLanguageHotkeys().english_senses.Matches(code, modifiers);
+    const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    return key_route_policy::IsEnglishSensesChord(
+        FanyUtils::ReadConfiguredSwitchLanguageHotkeys().english_senses.Matches(code, modifiers), windowsKeyDown);
 }
 
 bool IsCharacterSetInputModeToggle(UINT code, UINT modifiers)
@@ -441,13 +439,17 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
         // gloss or expand its senses. Shift+Enter commits the Server's
         // converted spelling, including compositions without candidates, unless the user turned
         // that chord off in settings -- then it must fall through to the plain Enter path.
-        if (!freshCompositionState &&
-            ((_candidateMode != CANDIDATE_NONE && (IsTranslationCommitShortcut(*pCodeOut, shortcutModifiers) ||
-                                                   IsTranslationDigitShortcut(*pCodeOut, shortcutModifiers) ||
-                                                   IsEnglishCommitShortcut(*pCodeOut, shortcutModifiers) ||
-                                                   IsEnglishSensesShortcut(*pCodeOut, shortcutModifiers))) ||
-             (!_serverUnavailableFallbackActive && pCompositionProcessorEngine->GetVirtualKeyLength() > 0 &&
-              IsPinyinCommitShortcut(*pCodeOut, shortcutModifiers))))
+        key_route_policy::ServerCandidateShortcut serverCandidateShortcut;
+        serverCandidateShortcut.freshCompositionState = freshCompositionState;
+        serverCandidateShortcut.candidatesActive = _candidateMode != CANDIDATE_NONE;
+        serverCandidateShortcut.translationCommitChord = IsTranslationCommitShortcut(*pCodeOut, shortcutModifiers);
+        serverCandidateShortcut.translationDigitChord = IsTranslationDigitShortcut(*pCodeOut, shortcutModifiers);
+        serverCandidateShortcut.englishCommitChord = IsEnglishCommitShortcut(*pCodeOut, shortcutModifiers);
+        serverCandidateShortcut.englishSensesChord = IsEnglishSensesShortcut(*pCodeOut, shortcutModifiers);
+        serverCandidateShortcut.pinyinCommitChord = IsPinyinCommitShortcut(*pCodeOut, shortcutModifiers);
+        serverCandidateShortcut.pinyinCommitEligible =
+            !_serverUnavailableFallbackActive && pCompositionProcessorEngine->GetVirtualKeyLength() > 0;
+        if (key_route_policy::ShouldClaimForServerCandidate(serverCandidateShortcut))
         {
             if (pKeyState)
             {
@@ -473,23 +475,27 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
 
         // Other Ctrl/Alt/Windows combinations belong to the application.
         // IME-owned shortcuts are handled before this normal key classifier.
-        if ((shortcutModifiers & 0b00000110u) != 0 || (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 ||
-            (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0)
+        // Ctrl+Backspace / Ctrl+Left / Ctrl+Right inside a composition are
+        // the one exception: they edit one input unit, whose length only
+        // the Server can decide.
+        const KEYSTROKE_FUNCTION segmentEdit = SegmentEditFunction(*pCodeOut, shortcutModifiers);
+        const bool windowsKeyDown =
+            (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+        switch (key_route_policy::RouteModifiedKey(shortcutModifiers, windowsKeyDown,
+                                                   segmentEdit != FUNCTION_NONE && _IsCompositionActiveForKeyGuard()))
         {
-            // Ctrl+Backspace / Ctrl+Left / Ctrl+Right inside a composition are
-            // the one exception: they edit one input unit, whose length only
-            // the Server can decide.
-            const KEYSTROKE_FUNCTION segmentEdit = SegmentEditFunction(*pCodeOut, shortcutModifiers);
-            if (segmentEdit != FUNCTION_NONE && _IsCompositionActiveForKeyGuard())
+        case key_route_policy::ModifiedKeyDisposition::SegmentEdit:
+            if (pKeyState)
             {
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = segmentEdit;
-                }
-                return TRUE;
+                pKeyState->Category = CATEGORY_COMPOSING;
+                pKeyState->Function = segmentEdit;
             }
+            return TRUE;
+        case key_route_policy::ModifiedKeyDisposition::Application:
             return isTouchKeyboardSpecialKeys;
+        case key_route_policy::ModifiedKeyDisposition::ClassifyLocally:
+        default:
+            break;
         }
 
         const bool isComposing = freshCompositionState ? false : _IsComposing() != FALSE;
