@@ -30,7 +30,7 @@ std::vector<WordItem> PinyinCandidateProvider::query(const QueryRequest &request
         return {};
     }
 
-    // 候选带上产出它的方案：混输组合里五笔与拼音候选共存，删除与调频按候选自己的方案路由。
+    // 候选带上产出它的方案：删除与调频按候选自己的方案路由。
     for (WordItem &item : candidates)
     {
         item.scheme = request.scheme;

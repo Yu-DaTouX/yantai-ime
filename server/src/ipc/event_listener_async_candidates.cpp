@@ -13,7 +13,6 @@
 #include "ipc/candidate_ui_owner.h"
 #include "ipc/traditional_variant_expansion_policy.h"
 #include "global/globals.h"
-#include "engine/japanese/romaji_converter.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "english/english_ime.h"
 #include "config/ime_config.h"
@@ -124,8 +123,7 @@ void ApplyEnglishCandidates(std::vector<WordItem> candidates, const std::string 
 void ApplyCandidateTranslations(std::vector<EnglishIme::TranslationResult> results, uint64_t generation)
 {
     if (!EnglishIme::IsTranslationCurrent(generation) || !GetConfiguredCandidateTranslationsEnabled() ||
-        IsUiLessMode() || g_candidate_translation_signature.empty() || IsCandidateSubPageActive() ||
-        (g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji))
+        IsUiLessMode() || g_candidate_translation_signature.empty() || IsCandidateSubPageActive())
         return;
 
     // The page reads its glosses from g_candidate_translation_glosses when it is
@@ -278,7 +276,7 @@ void ApplyMixedCandidates(MixedCandidates::Result result, const std::string &inp
     // 全被去重掉、列表也没少东西时，屏幕上的那页就是对的，不必重画。
     if (!changed && items.size() == size_before)
         return;
-    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, CurrentEnglishPlacement(items));
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, CurrentEnglishPlacement(items));
 
     Global::candidate_ui.item_total_count = static_cast<int>(items.size());
     Global::candidate_ui.page_index = 0;

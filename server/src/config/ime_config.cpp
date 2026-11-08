@@ -41,11 +41,6 @@ std::string g_session_backend = "legacy";
 namespace ime_config_detail
 {
 SchemeType g_input_scheme = SchemeType::Shuangpin;
-std::string g_input_mode = "chinese";
-std::atomic<bool> g_configured_input_mode_japanese{false};
-std::atomic<ActiveInputMode> g_active_input_mode{ActiveInputMode::Configured};
-std::atomic<bool> g_trilingual_cycle_enabled{false};
-std::string g_japanese_schema = "romaji";
 std::string g_character_set = "simplified";
 std::string g_default_ime_mode = "chinese";
 std::string g_ime_mode_scope = "app";
@@ -72,20 +67,10 @@ std::atomic_bool g_diagnostic_log_enabled{false};
 std::atomic_bool g_tsf_diagnostic_log_enabled{false};
 std::string g_candidate_text_color = "auto";
 std::string g_shuangpin_schema = "xiaohe";
-std::string g_wubi_schema = "wubi86";
-// 五笔拼音混输是独立开关：同一串字母同时给五笔码表和全拼，五笔候选在前。与 z 键角色无关。
-bool g_wubi_mixed_pinyin = false;
 // 造词时 Esc 只清掉还没选的拼音、保留已选的词（小狼毫风格），第二次 Esc 才整体取消。默认关闭。
 bool g_escape_keeps_selected_word = false;
 // 回车上屏英文时顺带写入英文词库。默认开启，保持原有行为。
 bool g_enter_learns_english_word = true;
-// 五笔 z 键角色两态：off | wildcard。非法值回落 off（升级用户零变化）。
-std::string g_wubi_z_mode = "off";
-// 四码唯一自动上屏与顶字是两个独立开关，与混输、z 键角色都无关：前者决定第四键落下即上屏，
-// 后者决定完整四码后再敲字母时是否上屏首选并把字母留作下一组合开头。两者默认都开，
-// 保持开关落地前的无条件行为，升级用户零感知。
-bool g_wubi_four_code_auto_commit = true;
-bool g_wubi_fifth_code_top_commit = true;
 std::string g_shuangpin_preedit_mode = "quanpin";
 std::string g_tsf_preedit_style = "raw";
 // 双拼方案下行内 / 候选窗预编辑显示转换后的全拼（原始按键去掉分词符号），默认关闭。
@@ -182,7 +167,6 @@ bool g_kaomoji_mode_enabled = false;
 bool g_symbol_mode_enabled = true;
 bool g_jianpin_mode_enabled = true;
 bool g_y_mode_enabled = true;
-bool g_r_mode_enabled = true;
 bool g_v_mode_enabled = true;
 bool g_clipboard_history_enabled = false;
 bool g_language_bar_enabled = true;
@@ -399,23 +383,9 @@ bool LoadImeConfig()
         }
         g_session_backend = tbl["input"]["session_backend"].value_or(std::string("legacy"));
         g_input_scheme = ParseScheme(tbl["input"]["schema"].value_or(std::string("shuangpin")));
-        {
-            const std::string mode = tbl["input"]["mode"].value_or(std::string("chinese"));
-            const std::string configured_mode = mode == "japanese" ? "japanese" : "chinese";
-            const bool trilingual_cycle = tbl["keybindings"]["trilingual_cycle"].value_or(false);
-            // An unrelated settings reload must not undo a runtime language cycle.
-            // Explicit language/cycle preference changes start from the saved mode.
-            if (!trilingual_cycle || trilingual_cycle != g_trilingual_cycle_enabled.load(std::memory_order_relaxed) ||
-                configured_mode != g_input_mode)
-                g_active_input_mode.store(ActiveInputMode::Configured, std::memory_order_relaxed);
-            g_input_mode = configured_mode;
-            g_configured_input_mode_japanese.store(configured_mode == "japanese", std::memory_order_relaxed);
-            g_trilingual_cycle_enabled.store(trilingual_cycle, std::memory_order_relaxed);
-        }
-        {
-            const std::string schema = tbl["input"]["japanese_schema"].value_or(std::string("romaji"));
-            g_japanese_schema = schema == "romaji" ? schema : "romaji";
-        }
+        // Removed Japanese preferences fall back to full pinyin.
+        if (tbl["input"]["mode"].value_or(std::string("chinese")) == "japanese")
+            g_input_scheme = SchemeType::Quanpin;
         const std::string character_set = tbl["input"]["character_set"].value_or(std::string("simplified"));
         g_character_set = character_set == "traditional" ? "traditional" : "simplified";
         {
@@ -431,14 +401,8 @@ bool LoadImeConfig()
             const std::string schema = tbl["input"]["shuangpin_schema"].value_or(std::string("xiaohe"));
             g_shuangpin_schema = LoadShuangpinSchema(schema) ? schema : "xiaohe";
         }
-        g_wubi_schema = tbl["input"]["wubi_schema"].value_or(std::string("wubi86"));
-        g_wubi_mixed_pinyin = tbl["input"]["wubi_mixed_pinyin"].value_or(false);
         g_escape_keeps_selected_word = tbl["input"]["escape_keeps_selected_word"].value_or(false);
         g_enter_learns_english_word = tbl["input"]["enter_learns_english_word"].value_or(true);
-        const std::string z_mode = tbl["input"]["wubi_z_mode"].value_or(std::string("off"));
-        g_wubi_z_mode = z_mode == "wildcard" ? "wildcard" : "off";
-        g_wubi_four_code_auto_commit = tbl["input"]["wubi_four_code_auto_commit"].value_or(true);
-        g_wubi_fifth_code_top_commit = tbl["input"]["wubi_fifth_code_top_commit"].value_or(true);
         g_shuangpin_preedit_mode = tbl["input"]["shuangpin_preedit_mode"].value_or(std::string("quanpin"));
         g_shuangpin_helpcode_enabled = tbl["helpcode"]["shuangpin_helpcode"].value_or(true);
         g_shuangpin_helpcode_direct = tbl["helpcode"]["shuangpin_helpcode_direct"].value_or(true);
@@ -601,7 +565,6 @@ bool LoadImeConfig()
         g_symbol_mode_enabled = tbl["utility"]["symbol_mode"].value_or(true);
         g_jianpin_mode_enabled = tbl["utility"]["jianpin_mode"].value_or(true);
         g_y_mode_enabled = tbl["utility"]["y_mode"].value_or(true);
-        g_r_mode_enabled = tbl["utility"]["r_mode"].value_or(true);
         g_v_mode_enabled = tbl["utility"]["v_mode"].value_or(true);
         {
             const bool previous_clipboard_history = g_clipboard_history_enabled;
@@ -781,13 +744,11 @@ namespace ime_config_detail
 {
 SchemeType ParseScheme(const std::string &value)
 {
-    if (value == "quanpin")
+    // 已删除的方案（japanese / romaji / wubi）静默回退全拼，升级用户的旧配置不会卡在
+    // 一个不存在的方案上。
+    if (value == "quanpin" || value == "japanese" || value == "romaji" || value == "japanese-romaji" || value == "wubi")
     {
         return SchemeType::Quanpin;
-    }
-    if (value == "wubi")
-    {
-        return SchemeType::Wubi;
     }
     return SchemeType::Shuangpin;
 }
@@ -800,7 +761,6 @@ void InvalidateImeConfigWriteTime()
 
 void InitImeConfig()
 {
-    g_active_input_mode.store(ActiveInputMode::Configured, std::memory_order_relaxed);
     // Build the path from the wide accessor: std::filesystem::path(std::string) decodes with the
     // system ANSI code page, which corrupts a non-ASCII (e.g. Chinese) user profile path on a
     // non-UTF-8 ACP machine and makes every config read/write fail ("设置保存失败").

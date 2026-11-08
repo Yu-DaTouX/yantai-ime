@@ -1,4 +1,4 @@
-"""msime.db：全拼表、自定义词条、读音纠错、86 五笔、空的快捷短语表（出厂不带内置快捷短语），以及日文直出候选表 japanese_lexicon。
+"""msime.db：全拼表、自定义词条、读音纠错、86 五笔、空的快捷短语表（出厂不带内置快捷短语）。
 
 对应 Rust 构建器 msime.rs 的 quanpin / custom-words / reading-corrections / wubi / quick-phrases 阶段，但全拼表
 不再读 sources/pinyin/ 下的 rime-ice 系列与地名补充，只读 sources/pinyin/wanxiang/ 的万象词库。Release 把五笔
@@ -415,52 +415,3 @@ def build_wubi86(connection: sqlite3.Connection, paths: list[Path]) -> tuple[int
 def build_quick_phrases(connection: sqlite3.Connection) -> None:
     """出厂不带任何快捷短语，只建空表：K 模式和设置页的用户快捷短语都写在这张表里，安装回放也往这里写。"""
     _write_code_table(connection, "quick_parases", CREATE_QUICK_PHRASES, QUICK_PHRASE_INDEXES, ())
-
-
-# ---- 日文直出候选 ----
-
-def read_jp_sela(path: Path) -> list[tuple[str, str, int]]:
-    """rime-jp_sela 的 jp_sela.dict.yaml，解析与 MSIME-Engine 的 build_japanese_db.py 一致。"""
-    entries = []
-    in_body = False
-    with path.open("r", encoding="utf-8-sig") as stream:
-        for line_number, raw_line in enumerate(stream, start=1):
-            line = raw_line.rstrip("\r\n")
-            if not in_body:
-                in_body = line.strip() == "..."
-                continue
-            if not line or line.lstrip().startswith("#"):
-                continue
-            columns = line.split("\t")
-            if len(columns) < 2:
-                continue
-            value, code = columns[0].strip(), columns[1].strip()
-            if not value or not code or any(ord(ch) > 127 for ch in code):
-                continue
-            try:
-                weight = int(columns[2]) if len(columns) >= 3 else 1_000_000 - line_number
-            except ValueError:
-                weight = 1_000_000 - line_number
-            entries.append((code, value, weight))
-    return entries
-
-
-def build_japanese_lexicon(connection: sqlite3.Connection, path: Path) -> int:
-    entries = read_jp_sela(path)
-    if not entries:
-        raise ValueError(f"no Japanese entries parsed from {path}")
-    with connection:
-        connection.executescript("""
-            DROP TABLE IF EXISTS japanese_lexicon;
-            CREATE TABLE japanese_lexicon (
-                code TEXT NOT NULL,
-                value TEXT NOT NULL,
-                weight INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY (code, value)
-            );
-        """)
-        connection.executemany(
-            "INSERT INTO japanese_lexicon(code, value, weight) VALUES (?, ?, ?) "
-            "ON CONFLICT(code, value) DO UPDATE SET weight=MAX(weight, excluded.weight)", entries)
-        connection.execute("CREATE INDEX idx_japanese_lexicon_code_weight ON japanese_lexicon(code, weight DESC)")
-    return len(entries)

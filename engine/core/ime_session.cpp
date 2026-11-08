@@ -1,8 +1,6 @@
 #include "ime_session.h"
 #include "../schemes/quanpin_scheme.h"
 #include "../schemes/shuangpin_scheme.h"
-#include "../schemes/wubi_scheme.h"
-#include "../schemes/japanese_romaji_scheme.h"
 #include "../quanpin/quanpin_utils.h"
 #include "../shuangpin/shuangpin_query.h"
 #include "../contracts/direct_helpcode.h"
@@ -45,7 +43,6 @@ ImeSession::ImeSession(SchemeType scheme_type, const ShuangpinProfile &shuangpin
     : provider_registry_(shuangpin_profile, std::move(paths)), shuangpin_profile_(shuangpin_profile),
       scheme_(create_scheme(scheme_type))
 {
-    bind_wubi_scheme();
     bind_shuangpin_scheme();
     bind_quanpin_scheme();
 }
@@ -180,26 +177,6 @@ std::optional<std::string> ImeSession::direct_helpcode_end_trigger_prefix(const 
     return prefix;
 }
 
-void ImeSession::bind_wubi_scheme()
-{
-    wubi_scheme_ = dynamic_cast<WubiScheme *>(scheme_.get());
-    if (wubi_scheme_ != nullptr)
-    {
-        wubi_scheme_->set_mixed_pinyin_allowed(wubi_options_.mixed_pinyin);
-        wubi_scheme_->set_z_wildcard(wubi_options_.z_wildcard);
-    }
-}
-
-void ImeSession::set_wubi_input_options(metasequoia::WubiInputOptions options)
-{
-    wubi_options_ = options;
-    if (wubi_scheme_ != nullptr)
-    {
-        wubi_scheme_->set_mixed_pinyin_allowed(wubi_options_.mixed_pinyin);
-        wubi_scheme_->set_z_wildcard(wubi_options_.z_wildcard);
-    }
-}
-
 void ImeSession::handle_key(ImeKeyCode vk, ImeModifierMask modifiers_down, ImeCharacter wch)
 {
     scheme_->handle_key(vk, modifiers_down, wch);
@@ -210,7 +187,6 @@ void ImeSession::handle_key(ImeKeyCode vk, ImeModifierMask modifiers_down, ImeCh
 void ImeSession::switch_scheme(SchemeType scheme_type)
 {
     scheme_ = create_scheme(scheme_type);
-    bind_wubi_scheme();
     bind_shuangpin_scheme();
     bind_quanpin_scheme();
     state_ = CompositionState{};
@@ -274,29 +250,6 @@ void ImeSession::replace_quanpin_raw_input(const std::string &raw_input, const s
     refresh_candidates();
 }
 
-void ImeSession::replace_wubi_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases,
-                                        bool literal_input)
-{
-    if (scheme_->type() != SchemeType::Wubi)
-    {
-        return;
-    }
-
-    if (wubi_scheme_ == nullptr)
-    {
-        return;
-    }
-
-    // A replacement is host-driven editing of text the composition already holds, so the length it
-    // is clipped to comes from the setting rather than from whatever the previous query happened to
-    // answer. Without this, moving the caret through a mixed composition silently drops everything
-    // past the fourth letter. refresh_candidates puts the query-derived value back.
-    wubi_scheme_->set_extended_length_allowed(wubi_options_.mixed_pinyin);
-    wubi_scheme_->set_literal_input(literal_input);
-    wubi_scheme_->set_raw_input(raw_input, raw_input_with_cases);
-    refresh_candidates();
-}
-
 void ImeSession::reset()
 {
     scheme_->reset();
@@ -307,10 +260,6 @@ void ImeSession::reset_cache()
 {
     provider_registry_.reset_cache(current_scheme_type());
     // 混输组合同时查过拼音 provider，清缓存必须两边都清，否则选中调频后的重排会读到旧序。
-    if (wubi_scheme_ != nullptr && wubi_options_.mixed_pinyin)
-    {
-        provider_registry_.reset_cache(SchemeType::Quanpin);
-    }
     refresh_candidates();
 }
 
@@ -373,17 +322,6 @@ std::vector<WordItem> ImeSession::query_without_syllable_helpcodes()
     return provider_registry_.resolve(request.scheme).query(request);
 }
 
-void ImeSession::replace_japanese_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
-{
-    if (scheme_->type() != SchemeType::JapaneseRomaji)
-        return;
-    auto *japanese_scheme = dynamic_cast<JapaneseRomajiScheme *>(scheme_.get());
-    if (!japanese_scheme)
-        return;
-    japanese_scheme->set_raw_input(raw_input, raw_input_with_cases);
-    refresh_candidates();
-}
-
 void ImeSession::replace_active_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases)
 {
     switch (scheme_->type())
@@ -393,12 +331,6 @@ void ImeSession::replace_active_raw_input(const std::string &raw_input, const st
         return;
     case SchemeType::Shuangpin:
         replace_shuangpin_raw_input(raw_input, raw_input_with_cases);
-        return;
-    case SchemeType::Wubi:
-        replace_wubi_raw_input(raw_input, raw_input_with_cases);
-        return;
-    case SchemeType::JapaneseRomaji:
-        replace_japanese_raw_input(raw_input, raw_input_with_cases);
         return;
     }
 }
@@ -502,85 +434,12 @@ void ImeSession::refresh_candidates()
     ApplyShuangpinHelpcodeSegmentation(state_.request, shuangpin_profile_);
     resolve_direct_helpcode(state_.request);
 
-    // A special mode's literal input on a wubi session gets its candidates from the host (dates,
-    // V-mode numbers); a table or pinyin query on the letters it happens to contain would only be
-    // thrown away, on every key of the mode.
-    if (!state_.request.valid || (wubi_scheme_ != nullptr && wubi_scheme_->literal_input()))
+    if (!state_.request.valid)
     {
         state_.candidates.clear();
         return;
     }
-
     state_.candidates = provider_registry_.resolve(state_.request.scheme).query(state_.request);
-    if (wubi_scheme_ == nullptr)
-    {
-        return;
-    }
-
-    // The wubi provider also returns longer codes that start with the input (per-key hints), and a
-    // one-to-three letter prefix almost always has some. Only a row for exactly this code means the
-    // table answered it; hints alone must not keep mixed input from offering pinyin.
-    const bool wubi_table_answered =
-        std::any_of(state_.candidates.begin(), state_.candidates.end(),
-                    [this](const WordItem &item) { return item.pinyin == state_.request.normalized_input; });
-
-    // Once the table has failed the code in hand, mixed input lets the composition grow past four
-    // letters so a full spelling can be finished. A code the table answers keeps the four-letter
-    // limit, so a fluent wubi typist is not interrupted; the fifth letter is handled by the host's
-    // top-commit path instead.
-    wubi_scheme_->set_extended_length_allowed(wubi_options_.mixed_pinyin && !wubi_table_answered);
-
-    if (!wubi_options_.mixed_pinyin)
-    {
-        return;
-    }
-
-    // 五笔拼音混输：同一串字母同时交给五笔码表和全拼，五笔候选在前、拼音候选按权重追加在后，
-    // 两个表都答得出的词只留五笔那份。这是业界惯例的「候选词优先五笔，兼容拼音」，而不是
-    // 只在码表失手时才转拼音的兜底。
-    QuanpinScheme pinyin;
-    configure_quanpin_scheme(&pinyin);
-    pinyin.set_raw_input(state_.request.raw_input, state_.request.raw_input_with_cases);
-    QueryRequest pinyin_request = pinyin.build_request();
-    apply_request_options(pinyin_request);
-    // The same physical keys produced these letters, so the strokes carry over rather than
-    // reaching the provider empty.
-    pinyin_request.key_strokes = state_.request.key_strokes;
-    if (!pinyin_request.valid)
-    {
-        return;
-    }
-
-    std::vector<WordItem> pinyin_candidates = provider_registry_.resolve(pinyin_request.scheme).query(pinyin_request);
-    if (pinyin_candidates.empty())
-    {
-        return;
-    }
-
-    // 通配与混输同时开启时，含 z 的编码既可能是通配猜码也可能是拼音拼写（zi、zai、zhong）。
-    // 通配查询按权重返回整页无关码行，放在前面会把拼音的正解挤到后几页，所以这种组合里拼音
-    // 在前、通配结果在后；同词只留拼音那份。
-    std::vector<WordItem> leading = std::move(state_.candidates);
-    std::vector<WordItem> trailing = std::move(pinyin_candidates);
-    if (state_.request.wubi_z_wildcard)
-    {
-        std::swap(leading, trailing);
-    }
-
-    std::unordered_set<std::string> seen_words;
-    seen_words.reserve(leading.size() + trailing.size());
-    for (const WordItem &item : leading)
-    {
-        seen_words.insert(item.word);
-    }
-    for (WordItem &item : trailing)
-    {
-        if (seen_words.insert(item.word).second)
-        {
-            leading.push_back(std::move(item));
-        }
-    }
-    state_.candidates = std::move(leading);
 }
 
 std::unique_ptr<IInputScheme> ImeSession::create_scheme(SchemeType scheme_type) const
@@ -591,10 +450,6 @@ std::unique_ptr<IInputScheme> ImeSession::create_scheme(SchemeType scheme_type) 
         return std::make_unique<ShuangpinScheme>(shuangpin_profile_);
     case SchemeType::Quanpin:
         return std::make_unique<QuanpinScheme>();
-    case SchemeType::Wubi:
-        return std::make_unique<WubiScheme>();
-    case SchemeType::JapaneseRomaji:
-        return std::make_unique<JapaneseRomajiScheme>();
     default:
         throw std::runtime_error("Unknown scheme type.");
     }

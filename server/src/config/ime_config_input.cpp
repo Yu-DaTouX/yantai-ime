@@ -1,4 +1,4 @@
-// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、双拼与五笔方案、上屏样式、辅助码、全拼纠错、模糊音和调频。
+// 输入方案与输入行为配置：方案、中日文模式、简繁、中英切换键、双拼方案、上屏样式、辅助码、全拼纠错、模糊音和调频。
 #include "config/ime_config_internal.h"
 #include <cstdint>
 #include <iterator>
@@ -20,11 +20,6 @@ SchemeType GetConfiguredInputScheme()
     return g_input_scheme;
 }
 
-SchemeType GetConfiguredActiveInputScheme()
-{
-    return GetActiveInputMode() == "japanese" ? SchemeType::JapaneseRomaji : g_input_scheme;
-}
-
 std::string GetConfiguredInputSchemeName()
 {
     switch (g_input_scheme)
@@ -33,8 +28,6 @@ std::string GetConfiguredInputSchemeName()
         return "quanpin";
     case SchemeType::Shuangpin:
         return "shuangpin";
-    case SchemeType::Wubi:
-        return "wubi";
     default:
         return "shuangpin";
     }
@@ -42,7 +35,7 @@ std::string GetConfiguredInputSchemeName()
 
 bool SetConfiguredInputScheme(const std::string &scheme)
 {
-    if (scheme != "quanpin" && scheme != "shuangpin" && scheme != "wubi")
+    if (scheme != "quanpin" && scheme != "shuangpin")
     {
         return false;
     }
@@ -233,89 +226,6 @@ bool SetConfiguredShuangpinSchema(const std::string &schema)
     return true;
 }
 
-const std::string &GetConfiguredWubiSchema()
-{
-    return g_wubi_schema;
-}
-
-bool SetConfiguredWubiSchema(const std::string &schema)
-{
-    if (schema != "wubi86")
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "wubi_schema", EscapeTomlBasicString(schema)))
-    {
-        return false;
-    }
-    g_wubi_schema = schema;
-    return true;
-}
-
-const std::string &GetConfiguredWubiZMode()
-{
-    return g_wubi_z_mode;
-}
-
-bool SetConfiguredWubiZMode(const std::string &mode)
-{
-    if (mode != "off" && mode != "wildcard")
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "wubi_z_mode", EscapeTomlBasicString(mode)))
-    {
-        return false;
-    }
-    g_wubi_z_mode = mode;
-    return true;
-}
-
-bool GetConfiguredWubiMixedPinyin()
-{
-    return g_wubi_mixed_pinyin;
-}
-
-bool SetConfiguredWubiMixedPinyin(bool enabled)
-{
-    if (!WriteConfiguredValue("input", "wubi_mixed_pinyin", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_wubi_mixed_pinyin = enabled;
-    return true;
-}
-
-bool GetConfiguredWubiFourCodeAutoCommit()
-{
-    return g_wubi_four_code_auto_commit;
-}
-
-bool SetConfiguredWubiFourCodeAutoCommit(bool enabled)
-{
-    if (!WriteConfiguredValue("input", "wubi_four_code_auto_commit", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_wubi_four_code_auto_commit = enabled;
-    return true;
-}
-
-bool GetConfiguredWubiFifthCodeTopCommit()
-{
-    return g_wubi_fifth_code_top_commit;
-}
-
-bool SetConfiguredWubiFifthCodeTopCommit(bool enabled)
-{
-    if (!WriteConfiguredValue("input", "wubi_fifth_code_top_commit", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_wubi_fifth_code_top_commit = enabled;
-    return true;
-}
-
 bool GetConfiguredEscapeKeepsSelectedWord()
 {
     return g_escape_keeps_selected_word;
@@ -394,7 +304,7 @@ void RefreshEffectiveTsfPreeditStyle()
     // 原始按键样式下 TSF 自己显示按键缓冲，从不等 Server 的预编辑；双拼要显示转换后的全拼就得
     // 让它按分词样式等回包，回包里再按用户选的样式去掉分词符号（见 BuildTsfPreedit）。
     const bool shuangpin_quanpin = g_tsf_preedit_shuangpin_quanpin && g_tsf_preedit_style == "raw" &&
-                                   GetConfiguredActiveInputScheme() == SchemeType::Shuangpin;
+                                   GetConfiguredInputScheme() == SchemeType::Shuangpin;
     GlobalSettings::setTsfPreeditStyle(shuangpin_quanpin ? std::string(GlobalSettings::TsfPreeditStyle::Pinyin)
                                                          : g_tsf_preedit_style);
 }
@@ -555,7 +465,7 @@ bool IsConfiguredEndHelpcodeUppercaseTrigger()
 
 std::wstring FormatEndHelpcodeTriggersWorkerPayload()
 {
-    const bool shuangpin = GetConfiguredActiveInputScheme() == SchemeType::Shuangpin;
+    const bool shuangpin = GetConfiguredInputScheme() == SchemeType::Shuangpin;
     return std::wstring(
         1, FanyImeEndHelpcode::PayloadFor<wchar_t>(shuangpin && IsConfiguredEndHelpcodeTrigger(L'`'),
                                                    shuangpin && IsConfiguredEndHelpcodeTrigger(L';'),
@@ -626,8 +536,7 @@ bool IsConfiguredMidSentenceHelpcodeUppercaseTrigger()
 
 std::wstring FormatMidSentenceHelpcodeUppercaseWorkerPayload()
 {
-    return IsConfiguredMidSentenceHelpcodeUppercaseTrigger() &&
-                   GetConfiguredActiveInputScheme() == SchemeType::Shuangpin
+    return IsConfiguredMidSentenceHelpcodeUppercaseTrigger() && GetConfiguredInputScheme() == SchemeType::Shuangpin
                ? L"1"
                : L"0";
 }
@@ -713,7 +622,7 @@ bool SetConfiguredShuangpinDirectHelpcodeEndTrigger(bool enabled)
 bool IsConfiguredDirectHelpcodeEndTriggerActive()
 {
     return g_shuangpin_direct_helpcode_enabled && g_shuangpin_direct_helpcode_end_trigger &&
-           GetConfiguredActiveInputScheme() == SchemeType::Shuangpin;
+           GetConfiguredInputScheme() == SchemeType::Shuangpin;
 }
 
 bool IsConfiguredDirectHelpcodeEndTriggerKey(wchar_t ch)
@@ -734,8 +643,7 @@ std::wstring FormatDirectHelpcodeEndTriggerWorkerPayload()
 
 std::wstring FormatDirectHelpcodeWorkerPayload()
 {
-    const bool enabled =
-        g_shuangpin_direct_helpcode_enabled && GetConfiguredActiveInputScheme() == SchemeType::Shuangpin;
+    const bool enabled = g_shuangpin_direct_helpcode_enabled && GetConfiguredInputScheme() == SchemeType::Shuangpin;
     return std::wstring(1, FanyImeDirectHelpcode::PayloadFor(enabled, g_shuangpin_direct_helpcode_slash));
 }
 
@@ -753,16 +661,14 @@ bool IsConfiguredMidSentenceHelpcodeTrigger(wchar_t ch)
 std::wstring FormatMidSentenceHelpcodeWorkerPayload()
 {
     // TSF 只需要知道反引号此刻有没有可能是编码键：开关开着、勾了反引号且正在用双拼。
-    return IsConfiguredMidSentenceHelpcodeTrigger(L'`') && GetConfiguredActiveInputScheme() == SchemeType::Shuangpin
-               ? L"1"
-               : L"0";
+    return IsConfiguredMidSentenceHelpcodeTrigger(L'`') && GetConfiguredInputScheme() == SchemeType::Shuangpin ? L"1"
+                                                                                                               : L"0";
 }
 
 std::wstring FormatMidSentenceHelpcodeSemicolonWorkerPayload()
 {
-    return IsConfiguredMidSentenceHelpcodeTrigger(L';') && GetConfiguredActiveInputScheme() == SchemeType::Shuangpin
-               ? L"1"
-               : L"0";
+    return IsConfiguredMidSentenceHelpcodeTrigger(L';') && GetConfiguredInputScheme() == SchemeType::Shuangpin ? L"1"
+                                                                                                               : L"0";
 }
 
 const std::string &GetConfiguredShuangpinHelpcodeSchema()
@@ -1012,96 +918,6 @@ bool SetConfiguredShowQuanpinHelpcodeInCandidateWindow(bool enabled)
         return false;
     }
     g_show_quanpin_helpcode_in_candidate_window = enabled;
-    return true;
-}
-
-const std::string &GetConfiguredInputMode()
-{
-    return g_input_mode;
-}
-
-bool SetConfiguredInputMode(const std::string &mode)
-{
-    if (mode != "chinese" && mode != "japanese")
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "mode", EscapeTomlBasicString(mode)))
-    {
-        return false;
-    }
-    g_input_mode = mode;
-    g_configured_input_mode_japanese.store(mode == "japanese", std::memory_order_relaxed);
-    // Choosing a language in settings is where the next cycle starts from;
-    // the cycle switch itself is independent of it.
-    g_active_input_mode.store(ActiveInputMode::Configured, std::memory_order_relaxed);
-    RefreshEffectiveTsfPreeditStyle();
-    NotifyImeServerInputSchemeChanged();
-    return true;
-}
-
-bool GetConfiguredTrilingualCycleEnabled()
-{
-    return g_trilingual_cycle_enabled.load(std::memory_order_relaxed);
-}
-
-bool SetConfiguredTrilingualCycleEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("keybindings", "trilingual_cycle", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    if (g_trilingual_cycle_enabled.exchange(enabled, std::memory_order_relaxed) != enabled)
-        g_active_input_mode.store(ActiveInputMode::Configured, std::memory_order_relaxed);
-    RefreshEffectiveTsfPreeditStyle();
-    return true;
-}
-
-const std::string &GetActiveInputMode()
-{
-    static const std::string chinese = "chinese";
-    static const std::string japanese = "japanese";
-    switch (g_active_input_mode.load(std::memory_order_relaxed))
-    {
-    case ActiveInputMode::Chinese:
-        return chinese;
-    case ActiveInputMode::Japanese:
-        return japanese;
-    default:
-        // Never hand out g_input_mode itself: a config reload on another
-        // thread may reassign it while the key thread compares the result.
-        return g_configured_input_mode_japanese.load(std::memory_order_relaxed) ? japanese : chinese;
-    }
-}
-
-bool SetActiveInputMode(const std::string &mode)
-{
-    if (!g_trilingual_cycle_enabled.load(std::memory_order_relaxed) || (mode != "chinese" && mode != "japanese"))
-    {
-        return false;
-    }
-    g_active_input_mode.store(mode == "japanese" ? ActiveInputMode::Japanese : ActiveInputMode::Chinese,
-                              std::memory_order_relaxed);
-    RefreshEffectiveTsfPreeditStyle();
-    return true;
-}
-
-const std::string &GetConfiguredJapaneseSchema()
-{
-    return g_japanese_schema;
-}
-
-bool SetConfiguredJapaneseSchema(const std::string &schema)
-{
-    if (schema != "romaji")
-    {
-        return false;
-    }
-    if (!WriteConfiguredValue("input", "japanese_schema", EscapeTomlBasicString(schema)))
-    {
-        return false;
-    }
-    g_japanese_schema = schema;
     return true;
 }
 

@@ -79,9 +79,7 @@ int run_test()
             "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
             "INSERT INTO tbl_1_n VALUES('ni','n','你',10000);"
             "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);"
-            "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO wubi86 VALUES('wq','你好',10000),('wq','拟好',9000);");
+            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);");
     require(EnglishDictionary::ensure_schema(path_to_utf8(resources / assets::english_dictionary)),
             "English schema failed");
     execute(resources / assets::english_dictionary,
@@ -90,7 +88,7 @@ int run_test()
     const auto english_before = bytes(resources / assets::english_dictionary);
     // A later deletion must win over an earlier pin when the journal is replayed.
     for (const bool pin_first : {false, true})
-        for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin, SchemeType::Wubi})
+        for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
         {
             const auto suffix = std::to_string(static_cast<int>(scheme)) + (pin_first ? "-pinned" : "");
             const auto user = root / ("user-" + suffix);
@@ -99,8 +97,7 @@ int run_test()
             options.paths = prepare_runtime_paths(resources, user, cache, "v1");
             options.scheme = scheme;
             options.learning = false;
-            const std::string input =
-                scheme == SchemeType::Quanpin ? "nihao" : (scheme == SchemeType::Shuangpin ? "nihc" : "wq");
+            const std::string input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
             {
                 Session session(options);
                 require(!session.remove(0).handled, "Empty removal consumed input");

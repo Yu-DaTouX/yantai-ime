@@ -48,55 +48,38 @@ namespace
 {
 constexpr bool kTraditional = true;
 constexpr bool kSimplified = false;
-constexpr bool kJapaneseScheme = true;
-constexpr bool kChineseScheme = false;
 constexpr bool kRadicalCandidateList = true;
 constexpr bool kOtherCandidateList = false;
 } // namespace
 
 TEST_CASE(candidate_text_policy_keeps_radical_candidates_in_traditional_mode)
 {
-    REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kTraditional, kChineseScheme, kRadicalCandidateList));
+    REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kTraditional, kRadicalCandidateList));
 }
 
 TEST_CASE(candidate_text_policy_converts_other_candidates_in_traditional_mode)
 {
-    REQUIRE(FanyImeIpc::ShouldConvertCandidateTextToTraditional(kTraditional, kChineseScheme, kOtherCandidateList));
+    REQUIRE(FanyImeIpc::ShouldConvertCandidateTextToTraditional(kTraditional, kOtherCandidateList));
 }
 
 TEST_CASE(candidate_text_policy_never_converts_in_simplified_mode)
 {
-    REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kSimplified, kChineseScheme, kOtherCandidateList));
-    REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kSimplified, kChineseScheme, kRadicalCandidateList));
+    REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kSimplified, kOtherCandidateList));
+    REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(kSimplified, kRadicalCandidateList));
 }
 
-TEST_CASE(candidate_text_policy_never_converts_japanese_candidates)
-{
-    for (const bool traditional : {kTraditional, kSimplified})
-    {
-        for (const bool radical : {kRadicalCandidateList, kOtherCandidateList})
-        {
-            REQUIRE(!FanyImeIpc::ShouldConvertCandidateTextToTraditional(traditional, kJapaneseScheme, radical));
-        }
-    }
-}
 
 // 切换字形后要不要换写法：只有中文方案下、不是 U 模式拆字列表、也不在英文状态时，列表才随字形变。
 TEST_CASE(candidate_text_policy_rebuilds_only_lists_that_follow_the_character_set)
 {
     constexpr bool kEnglishInputMode = true;
     constexpr bool kChineseInputMode = false;
-    REQUIRE(FanyImeIpc::CandidateListFollowsCharacterSet(kChineseScheme, kOtherCandidateList, kChineseInputMode));
-    for (const bool japanese : {kJapaneseScheme, kChineseScheme})
+    REQUIRE(FanyImeIpc::CandidateListFollowsCharacterSet(kOtherCandidateList, kChineseInputMode));
+    for (const bool radical : {kRadicalCandidateList, kOtherCandidateList})
     {
-        for (const bool radical : {kRadicalCandidateList, kOtherCandidateList})
+        for (const bool english : {kEnglishInputMode, kChineseInputMode})
         {
-            for (const bool english : {kEnglishInputMode, kChineseInputMode})
-            {
-                if (!japanese && !radical && !english)
-                    continue;
-                REQUIRE(!FanyImeIpc::CandidateListFollowsCharacterSet(japanese, radical, english));
-            }
+            REQUIRE_EQ(FanyImeIpc::CandidateListFollowsCharacterSet(radical, english), !radical && !english);
         }
     }
 }

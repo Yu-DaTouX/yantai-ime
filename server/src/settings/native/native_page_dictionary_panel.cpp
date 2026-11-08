@@ -169,8 +169,6 @@ std::wstring DictionaryLabel(const std::string &dictionary)
 {
     if (dictionary == "quanpin")
         return L"全拼词库";
-    if (dictionary == "wubi")
-        return L"五笔词库";
     if (dictionary == "english")
         return L"英文词库";
     if (dictionary == "latin")
@@ -819,15 +817,14 @@ void DictionaryPanel::SetDictionary(const std::string &dictionary)
     search_->SetPlaceholder(english   ? L"输入英文前缀，例如 meta"
                             : quanpin ? L"输入完整全拼，例如 nihao"
                             : latin   ? L"输入要敲的字母前缀，例如 txu"
-                                      : L"输入五笔编码前缀");
+                                      : L"输入编码前缀");
     hint_->SetText(
         english ? L"按英文前缀查询；批量导入格式为：单词<Tab>显示内容<Tab>权重（兼容无权重的两列文件）"
         : quanpin ? L"全拼新增会校验拼音合法性、汉字数量和重复词条；批量导入格式为：词语<Tab>全拼[<Tab>权重]（兼容 "
                     L"Rime userdb.txt / dict.yaml，全拼可用空格或 ' 分音节；含英文字母的词自动按字母词导入）"
         : latin ? L"字母词由英文字母和汉字组成（T恤、卡拉OK），字母照原样敲、汉字敲全拼；内置字母词只能查询。"
                   L"读音写成 t'xu 或 T xu，留空则自动注音；批量导入格式为：词语[<Tab>读音[<Tab>权重]]"
-                : L"管理 86 五笔编码、词条及权重；批量导入格式为：词语<Tab>五笔编码[<Tab>权重]（兼容 Rime "
-                  L"dict.yaml）");
+                : L"管理快捷短语编码与内容；批量导入格式为：编码<Tab>内容<Tab>权重");
     header_->SetLabels(HeaderLabels());
     rows_.clear();
     body_->SetEmpty(L"输入查询条件后查看词条");

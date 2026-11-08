@@ -48,7 +48,6 @@ const DWORD WM_BareShiftRelease = WM_USER + 23;
 // WM_USER + 24..26 are reserved (removed voice input).
 const DWORD WM_ApplyPunctuationLock = WM_USER + 27;
 const DWORD WM_CommitCandidateAndContinue = WM_USER + 28;
-const DWORD WM_AsyncCycleInputMode = WM_USER + 29;
 const DWORD WM_SyncCapsLockPunctuation = WM_USER + 30;
 const DWORD WM_ApplyUiLessCandidates = WM_USER + 31;
 const DWORD WM_ApplyCapsLockEdge = WM_USER + 32;
@@ -264,10 +263,7 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
 
     // functions for the composition object.
     void _SetComposition(_In_ ITfComposition *pComposition);
-    // A result output requests strict cycle handling: retain a refused composition
-    // for the existing failure reset instead of relinquishing its ownership.
-    void _TerminateComposition(TfEditCookie ec, _In_ ITfContext *pContext, BOOL isCalledFromDeactivate = FALSE,
-                               _Out_opt_ HRESULT *endResult = nullptr);
+    void _TerminateComposition(TfEditCookie ec, _In_ ITfContext *pContext, BOOL isCalledFromDeactivate = FALSE);
     void _SaveCompositionContext(_In_ ITfContext *pContext);
     // Reads the committed text of a terminating composition and queues one
     // statistics event for it. Safe to call from both composition exits; only
@@ -277,12 +273,11 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
 
     // key event handlers for composition/candidate/phrase common objects.
     HRESULT _HandleComplete(TfEditCookie ec, _In_ ITfContext *pContext);
-    HRESULT _HandleCompleteCommitFirst(TfEditCookie ec, _In_ ITfContext *pContext, bool requireSuccessfulEnd = false);
+    HRESULT _HandleCompleteCommitFirst(TfEditCookie ec, _In_ ITfContext *pContext);
     HRESULT _HandleCancel(TfEditCookie ec, _In_ ITfContext *pContext);
     HRESULT _HandleEscapeCancel(TfEditCookie ec, _In_ ITfContext *pContext, uint64_t requestId);
     HRESULT _HandleToogleIMEMode(TfEditCookie ec, _In_ ITfContext *pContext);
     void _ClearCreatingWordState();
-    HRESULT _HandleCycleInputMode(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &payload);
     HRESULT _HandleCommitCandidateAndContinue(TfEditCookie ec, _In_ ITfContext *pContext, const std::wstring &payload);
 
     // key event handlers for composition object.
@@ -686,8 +681,7 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     BOOL _IsKeyboardDisabled();
 
     HRESULT _AddComposingAndChar(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString);
-    HRESULT _AddCharAndFinalize(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString,
-                                bool requireSelection = false);
+    HRESULT _AddCharAndFinalize(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString);
     HRESULT _InsertTextToComposition(TfEditCookie ec, _In_ ITfContext *pContext, _In_ CStringRange *pstrAddString);
     HRESULT _SetCompositionTextAndSelection(TfEditCookie ec, _In_ ITfContext *pContext,
                                             _In_ CStringRange *pstrAddString);
@@ -947,9 +941,6 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     uint64_t _nextDeferredKeyReplayToken;
     bool _deferredKeyProjectionValid;
     bool _deferredProjectedImeOpen;
-    bool _deferredProjectedJapaneseMode;
-    std::atomic<FanyImeTemporaryJapanese::Policy> _temporaryJapanesePolicy{0};
-    FanyImeTemporaryJapanese::Policy _deferredProjectedTemporaryJapanesePolicy = 0;
     bool _deferredProjectedPunctuationOpen;
     bool _deferredProjectedDoubleSingleByteOpen;
     size_t _deferredProjectedInputLength;

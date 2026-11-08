@@ -153,16 +153,6 @@ KeyResult InputSession::handle_character(char character, bool shift_only)
         local_candidates_.clear();
         return {true, std::nullopt, std::nullopt};
     }
-    if (shift_only && character == 'R' && local_mode_options_.temporary_japanese && !has_composition() &&
-        (scheme() == SchemeType::Quanpin || scheme() == SchemeType::Shuangpin))
-    {
-        temporary_original_scheme_ = scheme();
-        engine_.switch_scheme(SchemeType::JapaneseRomaji);
-        local_input_mode_ = LocalInputMode::TemporaryJapanese;
-        local_preedit_ = "R";
-        local_candidates_.clear();
-        return {true, std::nullopt, std::nullopt};
-    }
 
     const bool lowercase_letter = character >= 'a' && character <= 'z';
     const bool semicolon_final =
@@ -268,12 +258,6 @@ KeyResult InputSession::handle_command(Command command)
             {
                 reset_composition();
             }
-            else if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-            {
-                engine_.handle_key(ImeKey::Backspace);
-                local_preedit_ = "R" + engine_.get_preedit();
-                local_candidates_ = engine_.get_candidates();
-            }
             else
             {
                 local_preedit_.pop_back();
@@ -290,9 +274,7 @@ KeyResult InputSession::handle_command(Command command)
         return commit(0);
     case Command::CommitRaw: {
         std::string raw = preedit();
-        if ((local_input_mode_ == LocalInputMode::TemporaryEnglish ||
-             local_input_mode_ == LocalInputMode::TemporaryJapanese) &&
-            !raw.empty())
+        if ((local_input_mode_ == LocalInputMode::TemporaryEnglish) && !raw.empty())
         {
             raw.erase(raw.begin());
         }
@@ -607,8 +589,7 @@ void InputSession::set_local_mode_options(LocalModeOptions options)
         (local_input_mode_ == LocalInputMode::Emoji && !local_mode_options_.emoji) ||
         (local_input_mode_ == LocalInputMode::Kaomoji && !local_mode_options_.kaomoji) ||
         (local_input_mode_ == LocalInputMode::SuperJianpin && !local_mode_options_.super_jianpin) ||
-        (local_input_mode_ == LocalInputMode::TemporaryEnglish && !local_mode_options_.temporary_english) ||
-        (local_input_mode_ == LocalInputMode::TemporaryJapanese && !local_mode_options_.temporary_japanese))
+        (local_input_mode_ == LocalInputMode::TemporaryEnglish && !local_mode_options_.temporary_english))
     {
         reset_composition();
     }
@@ -639,31 +620,6 @@ void InputSession::set_mixed_expressive_options(MixedExpressiveOptions options)
 {
     mixed_expressive_options_ = options;
     update_mixed_candidates();
-}
-
-void InputSession::set_wubi_input_options(metasequoia::WubiInputOptions options)
-{
-    // Server 每次击键都重读配置并调用这里；值没变就不能重建候选，否则五笔会话每键会多跑一轮
-    // 码表（混输时再加一轮拼音）查询，而那次结果紧接着被真正按键的重建覆盖。
-    const auto &current = engine_.wubi_input_options();
-    if (current.mixed_pinyin == options.mixed_pinyin && current.z_wildcard == options.z_wildcard)
-    {
-        return;
-    }
-    engine_.set_wubi_input_options(options);
-    // The setting decides which dictionaries answer the code in hand, so a live composition has to
-    // be asked again. Leaving it alone shows the previous answer: the pinyin candidates stay on
-    // screen after the setting is switched off, and switching it on leaves a code only pinyin
-    // answers empty until the next keystroke.
-    if (is_wubi() && !dedicated_english_mode_ && local_input_mode_ == LocalInputMode::None)
-    {
-        recompute_candidates();
-    }
-}
-
-const metasequoia::WubiInputOptions &InputSession::wubi_input_options() const
-{
-    return engine_.wubi_input_options();
 }
 
 const MixedExpressiveOptions &InputSession::mixed_expressive_options() const
@@ -714,11 +670,6 @@ std::optional<OnlineQuery> InputSession::online_query() const
         return std::nullopt;
     query.query_text = state.query_text;
     query.cache_key = state.cache_key;
-    if (request.scheme == SchemeType::JapaneseRomaji)
-    {
-        query.cloud_eligible = true;
-        return query;
-    }
 
     if (query.query_text.empty())
     {
@@ -767,7 +718,7 @@ void InputSession::switch_scheme(SchemeType scheme_type)
 
 SchemeType InputSession::scheme() const
 {
-    return temporary_original_scheme_.value_or(engine_.current_scheme_type());
+    return engine_.current_scheme_type();
 }
 
 bool InputSession::has_composition() const
@@ -883,30 +834,19 @@ KeyResult InputSession::commit(std::size_t index)
         selected = candidates()[index];
         text = selected->word;
     }
-    else if (!((local_input_mode_ == LocalInputMode::TemporaryEnglish ||
-                local_input_mode_ == LocalInputMode::TemporaryJapanese) &&
-               local_preedit_.size() == 1))
+    else if (!((local_input_mode_ == LocalInputMode::TemporaryEnglish) && local_preedit_.size() == 1))
     {
         text = preedit();
     }
     std::optional<std::string> diagnostic = learn_candidate(index);
-    if (selected && is_japanese())
-    {
-        const auto transition = advance_composition_after_selection(selected->pinyin, selected->word,
-                                                                    selected->canonical_pinyin, selected->scheme);
-        if (transition.continues_composition)
-            return {true, std::move(text), std::move(diagnostic)};
-    }
-    if (selected && local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_ && !is_japanese() &&
-        !is_wubi_native_candidate(*selected) &&
+    if (selected && local_input_mode_ == LocalInputMode::None && !dedicated_english_mode_ &&
         (selected->source == CandidateSource::Database || selected->source == CandidateSource::UserDatabase))
     {
-        // Selecting a pinyin answer out of a wubi mixed composition hands its rest to pinyin: the tail
-        // may be a code the wubi table knows, but committing a spelling the user is still in the
-        // middle of must not drop it. A wubi-native candidate consumes the whole code instead and is
-        // handled below by reset_composition.
-        const auto transition = advance_composition_after_selection(selected->pinyin, selected->word,
-                                                                    selected->canonical_pinyin, selected->scheme);
+        // Committing a database candidate may continue the composition: the tail of the spelling the
+        // user is still in the middle of must not be dropped. A candidate that consumes the whole
+        // composition instead is handled below by reset_composition.
+        const auto transition =
+            advance_composition_after_selection(selected->pinyin, selected->word, selected->canonical_pinyin);
         auto progress = update_creating_word_progress(immediate_phrase_progress_.pinyin,
                                                       immediate_phrase_progress_.word, selected->word, transition);
         if (transition.continues_composition)
@@ -936,20 +876,6 @@ KeyResult InputSession::handle_local_character(char character)
         }
         local_preedit_.push_back(character);
         return {true, std::nullopt, update_local_candidates()};
-    }
-    if (local_input_mode_ == LocalInputMode::TemporaryJapanese)
-    {
-        const auto unsigned_character = static_cast<unsigned char>(character);
-        if (!std::isalpha(unsigned_character) && character != '\'')
-        {
-            return {};
-        }
-        const ImeKeyCode key_code =
-            character == '\'' ? ImeKey::Apostrophe : static_cast<ImeKeyCode>(std::toupper(unsigned_character));
-        engine_.handle_key(key_code, 0, static_cast<ImeCharacter>(unsigned_character));
-        local_preedit_ = "R" + engine_.get_preedit();
-        local_candidates_ = engine_.get_candidates();
-        return {true, std::nullopt, std::nullopt};
     }
     if (local_input_mode_ == LocalInputMode::SuperJianpin)
     {
@@ -1001,8 +927,7 @@ KeyResult InputSession::handle_local_character(char character)
 
 std::optional<std::string> InputSession::update_local_candidates()
 {
-    auto result = candidate_queries_.local(local_input_mode_, local_preedit_, scheme(), local_date_time_provider_,
-                                           engine_.get_candidates());
+    auto result = candidate_queries_.local(local_input_mode_, local_preedit_, scheme(), local_date_time_provider_);
     local_candidates_ = std::move(result.candidates);
     apply_candidate_positions(local_candidates_);
     return std::move(result.diagnostic);
@@ -1141,7 +1066,7 @@ std::size_t InputSession::quantized_prefix_end() const
     // Segmentation contract (engine spec #187): the caret prefix may only be quantized against
     // segment_raw_boundaries(), never against a re-derived segmentation.
     const std::vector<std::size_t> boundaries = segment_raw_boundaries();
-    // No unit model (wubi, japanese, local modes, dedicated English): do not quantize.
+    // No unit model (local modes, dedicated English): do not quantize.
     if (boundaries.empty())
     {
         return raw.size();
@@ -1239,19 +1164,13 @@ void InputSession::reset_composition()
     immediate_phrase_progress_ = {};
     clear_pending_sequence();
     online_requests_.invalidate();
-    const std::optional<SchemeType> original_scheme = temporary_original_scheme_;
     local_input_mode_ = LocalInputMode::None;
-    temporary_original_scheme_.reset();
     local_preedit_.clear();
     local_candidates_.clear();
     dedicated_english_preedit_.clear();
     dedicated_english_candidates_.clear();
     mixed_candidates_.clear();
     engine_.reset();
-    if (original_scheme.has_value() && engine_.current_scheme_type() != *original_scheme)
-    {
-        engine_.switch_scheme(*original_scheme);
-    }
 }
 
 // The phrase assembled across segmented selections only means anything while its composition stays alive. Every path
@@ -1331,8 +1250,7 @@ std::optional<std::string> InputSession::learn_candidate(std::size_t index)
     {
         return std::nullopt;
     }
-    if ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase) ||
-        engine_.current_scheme_type() == SchemeType::JapaneseRomaji)
+    if ((selected.source != CandidateSource::Database && selected.source != CandidateSource::UserDatabase))
     {
         return std::nullopt;
     }
@@ -1349,8 +1267,7 @@ KeyResult InputSession::pin_candidate(std::size_t index)
     if (candidates()[index].latin_word || candidates()[index].prefix_completion)
         return {};
     if (source != CandidateSource::EnglishDictionary &&
-        ((source != CandidateSource::Database && source != CandidateSource::UserDatabase) ||
-         scheme() == SchemeType::JapaneseRomaji))
+        ((source != CandidateSource::Database && source != CandidateSource::UserDatabase)))
         return {};
 
     // Manual pinning is independent of automatic learning preferences and never selects text.
@@ -1398,31 +1315,19 @@ std::optional<std::string> InputSession::adjust_pinyin_candidate_frequency(const
                                                                            bool force_top)
 {
     const bool super_jianpin = local_input_mode_ == LocalInputMode::SuperJianpin;
-    // A wubi code the table could not answer carries quanpin words, so it is ranked, keyed and
-    // stored as pinyin; only a code the wubi table answered is ranked under the code itself. The
-    // mixed composition holds both kinds at once, so the choice follows the selected candidate's
-    // own scheme. A pinyin candidate in a wubi composition reuses the context the fixed positions
-    // are written under, otherwise a pinned candidate would not be recognised here.
-    const bool wubi = is_wubi_native_candidate(selected);
-    const bool pinyin_candidate = is_wubi() && !wubi;
     std::string context_key =
         super_jianpin ? local_modes::jianpin_ranking_context(local_preedit_.substr(1), scheme(), shuangpin_profile_)
-        : wubi        ? engine_.get_request().raw_input
-        : pinyin_candidate ? position_context(false, false)
-                           : engine_.get_request().normalized_segmentation;
+                      : engine_.get_request().normalized_segmentation;
     if (!super_jianpin && context_key.empty())
     {
         context_key = engine_.get_request().segmentation;
     }
-    const std::string entry_key = (wubi && !super_jianpin)
-                                      ? selected.pinyin
-                                      : (selected.canonical_pinyin.empty() ? context_key : selected.canonical_pinyin);
+    const std::string entry_key = selected.canonical_pinyin.empty() ? context_key : selected.canonical_pinyin;
     bool ranking_changed = false;
     const bool adjusted = user_dictionary::adjust_candidate_ranking(
         path_to_utf8(paths_.dictionary(assets::main_dictionary)), path_to_utf8(paths_.user(assets::user_journal)),
         context_key, ranked, entry_key, selected.word, frequency_mode_name(options.mode), options.linear_step,
-        options.trigger_count, force_top, &ranking_changed,
-        (wubi && !super_jianpin) ? user_dictionary::DictionaryKind::Wubi : user_dictionary::DictionaryKind::Pinyin);
+        options.trigger_count, force_top, &ranking_changed);
     if (!adjusted)
     {
         return std::string("Unable to persist candidate frequency adjustment.");

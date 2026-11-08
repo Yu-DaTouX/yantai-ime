@@ -120,15 +120,15 @@ inline int CaretStateBadgeWidthDip(const CaretStateBadge &badge)
     return CaretStateIndicatorTextWidth(kCaretStateBadgeHeightDip, kCaretStateAdditionalCharacterWidthDip, extra);
 }
 
-inline wchar_t InputModeGlyph(bool imeEnabled, bool japaneseMode)
+inline wchar_t InputModeGlyph(bool imeEnabled)
 {
-    return imeEnabled ? (japaneseMode ? L'日' : L'中') : L'英';
+    return imeEnabled ? L'中' : L'英';
 }
 
 // Caps Lock makes letters English regardless of the IME mode.
-inline wchar_t EffectiveInputModeGlyph(bool imeEnabled, bool japaneseMode, bool capsLockEnabled)
+inline wchar_t EffectiveInputModeGlyph(bool imeEnabled, bool capsLockEnabled)
 {
-    return capsLockEnabled ? L'英' : InputModeGlyph(imeEnabled, japaneseMode);
+    return capsLockEnabled ? L'英' : InputModeGlyph(imeEnabled);
 }
 
 enum class InputModeTrigger
@@ -150,7 +150,7 @@ inline InputModeTrigger DecodeInputModeTrigger(std::uint32_t wireTrigger)
 }
 
 inline bool ShouldShowInputModeEvent(InputModeTrigger trigger, bool focusAnnouncementEnabled, bool capsLockEnabled,
-                                     bool imeEnabled, bool japaneseMode)
+                                     bool imeEnabled)
 {
     switch (trigger)
     {
@@ -159,8 +159,8 @@ inline bool ShouldShowInputModeEvent(InputModeTrigger trigger, bool focusAnnounc
         return focusAnnouncementEnabled;
     case InputModeTrigger::CapsLockEdge:
         // A Caps Lock edge matters only when it changes the effective glyph.
-        return EffectiveInputModeGlyph(imeEnabled, japaneseMode, !capsLockEnabled) !=
-               EffectiveInputModeGlyph(imeEnabled, japaneseMode, capsLockEnabled);
+        return EffectiveInputModeGlyph(imeEnabled, !capsLockEnabled) !=
+               EffectiveInputModeGlyph(imeEnabled, capsLockEnabled);
     case InputModeTrigger::UserToggle:
         break;
     }
@@ -168,14 +168,14 @@ inline bool ShouldShowInputModeEvent(InputModeTrigger trigger, bool focusAnnounc
     return !capsLockEnabled;
 }
 
-inline CaretStateBadge InputModeBadge(bool imeEnabled, bool japaneseMode, bool capsLockEnabled)
+inline CaretStateBadge InputModeBadge(bool imeEnabled, bool capsLockEnabled)
 {
-    return {std::wstring(1, EffectiveInputModeGlyph(imeEnabled, japaneseMode, capsLockEnabled))};
+    return {std::wstring(1, EffectiveInputModeGlyph(imeEnabled, capsLockEnabled))};
 }
 
-inline CaretStateBadge PunctuationBadge(bool punctuationEnabled, bool imeEnabled, bool japaneseMode)
+inline CaretStateBadge PunctuationBadge(bool punctuationEnabled, bool imeEnabled)
 {
-    return {punctuationEnabled ? L"，。" : L",.", InputModeGlyph(imeEnabled, japaneseMode)};
+    return {punctuationEnabled ? L"，。" : L",.", InputModeGlyph(imeEnabled)};
 }
 
 inline wchar_t CaretStateGlyph(CaretStateKind kind, bool enabled)

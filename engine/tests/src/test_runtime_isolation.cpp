@@ -2,7 +2,6 @@
 #include "../../core/data_path.h"
 #include "../../core/input_session.h"
 #include "../../core/pinyin_decoder.h"
-#include "../../japanese/japanese_sentence_decoder.h"
 #include "engine/ngram/language_model.h"
 #include "../../contracts/assets/assets.h"
 #include "../../user_dictionary/user_dictionary_journal.h"
@@ -39,34 +38,6 @@ std::string bytes(const std::filesystem::path &path)
     std::ifstream input(path, std::ios::binary);
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
 }
-void make_japanese_model(const std::filesystem::path &path, const std::string &surface)
-{
-    // One-token MSJPDT1 fixture, with explicit little-endian fields rather than native packing.
-    std::ofstream output(path, std::ios::binary);
-    const auto integer = [&](std::uint64_t value, int width) {
-        for (int i = 0; i < width; ++i)
-            output.put(static_cast<char>((value >> (i * 8)) & 255));
-    };
-    const std::string reading = "かな";
-    output.write("MSJPDT1", 8);
-    integer(1, 4);
-    integer(1, 4);
-    integer(1, 4);
-    integer(0, 4);
-    integer(56, 8);
-    integer(76, 8);
-    integer(78, 8);
-    integer(reading.size() + surface.size(), 8);
-    integer(0, 4);
-    integer(reading.size(), 2);
-    integer(reading.size(), 4);
-    integer(surface.size(), 2);
-    integer(0, 2);
-    integer(0, 2);
-    integer(1, 4);
-    integer(0, 2);
-    output << reading << surface;
-}
 void make_resources(const std::filesystem::path &path, const std::string &word)
 {
     std::filesystem::create_directories(path / "helpcodes");
@@ -102,43 +73,6 @@ void test_runtime_isolation()
     const auto resource_b = root / std::filesystem::u8path("资源乙");
     make_resources(resource_a, "你");
     make_resources(resource_b, "妮");
-    make_japanese_model(resource_a / assets::japanese_model, "甲");
-    make_japanese_model(resource_b / assets::japanese_model, "乙");
-    {
-        const auto path = root / "mapped-japanese.dat";
-        make_japanese_model(path, "甲");
-        japanese::JapaneseSentenceDecoder original(path_to_utf8(path));
-        require(original.ready() && original.ExactLemmas("かな").front().surface == "甲",
-                "Japanese model mapping did not load");
-        const auto replacement = root / "replacement-japanese.dat";
-        make_japanese_model(replacement, "乙");
-        // Publishers replace files, never truncate mapped inodes in place.
-        std::filesystem::remove(path);
-        std::filesystem::rename(replacement, path);
-        japanese::JapaneseSentenceDecoder updated(path_to_utf8(path));
-        require(updated.ready() && updated.ExactLemmas("かな").front().surface == "乙" &&
-                    original.ExactLemmas("かな").front().surface == "甲",
-                "Replacing a model altered an existing decoder");
-        const auto valid = bytes(path);
-        const auto bad = root / "invalid-japanese.dat";
-        const auto rejected = [&](const std::string &data) {
-            {
-                std::ofstream output(bad, std::ios::binary);
-                output.write(data.data(), data.size());
-            }
-            japanese::JapaneseSentenceDecoder decoder(path_to_utf8(bad));
-            require(!decoder.ready() && decoder.ExactLemmas("かな").empty(), "Invalid Japanese model accepted");
-        };
-        for (size_t length : {size_t(0), size_t(55), size_t(77), valid.size() - 1})
-            rejected(valid.substr(0, length));
-        auto invalid_offset = valid;
-        invalid_offset.replace(24, 8, 8, char(0xff));
-        rejected(invalid_offset);
-        auto invalid_reading = valid;
-        invalid_reading[60] = char(0xff);
-        invalid_reading[61] = char(0xff);
-        rejected(invalid_reading);
-    }
     const auto reject_overlap = [&](const std::filesystem::path &resources, const std::filesystem::path &user,
                                     const std::filesystem::path &cache) {
         bool rejected = false;
@@ -293,7 +227,7 @@ void test_runtime_isolation()
         type(session, "ni");
         require(session.snapshot().caret_position == 2, "New composition inherited the old caret");
     }
-    for (const char marker : {'Y', 'J', 'E', 'M', 'K', 'U', 'R'})
+    for (const char marker : {'Y', 'J', 'E', 'M', 'K', 'U'})
     {
         SessionOptions options;
         options.paths = paths_a;
@@ -318,7 +252,7 @@ void test_runtime_isolation()
         require(session.snapshot().editing_text.empty() && session.snapshot().caret_position == 0,
                 "Cancel retained local-mode editing state");
     }
-    for (const auto scheme : {SchemeType::Shuangpin, SchemeType::Wubi, SchemeType::JapaneseRomaji})
+    for (const auto scheme : {SchemeType::Shuangpin})
     {
         SessionOptions options;
         options.paths = paths_a;
@@ -463,37 +397,17 @@ void test_runtime_isolation()
         require(!session.snapshot().dedicated_english && session.snapshot().preedit.empty(),
                 "Leaving dedicated English left stale snapshot state");
     }
-    {
-        SessionOptions options_a;
-        options_a.paths = paths_a;
-        options_a.scheme = SchemeType::JapaneseRomaji;
-        SessionOptions options_b;
-        options_b.paths = paths_b;
-        options_b.scheme = SchemeType::JapaneseRomaji;
-        Session a(options_a), b(options_b);
-        type(a, "kana");
-        type(b, "kana");
-        const auto has = [](const Session &session, const std::string &word) {
-            const auto snapshot = session.snapshot();
-            return std::any_of(snapshot.candidates.begin(), snapshot.candidates.end(),
-                               [&](const auto &candidate) { return candidate.word == word; });
-        };
-        require(has(a, "甲") && !has(a, "乙"), "Japanese session A used another model");
-        require(has(b, "乙") && !has(b, "甲"), "Japanese session B reused the first model");
-    }
     // Explicit pinning must use the selected canonical key, preserve input, and survive replay.
     const auto pin_resources = root / "pin-resources";
     make_resources(pin_resources, "你");
     execute(pin_resources / assets::main_dictionary,
             "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);"
-            "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);"
-            "INSERT INTO wubi86 VALUES('wq','你好',10000),('wq','拟好',9000);");
+            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);");
     execute(pin_resources / assets::english_dictionary,
             "INSERT INTO english_words(word,display,weight) VALUES('help','help',5);");
     const auto pin_main_bytes = bytes(pin_resources / assets::main_dictionary);
     const auto pin_english_bytes = bytes(pin_resources / assets::english_dictionary);
-    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin, SchemeType::Wubi})
+    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
     {
         const auto suffix = std::to_string(static_cast<int>(scheme));
         const auto user = root / ("position-user-" + suffix);
@@ -502,7 +416,7 @@ void test_runtime_isolation()
         options.paths = prepare_runtime_paths(pin_resources, user, cache, "v1");
         options.scheme = scheme;
         options.learning = false;
-        const auto input = scheme == SchemeType::Quanpin ? "nihao" : (scheme == SchemeType::Shuangpin ? "nihc" : "wq");
+        const auto input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
         {
             Session session(options);
             type(session, input);
@@ -582,7 +496,7 @@ void test_runtime_isolation()
                 "Pin did not refresh dictionary candidate order");
         require(!session.pin(before.candidates.size() + 100).handled, "Invalid pin index was accepted");
     };
-    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin, SchemeType::Wubi})
+    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
     {
         const auto suffix = std::to_string(static_cast<int>(scheme));
         const auto user = root / ("pin-user-" + suffix);
@@ -591,8 +505,7 @@ void test_runtime_isolation()
         options.paths = prepare_runtime_paths(pin_resources, user, cache, "v1");
         options.scheme = scheme;
         options.learning = false;
-        const std::string input =
-            scheme == SchemeType::Quanpin ? "nihao" : (scheme == SchemeType::Shuangpin ? "nihc" : "wq");
+        const std::string input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
         {
             Session session(options);
             require(!session.pin(0).handled, "Empty session accepted pin");

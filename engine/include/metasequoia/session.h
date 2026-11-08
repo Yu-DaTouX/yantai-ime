@@ -25,7 +25,6 @@ struct SessionOptions
     LocalModeOptions local_modes;
     EnglishInputOptions english;
     MixedExpressiveOptions expressive;
-    WubiInputOptions wubi;
 };
 
 struct SessionSnapshot
@@ -37,7 +36,7 @@ struct SessionSnapshot
     std::string normalized_segmentation;
     std::vector<WordItem> candidates;
     bool dedicated_english = false;
-    // ASCII source text and offset, separate from rendered preedit (e.g. Japanese kana).
+    // ASCII source text and offset, separate from rendered preedit.
     std::string editing_text;
     std::size_t caret_position = 0;
 };
@@ -82,8 +81,6 @@ class Session
     // Hosts with per-scheme preferences apply the selected preference after switching.
     void set_helpcode_enabled(bool enabled);
     void set_dedicated_english(bool enabled);
-    // 五笔拼音混输：同一串字母同时交给五笔码表和全拼，五笔候选在前、拼音候选追加在后。
-    void set_wubi_mixed_pinyin(bool enabled);
     SessionSnapshot snapshot() const;
     std::optional<OnlineQuery> online_query() const;
     bool apply_online_candidate(const OnlineQuery &query, std::string candidate, CandidateSource source);

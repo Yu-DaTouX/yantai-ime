@@ -749,10 +749,7 @@ struct InputPage
 
     // Input mode
     std::vector<std::shared_ptr<Hideable>> chineseSections;
-    std::shared_ptr<Hideable> japaneseSection;
-    std::shared_ptr<RadioGroup> modeGroup = std::make_shared<RadioGroup>();
     std::shared_ptr<RadioGroup> schemeGroup = std::make_shared<RadioGroup>();
-    std::shared_ptr<RadioGroup> japaneseGroup = std::make_shared<RadioGroup>();
     std::shared_ptr<Dropdown> shuangpin;
     std::shared_ptr<Label> shuangpinDirectory;
     std::shared_ptr<Hideable> shuangpinDirectoryBox;
@@ -790,14 +787,6 @@ struct InputPage
     std::vector<ModelRow> collocationRows;
     std::shared_ptr<ToggleSwitch> collocationToggle;
     UINT_PTR collocationPoll = 0;
-
-    void SyncMode(const std::string &mode)
-    {
-        const bool japanese = mode == "japanese";
-        for (auto &section : chineseSections)
-            section->SetVisible(!japanese);
-        japaneseSection->SetVisible(japanese);
-    }
 };
 
 // Section card that can be hidden (`hidden` attribute) without leaving its margin behind.
@@ -933,30 +922,15 @@ VisualPtr BuildInputPage(PageContext &context)
     PageBuilder page(L"输入");
 
     // ---- 输入模式 ----
-    {
-        auto chinese = s->modeGroup->Add(L"中文", "chinese");
-        auto japanese = s->modeGroup->Add(L"日文", "japanese");
-        s->modeGroup->SetValue("chinese");
-        s->modeGroup->SetOnChanged([s, model](const std::string &mode) {
-            s->SyncMode(mode);
-            model->Update("input.mode", mode);
-        });
-        auto grid = std::make_shared<TwoColumns>(chinese, japanese);
-        page.AddSection(Col({MakeTitleBlock(L"输入模式", L"切换中文或日文输入，并保留各模式上次选择的方案"),
-                             WithMarginTop(grid, 12.0f)}));
-    }
 
     // ---- 输入方案 ----
     {
         auto quanpin = s->schemeGroup->Add(L"全拼", "quanpin");
         auto shuangpin = s->schemeGroup->Add(L"双拼", "shuangpin");
-        auto wubi = s->schemeGroup->Add(L"五笔", "wubi");
         s->schemeGroup->SetValue("quanpin");
         s->schemeGroup->SetOnChanged([model](const std::string &value) { model->Update("input.schema", value); });
         // .input-option-content: margin-top 12px, gap 8px
-        auto options = Col({quanpin, std::make_shared<Divider>(Divider::Kind::Option), shuangpin,
-                            std::make_shared<Divider>(Divider::Kind::Option), wubi},
-                           8.0f);
+        auto options = Col({quanpin, std::make_shared<Divider>(Divider::Kind::Option), shuangpin}, 8.0f);
         options->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
         s->chineseSections.push_back(AddHideableSection(page, Col({MakeTitle(L"输入方案"), options})));
     }
@@ -1016,54 +990,6 @@ VisualPtr BuildInputPage(PageContext &context)
         row->Add(left, 1.0f);
         row->Add(actions);
         s->chineseSections.push_back(AddHideableSection(page, row));
-    }
-
-    // ---- 五笔方案 ----
-    {
-        Dropdown::Options settings;
-        settings.paddingLeft = 9.0f;
-        settings.minWidth = 110.0f;
-        settings.menuMinWidth = 110.0f;
-        auto scheme = BindDropdown(context, "input.wubi_schema", Options({{"wubi86", L"86 五笔"}}), settings);
-        // z 键只剩通配两态，配置值仍是字符串 off | wildcard。
-        auto zMode = std::make_shared<ToggleSwitch>(false);
-        zMode->SetOnChanged([model](bool on) { model->Update("input.wubi_z_mode", on ? "wildcard" : "off"); });
-        std::weak_ptr<ToggleSwitch> weakZ = zMode;
-        context.OnConfig([weakZ, model]() {
-            if (auto toggle = weakZ.lock())
-                toggle->SetChecked(model->GetString("input.wubi_z_mode") == "wildcard");
-        });
-        s->chineseSections.push_back(AddHideableSection(
-            page,
-            Col({MakeRow(L"五笔方案", L"", scheme),
-                 ItemSetting(L"拼音混输", L"同一串字母同时给五笔码表和全拼，五笔候选在前",
-                             Toggle(context, "input.wubi_mixed_pinyin"), true, false),
-                 ItemSetting(L"z 键通配", L"开启后 z 可匹配码表中该位置的任意字母（含首位），常用于首码不确定时起头",
-                             zMode, false, false),
-                 ItemSetting(L"四码唯一时自动上屏",
-                             L"敲满四码且码表只给一个候选时第四键直接上屏，不必再按空格；关闭后候选窗停留，等你选",
-                             Toggle(context, "input.wubi_four_code_auto_commit"), false, false),
-                 ItemSetting(L"第五码将首选上屏",
-                             L"完整四码后再敲字母时上屏首选，并把该字母留作下一组合开头；关闭只在拼音混输开启时生效，"
-                             L"这个字母并入混输串；混输关闭时仍按顶字上屏，不会丢字",
-                             Toggle(context, "input.wubi_fifth_code_top_commit"), false, true)})));
-    }
-
-    // ---- 日语方案 ----
-    {
-        auto romaji = s->japaneseGroup->Add(L"罗马音", "romaji");
-        s->japaneseGroup->SetValue("romaji");
-        s->japaneseGroup->SetOnChanged([model](const std::string &value) {
-            if (value == "romaji")
-                model->Update("input.japanese_schema", value);
-        });
-        auto options = Col({romaji}, 8.0f);
-        options->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
-        s->japaneseSection =
-            AddHideableSection(page,
-                               Col({MakeTitle(L"日语方案"), options,
-                                    Description(L"直接输入罗马音，提供平假名、片假名及日语词库候选", 10.0f)}),
-                               false);
     }
 
     // ---- 输入纠错 ----
@@ -1335,13 +1261,9 @@ VisualPtr BuildInputPage(PageContext &context)
     // ---- Snapshot -> page (config-sync.ts) ----
     context.OnConfig([s, state, model, host, &context]() {
         (void)state;
-        const std::string mode = model->GetString("input.mode") == "japanese" ? "japanese" : "chinese";
-        s->modeGroup->SetValue(mode);
-        s->SyncMode(mode);
         const std::string schema = model->GetString("input.schema");
-        if (schema == "quanpin" || schema == "shuangpin" || schema == "wubi")
+        if (schema == "quanpin" || schema == "shuangpin")
             s->schemeGroup->SetValue(schema);
-        s->japaneseGroup->SetValue("romaji");
 
         // Custom shuangpin schemas follow the built-in ones; broken ones are listed greyed out.
         if (const Json *schemas = model->Find("input.custom_shuangpin_schemas"); schemas && schemas->is_array())

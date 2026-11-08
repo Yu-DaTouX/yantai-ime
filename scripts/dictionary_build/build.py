@@ -1,4 +1,4 @@
-"""构建流程：按 Rust 构建器的阶段顺序生成四个产物，写清单与校验和，整套检查通过后再替换 MetasequoiaImeDict/out/。"""
+"""构建流程：按 Rust 构建器的阶段顺序生成三个产物，写清单与校验和，整套检查通过后再替换 MetasequoiaImeDict/out/。"""
 
 from __future__ import annotations
 
@@ -12,19 +12,18 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import english_db, inputs, japanese_model, others_db, pinyin_db, symbols_db, textutil
+from . import english_db, inputs, others_db, pinyin_db, symbols_db, textutil
 
 ROOT = Path(__file__).resolve().parents[2]
 DICT_ROOT = ROOT / "MetasequoiaImeDict"
 OUT = DICT_ROOT / "out"
 BACKUP = DICT_ROOT / "out.bak"
 CACHE = DICT_ROOT / "cache" / "inputs"
-NOTICE = DICT_ROOT / "source" / "mozc_dictionary_oss" / "README.txt"
 MARKER = "local-dictionary.json"
 REPOSITORY = "metasequoiaime/msime-dictionary"
 
 # 随产物放在 out/ 里的声明：Mozc 要求分发模型时附上 README 与 LICENSE，SCOWL 要求每份拷贝附上它的版权声明。
-NOTICE_FILES = ("mozc_dictionary_oss_README.txt", "mozc_LICENSE.txt", "scowl_Copyright.txt")
+NOTICE_FILES = ("scowl_Copyright.txt",)
 
 _spec = importlib.util.spec_from_file_location("dictionary_product", ROOT / "scripts" / "dictionary_product.py")
 _product = importlib.util.module_from_spec(_spec)
@@ -76,7 +75,6 @@ def build_msime(source: inputs.Inputs, path: Path, stage: Stages) -> None:
             return "empty table, no built-in phrases"
 
         stage("quick-phrases", quick_phrases)
-        stage("japanese-lexicon", lambda: f"{pinyin_db.build_japanese_lexicon(connection, source.jp_sela)} entries")
         textutil.integrity_check(connection)
         with connection:
             textutil.analyze(connection, optimize=True)
@@ -178,23 +176,11 @@ def build_others(source: inputs.Inputs, path: Path, stage: Stages) -> None:
     textutil.freeze(path)
 
 
-def build_japanese(source: inputs.Inputs, path: Path, stage: Stages) -> None:
-    def model():
-        data, tokens, added, filtered = japanese_model.build(source.dictionary)
-        path.write_bytes(data)
-        return f"{tokens} tokens ({added} added from the aux dictionary and manual word lists, {filtered} base lines filtered)"
-
-    stage("japanese-model", model)
-
-
 def build_all(source: inputs.Inputs, staging: Path) -> None:
     stage = Stages()
     build_msime(source, staging / "msime.db", stage)
     copyright_text = build_english(source, staging / "english.db", staging / "msime.db", stage)
     build_others(source, staging / "others.db", stage)
-    build_japanese(source, staging / "dict_japanese.dat", stage)
-    shutil.copyfile(source.source(japanese_model.NOTICE), staging / "mozc_dictionary_oss_README.txt")
-    shutil.copyfile(source.source(japanese_model.LICENSE), staging / "mozc_LICENSE.txt")
     (staging / "scowl_Copyright.txt").write_bytes(copyright_text)
 
 
@@ -203,7 +189,7 @@ def check_outputs(directory: Path) -> None:
     # 连接要显式关掉，否则 Windows 上临时目录删不掉。
     with closing(sqlite3.connect(f"file:{directory / 'msime.db'}?mode=ro", uri=True)) as msime:
         tables = {row[0] for row in msime.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for table in ("wubi86", "japanese_lexicon", "tbl_1_a", "tbl_2_n", "tbl_others_s"):
+        for table in ("wubi86", "tbl_1_a", "tbl_2_n", "tbl_others_s"):
             if table not in tables or not msime.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone():
                 raise ValueError(f"msime.db 缺少表或表为空：{table}")
         # 快捷短语表必须在（用户快捷短语写在这里），但出厂必须是空的。
@@ -215,9 +201,6 @@ def check_outputs(directory: Path) -> None:
         columns = list(english.execute("PRAGMA table_info(english_words)"))
     if "weight" not in {c[1] for c in columns} or [c[1] for c in columns if c[5] > 0] != ["word", "display"]:
         raise ValueError("english.db 的 english_words schema 与 Windows 端不符")
-    with (directory / "dict_japanese.dat").open("rb") as model:
-        if model.read(8) != japanese_model.MAGIC:
-            raise ValueError("dict_japanese.dat 头部不是 MSJPDT1")
 
 
 def write_manifests(directory: Path, commit: str, dirty: bool, msime_commit: str) -> None:
@@ -229,7 +212,7 @@ def write_manifests(directory: Path, commit: str, dirty: bool, msime_commit: str
         "manifest_version": 1,
         "profile": "desktop",
         "format_version": 1,
-        "engine_compatibility": {"dictionary_format": 1, "japanese_model_magic": "MSJPDT1"},
+        "engine_compatibility": {"dictionary_format": 1},
         "source": {"repository": REPOSITORY, "path": ".", "commit": commit, "dirty": dirty},
         "sqlite_journal_mode": "delete",
         "format_contract_commit": msime_commit,
@@ -240,7 +223,7 @@ def write_manifests(directory: Path, commit: str, dirty: bool, msime_commit: str
             "msime": {"repository": f"https://github.com/{lock['msime']['repository']}.git", "commit": msime_commit},
             **{name: {"url": entry["url"], "sha256": entry["sha256"]} for name, entry in lock["external"].items()},
         },
-        "features": ["pinyin", "wubi", "quick_phrases", "english", "emoji", "kaomoji", "symbols", "japanese"],
+        "features": ["pinyin", "wubi", "quick_phrases", "english", "emoji", "kaomoji", "symbols"],
         "files": files,
     }
     (directory / _product.MANIFEST_NAME).write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",

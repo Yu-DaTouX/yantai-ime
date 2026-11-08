@@ -163,75 +163,8 @@ int run_test()
                 english_reopened.candidates()[1].word == "Help" && english_reopened.candidates()[2].word == "Hello",
             "Temporary English frequency learning included the fixed raw candidate in ranking.");
 
-    metasequoia::InputSession japanese(SchemeType::Quanpin);
-    require(japanese.handle_character('R', true).handled &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::TemporaryJapanese &&
-                japanese.preedit() == "R" && japanese.scheme() == SchemeType::Quanpin &&
-                japanese.scheme_type() == SchemeType::Quanpin,
-            "Shift+R did not enter a temporary Japanese session with a visible prefix.");
-    const auto bare_japanese_punctuation = japanese.handle_punctuation(',');
-    require(bare_japanese_punctuation.handled && bare_japanese_punctuation.commit == "，" &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::None &&
-                japanese.scheme() == SchemeType::Quanpin && japanese.scheme_type() == SchemeType::Quanpin,
-            "Engine punctuation committed the bare R prefix or failed to restore Quanpin.");
-    require(japanese.handle_character('R', true).handled,
-            "Temporary Japanese could not restart after engine punctuation.");
-    type(japanese, "ka");
-    require(japanese.preedit() == "Rka" && contains(japanese.candidates(), "か"),
-            "Temporary Japanese did not reuse Romaji conversion candidates.");
-    const auto japanese_commit = japanese.select_candidate(std::string("か"));
-    require(japanese_commit.handled && japanese_commit.commit == "か" &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::None &&
-                japanese.scheme() == SchemeType::Quanpin,
-            "Temporary Japanese selection did not restore the original Chinese scheme.");
-
-    require(japanese.handle_character('R', true).handled &&
-                japanese.handle_command(metasequoia::Command::Backspace).handled &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::None &&
-                japanese.scheme() == SchemeType::Quanpin,
-            "Backspace on a bare R prefix did not restore Quanpin.");
-    require(japanese.handle_character('R', true).handled,
-            "Temporary Japanese could not start for a bare-prefix commit.");
-    const auto bare_japanese_commit = japanese.handle_command(metasequoia::Command::CommitCandidate);
-    require(bare_japanese_commit.handled && !bare_japanese_commit.commit.has_value() &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::None &&
-                japanese.scheme() == SchemeType::Quanpin,
-            "A bare temporary-Japanese display prefix escaped into committed text.");
-    require(japanese.handle_character('R', true).handled, "Temporary Japanese could not start for a flush.");
-    const auto empty_flush = japanese.finish_composition();
-    require(empty_flush.handled && !empty_flush.commit.has_value() && !japanese.has_composition(),
-            "Flushing a bare local-mode prefix produced a spurious client insertion.");
-    require(japanese.handle_character('R', true).handled, "Temporary Japanese could not be re-entered.");
-    type(japanese, "ka");
-    require(japanese.handle_command(metasequoia::Command::Cancel).handled && japanese.scheme() == SchemeType::Quanpin &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Cancel did not restore the original scheme from temporary Japanese.");
-    require(japanese.handle_character('R', true).handled, "Temporary Japanese could not start before a scheme switch.");
-    japanese.switch_scheme(SchemeType::Shuangpin);
-    require(japanese.scheme() == SchemeType::Shuangpin &&
-                japanese.local_input_mode() == metasequoia::LocalInputMode::None && !japanese.has_composition(),
-            "An explicit scheme switch did not supersede temporary Japanese restoration.");
-
-    metasequoia::InputSession japanese_enter(SchemeType::Quanpin);
-    require(japanese_enter.handle_character('R', true).handled,
-            "Temporary Japanese could not start for raw Enter commit.");
-    type(japanese_enter, "ka");
-    const auto japanese_raw = japanese_enter.handle_command(metasequoia::Command::CommitRaw);
-    require(japanese_raw.handled && japanese_raw.commit == "ka" &&
-                japanese_enter.local_input_mode() == metasequoia::LocalInputMode::None &&
-                japanese_enter.scheme() == SchemeType::Quanpin,
-            "Enter committed the display-only R prefix or failed to restore Quanpin.");
-
-    metasequoia::InputSession shuangpin_japanese(SchemeType::Shuangpin);
-    require(shuangpin_japanese.handle_character('R', true).handled, "Temporary Japanese did not start from Shuangpin.");
-    type(shuangpin_japanese, "ka");
-    require(shuangpin_japanese.select_candidate(std::string("か")).commit == "か" &&
-                shuangpin_japanese.scheme() == SchemeType::Shuangpin,
-            "Temporary Japanese did not return to the original Shuangpin scheme.");
-
     metasequoia::LocalModeOptions disabled_options;
     disabled_options.temporary_english = false;
-    disabled_options.temporary_japanese = false;
     metasequoia::InputSession disabled(SchemeType::Quanpin);
     disabled.set_local_mode_options(disabled_options);
     require(!disabled.handle_character('Y', true).handled && !disabled.has_composition() &&
@@ -239,7 +172,7 @@ int run_test()
             "Disabled temporary English swallowed Shift+Y.");
     require(!disabled.handle_character('R', true).handled && !disabled.has_composition() &&
                 disabled.local_input_mode() == metasequoia::LocalInputMode::None,
-            "Disabled temporary Japanese swallowed Shift+R.");
+            "Removed R mode swallowed Shift+R.");
 
     return 0;
 }

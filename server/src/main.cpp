@@ -73,10 +73,6 @@ const char *SchemeTypeToString(SchemeType scheme_type)
         return "quanpin";
     case SchemeType::Shuangpin:
         return "shuangpin";
-    case SchemeType::Wubi:
-        return "wubi";
-    case SchemeType::JapaneseRomaji:
-        return "japanese-romaji";
     default:
         return "unknown";
     }

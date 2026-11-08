@@ -90,6 +90,35 @@ std::string ReadText(const std::filesystem::path &path)
 }
 } // namespace
 
+TEST_CASE(removed_japanese_configuration_falls_back_to_quanpin)
+{
+    namespace fs = std::filesystem;
+    const fs::path root = MakeProfileRoot() / L"legacy-japanese";
+    const fs::path data = root / L"metasequoiaime";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    SeedTemplate(data);
+    const std::string stock = ReadText(data / L"config.default.toml");
+    for (const std::string schema : {"shuangpin", "wubi", "japanese", "romaji"})
+    {
+        fs::remove(data / L"config.base.toml", ec);
+        WriteText(data / L"config.toml", "[input]\nmode = \"japanese\"\nschema = \"" + schema +
+                                             "\"\njapanese_schema = \"romaji\"\n[utility]\nr_mode = true\n"
+                                             "[keybindings]\ntrilingual_cycle = true\n");
+        ScopedConfigLocation location(root);
+        InitImeConfig();
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
+        REQUIRE(GetConfiguredInputScheme() == SchemeType::Quanpin);
+        const auto merged = ReadText(data / L"config.toml");
+        REQUIRE(merged.find("japanese_schema") == std::string::npos);
+        REQUIRE(merged.find("r_mode =") == std::string::npos);
+        REQUIRE(merged.find("trilingual_cycle") == std::string::npos);
+        InitImeConfig();
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
+    }
+    fs::remove_all(root, ec);
+}
+
 TEST_CASE(config_round_trips_under_non_ascii_profile_path)
 {
     namespace fs = std::filesystem;
@@ -150,8 +179,7 @@ TEST_CASE(config_round_trips_under_non_ascii_profile_path)
         REQUIRE(SetConfiguredInputStateShortcut(2, "Ctrl+Period"));
         REQUIRE(SetConfiguredInputStateShortcut(1, "Ctrl+Shift+Space"));
 
-        REQUIRE(SetConfiguredInputMode("japanese"));
-        REQUIRE(SetConfiguredInputScheme("wubi"));
+        REQUIRE(SetConfiguredInputScheme("shuangpin"));
         for (const std::string &position : {"top-left", "top", "top-right", "bottom-left", "bottom", "bottom-right"})
         {
             REQUIRE(SetConfiguredCaretStateIndicatorPosition(position));
@@ -170,8 +198,7 @@ TEST_CASE(config_round_trips_under_non_ascii_profile_path)
         REQUIRE_EQ(GetConfiguredCaretStateIndicatorPosition(), std::string("bottom-right"));
 
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("japanese"));
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("wubi"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("shuangpin"));
 
         const std::vector<std::string> fonts = {"SimSun", "Font#1", "Font]2", "Font\\\"3", "微软雅黑"};
         REQUIRE(SetConfiguredCandidateFallbackFonts(fonts));
@@ -348,7 +375,7 @@ TEST_CASE(config_reload_detects_a_change_that_keeps_the_same_timestamp)
         ScopedConfigLocation location(unique_root);
         WriteText(config_path, "[input]\nschema = \"quanpin\"\n");
         InitImeConfig();
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::Quanpin);
+        REQUIRE(GetConfiguredInputScheme() == SchemeType::Quanpin);
         const auto stamp = fs::last_write_time(config_path);
 
         // 模拟「两次写入落在同一个时间刻度」：内容换成双拼，但修改时间保持原样。
@@ -359,137 +386,11 @@ TEST_CASE(config_reload_detects_a_change_that_keeps_the_same_timestamp)
         REQUIRE(fs::last_write_time(config_path) == stamp);
 
         REQUIRE(ReloadImeConfigIfChanged());
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::Shuangpin);
+        REQUIRE(GetConfiguredInputScheme() == SchemeType::Shuangpin);
 
         // 内容确实没再变时不能每次都当成变了，否则轮询会退化成每次全量重载。
         REQUIRE(!ReloadImeConfigIfChanged());
         REQUIRE(!ReloadImeConfigIfChanged());
-    }
-
-    fs::remove_all(unique_root, ec);
-}
-
-TEST_CASE(trilingual_runtime_language_preserves_preferences_without_writing_config)
-{
-    namespace fs = std::filesystem;
-    const fs::path unique_root = MakeProfileRoot() / L"trilingual";
-    const fs::path data_dir = unique_root / L"metasequoiaime";
-    std::error_code ec;
-    fs::remove_all(unique_root, ec);
-    SeedTemplate(data_dir);
-
-    {
-        ScopedConfigLocation location(unique_root);
-        InitImeConfig();
-        REQUIRE(!GetConfiguredTrilingualCycleEnabled());
-        REQUIRE(SetConfiguredInputScheme("wubi"));
-        REQUIRE(SetConfiguredTrilingualCycleEnabled(true));
-        const fs::path config_path = GetImeConfigPath();
-        const std::string before_cycle = ReadText(config_path);
-        const auto before_cycle_write_time = fs::last_write_time(config_path);
-        // Prevent replacement of the config file: language switching must not
-        // need write access, even while another process holds the file open.
-        const HANDLE config_guard =
-            CreateFileW(config_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-        REQUIRE(config_guard != INVALID_HANDLE_VALUE);
-        const bool switched = SetActiveInputMode("japanese");
-        CloseHandle(config_guard);
-        REQUIRE(switched);
-        REQUIRE(GetConfiguredTrilingualCycleEnabled());
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("chinese"));
-        REQUIRE_EQ(GetActiveInputMode(), std::string("japanese"));
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::JapaneseRomaji);
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("wubi"));
-        REQUIRE_EQ(ReadText(config_path), before_cycle);
-        REQUIRE(fs::last_write_time(config_path) == before_cycle_write_time);
-
-        // Generic settings/file-watcher reloads must preserve the runtime language.
-        REQUIRE(SetConfiguredCandidateFontSize(18));
-        InvalidateImeConfigWriteTime();
-        REQUIRE(ReloadImeConfigIfChanged());
-        REQUIRE_EQ(GetActiveInputMode(), std::string("japanese"));
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("chinese"));
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::JapaneseRomaji);
-
-        REQUIRE(SetActiveInputMode("chinese"));
-        REQUIRE(GetConfiguredTrilingualCycleEnabled());
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::Wubi);
-        REQUIRE(!SetActiveInputMode("english"));
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("chinese"));
-        REQUIRE_EQ(GetActiveInputMode(), std::string("chinese"));
-
-        // Choosing a language in settings restarts the cycle from it, but the
-        // cycle switch is a separate shortcut setting and stays on.
-        REQUIRE(SetActiveInputMode("japanese"));
-        REQUIRE(SetConfiguredInputMode("chinese"));
-        REQUIRE(GetConfiguredTrilingualCycleEnabled());
-        REQUIRE_EQ(GetActiveInputMode(), std::string("chinese"));
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::Wubi);
-        REQUIRE(SetConfiguredInputMode("japanese"));
-        InitImeConfig();
-        REQUIRE(GetConfiguredTrilingualCycleEnabled());
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("japanese"));
-        REQUIRE_EQ(GetActiveInputMode(), std::string("japanese"));
-        REQUIRE(SetActiveInputMode("chinese"));
-        REQUIRE(SetConfiguredInputMode("chinese"));
-        InitImeConfig();
-        REQUIRE(GetConfiguredTrilingualCycleEnabled());
-        REQUIRE_EQ(GetActiveInputMode(), std::string("chinese"));
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::Wubi);
-        // The switch is stored with the other language hotkeys, and only there.
-        const std::string stored = ReadText(config_path);
-        const auto keybindings_position = stored.find("\n[keybindings]");
-        REQUIRE(keybindings_position != std::string::npos);
-        REQUIRE(stored.find("trilingual_cycle") > keybindings_position);
-        REQUIRE(stored.find("trilingual_cycle = true", keybindings_position) != std::string::npos);
-
-        REQUIRE(SetConfiguredTrilingualCycleEnabled(true));
-        REQUIRE(SetActiveInputMode("japanese"));
-        // Disabling the cycle preference also drops its runtime override.
-        REQUIRE(SetConfiguredTrilingualCycleEnabled(false));
-        REQUIRE_EQ(GetActiveInputMode(), std::string("chinese"));
-        REQUIRE(!SetActiveInputMode("japanese"));
-
-        REQUIRE(SetConfiguredTrilingualCycleEnabled(true));
-        REQUIRE(SetActiveInputMode("japanese"));
-        // A process initialization starts from the stored preference.
-        InitImeConfig();
-        REQUIRE(GetConfiguredTrilingualCycleEnabled());
-        REQUIRE_EQ(GetActiveInputMode(), std::string("chinese"));
-        REQUIRE(GetConfiguredActiveInputScheme() == SchemeType::Wubi);
-
-        // A preference edit made by another process resets the runtime language.
-        REQUIRE(SetActiveInputMode("chinese"));
-        std::string external_config = ReadText(config_path);
-        const auto mode_position = external_config.find("\nmode = \"chinese\"");
-        REQUIRE(mode_position != std::string::npos);
-        external_config.replace(mode_position, std::string("\nmode = \"chinese\"").size(), "\nmode = \"japanese\"");
-        WriteText(config_path, external_config);
-        InvalidateImeConfigWriteTime();
-        REQUIRE(ReloadImeConfigIfChanged());
-        REQUIRE_EQ(GetActiveInputMode(), std::string("japanese"));
-        REQUIRE(SetActiveInputMode("chinese"));
-        external_config = ReadText(config_path);
-        const auto cycle_position = external_config.find("trilingual_cycle = true");
-        REQUIRE(cycle_position != std::string::npos);
-        external_config.replace(cycle_position, std::string("trilingual_cycle = true").size(),
-                                "trilingual_cycle = false");
-        WriteText(config_path, external_config);
-        InvalidateImeConfigWriteTime();
-        REQUIRE(ReloadImeConfigIfChanged());
-        REQUIRE_EQ(GetActiveInputMode(), std::string("japanese"));
-        REQUIRE(!GetConfiguredTrilingualCycleEnabled());
-
-        REQUIRE(SetConfiguredInputMode("chinese"));
-        REQUIRE(SetConfiguredInputScheme("shuangpin"));
-        REQUIRE(SetConfiguredTsfPreeditStyle("raw"));
-        REQUIRE(SetConfiguredTsfPreeditShuangpinQuanpin(true));
-        REQUIRE(SetConfiguredTrilingualCycleEnabled(true));
-        REQUIRE_EQ(GlobalSettings::getTsfPreeditStyle(), std::string("pinyin"));
-        REQUIRE(SetActiveInputMode("japanese"));
-        REQUIRE_EQ(GlobalSettings::getTsfPreeditStyle(), std::string("raw"));
-        REQUIRE(SetActiveInputMode("chinese"));
-        REQUIRE_EQ(GlobalSettings::getTsfPreeditStyle(), std::string("pinyin"));
     }
 
     fs::remove_all(unique_root, ec);
@@ -511,9 +412,9 @@ TEST_CASE(config_recovers_unparseable_file_and_saves)
     {
         ScopedConfigLocation local_app_data_env(local_app_data);
         InitImeConfig();
-        REQUIRE(SetConfiguredInputMode("japanese"));
+        REQUIRE(SetConfiguredInputScheme("quanpin"));
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("japanese"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
     }
 
     fs::remove_all(unique_root, ec);
@@ -535,9 +436,9 @@ TEST_CASE(config_overwrites_readonly_file)
         InitImeConfig();
         const fs::path config_path = data_dir / L"config.toml";
         REQUIRE(SetFileAttributesW(config_path.c_str(), FILE_ATTRIBUTE_READONLY));
-        REQUIRE(SetConfiguredInputMode("japanese"));
+        REQUIRE(SetConfiguredInputScheme("quanpin"));
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("japanese"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
     }
 
     fs::remove_all(unique_root, ec);
@@ -572,23 +473,28 @@ TEST_CASE(config_migrates_legacy_acp_mangled_path)
     fs::create_directories(mangled_dir, ec);
     REQUIRE(!ec);
     const std::string stock = ReadText(data_dir / L"config.default.toml");
-    // 锚定行首：default_ime_mode = "chinese" 也包含这个子串，且在模板里排在 [input] mode 之前。
-    const std::string from = "\nmode = \"chinese\"";
+    // 修改输入方案，验证旧 ACP 路径下的配置能找回。
+    const std::string from = "\nschema = \"quanpin\"";
     const auto pos = stock.find(from);
     REQUIRE(pos != std::string::npos);
     WriteText(data_dir / L"config.toml", stock + "\n# leftover-installer-marker\n");
     std::string leftover = stock;
-    leftover.replace(pos, from.size(), "\nmode = \"japanese\"");
+    leftover.replace(pos, from.size(), "\nschema = \"shuangpin\"");
+    // 另改一个值，让找回后的配置不可能与出厂模板逐字节相同：测试要验证的是「找回 + 写回」，
+    // 而写回出厂默认值时文件会恰好等于模板，那是迁移的另一条分支（real_is_stock）。
+    const std::string theme_from = "theme = \"dark\"";
+    const auto theme_at = leftover.find(theme_from);
+    REQUIRE(theme_at != std::string::npos);
+    leftover.replace(theme_at, theme_from.size(), "theme = \"light\"");
     WriteText(mangled_dir / L"config.toml", leftover);
 
     {
         ScopedConfigLocation local_app_data_env(local_app_data);
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("japanese"));
-        REQUIRE(SetConfiguredInputScheme("wubi"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("shuangpin"));
+        REQUIRE(SetConfiguredInputScheme("quanpin"));
         InitImeConfig();
-        REQUIRE_EQ(GetConfiguredInputMode(), std::string("japanese"));
-        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("wubi"));
+        REQUIRE_EQ(GetConfiguredInputSchemeName(), std::string("quanpin"));
     }
 
     fs::remove_all(unique_root, ec);

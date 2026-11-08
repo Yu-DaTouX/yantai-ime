@@ -401,8 +401,7 @@ std::string BuildCurrentCandidatePage()
 
 void PrepareCandidateTranslationRequest()
 {
-    const bool japanese = g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-    const bool enabled = GetConfiguredCandidateTranslationsEnabled() && !IsUiLessMode() && !japanese;
+    const bool enabled = GetConfiguredCandidateTranslationsEnabled() && !IsUiLessMode();
     auto &ui = Global::candidate_ui;
     if (IsCandidateSubPageActive())
     {
@@ -694,15 +693,6 @@ std::string CandidateDatabaseKey(const WordItem &item, const std::string &contex
 
 std::pair<std::string, std::string> RankingKeysForCandidate(const WordItem &item)
 {
-    // 混输组合里五笔候选与拼音候选共存，按候选自己的方案选键：五笔候选写码表（context 与
-    // entry 都是码），拼音候选写拼音词典。此时 CurrentRankingContextKey() 从 get_quanpin()
-    // 取到的正是那串字母的拼音上下文，可以直接用。
-    if (item.scheme == SchemeType::Wubi)
-    {
-        const std::string key =
-            item.pinyin.empty() && g_inputSession ? g_inputSession->get_pinyin_sequence() : item.pinyin;
-        return {key, item.pinyin};
-    }
     const std::string context_key = CurrentRankingContextKey();
     return {context_key, CandidateDatabaseKey(item, context_key)};
 }
@@ -949,7 +939,6 @@ bool RespellCandidatesForCharacterSetChange()
         g_candidate_list_character_set == GetConfiguredCharacterSet())
         return false;
     if (!FanyImeIpc::CandidateListFollowsCharacterSet(
-            /*japanese_scheme=*/g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji,
             /*radical_candidate_list=*/IsRadicalCandidateListActive(), /*english_input_mode=*/g_english_input_mode))
         return false;
     const FanyImeIpc::CandidateUiOwner owner = SnapshotCandidateUiOwner();

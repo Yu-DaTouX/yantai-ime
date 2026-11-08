@@ -107,19 +107,6 @@ struct ConfigValueUpdate
 
 // 配置状态：定义与初始化顺序都在 ime_config.cpp。
 extern SchemeType g_input_scheme;
-extern std::string g_input_mode;
-enum class ActiveInputMode
-{
-    Configured,
-    Chinese,
-    Japanese
-};
-// The key thread reads the language without the config lock. These mirror
-// g_input_mode and [keybindings] trilingual_cycle for those lock-free reads.
-extern std::atomic<bool> g_configured_input_mode_japanese;
-extern std::atomic<ActiveInputMode> g_active_input_mode;
-extern std::atomic<bool> g_trilingual_cycle_enabled;
-extern std::string g_japanese_schema;
 extern std::string g_character_set;
 extern std::string g_default_ime_mode;
 extern std::string g_ime_mode_scope;
@@ -140,13 +127,8 @@ extern std::atomic_bool g_diagnostic_log_enabled;
 extern std::atomic_bool g_tsf_diagnostic_log_enabled;
 extern std::string g_candidate_text_color;
 extern std::string g_shuangpin_schema;
-extern std::string g_wubi_schema;
-extern bool g_wubi_mixed_pinyin;
 extern bool g_escape_keeps_selected_word;
 extern bool g_enter_learns_english_word;
-extern std::string g_wubi_z_mode;
-extern bool g_wubi_four_code_auto_commit;
-extern bool g_wubi_fifth_code_top_commit;
 extern std::string g_shuangpin_preedit_mode;
 extern std::string g_tsf_preedit_style;
 extern bool g_tsf_preedit_shuangpin_quanpin;
@@ -228,7 +210,6 @@ extern bool g_kaomoji_mode_enabled;
 extern bool g_symbol_mode_enabled;
 extern bool g_jianpin_mode_enabled;
 extern bool g_y_mode_enabled;
-extern bool g_r_mode_enabled;
 extern bool g_v_mode_enabled;
 extern bool g_clipboard_history_enabled;
 extern bool g_language_bar_enabled;

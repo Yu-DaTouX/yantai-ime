@@ -207,12 +207,6 @@ bool IsCharacterSetInputModeToggle(UINT code, UINT modifiers)
            FanyUtils::ReadConfiguredSwitchLanguageHotkeys().character_set_ctrl_shift_f;
 }
 
-bool IsTrilingualCycleEnabled()
-{
-    return Global::TrilingualCycleEnabled.load(std::memory_order_relaxed) &&
-           (GetAsyncKeyState(VK_LWIN) & 0x8000) == 0 && (GetAsyncKeyState(VK_RWIN) & 0x8000) == 0 &&
-           SupportsTrilingualCycle();
-}
 
 void PostOwnerMessageWithSyncFallback(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -494,8 +488,7 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
         // foreground checks; here only the input modes are added, and the
         // classification must match _DispatchKeyDown's probe exactly so a
         // claimed key is never handed back.
-        if (isPunctuation && !isDoubleSingleByte && !isComposing && candidateMode == CANDIDATE_NONE &&
-            !Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed))
+        if (isPunctuation && !isDoubleSingleByte && !isComposing && candidateMode == CANDIDATE_NONE)
         {
             if (wch == L' ' && _CanInterceptSmartPunctuationConvert())
             {
@@ -1158,15 +1151,6 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
             // TestKeyDown owned this key. Do not send it as ordinary input.
             return KeyDownDispatchResult::Complete;
         }
-        if (KeystrokeState.Function == FUNCTION_CYCLE_INPUT_MODE && !SupportsTrilingualCycle())
-        {
-            // A reconnect may replace the peer after the language hotkey was queued.
-            // Keep it eaten, but never send a cycle to an unnegotiated Server.
-            // Later keys were projected into its destination, so discard that
-            // queue along with the now-unusable projection.
-            _ResetSessionAfterFailure(DeferredKeyFailureKind::Resync);
-            return KeyDownDispatchResult::Complete;
-        }
 
         // Without the capability the toggle goes out as the legacy KeyEvent. A custom
         // chord queued before a reconnect to such a Server has no legacy form.
@@ -1211,15 +1195,6 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
                 KeystrokeState.Function =
                     KeystrokeState.Function == FUNCTION_MOVE_LEFT_CANDIDATE ? FUNCTION_MOVE_LEFT : FUNCTION_MOVE_RIGHT;
             }
-        }
-        if (KeystrokeState.Function == FUNCTION_CYCLE_INPUT_MODE)
-        {
-            // Mark the request explicitly and carry this host's own state: the
-            // Server cycles from it, not from whichever host it last heard from.
-            // Every key before this one has been applied, so it is current.
-            Global::ModifiersDown |= FanyImeTrilingualInput::EncodeCycleRequest(
-                _pCompositionProcessorEngine->GetIMEMode(_pThreadMgr, _tfClientId) != FALSE,
-                Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed));
         }
 
         // The character-set shortcut carries the caret anchor for its badge.
@@ -1281,12 +1256,6 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
                                             : KeyDownDispatchResult::Complete;
         }
 
-        if (KeystrokeState.Function == FUNCTION_CYCLE_INPUT_MODE && _msgWndHandle)
-        {
-            _PostAsyncKeyRequest(WM_AsyncCycleInputMode, code, wch, requestId, {}, 0, 0, deferredReplayToken);
-            return deferredReplayToken != 0 ? KeyDownDispatchResult::AwaitingCompletion
-                                            : KeyDownDispatchResult::Complete;
-        }
 
         // Every key whose edit session applies a committing candidate reply goes
         // through the message window first: its handler fetches the reply where

@@ -22,11 +22,6 @@
       "url": "https://github.com/en-wl/wordlist/releases/download/rel-2026.02.25/aspell6-en-2026.02.25-0.tar.bz2",
       "size": 185418,
       "sha256": "77a5cb437c45d1115f3b593802c20651d8c93803ed1073278dc1a1240016f10d"
-    },
-    "jp_sela.dict.yaml": {
-      "url": "https://raw.githubusercontent.com/Selaube/rime-jp_sela/898e09cb5e0bd3e02216165e52fef67f5a597590/jp_sela.dict.yaml",
-      "size": 78569,
-      "sha256": "fa158f3953e6f5729558ffb5bed64edfd4117fa477ab633491f0a70625c13fa6"
     }
   }
 }

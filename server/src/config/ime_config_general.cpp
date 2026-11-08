@@ -544,21 +544,6 @@ bool SetConfiguredYModeEnabled(bool enabled)
     return true;
 }
 
-bool GetConfiguredRModeEnabled()
-{
-    return g_r_mode_enabled;
-}
-
-bool SetConfiguredRModeEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("utility", "r_mode", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_r_mode_enabled = enabled;
-    return true;
-}
-
 bool GetConfiguredVModeEnabled()
 {
     return g_v_mode_enabled;
@@ -577,14 +562,12 @@ bool SetConfiguredVModeEnabled(bool enabled)
 std::wstring FormatVModeWorkerPayload()
 {
     using FanyImeVModeInput::Trigger;
-    // 日语模式下当前方案是 JapaneseRomaji，自然落到 Off。
-    // 五笔与双拼同款：只认大写 V。小写 v 是合法码字，v+数字现状是「码 v 选第 N 个候选」，
-    // 大小写都认会把它变成 V 模式，破坏选词。
-    const SchemeType scheme = GetConfiguredActiveInputScheme();
+    // 双拼只认大写 V：小写 v 在双拼里是合法码字，大小写都认会把「码 v 选第 N 个候选」
+    // 变成 V 模式，破坏选词。
+    const SchemeType scheme = GetConfiguredInputScheme();
     const Trigger trigger = !g_v_mode_enabled                 ? Trigger::Off
                             : scheme == SchemeType::Quanpin   ? Trigger::AnyCase
                             : scheme == SchemeType::Shuangpin ? Trigger::UppercaseOnly
-                            : scheme == SchemeType::Wubi      ? Trigger::UppercaseOnly
                                                               : Trigger::Off;
     return std::wstring(1, FanyImeVModeInput::PayloadFromTrigger(trigger));
 }

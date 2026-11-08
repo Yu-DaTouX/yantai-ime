@@ -300,7 +300,8 @@
         "type": "object",
         "properties": {
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Active configuration path; removed Japanese input mode, schema, R-mode, trilingual-cycle and Wubi settings are ignored."
           },
           "value": {
             "anyOf": [
@@ -337,7 +338,6 @@
             "type": "string",
             "enum": [
               "quanpin",
-              "wubi",
               "english",
               "quick",
               "latin"
@@ -393,32 +393,6 @@
         "required": [
           "requestId",
           "dictionary",
-          "action"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "statsRequest": {
-      "surfaces": [
-        "settings"
-      ],
-      "data": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "overview",
-              "clearAll",
-              "openDirectory"
-            ]
-          }
-        },
-        "required": [
-          "requestId",
           "action"
         ],
         "additionalProperties": false
@@ -752,8 +726,7 @@
         "type": "string",
         "enum": [
           "quanpin",
-          "shuangpin",
-          "wubi"
+          "shuangpin"
         ]
       }
     },

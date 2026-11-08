@@ -52,10 +52,10 @@ try {
     Write-Fixture 'skins/unverified/skin.toml' "schema_version = 1`nid = `"unverified`"`n[license]`nassets = `"UNVERIFIED-DEMO-ONLY`"`n"
     Write-Fixture 'server/assets/tables/pinyin.txt' 'xing'
     Write-Fixture 'MetasequoiaImeDict/out/dictionary-manifest.json' '{"manifest_version":1}'
-    # 词库以文本源进包，导出脚本要读真正的 SQLite 文件和 MSJPDT1 模型，所以这几个夹具得是真的。
+    # 词库以文本源进包，导出脚本要读真正的 SQLite 文件，所以这几个夹具得是真的。
     Copy-Item (Join-Path $PSScriptRoot '../../scripts/pack-dictionary-source.py') (New-Item -ItemType Directory -Force -Path (Join-Path $fixture 'scripts'))
     python -c @'
-import sqlite3, struct, sys
+import sqlite3, sys
 from pathlib import Path
 out = Path(sys.argv[1])
 with sqlite3.connect(out / "english.db") as db:
@@ -65,10 +65,6 @@ with sqlite3.connect(out / "msime.db") as db:
     db.execute("INSERT INTO tbl_1_n VALUES ('ni', 'n', '你', 100)")
 with sqlite3.connect(out / "others.db") as db:
     db.execute("CREATE TABLE emoji(emoji TEXT NOT NULL, category TEXT NOT NULL)")
-strings = "あ亜".encode()
-(out / "dict_japanese.dat").write_bytes(b"MSJPDT1\0" + struct.pack("<IIII", 1, 1, 1, 0)
-    + struct.pack("<QQQQ", 56, 76, 78, len(strings)) + struct.pack("<IHIHHHi", 0, 3, 3, 3, 0, 0, 10)
-    + struct.pack("<h", 0) + strings)
 '@ (Join-Path $fixture 'MetasequoiaImeDict/out')
     if ($LASTEXITCODE -ne 0) { throw 'Failed to create packaging fixture' }
     & (Join-Path $installer 'Prepare-PackageFiles.ps1') -RepoRoot $fixture -TargetVersion '2026.9.1' -IncludeSymbols
@@ -87,11 +83,10 @@ strings = "あ亜".encode()
     }
     # 词库以文本源进包，安装时由 MetasequoiaImeDictionaryBuild.exe 还原；SQLite 文件本身不能再进 app_data。
     foreach ($file in @('dictionary_source/msime.dump', 'dictionary_source/english.dump', 'dictionary_source/others.dump',
-                         'dictionary_source/dict_japanese.tokens', 'dictionary_source/dict_japanese.connection',
                          'server_exe/MetasequoiaImeDictionaryBuild.exe')) {
         if (-not (Test-Path (Join-Path $installer $file))) { throw "Missing packaged file: $file" }
     }
-    foreach ($file in @('msime.db', 'english.db', 'others.db', 'dict_japanese.dat')) {
+    foreach ($file in @('msime.db', 'english.db', 'others.db')) {
         if (Test-Path (Join-Path $installer "app_data/$file")) { throw "Packaged the built dictionary file $file instead of its text source" }
     }
     $issForBuild = [IO.File]::ReadAllText((Join-Path $installer 'msime_setup.iss'))

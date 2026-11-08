@@ -32,8 +32,7 @@ export type ClientMessage =
   | { "type": "windowControl"; "protocolVersion"?: 1; "data": "minimize" | "maximize" | "restore" | "close" }
   | { "type": "maximizeButtonRect"; "protocolVersion"?: 1; "data": { "x": number; "y": number; "width": number; "height": number; "dpr": number } }
   | { "type": "configUpdate"; "protocolVersion"?: 1; "data": { "path": string; "value": string | number | boolean } }
-  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
-  | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
+  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
   | { "type": "candidate"; "protocolVersion"?: 1; "data": number }
@@ -53,7 +52,7 @@ export type ClientMessage =
   | { "type": "floatingToggle"; "protocolVersion"?: 1; "data": boolean }
   | { "type": "settings"; "protocolVersion"?: 1 }
   | { "type": "about"; "protocolVersion"?: 1 }
-  | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" | "shuangpin" | "wubi" }
+  | { "type": "changeInputScheme"; "protocolVersion"?: 1; "data": "quanpin" | "shuangpin" }
   | { "type": "inputSchemeSubmenu"; "protocolVersion"?: 1; "data": { "open": boolean; "width": number } }
   | { "type": "ready"; "protocolVersion"?: 1 }
   | { "type": "exitEnglishInputMode"; "protocolVersion"?: 1 }
@@ -102,8 +101,7 @@ export type SettingsMessage =
   | { "type": "windowControl"; "protocolVersion"?: 1; "data": "minimize" | "maximize" | "restore" | "close" }
   | { "type": "maximizeButtonRect"; "protocolVersion"?: 1; "data": { "x": number; "y": number; "width": number; "height": number; "dpr": number } }
   | { "type": "configUpdate"; "protocolVersion"?: 1; "data": { "path": string; "value": string | number | boolean } }
-  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "wubi" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
-  | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
+  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } };
 declare global {

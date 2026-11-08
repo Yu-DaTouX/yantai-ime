@@ -1,50 +1,5 @@
 #include "ipc/input_key_policy.h"
-#include "engine/contracts/trilingual_input.h"
 #include "tests/includes/test_framework.h"
-
-TEST_CASE(trilingual_shift_cycles_chinese_japanese_english_and_returns_to_chinese)
-{
-    using FanyImeTrilingualInput::Mode;
-    using FanyImeTrilingualInput::Next;
-    REQUIRE(Next(true, false) == Mode::Japanese);
-    REQUIRE(Next(true, true) == Mode::English);
-    // English can retain either native-language scheme; both return to Chinese.
-    REQUIRE(Next(false, true) == Mode::Chinese);
-    REQUIRE(Next(false, false) == Mode::Chinese);
-}
-
-TEST_CASE(trilingual_cycle_needs_an_explicit_request_not_a_plain_shift)
-{
-    using FanyImeTrilingualInput::EncodeCycleRequest;
-    using FanyImeTrilingualInput::IsCycleRequest;
-    // The binary toggle (Win held, fallback, setting not yet delivered) still
-    // sends a plain VK_SHIFT; the Server must not turn it into a cycle.
-    REQUIRE(!IsCycleRequest(0x10, 0));
-    REQUIRE(!IsCycleRequest(0x10, FanyImeIpc::kModifierUiLess));
-    REQUIRE(IsCycleRequest(0x10, EncodeCycleRequest(true, false)));
-    REQUIRE(IsCycleRequest(0x10, EncodeCycleRequest(false, false) | FanyImeIpc::kModifierUiLess));
-    REQUIRE(!IsCycleRequest('A', EncodeCycleRequest(true, false)));
-    for (unsigned modifiers = 1; modifiers < 8; ++modifiers)
-    {
-        REQUIRE(!IsCycleRequest(0x10, EncodeCycleRequest(true, false) | modifiers));
-        REQUIRE(!IsCycleRequest(0x09, EncodeCycleRequest(true, false) | modifiers));
-    }
-}
-
-TEST_CASE(trilingual_cycle_starts_from_the_requesting_client_state)
-{
-    using FanyImeTrilingualInput::Destination;
-    using FanyImeTrilingualInput::Mode;
-    // ime_mode_scope=app: one host is English while another is Chinese. The
-    // request's own state decides; the configured language does not.
-    REQUIRE(Destination(false, false, true, true) == Mode::Chinese);
-    REQUIRE(Destination(true, false, true, true) == Mode::Japanese);
-    REQUIRE(Destination(true, true, true, false) == Mode::English);
-    // Switch turned off while the request was queued: binary toggle reply.
-    REQUIRE(Destination(true, false, false, false) == Mode::English);
-    REQUIRE(Destination(false, true, false, false) == Mode::Chinese);
-    REQUIRE(Destination(false, false, false, true) == Mode::Japanese);
-}
 
 TEST_CASE(pinyin_commit_requires_shift_enter)
 {
@@ -161,11 +116,11 @@ TEST_CASE(english_mode_toggle_requires_ctrl_shift_e)
 
 TEST_CASE(composition_reply_includes_microsoft_shuangpin_ing_key)
 {
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, true, false));
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(true, false, false, false));
-    REQUIRE(!FanyImeIpc::ShouldSendCompositionReply(false, false, false, false));
+    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, true));
+    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(true, false, false));
+    REQUIRE(!FanyImeIpc::ShouldSendCompositionReply(false, false, false));
     // T 模式指定日期时间的数字、/ 和 : 进输入串，TSF 同样在等这一帧。
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, false, false, true));
+    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, false, true));
 }
 
 TEST_CASE(backspace_retracts_the_last_selected_segment_before_deleting)
@@ -262,13 +217,12 @@ TEST_CASE(escape_keeps_the_selected_word_only_while_spelling_remains)
 {
     using FanyImeIpc::ShouldEscapeKeepSelectedWord;
     // 造句 + "deshihou": the first Esc drops the spelling and keeps 造句.
-    REQUIRE(ShouldEscapeKeepSelectedWord(true, 8, false));
+    REQUIRE(ShouldEscapeKeepSelectedWord(true, 8));
     // The word is already alone: the second Esc cancels everything.
-    REQUIRE(!ShouldEscapeKeepSelectedWord(true, 0, false));
+    REQUIRE(!ShouldEscapeKeepSelectedWord(true, 0));
     // Option off: Esc always cancels the whole composition.
-    REQUIRE(!ShouldEscapeKeepSelectedWord(false, 8, false));
+    REQUIRE(!ShouldEscapeKeepSelectedWord(false, 8));
     // R mode only unwinds its temporary session through a full reset.
-    REQUIRE(!ShouldEscapeKeepSelectedWord(true, 8, true));
 }
 
 TEST_CASE(candidate_page_prefix_normalizes_the_decoded_prefix)
@@ -435,25 +389,11 @@ TEST_CASE(segment_deletion_does_not_leave_a_dangling_delimiter)
     REQUIRE_EQ(untouched, std::string("ni'hao"));
 }
 
-TEST_CASE(composition_reply_includes_japanese_long_vowel_key)
-{
-    // 日语模式下 '-' 打长音符，必须回包刷新候选框。
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, false, true));
-}
-
-TEST_CASE(japanese_long_vowel_key_is_not_word_to_character_key)
+TEST_CASE(minus_key_respects_word_to_character_switch)
 {
     // 词转字用 -/= 时，日语模式的 '-' 已被长音符占用，不能再触发词转字。
     REQUIRE_EQ(FanyImeIpc::WordToCharacterDirection(0xBD, '-', 0, true, true), -1);
     REQUIRE_EQ(FanyImeIpc::WordToCharacterDirection(0xBD, '-', 0, false, true), 0);
-}
-
-TEST_CASE(temporary_r_mode_japanese_session_is_not_replaced_by_config_sync)
-{
-    REQUIRE(FanyImeIpc::InputSessionMatchesConfig(false, true, true));
-    REQUIRE(FanyImeIpc::InputSessionMatchesConfig(true, false, false));
-    REQUIRE(!FanyImeIpc::InputSessionMatchesConfig(false, false, true));
-    REQUIRE(!FanyImeIpc::InputSessionMatchesConfig(false, true, false));
 }
 
 TEST_CASE(caret_resegmentation_requires_negotiated_non_uiless_pinyin_composition)
@@ -519,79 +459,4 @@ TEST_CASE(create_word_frame_carries_caret_only_for_negotiated_mid_string_caret)
     REQUIRE(!ShouldCreateWordFrameCarryCaret(false, 0, 14));
     REQUIRE(!ShouldCreateWordFrameCarryCaret(false, 3, 14));
     REQUIRE(!ShouldCreateWordFrameCarryCaret(false, 14, 14));
-}
-
-TEST_CASE(wubi_unique_four_code_commit_follows_its_switch_and_guards_its_preconditions)
-{
-    using FanyImeIpc::ShouldAutoCommitCompleteWubiCode;
-    // Switch on (the default): a unique complete four-letter code commits on the fourth key.
-    REQUIRE(ShouldAutoCommitCompleteWubiCode(true, true, false));
-    // The engine did not report a complete unique four-letter code.
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(true, false, false));
-    // A word is being created: the raw is a prefix, so the composition stays open.
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(true, true, true));
-    // Switch off: the code stays in the candidate window whatever the engine reports, so the
-    // engine-side facts above can never drag the commit back on.
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(false, true, false));
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(false, false, false));
-    REQUIRE(!ShouldAutoCommitCompleteWubiCode(false, true, true));
-}
-
-TEST_CASE(wubi_top_word_commit_follows_its_switch_and_guards_its_preconditions)
-{
-    using FanyImeIpc::ShouldCommitCompleteWubiCodeOnNextKey;
-    // Arguments: top_commit_enabled, mixed_pinyin_enabled, four_code_is_complete, key_is_letter,
-    // caret_at_end, creating_word_active.
-    for (const bool mixed : {false, true})
-    {
-        REQUIRE(ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, true, true, false));
-        // Not a complete table-answered code: nothing to commit, the key belongs to the composition.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, false, true, true, false));
-        // Not a letter key (Backspace, arrows, space): those edit or commit the code in place.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, false, true, false));
-        // The caret is inside the code, so the user is editing it, not typing past it.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, true, false, false));
-        // A word being created owns the raw as a prefix; committing it would end the word early.
-        REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(true, mixed, true, true, true, true));
-    }
-    // Switch off with mixed input on: the letter grows the composition into a mixed spelling, so
-    // nothing is committed.
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, true, true, true, true, false));
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, true, true, true, true, true));
-    // Switch off with mixed input off: the engine would clip the letter away while a raw-preedit
-    // client already shows it, so the top commit still runs and the key is never lost.
-    REQUIRE(ShouldCommitCompleteWubiCodeOnNextKey(false, false, true, true, true, false));
-    // The fallback keeps every other guard.
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, false, false, true, true, false));
-    REQUIRE(!ShouldCommitCompleteWubiCodeOnNextKey(false, false, true, true, true, true));
-}
-
-TEST_CASE(temporary_japanese_key_route_excludes_paging_and_word_conversion)
-{
-    using namespace FanyImeIpc;
-    using namespace FanyImeTemporaryJapanese;
-    for (bool paging : {false, true})
-        for (bool word_conversion : {false, true})
-        {
-            const bool mode = IsMode(false, Allowed, "Rko-hi-", 7);
-            const auto key = ResolveJapaneseKeyRoute(mode, 0xBD, '-', 0, true);
-            REQUIRE(key.long_vowel);
-            REQUIRE(key.suppress_paging);
-            REQUIRE(!(paging && !key.suppress_paging));
-            REQUIRE_EQ(WordToCharacterDirection(0xBD, '-', 0, word_conversion, true, key.long_vowel), 0);
-            REQUIRE(ShouldSendCompositionReply(false, false, false, key.long_vowel));
-        }
-    const auto plain = ResolveJapaneseKeyRoute(false, 0xBD, '-', 0, true);
-    REQUIRE(!plain.long_vowel && !plain.suppress_paging);
-    REQUIRE_EQ(WordToCharacterDirection(0xBD, '-', 0, true, true, plain.long_vowel), -1);
-    const auto equals = ResolveJapaneseKeyRoute(true, 0xBB, '=', 0, true);
-    REQUIRE(!equals.long_vowel && equals.suppress_paging);
-    REQUIRE(!ResolveJapaneseKeyRoute(true, 0xBD, '-', 2, true).long_vowel);
-    REQUIRE(!ResolveJapaneseKeyRoute(true, 0xBD, '-', 4, true).long_vowel);
-    REQUIRE(!ResolveJapaneseKeyRoute(true, 0xBD, '-', 0, false).long_vowel);
-    REQUIRE(!ResolveJapaneseKeyRoute(true, 0x22, 0, 0, true).suppress_paging);
-    REQUIRE_EQ(ResolveCompositionCaret(0, "Rko", "ko", true), std::size_t(0));
-    REQUIRE_EQ(ResolveCompositionCaret(0, "Rko", "ko", false), std::size_t(2));
-    REQUIRE_EQ(ResolveCompositionCaret(1, "Rko", "ko", true), std::size_t(1));
-    REQUIRE_EQ(ResolveCompositionCaret(0, "R", "", true), std::size_t(0));
 }

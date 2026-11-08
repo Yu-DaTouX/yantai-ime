@@ -34,7 +34,6 @@ STDAPI CKeyHandlerEditSession::DoEditSession(TfEditCookie ec)
         bool superseded = true;
         bool deliveryAmbiguous = false;
         bool transportBroken = false;
-        bool projectionInvalidated = false;
         // The committing reply had not arrived: the session applied nothing and
         // hands the request (and this token) back to the poll below.
         bool commitReplyNotReady = false;
@@ -48,9 +47,8 @@ STDAPI CKeyHandlerEditSession::DoEditSession(TfEditCookie ec)
                 }
                 else if (!commitReplyNotReady)
                 {
-                    textService->_FailDeferredKey(token,
-                                                  ClassifyEditSessionFailure(superseded, deliveryAmbiguous,
-                                                                             transportBroken, projectionInvalidated));
+                    textService->_FailDeferredKey(
+                        token, ClassifyEditSessionFailure(superseded, deliveryAmbiguous, transportBroken));
                 }
             }
         }
@@ -111,7 +109,6 @@ STDAPI CKeyHandlerEditSession::DoEditSession(TfEditCookie ec)
         deferredReplayCompletion.applied = hResult == S_OK;
         deferredReplayCompletion.deliveryAmbiguous = hResult == FANY_E_COMMIT_REPLY_AMBIGUOUS;
         deferredReplayCompletion.transportBroken = hResult == HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE);
-        deferredReplayCompletion.projectionInvalidated = hResult == FANY_S_PROJECTION_INVALIDATED;
         deferredReplayCompletion.commitReplyNotReady = hResult == FANY_S_COMMIT_REPLY_NOT_READY;
 
         pKeyStateCategory->Release();

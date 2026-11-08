@@ -1,4 +1,4 @@
-// 按键处理：按键分类、组合编辑（光标/退格/插入）、译文副候选页、五笔顶字，以及 HandleImeKey 主流程。
+// 按键处理：按键分类、组合编辑（光标/退格/插入）、译文副候选页，以及 HandleImeKey 主流程。
 #include "ipc/event_listener_internal.h"
 #include <Windows.h>
 #include <string>
@@ -14,8 +14,6 @@
 #include "engine/contracts/direct_helpcode.h"
 #include "engine/contracts/ipc_negotiation.h"
 #include "engine/contracts/mid_sentence_helpcode.h"
-#include "engine/contracts/trilingual_input.h"
-#include "engine/contracts/temporary_japanese_input.h"
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "utils/common_utils.h"
@@ -36,7 +34,7 @@ bool IsShiftLetterSpecialModeTriggered()
 {
     return g_quick_phrase_triggered || g_radical_mode_triggered || g_date_time_mode_triggered ||
            g_emoji_mode_triggered || g_kaomoji_mode_triggered || g_symbol_mode_triggered || g_jianpin_mode_triggered ||
-           g_y_mode_triggered || g_r_mode_triggered;
+           g_y_mode_triggered;
 }
 
 // 字母键写进 raw 的那个字母：键产生了字母就照收（保留大小写），否则取键位本身的小写字母。
@@ -47,47 +45,13 @@ char CompositionLetter(UINT keycode, WCHAR wch)
                                                                         : static_cast<char>(keycode + ('a' - 'A'));
 }
 
-// Temporary R-mode policy of the client whose key is being handled. HandleImeKey
-// resolves it once per key; the predicates below run several times per key.
-FanyImeTemporaryJapanese::Policy g_key_temporary_japanese_policy = 0;
-
-// Match TSF classification, including the negotiated temporary R-mode policy.
-bool IsJapaneseInputMode()
-{
-    const auto &raw = GlobalIme::composition.raw_input_with_cases;
-    return FanyImeTemporaryJapanese::IsMode(GetActiveInputMode() == "japanese", g_key_temporary_japanese_policy,
-                                            raw.data(), raw.size());
-}
-
-// 日语模式下 '-' 不翻页，而是长音符（ー）的输入键。空编码时也要起头组合，
-// 候选框第一项是长音符 ー、第二项是普通连字符 '-'（见日语候选提供者）。
-bool IsJapaneseLongVowelKey(UINT keycode, WCHAR wch)
-{
-    return FanyImeIpc::ResolveJapaneseKeyRoute(IsJapaneseInputMode(), keycode, wch, Global::ModifiersDown,
-                                               g_inputSession != nullptr)
-        .long_vowel;
-}
-
-// 日语模式下 '-' '=' 一律不当翻页键用。
-bool IsJapaneseDisabledPagingKey(UINT keycode)
-{
-    return FanyImeIpc::ResolveJapaneseKeyRoute(IsJapaneseInputMode(), keycode, Global::Wch, Global::ModifiersDown,
-                                               g_inputSession != nullptr)
-        .suppress_paging;
-}
-
 bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT keycode, WCHAR wch)
 {
     if (keycode == VK_TAB)
     {
         return false;
     }
-    if ((keycode == VK_OEM_MINUS || keycode == VK_OEM_PLUS) && !IsJapaneseDisabledPagingKey(keycode))
-    {
-        return false;
-    }
-    // 日语模式下 '-' 走长音符输入，不能当作上屏标点。
-    if (IsJapaneseLongVowelKey(keycode, wch))
+    if ((keycode == VK_OEM_MINUS || keycode == VK_OEM_PLUS))
     {
         return false;
     }
@@ -114,7 +78,7 @@ bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT keycode, WC
         L'*',  //
         L'-',  // Numpad arithmetic keys are not candidate paging keys.
         L'+',  //
-        L'_',  // 日语模式禁用 -/= 翻页后，这两个字符退回标点上屏。
+        L'_',  //
         L'=',  //
         L'(',  //
         L')',  //
@@ -138,7 +102,7 @@ bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT keycode, WC
 bool IsManualPinyinSeparatorKey(UINT keycode, WCHAR wch)
 {
     return keycode == VK_OEM_7 && wch == L'\'' && g_inputSession != nullptr &&
-           g_inputSession->current_scheme_type() != SchemeType::Wubi && !g_inputSession->get_pinyin_sequence().empty();
+           !g_inputSession->get_pinyin_sequence().empty();
 }
 
 bool IsMicrosoftShuangpinIngKeyAt(UINT keycode, WCHAR wch, const std::string &raw_input, size_t caret)
@@ -283,7 +247,7 @@ std::optional<std::string> DirectHelpcodeEndTriggerPrefix(UINT keycode, WCHAR wc
 {
     const bool trigger_key = (keycode == VK_OEM_1 && wch == L';') || (keycode == VK_OEM_3 && wch == L'`');
     if (!g_key_direct_end_trigger_request || !trigger_key || g_english_input_mode || g_inputSession == nullptr ||
-        IsUiLessMode() || IsJapaneseInputMode())
+        IsUiLessMode())
     {
         return std::nullopt;
     }
@@ -305,10 +269,6 @@ bool IsSelectionKey(UINT keycode)
 
 bool IsPagingKey(UINT keycode)
 {
-    if (IsJapaneseDisabledPagingKey(keycode))
-    {
-        return false;
-    }
     return keycode == VK_OEM_MINUS || keycode == VK_OEM_PLUS || keycode == VK_TAB || keycode == VK_PRIOR ||
            keycode == VK_NEXT || keycode == VK_LEFT || keycode == VK_RIGHT || keycode == VK_UP || keycode == VK_DOWN ||
            ((keycode == VK_OEM_COMMA || keycode == VK_OEM_PERIOD) && GetConfiguredPagingCommaPeriodEnabled()) ||
@@ -317,10 +277,6 @@ bool IsPagingKey(UINT keycode)
 
 bool IsCandidateNavigationKey(UINT keycode)
 {
-    if (IsJapaneseDisabledPagingKey(keycode))
-    {
-        return false;
-    }
     return keycode == VK_OEM_MINUS || keycode == VK_OEM_PLUS || keycode == VK_OEM_COMMA || keycode == VK_OEM_PERIOD ||
            keycode == VK_OEM_4 || keycode == VK_OEM_6 || keycode == VK_TAB || keycode == VK_PRIOR ||
            keycode == VK_NEXT || keycode == VK_UP || keycode == VK_DOWN;
@@ -332,9 +288,8 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
     composition_restored = false;
     std::string raw = g_inputSession->get_pinyin_sequence_with_cases();
     auto &composition = GlobalIme::composition;
-    // The R prefix makes display raw differ from engine raw even at a valid body-start caret.
-    composition.caret_position = FanyImeIpc::ResolveCompositionCaret(
-        composition.caret_position, composition.raw_input_with_cases, raw, g_r_mode_triggered && IsJapaneseInputMode());
+    composition.caret_position =
+        FanyImeIpc::ResolveCompositionCaret(composition.caret_position, composition.raw_input_with_cases, raw);
     composition.caret_position = (std::min)(composition.caret_position, raw.size());
 
     // R2/R10：光标前缀重算总门控（与 Ctrl+Backspace / Ctrl+方向同一谓词族）。未协商、
@@ -547,10 +502,6 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
         {
             input = '/';
         }
-        else if (IsJapaneseLongVowelKey(keycode, wch))
-        {
-            input = '-';
-        }
         else if (keycode == VK_OEM_MINUS && (wch == L'-' || wch == L'_'))
         {
             // Page-boundary minus and its Shift variant become literal input.
@@ -605,9 +556,6 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
 
     g_inputSession->set_pinyin_sequence(raw);
     g_inputSession->set_pinyin_sequence_with_cases(raw);
-    // 五笔会把普通码的原样串裁成四码；T/V 模式的串得原样留着，形状判定才读得到，
-    // 其中的字母也不能被当成码去查表、自动上屏或顶字（Tdate 归一出 tdat）。
-    g_inputSession->set_wubi_literal_input(IsWubiLiteralComposition(raw));
     if (caret_resegmentation && composition.caret_position < raw.size())
     {
         // apply_pending_sequence() 会复位引擎光标：先让新 raw 生效，再喂光标做前缀
@@ -637,14 +585,14 @@ bool AppendLiteralToComposition(WCHAR literal, uint64_t client_id, uint64_t acti
 {
     const std::string raw = g_inputSession->get_pinyin_sequence_with_cases();
     if (raw.empty() || GlobalIme::composition.caret_position < raw.size() || g_english_input_mode || IsUiLessMode() ||
-        IsJapaneseInputMode() || IsSpecialModeCompositionActive(raw) || IsCandidateSubPageActive() ||
+        IsSpecialModeCompositionActive(raw) || IsCandidateSubPageActive() ||
         !ClientNegotiatedCompositionRestore(client_id))
     {
         return false;
     }
 
-    // Reuse the ordinary edit-key path so the engine sequence, the literal-input
-    // flag, wubi truncation and the caret rule all match a normal typed letter.
+    // Reuse the ordinary edit-key path so the engine sequence and the caret
+    // rule match a normal typed letter.
     const UINT keycode = literal == L'+' ? VK_OEM_PLUS : VK_OEM_MINUS;
     bool composition_restored = false;
     if (!ApplyCompositionEditKey(keycode, literal, Global::ModifiersDown, true, composition_restored))
@@ -820,8 +768,7 @@ void HandleTranslationCommitKey(uint64_t client_id, uint64_t activation_epoch, u
     // 拿不到译文时回 NavigationIgnored：这颗键已经被 TSF 吃掉了，必须给一条回复，
     // 而且这条回复既不上屏也不给 wch 补标点。
     Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
-    const bool japanese = g_inputSession && g_inputSession->current_scheme_type() == SchemeType::JapaneseRomaji;
-    if (IsCandidateSubPageActive() || IsUiLessMode() || japanese || !GetConfiguredCandidateTranslationsEnabled() ||
+    if (IsCandidateSubPageActive() || IsUiLessMode() || !GetConfiguredCandidateTranslationsEnabled() ||
         Global::candidate_ui.items.empty())
     {
         SendCurrentDataToClient(client_id, activation_epoch, request_id);
@@ -871,15 +818,6 @@ void HandleTranslationCommitKey(uint64_t client_id, uint64_t activation_epoch, u
     g_translation_candidates_active = true;
     RefreshCandidatePageUi(true);
     SendCurrentDataToClient(client_id, activation_epoch, request_id);
-}
-
-// 真顶字与自动上屏的推送负载："<消费字符数>\t<上屏文本>"。TSF 拿这个数字裁自己的
-// 组合缓冲，所以服务端看到的是四码、用户已抢敲第五个字母时，第五个字母不会被旧快照覆盖。
-// 消费数就是五笔完整码的字母数（engine/schemes/wubi_scheme.h 的 kMaxCodeLength）。
-constexpr std::size_t kWubiCompleteCodeLength = 4;
-std::wstring BuildWubiCommitAndContinuePayload(const std::wstring &text)
-{
-    return std::to_wstring(kWubiCompleteCodeLength) + L"\t" + text;
 }
 
 // Bring the candidate page in step with the CompositionRestored frame just sent.
@@ -953,8 +891,7 @@ void PublishRestoredCompositionCandidates(uint64_t client_id, uint64_t activatio
 void HandleCreatingWordEscape(uint64_t client_id, uint64_t activation_epoch, uint64_t request_id,
                               const std::string &input_before_key)
 {
-    if (FanyImeIpc::ShouldEscapeKeepSelectedWord(GetConfiguredEscapeKeepsSelectedWord(), input_before_key.size(),
-                                                 g_r_mode_triggered))
+    if (FanyImeIpc::ShouldEscapeKeepSelectedWord(GetConfiguredEscapeKeepsSelectedWord(), input_before_key.size()))
     {
         g_inputSession->set_pinyin_sequence("");
         g_inputSession->set_pinyin_sequence_with_cases("");
@@ -993,110 +930,12 @@ void HandleCreatingWordEscape(uint64_t client_id, uint64_t activation_epoch, uin
     SendCurrentDataToClient(client_id, activation_epoch, request_id);
 }
 
-// Switches g_inputSession to the active language's scheme. The outgoing session
-// is parked rather than dropped, so cycling back reuses it instead of building
-// a new engine (and reopening msime.db) while the client waits for the reply.
-void SwitchSessionForLanguageCycle()
-{
-    const SchemeType wanted = GetConfiguredActiveInputScheme();
-    if (g_inputSession && g_inputSession->current_scheme_type() == wanted)
-        return;
-    std::shared_ptr<IInputSession> next;
-    if (g_language_cycle_parked_session && g_language_cycle_parked_session->current_scheme_type() == wanted)
-        next = std::move(g_language_cycle_parked_session);
-    else
-        next = CreateInputSessionFromConfig();
-    g_language_cycle_parked_session = std::move(g_inputSession);
-    g_inputSession = std::move(next);
-}
-
-void HandleTrilingualCycleKey(uint64_t client_id, uint64_t activation_epoch, uint64_t request_id,
-                              bool requester_ime_enabled, bool requester_japanese)
-{
-    using FanyImeTrilingualInput::Mode;
-    // Cycle from the requester's own state. With ime_mode_scope=app the Server's
-    // global CN/EN mode can describe another host. When the switch was turned
-    // off while this request was queued, the active language is the configured
-    // one again and the request is answered as the binary toggle.
-    Mode destination =
-        FanyImeTrilingualInput::Destination(requester_ime_enabled, requester_japanese,
-                                            GetConfiguredTrilingualCycleEnabled(), GetActiveInputMode() == "japanese");
-
-    // Match the existing language toggle: retain an already selected word
-    // prefix, then commit the remaining raw spelling without choosing or
-    // learning a candidate.
-    const std::string raw = g_inputSession ? g_inputSession->get_pinyin_sequence_with_cases() : std::string{};
-    const std::wstring commit_text =
-        string_to_wstring(GlobalIme::composition.creating_word.prefix_text + (g_r_mode_triggered ? "R" + raw : raw));
-
-    bool native_mode_changed = false;
-    if (destination != Mode::English)
-    {
-        const std::string wanted_mode = destination == Mode::Japanese ? "japanese" : "chinese";
-        if (wanted_mode != GetActiveInputMode())
-        {
-            native_mode_changed = SetActiveInputMode(wanted_mode);
-            if (!native_mode_changed)
-            {
-                // The switch was turned off after Destination() read it. Never
-                // claim a language the Server is not in.
-                destination = GetActiveInputMode() == "japanese" ? Mode::Japanese : Mode::Chinese;
-            }
-        }
-    }
-    SetEnglishInputMode(false);
-    ClearState();
-    SwitchSessionForLanguageCycle();
-
-    const bool next_ime_enabled = destination != Mode::English;
-    g_authoritative_cn_mode = next_ime_enabled ? 1 : 0;
-    const int remembered = RecallClientStatusSnapshot(client_id);
-    const int packed_state = ((remembered >= 0 ? remembered : 0) & ~0x4) | (g_authoritative_cn_mode << 2);
-    RememberClientStatusSnapshot(client_id, packed_state);
-    PublishStatusSnapshotValue(packed_state);
-    PostMessage(::global_hwnd_ftb, UPDATE_FTB_INPUT_MODE, GetActiveInputMode() == "japanese" ? 1 : 0, 0);
-    // The originating client takes its native-language state from the main
-    // reply, after committing. Other hosts still receive the global language.
-    if (native_mode_changed)
-        BroadcastConfiguredInputModeState(client_id);
-
-    // The exact commit and destination share one correlated reply. TSF applies
-    // them in one edit session before it drains the next key, so a fast Shift then
-    // letter cannot be classified using the old language/compartment.
-    Global::MsgTypeToTsf = Global::DataFromServerMsgType::TrilingualCycle;
-    Global::candidate_ui.selected_text = FanyImeTrilingualInput::BuildPayload(destination, commit_text);
-    SendCurrentDataToClient(client_id, activation_epoch, request_id);
-}
-
-// The toolbar has no requester state bits, so the clicked icon says whether the
-// IME was open and the native language is the Server's active one, which is what
-// that icon showed. TSF still owns OPENCLOSE: English and back go through the
-// ordinary worker switches, Chinese <-> Japanese is a Server-side change only.
+// The toolbar toggles the ordinary Chinese/English compartment.
 void HandleToolbarLanguageToggle(bool from_ime_enabled)
 {
-    using FanyImeTrilingualInput::Mode;
-    const bool japanese = GetActiveInputMode() == "japanese";
-    const Mode destination = FanyImeTrilingualInput::Destination(from_ime_enabled, japanese,
-                                                                 GetConfiguredTrilingualCycleEnabled(), japanese);
-    if (destination == Mode::English)
-    {
-        SendToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::SwitchToEn, L"");
-        return;
-    }
-
-    const std::string wanted_mode = destination == Mode::Japanese ? "japanese" : "chinese";
-    if (wanted_mode != GetActiveInputMode() && SetActiveInputMode(wanted_mode))
-    {
-        SetEnglishInputMode(false);
-        PostMessage(::global_hwnd, WM_HIDE_MAIN_WINDOW, 0, 0);
-        ClearState();
-        SwitchSessionForLanguageCycle();
-        PostMessage(::global_hwnd_ftb, UPDATE_FTB_INPUT_MODE, wanted_mode == "japanese" ? 1 : 0, 0);
-        // Every client, the focused one included: no key reply carries this change.
-        BroadcastConfiguredInputModeState();
-    }
-    if (!from_ime_enabled)
-        SendToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::SwitchToCn, L"");
+    SendToTsfWorkerThreadViaNamedpipe(from_ime_enabled ? Global::DataFromServerMsgTypeToTsfWorkerThread::SwitchToEn
+                                                       : Global::DataFromServerMsgTypeToTsfWorkerThread::SwitchToCn,
+                                      L"");
 }
 
 /**
@@ -1117,9 +956,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     // TSF classifies VK_NUMPAD0..9 as candidate digit keys. Keep the IPC
     // contract symmetric before any selection/composition predicates run.
     Global::Keycode = FanyImeIpc::NormalizeNumpadDigitKey(Global::Keycode);
-    g_key_temporary_japanese_policy = ClientNegotiatedTemporaryJapanese(client_id)
-                                          ? FanyNamedPipe::TemporaryJapanesePolicy()
-                                          : FanyImeTemporaryJapanese::Policy{0};
 
     Global::ModifiersDown &= ~0x02000000u; // Retired SensitiveField bit an old DLL may still set.
     NoteRescoringContextKeySource(client_id, activation_epoch);
@@ -1136,19 +972,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     {
         SetEnglishInputMode(!g_english_input_mode);
         ClearState();
-        return;
-    }
-
-    // Only the explicit request bit cycles: a plain VK_SHIFT is still the binary
-    // toggle, which the client also uses when it decides not to cycle.
-    const UINT cycle_request = Global::ModifiersDown & FanyImeTrilingualInput::CycleRequestMask;
-    Global::ModifiersDown &= ~FanyImeTrilingualInput::CycleRequestMask;
-    if (FanyImeTrilingualInput::IsCycleRequest(Global::Keycode, Global::ModifiersDown | cycle_request) &&
-        ClientNegotiatedTrilingualCycle(client_id))
-    {
-        HandleTrilingualCycleKey(client_id, activation_epoch, request_id,
-                                 FanyImeTrilingualInput::CycleRequestImeEnabled(cycle_request),
-                                 FanyImeTrilingualInput::CycleRequestJapanese(cycle_request));
         return;
     }
 
@@ -1199,8 +1022,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         HandleTranslationCommitKey(client_id, activation_epoch, request_id, static_cast<int>(digit_position) - 1);
         return;
     }
-    // 横排候选的左右键在这里决定是移高亮还是移光标（规则见 ShouldArrowMoveCandidateSelection）。要在下面 R 模式
-    // 把光标换回引擎坐标之前判断：此刻光标和 raw_input_with_cases 都还是含 R 前缀的显示坐标，串尾的含义一致。
+    // 横排候选左右键决定移高亮还是移光标（规则见 ShouldArrowMoveCandidateSelection）。
     const bool horizontal_arrow_key =
         horizontal_arrow_request && (Global::Keycode == VK_LEFT || Global::Keycode == VK_RIGHT) &&
         (Global::ModifiersDown & 0b00000111u) == 0 && !IsUiLessMode() && ClientNegotiatedCompositionRestore(client_id);
@@ -1228,35 +1050,18 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         }
     }
 
-    if (g_r_mode_triggered && !GlobalIme::composition.raw_input_with_cases.empty() &&
-        GlobalIme::composition.raw_input_with_cases.front() == 'R' && GlobalIme::composition.caret_position > 0)
-    {
-        // The published preedit has one extra display-only prefix. Normalize
-        // the caret before every R-mode key, including paging and selection.
-        --GlobalIme::composition.caret_position;
-    }
-
     const std::string input_before_key =
         g_inputSession ? g_inputSession->get_pinyin_sequence_with_cases() : std::string{};
-    // 顶字要的是「插入之前」的原始串长度与光标位置：ApplyCompositionEditKey 会把第五个字母插进
-    // 本地 raw 并把光标推到 5，之后再问就分不清「用户又敲了一个字母」和「本来就停在别处」。引擎
-    // 随后会把 raw 裁回四码，这个快照是唯一能区分两者的地方（raw_length_before_key == 4 且光标
-    // 在末尾 = 用户正在往后打，不是回来改码）。
-    const std::size_t raw_length_before_key = input_before_key.size();
-    const std::size_t caret_before_key = GlobalIme::composition.caret_position;
     const bool shift_only = (Global::ModifiersDown & 0b00000111u) == 0b00000001u;
     const std::optional<SchemeType> scheme =
         g_inputSession ? std::optional<SchemeType>(g_inputSession->current_scheme_type()) : std::nullopt;
     const bool chinese_scheme = scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin;
     const bool shuangpin_scheme = scheme == SchemeType::Shuangpin;
-    // T 模式对五笔同样开放，但五笔不能并进 chinese_scheme：那个变量还给 K/U/E/M/S/J/Y/R 触发与
-    // ShouldLearnEnteredEnglishWord 用，并进去会让五笔连带打开其它本地模式（R7）。
-    const bool date_time_scheme = chinese_scheme || scheme == SchemeType::Wubi;
+    const bool date_time_scheme = chinese_scheme;
     const bool pinyin_commit =
         FanyImeIpc::IsPinyinCommitKey(Global::Keycode, Global::ModifiersDown) && !input_before_key.empty();
     const bool convert_shuangpin = pinyin_commit && g_inputSession->current_scheme_type() == SchemeType::Shuangpin &&
-                                   !g_english_input_mode && !g_r_mode_triggered &&
-                                   !IsSpecialModeCompositionActive(input_before_key);
+                                   !g_english_input_mode && !IsSpecialModeCompositionActive(input_before_key);
     if (Global::Keycode == VK_RETURN && !input_before_key.empty() && !convert_shuangpin &&
         GetConfiguredEnterLearnsEnglishWord())
     {
@@ -1266,12 +1071,12 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
             IsShiftLetterSpecialModeTriggered() || IsVModeCompositionActive(input_before_key);
         if (FanyImeIpc::ShouldLearnEnteredEnglishWord(g_english_input_mode, shift_letter_special_mode, chinese_scheme,
                                                       g_inputSession->is_all_complete_pure_pinyin()))
-            english_word = g_r_mode_triggered ? "R" + input_before_key : input_before_key;
+            english_word = input_before_key;
         EnqueueLearnEnteredEnglishWordTask(english_word);
     }
     if (pinyin_commit)
     {
-        const std::string raw = g_r_mode_triggered ? "R" + input_before_key : input_before_key;
+        const std::string raw = input_before_key;
         const std::string text = FanyImeIpc::EnteredPinyinText(
             raw, convert_shuangpin ? g_inputSession->get_quanpin() : std::string{}, convert_shuangpin);
         Global::candidate_ui.selected_text = string_to_wstring(GlobalIme::composition.creating_word.prefix_text + text);
@@ -1304,15 +1109,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     if (chinese_scheme && !g_english_input_mode && GetConfiguredYModeEnabled() && input_before_key.empty() &&
         Global::Keycode == 'Y' && Global::Wch == L'Y' && shift_only)
         g_y_mode_triggered = true;
-    const bool r_mode_trigger_key = chinese_scheme && !g_english_input_mode && GetConfiguredRModeEnabled() &&
-                                    input_before_key.empty() && Global::Keycode == 'R' && Global::Wch == L'R' &&
-                                    shift_only;
-    if (r_mode_trigger_key)
-    {
-        g_r_mode_original_session = g_inputSession;
-        g_inputSession = CreateTemporaryJapaneseInputSession();
-        g_r_mode_triggered = true;
-    }
 
     if (FanyImeIpc::HasEscapeCreatingWordShape(Global::Keycode, GlobalIme::composition.creating_word.active,
                                                IsUiLessMode(), ClientNegotiatedCompositionRestore(client_id)))
@@ -1352,12 +1148,10 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     // + 标点」；Shift+8/9/0 出 * ( ) 是编码键，上一行已经收下。
     const bool is_v_mode_shift_digit_selection = !is_v_mode_input_key && shift_only && Global::Keycode >= '1' &&
                                                  Global::Keycode <= '9' && IsVModeCompositionActive(input_before_key);
-    // 日语模式下 '-' 是长音符输入键，既不翻页也不做词转字。
-    const bool is_japanese_long_vowel = IsJapaneseLongVowelKey(Global::Keycode, Global::Wch);
-    const int word_character_direction = FanyImeIpc::WordToCharacterDirection(
-        Global::Keycode, Global::Wch, Global::ModifiersDown,
-        GetConfiguredWordToCharacterEnabled() && !is_v_mode_input_key,
-        GetConfiguredWordToCharacterKeys() == "minus_equal", is_japanese_long_vowel);
+    const int word_character_direction =
+        FanyImeIpc::WordToCharacterDirection(Global::Keycode, Global::Wch, Global::ModifiersDown,
+                                             GetConfiguredWordToCharacterEnabled() && !is_v_mode_input_key,
+                                             GetConfiguredWordToCharacterKeys() == "minus_equal");
     const bool is_commit_with_highlighted_candidate_punctuation =
         word_character_direction != 0 ||
         (!is_manual_pinyin_separator && !is_microsoft_shuangpin_ing_key && !is_mid_sentence_helpcode_marker &&
@@ -1371,7 +1165,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         Global::Keycode == VK_BACK || Global::Keycode == VK_DELETE ||
         (Global::Keycode >= 'A' && Global::Keycode <= 'Z') || is_manual_pinyin_separator ||
         is_microsoft_shuangpin_ing_key || is_mid_sentence_helpcode_marker || is_direct_helpcode_slash ||
-        is_direct_helpcode_end_trigger || is_japanese_long_vowel || is_date_time_input_key || is_v_mode_input_key;
+        is_direct_helpcode_end_trigger || is_date_time_input_key || is_v_mode_input_key;
     const bool should_forward_key_to_session = !is_commit_with_highlighted_candidate_punctuation && !is_selection_key &&
                                                !is_paging_key && !is_composition_edit_key;
 
@@ -1395,10 +1189,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
             // 首词命中率：标点收尾带上屏候选时也是一次中文候选提交（用户决策 1：只有
             // 「纯标点收尾不带候选」才排除）。真正上屏的那条候选要么是高亮项，要么（高亮
             // 停在「📅日期」入口上时）是本页第一条；is_first 按实际提交的那条算。
-            // 日语候选与 ProcessSelectionKey 的 japanese_candidate 门同款排除：日语 UI
-            // 模式与 R 模式临时日语解析出的 WordItem scheme 都是 JapaneseRomaji，
-            // 标点收尾把它们带出来的路径不经过 ProcessSelectionKey，必须在这里单独
-            // 挡住（用户决策 3）。
             int committed_index_in_page = -2;
             WordItem committed_item;
             if (highlighted_resolved && metasequoia::local_modes::is_date_time_menu_item(highlighted_item))
@@ -1448,12 +1238,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     // Ctrl+方向）的键位与修饰键条件仍由各自的 chord 判定把守，这里放宽键位限制不影
     // 响它们。
     const bool client_supports_restore = is_composition_edit_key && ClientNegotiatedCompositionRestore(client_id);
-    const bool r_mode_prefix_backspace = g_r_mode_triggered && Global::Keycode == VK_BACK && input_before_key.empty();
-    if (r_mode_prefix_backspace)
-    {
-        ClearState();
-    }
-    else if (is_composition_edit_key && !r_mode_trigger_key)
+    if (is_composition_edit_key)
     {
         retreat_backspace_shape_before_key =
             Global::Keycode == VK_BACK &&
@@ -1481,18 +1266,9 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         // the Chinese pinyin session's syllable boundaries in the preedit.
         GlobalIme::composition.segmented_pinyin = GlobalIme::composition.raw_input_with_cases;
     }
-    if (g_inputSession->get_pinyin_sequence_with_cases().empty() && !g_r_mode_triggered)
+    if (g_inputSession->get_pinyin_sequence_with_cases().empty())
     {
         ClearSpecialModeTriggers();
-    }
-    if (!g_english_input_mode && g_r_mode_triggered)
-    {
-        // R is a visible mode prefix but is not part of the romaji sent to the
-        // temporary Japanese engine. Keep both TSF and candidate-window preedit
-        // aligned, including their caret coordinates.
-        GlobalIme::composition.segmented_pinyin.insert(0, 1, 'R');
-        GlobalIme::composition.raw_input_with_cases.insert(0, 1, 'R');
-        ++GlobalIme::composition.caret_position;
     }
     if (!g_english_input_mode && IsRadicalCompositionActive(GlobalIme::composition.raw_input_with_cases))
     {
@@ -1540,134 +1316,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     }
     SyncShuangpinPreeditForms();
 
-    // 五笔四码唯一自动上屏：敲满四码且码表只给一个候选时，直接走与空格完全相同的提交路径，
-    // 用户不必再按一次空格。判定只发生在字母键插入之后（上面的 ApplyCompositionEditKey）：
-    // 退格、方向键、composition_restored 等路径都不会到这里，所以「打满第四键就上屏」只有
-    // 这一个入口。开关默认开；关掉后组合停在四码上等用户选。两个开关作用在不同的按键上：
-    // 本分支只看第四键（落键前 raw 是 3 码），下面的顶字分支只看第五键，第四键上不会互相影响。
-    const bool letter_key = Global::Keycode >= 'A' && Global::Keycode <= 'Z';
-    if (!g_english_input_mode && letter_key &&
-        FanyImeIpc::ShouldAutoCommitCompleteWubiCode(GetConfiguredWubiFourCodeAutoCommit(),
-                                                     g_inputSession->wubi_unique_four_code(),
-                                                     GlobalIme::composition.creating_word.active))
-    {
-        // 候选页是异步发布的：此刻 ui.items / ui.page_words 可能还停在第 3 码那一拍，而提交
-        // 路径读的正是这两份数据。先按当前组合同步重建一次，否则会把上一拍的候选上屏。
-        // forced_index_in_page = 0 让结算不进入渲染等待（与鼠标点击同类），自动上屏的语义
-        // 是「这个码只有一个候选」，必须显式取 0 而不是跟随页内选择。
-        ScopedKeyStage prepare_auto_commit{client_id, activation_epoch, request_id, L"handle-candidates"};
-        PrepareCandidateList(client_id, activation_epoch);
-        prepare_auto_commit.Stop();
-        Global::candidate_ui.select_first_on_page();
-        ScopedKeyStage select_auto_commit{client_id, activation_epoch, request_id, L"handle-selection"};
-        ProcessSelectionKey(VK_SPACE, client_id, activation_epoch, /*forced_index_in_page=*/0);
-        select_auto_commit.Stop();
-        ScopedKeyStage push_auto_commit{client_id, activation_epoch, request_id, L"handle-worker-push"};
-        if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)
-        {
-            // 真上屏只能靠 worker 管道推送：字母键在默认 raw 预编辑样式下不读请求-回复管道，
-            // 回一帧 Normal 既不会上屏，还会被 TSF 当成「不属于本次请求」的帧缓存起来，
-            // 而本函数返回前 Server 已经清掉组合，两边就此分叉。推送携带消费的 4 个字符，
-            // TSF 裁自己的缓冲；快打时用户已多敲的字母因此不会被旧快照覆盖。
-            if (SendToTsfWorkerThreadClientViaNamedpipe(
-                    client_id, activation_epoch,
-                    Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidateAndContinue,
-                    BuildWubiCommitAndContinuePayload(Global::candidate_ui.selected_text)))
-            {
-                ClearState();
-                // 推送同样会引来 HideCandidateWnd；用户若已抢敲下一个字母，那时服务端组合
-                // 就是这个字母，不能被这次 Hide 清掉。
-                NoteTopCommitPushed(client_id, activation_epoch);
-            }
-        }
-        push_auto_commit.Stop();
-        // UILess 与 pinyin 预编辑样式会为字母键等一帧回复（上限 50ms）：给它们一帧免得空等；
-        // raw 样式不读回复，塞一帧反而变成死帧。
-        if (IsUiLessMode() || GlobalSettings::getTsfPreeditStyle() == GlobalSettings::TsfPreeditStyle::Pinyin)
-        {
-            SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        }
-        return;
-    }
-
-    // 真顶字：完整四码（不论是否唯一）之后再敲一个字母时，先上屏该码的首选候选，再把这个字母
-    // 留作下一次组合的开头——用户已经在打下一个字，字母绝不能丢。这条路径有自己的开关，
-    // 与上面的自动上屏开关互相独立。开关关闭只在混输开启时生效：字母并入混输串，两端一致。
-    // 混输关闭时引擎会把码裁回四位，Server 丢掉这个字母而 raw 预编辑样式的 TSF 已经显示了它，
-    // 两边就此分叉，所以这时仍走顶字。判定复用同一份引擎事实，
-    // 但不要求唯一；上屏取候选 0（首选），不进入 30ms 渲染等待。
-    if (!g_english_input_mode && letter_key && raw_length_before_key == kWubiCompleteCodeLength &&
-        caret_before_key == raw_length_before_key &&
-        FanyImeIpc::ShouldCommitCompleteWubiCodeOnNextKey(
-            GetConfiguredWubiFifthCodeTopCommit(), GetConfiguredWubiMixedPinyin(),
-            g_inputSession->wubi_four_code_is_complete(), /*key_is_letter=*/true, /*caret_at_end=*/true,
-            GlobalIme::composition.creating_word.active))
-    {
-        ScopedKeyStage prepare_top_commit{client_id, activation_epoch, request_id, L"handle-candidates"};
-        PrepareCandidateList(client_id, activation_epoch);
-        prepare_top_commit.Stop();
-        Global::candidate_ui.select_first_on_page();
-        ScopedKeyStage select_top_commit{client_id, activation_epoch, request_id, L"handle-selection"};
-        ProcessSelectionKey(VK_SPACE, client_id, activation_epoch, /*forced_index_in_page=*/0);
-        select_top_commit.Stop();
-        const std::wstring committed_text = Global::candidate_ui.selected_text;
-
-        // 用刚敲下的这个字母重建服务端组合。ProcessSelectionKey 已经把引擎与组合清空，这里
-        // 把字母写回去；引擎此刻的 raw 仍是被裁回的四码，所以必须显式设置而不是继续追加。
-        // 大小写照 ApplyCompositionEditKey 的同一套规则取，保持 preedit 与用户敲键一致。
-        const std::string next_raw(1, CompositionLetter(Global::Keycode, Global::Wch));
-        GlobalIme::composition.clear_creating_word();
-        GlobalIme::composition.selection_history.clear();
-        g_inputSession->set_pinyin_sequence(next_raw);
-        g_inputSession->set_pinyin_sequence_with_cases(next_raw);
-        ScopedKeyStage recompute_top_commit{client_id, activation_epoch, request_id, L"handle-engine"};
-        g_inputSession->recompute_candidates();
-        recompute_top_commit.Stop();
-        GlobalIme::composition.raw_input_with_cases = g_inputSession->get_pinyin_sequence_with_cases();
-        GlobalIme::composition.segmented_pinyin = g_inputSession->get_pinyin_segmentation_with_cases();
-        SyncShuangpinPreeditForms();
-        GlobalIme::composition.caret_position = GlobalIme::composition.raw_input_with_cases.size();
-        ScopedKeyStage prepare_rebuild_top_commit{client_id, activation_epoch, request_id, L"handle-candidates"};
-        PrepareCandidateList(client_id, activation_epoch);
-        prepare_rebuild_top_commit.Stop();
-        // 组合被提交时 TSF 会送 HideCandidateWnd 把候选窗藏起来；顶字重建的新组合必须
-        // 显式把窗口再请出来，否则后续整词的候选（xyyf 的统计）用户永远看不到。
-        RequestShowCandidateWindow();
-
-        // 推送与用户下一个按键是两条独立路径：TSF 裁的是它自己那一刻的缓冲，所以「服务端说
-        // 消费 4 个、TSF 手里已经有 5 个」时，第 5 个自然留下来继续组词。服务端的组合也正好
-        // 是同一批多出来的字母，两边都从同一条按键流派生，不会错位。不要 ClearState：重建的
-        // 组合正是下一次按键要用的状态。
-        ScopedKeyStage push_top_commit{client_id, activation_epoch, request_id, L"handle-worker-push"};
-        if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)
-        {
-            // 推送会让 DLL 结束旧组合，TSF 随之发来 HideCandidateWnd；标记本客户端的余码
-            // 组合仍然存活，HideCandidate 处理器据此跳过 ClearState。推送失败就不会有这次 Hide，
-            // 也就不记账。
-            if (SendToTsfWorkerThreadClientViaNamedpipe(
-                    client_id, activation_epoch,
-                    Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidateAndContinue,
-                    BuildWubiCommitAndContinuePayload(committed_text)))
-            {
-                NoteTopCommitPushed(client_id, activation_epoch);
-            }
-        }
-        push_top_commit.Stop();
-        // UILess 与 pinyin 预编辑样式会为字母键等一帧回复（上限 50ms）。这里绝不能回 Normal
-        // （SendCurrentDataToClient 会 ClearState，把刚重建的组合再清掉），只能回渲染帧。
-        if (IsUiLessMode())
-        {
-            SendUiLessCompositionToClient(client_id, activation_epoch, request_id);
-        }
-        else if (GlobalSettings::getTsfPreeditStyle() == GlobalSettings::TsfPreeditStyle::Pinyin)
-        {
-            Global::MsgTypeToTsf = Global::DataFromServerMsgType::Preedit;
-            Global::candidate_ui.selected_text = GetTsfPreedit();
-            SendCurrentDataToClient(client_id, activation_epoch, request_id);
-        }
-        return;
-    }
-
     // The shape the key leaves behind: a Backspace that keeps the creating word
     // alive still owes the client's hold a frame even when nothing was restored
     // (a plain deletion behind the edit lock, or a no-op).
@@ -1680,7 +1328,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     //
     if (FanyImeIpc::ShouldSendCompositionReply(Global::Keycode >= 'A' && Global::Keycode <= 'Z',
                                                is_manual_pinyin_separator, is_microsoft_shuangpin_ing_key,
-                                               is_japanese_long_vowel, is_date_time_input_key || is_v_mode_input_key))
+                                               is_date_time_input_key || is_v_mode_input_key))
     {
         if (IsUiLessMode())
         {

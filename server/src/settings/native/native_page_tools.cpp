@@ -303,11 +303,6 @@ VisualPtr BuildToolsPage(PageContext &context)
                  L"文词库中的单词。上屏后自动回到中文输入。",
                  "utility.y_mode"));
     page.AddSection(
-        centered(L"临时日语(R 模式)",
-                 L"中文模式下按 Shift+R，之后输入的字母按日语罗马字处理。空格上屏首选，数字可选其他日语候选。"
-                 L"上屏后自动回到中文输入。",
-                 "utility.r_mode"));
-    page.AddSection(
         centered(L"数字与计算(V 模式)",
                  L"中文模式下输入 V 再接数字或算式：V123 → 一百二十三 / 壹佰贰拾叁；V123.45 → "
                  L"壹佰贰拾叁元肆角伍分；V1+2*3 → 7（支持 + - * / 和括号）。双拼和五笔按 Shift+V；全拼大小写 v "

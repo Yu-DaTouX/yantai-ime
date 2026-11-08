@@ -293,7 +293,6 @@ CMetasequoiaIME::CMetasequoiaIME()
     _nextDeferredKeyReplayToken = 0;
     _deferredKeyProjectionValid = false;
     _deferredProjectedImeOpen = false;
-    _deferredProjectedJapaneseMode = false;
     _deferredProjectedPunctuationOpen = false;
     _deferredProjectedDoubleSingleByteOpen = false;
     _deferredProjectedInputLength = 0;
@@ -795,8 +794,7 @@ STDAPI CMetasequoiaIME::ActivateEx(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     _queuedLocalResetToken = 0;
     BindNamedpipeFocusState(this, &_focusResetPending, &_activationRequired, &_expectedWorkerFocusToken,
                             &_localSessionResetPending, &_localSessionResetToken, &_workerCommitReady,
-                            &_acknowledgedWorkerFocusToken, &_hToTsfWorkerThreadPipe, &_workerPipeGeneration,
-                            &_temporaryJapanesePolicy);
+                            &_acknowledgedWorkerFocusToken, &_hToTsfWorkerThreadPipe, &_workerPipeGeneration);
 
     /*
     std::wstring processName = FanyUtils::GetCurrentProcessName();

@@ -14,8 +14,7 @@ namespace metasequoia
 {
 local_modes::LocalQueryResult CandidateQueries::local(LocalInputMode mode, const std::string &preedit,
                                                       SchemeType scheme,
-                                                      const std::function<local_modes::LocalDateTime()> &clock,
-                                                      const std::vector<WordItem> &engine_candidates)
+                                                      const std::function<local_modes::LocalDateTime()> &clock)
 {
     local_modes::LocalQueryResult result;
 
@@ -90,9 +89,6 @@ local_modes::LocalQueryResult CandidateQueries::local(LocalInputMode mode, const
                                  std::make_move_iterator(completions.end()));
         return result;
     }
-    case LocalInputMode::TemporaryJapanese:
-        result.candidates = engine_candidates;
-        return result;
     case LocalInputMode::None:
         result.candidates.clear();
         return result;

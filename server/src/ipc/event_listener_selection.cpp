@@ -265,14 +265,11 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             mid_sentence_ranking_candidates = g_inputSession->candidates_without_mid_sentence_helpcode();
         }
         const bool mid_sentence_ranking = !mid_sentence_ranking_candidates.empty();
-        // 日文候选的键是罗马音，不在拼音词库里：调频、造词、整句落库都会把它当拼音键写进日志，
-        // 升级回放时日文词就成了中文候选（#869）。日文候选一律不往拼音词库写。
-        const bool japanese_candidate = curWordItem.scheme == SchemeType::JapaneseRomaji;
         // 字母词（T恤）也不调频：拼音分表里没有它的行，调频改不到，只会白记选择计数（#1340）。
         // 长词前缀补全（#1343）的键比首选长，和同页候选不是一个读音，不按排位挪位置，选中时只在它自己的
         // 键下加权（见下面 EnqueueBumpPinyinWeightTask）。
-        isNeedUpdateWeight = !japanese_candidate && !curWordItem.latin_word && !curWordItem.prefix_completion &&
-                             (mid_sentence_ranking || !is_first_page_first);
+        isNeedUpdateWeight =
+            !curWordItem.latin_word && !curWordItem.prefix_completion && (mid_sentence_ranking || !is_first_page_first);
         if (curWordItem.prefix_completion && !curWordItem.canonical_pinyin.empty())
         {
             EnqueueBumpPinyinWeightTask(curWordItem.canonical_pinyin, curWordItem.word, client_id, activation_epoch);
@@ -289,12 +286,10 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         const FanyImeIpc::ChosenText curChosen = FanyImeIpc::ChosenTextOf(curWord, curOutputText, FirstSpellingOfText);
         const std::string curCharacterSet = ShownCandidateCharacterSet();
         std::string curWordPinyin = curWordItem.pinyin;
-        // 日语假名可能只覆盖已完成的音节，和词典候选一起推进，保留尚未转换的后缀。
         if (curWordItem.source == CandidateSource::EnglishDictionary ||
             curWordItem.source == CandidateSource::QuickPhrase || curWordItem.source == CandidateSource::Emoji ||
             curWordItem.source == CandidateSource::Kaomoji || curWordItem.source == CandidateSource::Symbol ||
-            curWordItem.source == CandidateSource::DateTime ||
-            (curWordItem.source == CandidateSource::Generated && !japanese_candidate))
+            curWordItem.source == CandidateSource::DateTime || (curWordItem.source == CandidateSource::Generated))
         {
             Global::candidate_ui.selected_text = string_to_wstring(FanyImeIpc::CommitTextAfterCreatingWordPrefix(
                 CreatingWordChosenText(), curChosen, IsRadicalCandidateListActive(), FirstSpellingOfText));
@@ -305,9 +300,9 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // append_canonical_pinyin 累积，lattice 候选的 canonical_pinyin 是整句 key），
             // 直接按 '\'' 拼接即可；音节数与汉字数是否匹配由
             // create_word_from_canonical_pinyin 自行校验，不匹配时安全地拒绝入库。
-            if (!japanese_candidate && FanyImeIpc::ShouldStoreEarlyReturnPhrase(
-                                           curWordItem.source, GlobalIme::composition.creating_word.active,
-                                           GlobalIme::composition.creating_word.pinyin, curWordItem.canonical_pinyin))
+            if (FanyImeIpc::ShouldStoreEarlyReturnPhrase(
+                    curWordItem.source, GlobalIme::composition.creating_word.active,
+                    GlobalIme::composition.creating_word.pinyin, curWordItem.canonical_pinyin))
             {
                 const std::string &prefix_pinyin = GlobalIme::composition.creating_word.pinyin;
                 // 前缀为空时不能带上那个分隔符，'na'yi'tiao 这种前导撇号会让整条读音作废。
@@ -323,8 +318,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             AppendRescoringContext(curWord);
             if (curWordItem.source == CandidateSource::EnglishDictionary && isNeedUpdateWeight)
             {
-                EnqueueAdjustCandidateRankingTask(/*english=*/true, /*wubi=*/false, EnglishRankingContextKey(),
-                                                  curWordItem.pinyin, curWordItem.word, client_id, activation_epoch);
+                EnqueueAdjustCandidateRankingTask(/*english=*/true, EnglishRankingContextKey(), curWordItem.pinyin,
+                                                  curWordItem.word, client_id, activation_epoch);
             }
             // 日期时间按格式调频：Shift+T 模式、日期页和混输选中哪种格式，都往同一份顺序里记。
             // 已经排在首位的格式由引擎侧直接跳过，所以这里不看 isNeedUpdateWeight。
@@ -335,11 +330,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             UpdateEnglishInput("");
             UpdateMixedInput({});
             g_inputSession->reset_state();
-            if (g_r_mode_original_session)
-            {
-                g_inputSession = g_r_mode_original_session;
-                g_r_mode_original_session.reset();
-            }
             GlobalIme::composition.clear();
             ClearSpecialModeTriggers();
             return;
@@ -358,8 +348,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             g_inputSession->get_pinyin_sequence_with_cases(), g_inputSession->prefix_end());
         const bool caret_prefix_selection =
             g_inputSession->prefix_end() < g_inputSession->get_pinyin_sequence_with_cases().size();
-        auto selection_transition = g_inputSession->advance_composition_after_selection(
-            curWordPinyin, curWord, curWordItem.canonical_pinyin, curWordItem.scheme);
+        auto selection_transition =
+            g_inputSession->advance_composition_after_selection(curWordPinyin, curWord, curWordItem.canonical_pinyin);
         if (caret_prefix_selection)
         {
             g_inputSession->set_caret(std::nullopt);
@@ -429,7 +419,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
                 Global::candidate_ui.selected_text =
                     string_to_wstring(GlobalIme::composition.creating_word.prefix_text);
 
-                if (creating_word_progress.can_store && !japanese_candidate)
+                if (creating_word_progress.can_store)
                 {
                     // 这里异步处理，不然有可能会阻塞住 TSF 端读取 pipe 导致超时
                     EnqueueStoreUserPhraseTask(GlobalIme::composition.creating_word.pinyin,
@@ -446,7 +436,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         // 但它和词格整句一样是猜出来的：词库里没有它那一行，下面 isNeedUpdateWeight 要改的
         // 行根本不存在。所以它独立上屏时也要落库。接在造词前缀后面的那种由上面的造词收尾
         // 负责（creating_word_progress.can_store），这里不重复存。
-        if (!japanese_candidate && !isNeedCreateWord && !was_creating_word &&
+        if (!isNeedCreateWord && !was_creating_word &&
             FanyImeIpc::ShouldStoreStandaloneSentence(curWordItem.source, curWordItem.canonical_pinyin))
         {
             EnqueueStoreUserPhraseTask(curWordItem.canonical_pinyin, curWord, /*pinyin_is_canonical=*/true);
@@ -457,11 +447,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         if (!isNeedCreateWord)
         {
             g_inputSession->reset_state();
-            if (g_r_mode_original_session)
-            {
-                g_inputSession = g_r_mode_original_session;
-                g_r_mode_original_session.reset();
-            }
             GlobalIme::composition.caret_position = 0;
             GlobalIme::composition.raw_input_with_cases.clear();
             // The composition is over; stale snapshots must not survive into the
@@ -487,9 +472,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // changes the order, the worker drops its candidate cache and the next lookup sees
             // the new order; a lookup that lands before the write finishes still shows the old
             // one.
-            EnqueueAdjustCandidateRankingTask(/*english=*/false, /*wubi=*/curWordItem.scheme == SchemeType::Wubi,
-                                              ranking_context_key, ranking_entry_key, curWord, client_id,
-                                              activation_epoch,
+            EnqueueAdjustCandidateRankingTask(/*english=*/false, ranking_context_key, ranking_entry_key, curWord,
+                                              client_id, activation_epoch,
                                               mid_sentence_ranking ? &mid_sentence_ranking_candidates : nullptr);
         }
     }

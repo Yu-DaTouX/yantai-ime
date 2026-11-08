@@ -169,7 +169,7 @@ Source: "{#MySourceRoot}\app_data\*"; DestDir: "{code:GetDataDir}"; \
     Excludes: "\config.toml,\config.base.toml,\config.default.toml"; \
     Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 
-; msime.db、english.db、others.db、dict_japanese.dat 以文本源进包（SQLite 页和索引压不动，这样小约 40 MB），
+; msime.db、english.db、others.db 以文本源进包（SQLite 页和索引压不动，这样小约 40 MB），
 ; 只在安装过程中用：解到 {tmp}，ssPostInstall 的 BuildDictionaries 还原进数据目录，安装程序退出时随 {tmp} 删掉。
 Source: "{#MySourceRoot}\dictionary_source\*"; DestDir: "{tmp}\dictionary_source"; \
     Flags: ignoreversion deleteafterinstall
@@ -810,7 +810,7 @@ begin
 end;
 
 { app_data 里随包装进数据目录根下的条目。installer/tests/package-files.ps1 拿真正打出来的
-  app_data 对这份名单，打包新增文件而漏改这里会红。msime.db、english.db、others.db、dict_japanese.dat
+  app_data 对这份名单，打包新增文件而漏改这里会红。msime.db、english.db、others.db
   不经 app_data，由 BuildDictionaries 在安装时生成，但同样是出厂文件，覆盖安装和卸载要能删掉。}
 function IsShippedAppDataItem(const FileName: String): Boolean;
 begin
@@ -819,7 +819,6 @@ begin
     (CompareText(FileName, 'dict_pinyin.dat') = 0) or
     (CompareText(FileName, 'msime.db') = 0) or
     (CompareText(FileName, 'dictionary-manifest.json') = 0) or
-    (CompareText(FileName, 'dict_japanese.dat') = 0) or
     (CompareText(FileName, 'MOZC_DICTIONARY_LICENSE.txt') = 0) or
     (CompareText(FileName, 'english.db') = 0) or
     (CompareText(FileName, 'others.db') = 0) or
@@ -848,7 +847,6 @@ begin
     (CompareText(FileName, 'msime.db.building') = 0) or
     (CompareText(FileName, 'english.db.building') = 0) or
     (CompareText(FileName, 'others.db.building') = 0) or
-    (CompareText(FileName, 'dict_japanese.dat.building') = 0) or
     (CompareText(FileName, 'user_dict.dat') = 0) or
     (CompareText(FileName, 'clipboard_history.json') = 0) or
     (CompareText(FileName, 'voice_system_audio_mute_state.txt') = 0) or
@@ -1347,7 +1345,7 @@ begin
   Result := True;
 end;
 
-{ 把临时目录下 dictionary_source 的文本源还原成数据目录里的 msime.db、english.db、others.db、dict_japanese.dat。
+{ 把临时目录下 dictionary_source 的文本源还原成数据目录里的 msime.db、english.db、others.db。
   旧词库已在 PrepareToInstall 里删掉，这一步失败新版本就没有词库可用。
   还原程序先全部建成 .building，整套成功才替换，失败不留半套文件；明细追加在数据目录的 logs\dictionary-build.log。
   注意 ssPostInstall 里抛异常并不会中止安装：Inno 只弹「Runtime error」，安装照样算成功，CurStepChanged

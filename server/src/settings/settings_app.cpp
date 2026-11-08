@@ -300,20 +300,13 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
         {"type", "configSnapshot"},
         {"data",
          {{"input",
-           {{"mode", GetConfiguredInputMode()},
-            {"schema", GetConfiguredInputSchemeName()},
-            {"japanese_schema", GetConfiguredJapaneseSchema()},
+           {{"schema", GetConfiguredInputSchemeName()},
             {"character_set", GetConfiguredCharacterSet()},
             {"default_ime_mode", GetConfiguredDefaultImeMode()},
             {"ime_mode_scope", GetConfiguredImeModeScope()},
             {"shuangpin_schema", GetConfiguredShuangpinSchema()},
-            {"wubi_schema", GetConfiguredWubiSchema()},
-            {"wubi_mixed_pinyin", GetConfiguredWubiMixedPinyin()},
             {"escape_keeps_selected_word", GetConfiguredEscapeKeepsSelectedWord()},
             {"enter_learns_english_word", GetConfiguredEnterLearnsEnglishWord()},
-            {"wubi_z_mode", GetConfiguredWubiZMode()},
-            {"wubi_four_code_auto_commit", GetConfiguredWubiFourCodeAutoCommit()},
-            {"wubi_fifth_code_top_commit", GetConfiguredWubiFifthCodeTopCommit()},
             {"word_to_character", GetConfiguredWordToCharacterEnabled()},
             {"word_to_character_keys", GetConfiguredWordToCharacterKeys()},
             {"smart_punctuation", GetConfiguredSmartPunctuationEnabled()},
@@ -425,8 +418,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"switch_language_ctrl_alt_space", GetConfiguredSwitchLanguageCtrlAltSpaceEnabled()},
             {"toggle_character_set_ctrl_shift_f", GetConfiguredCharacterSetShortcutEnabled()},
             {"commit_pinyin_shift_enter", GetConfiguredPinyinCommitShortcutEnabled()},
-            {"input_state_shortcuts", BuildInputStateShortcutMetadata()},
-            {"trilingual_cycle", GetConfiguredTrilingualCycleEnabled()}}},
+            {"input_state_shortcuts", BuildInputStateShortcutMetadata()}}},
           {"frequency_adjustment",
            {{"mode", frequency.mode},
             {"trigger_count", frequency.trigger_count},
@@ -445,7 +437,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"symbol_mode", GetConfiguredSymbolModeEnabled()},
             {"jianpin_mode", GetConfiguredJianpinModeEnabled()},
             {"y_mode", GetConfiguredYModeEnabled()},
-            {"r_mode", GetConfiguredRModeEnabled()},
             {"v_mode", GetConfiguredVModeEnabled()},
             {"clipboard_history", GetConfiguredClipboardHistoryEnabled()}}},
           {"language_bar",
@@ -566,12 +557,8 @@ void PostConfig(bool refresh_skin_catalog = false)
 bool ApplyConfigUpdate(const json::object &data)
 {
     const std::string path = json::value_to<std::string>(data.at("path"));
-    if (path == "input.mode")
-        return SetConfiguredInputMode(json::value_to<std::string>(data.at("value")));
     if (path == "input.schema")
         return SetConfiguredInputScheme(json::value_to<std::string>(data.at("value")));
-    if (path == "input.japanese_schema")
-        return SetConfiguredJapaneseSchema(json::value_to<std::string>(data.at("value")));
     if (path == "input.character_set")
         return SetConfiguredCharacterSet(json::value_to<std::string>(data.at("value")));
     if (path == "input.default_ime_mode")
@@ -580,20 +567,10 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredImeModeScope(json::value_to<std::string>(data.at("value")));
     if (path == "input.shuangpin_schema")
         return SetConfiguredShuangpinSchema(json::value_to<std::string>(data.at("value")));
-    if (path == "input.wubi_schema")
-        return SetConfiguredWubiSchema(json::value_to<std::string>(data.at("value")));
-    if (path == "input.wubi_mixed_pinyin")
-        return SetConfiguredWubiMixedPinyin(json::value_to<bool>(data.at("value")));
     if (path == "input.escape_keeps_selected_word")
         return SetConfiguredEscapeKeepsSelectedWord(json::value_to<bool>(data.at("value")));
     if (path == "input.enter_learns_english_word")
         return SetConfiguredEnterLearnsEnglishWord(json::value_to<bool>(data.at("value")));
-    if (path == "input.wubi_z_mode")
-        return SetConfiguredWubiZMode(json::value_to<std::string>(data.at("value")));
-    if (path == "input.wubi_four_code_auto_commit")
-        return SetConfiguredWubiFourCodeAutoCommit(json::value_to<bool>(data.at("value")));
-    if (path == "input.wubi_fifth_code_top_commit")
-        return SetConfiguredWubiFifthCodeTopCommit(json::value_to<bool>(data.at("value")));
     if (path == "input.word_to_character")
         return SetConfiguredWordToCharacterEnabled(json::value_to<bool>(data.at("value")));
     if (path == "input.word_to_character_keys")
@@ -772,8 +749,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredJianpinModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.y_mode")
         return SetConfiguredYModeEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "utility.r_mode")
-        return SetConfiguredRModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.v_mode")
         return SetConfiguredVModeEnabled(json::value_to<bool>(data.at("value")));
     if (path == "utility.clipboard_history")
@@ -812,8 +787,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCharacterSetShortcutEnabled(json::value_to<bool>(data.at("value")));
     if (path == "keybindings.commit_pinyin_shift_enter")
         return SetConfiguredPinyinCommitShortcutEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "keybindings.trilingual_cycle")
-        return SetConfiguredTrilingualCycleEnabled(json::value_to<bool>(data.at("value")));
     if (const std::size_t index = InputStateShortcutIndex(path); index < FanyImeInputStateShortcuts::Definitions.size())
         return data.at("value").is_string() &&
                SetConfiguredInputStateShortcut(index, json::value_to<std::string>(data.at("value")));

@@ -33,8 +33,8 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE(Global::DataFromServerMsgType::CommitExactText > Global::DataFromServerMsgType::PipeReady);
     REQUIRE_EQ(Global::DataFromServerMsgType::UiLessComposition, 11u);
     REQUIRE(Global::DataFromServerMsgType::UiLessComposition > Global::DataFromServerMsgType::CommitExactText);
-    REQUIRE_EQ(Global::DataFromServerMsgType::TrilingualCycle, 15u);
-    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::TrilingualCycle);
+    REQUIRE_EQ(Global::DataFromServerMsgType::Reserved15, 15u);
+    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::Reserved15);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady, 8u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady, 9u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::InsertText, 10u);
@@ -45,7 +45,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateVoiceComposition, 15u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::CancelVoiceComposition, 16u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::CommitVoiceComposition, 17u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::InputModeChanged, 18u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved18, 18u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::CapsLockChanged, 19u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::TsfDiagnosticLogChanged, 20u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::PunctuationLockChanged, 21u);
@@ -62,10 +62,10 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged, 30u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged, 31u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged, 32u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged, 33u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33, 33u);
     // Opcode 34 (AiContextUploadChanged) was retired with the AI assistant; never reused.
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged, 35u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::TemporaryJapanesePolicyChanged, 36u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved36, 36u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged, 37u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged, 38u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::HorizontalArrowSelectionChanged, 39u);
@@ -92,10 +92,10 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateVoiceComposition);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::CommitVoiceComposition >
             Global::DataFromServerMsgTypeToTsfWorkerThread::CancelVoiceComposition);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::InputModeChanged >
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved18 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::CommitVoiceComposition);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::CapsLockChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::InputModeChanged);
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved18);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::TsfDiagnosticLogChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::CapsLockChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::PunctuationLockChanged >
@@ -120,12 +120,12 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged >
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged);
-    REQUIRE(34u > Global::DataFromServerMsgTypeToTsfWorkerThread::TrilingualCycleChanged);
+    REQUIRE(34u > Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged > 34u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::TemporaryJapanesePolicyChanged);
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved36);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::HorizontalArrowSelectionChanged >
@@ -142,7 +142,7 @@ TEST_CASE(ipc_client_suspension_is_a_distinct_nonterminal_route_reset)
 {
     REQUIRE_EQ(FanyImePipeEventType::InputStateAction, 17u);
     REQUIRE_EQ(FanyImeProtocol::InputStateShortcuts, 1u << 7);
-    REQUIRE_EQ(FanyImeProtocol::TemporaryJapaneseLongVowel, 1u << 8);
+    REQUIRE_EQ(FanyImeProtocol::ReservedCapability8, 1u << 8);
     REQUIRE_EQ(FanyImePipeEventType::ClientActivated, 11u);
     REQUIRE_EQ(FanyImePipeEventType::ClientDeactivated, 12u);
     REQUIRE_EQ(FanyImePipeEventType::StatusSnapshot, 13u);

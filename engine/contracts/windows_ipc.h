@@ -150,8 +150,8 @@ namespace FanyImePipeFlags
 constexpr std::uint32_t UiLess = 0x80000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotPresent = 0x40000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotEnabled = 0x20000000u;
-// 0x10000000..0x04000000 belong to FanyImeTrilingualInput.
-// 0x02000000 was SensitiveField (the AI assistant's password-field marker). Never reuse.
+// 0x10000000..0x04000000 are retired language-cycle flags; do not reuse.
+// 0x02000000 was SensitiveField (the AI assistant's password-field marker); never reuse.
 // KeyEvent only, plain Left / Right while candidates are shown: the DLL asks the Server to decide between moving
 // the candidate highlight and moving the composition caret (horizontal candidate window, see
 // HorizontalArrowSelectionChanged). The Server answers a highlight move with MoveSelectionPrevious / MoveSelectionNext
@@ -339,13 +339,11 @@ constexpr std::uint32_t ProtocolMismatch = 13;
 // means "caret at the end". NeedToCreateWord and CompositionRestored share the
 // payload parser on the TSF side.
 constexpr std::uint32_t CompositionRestored = 14;
-// Commit the already selected word prefix and remaining raw input before cycling languages.
-// candidate_string = destination ("0" Chinese, "1" Japanese, "2" English) + \t + exact commit text.
-// Only clients negotiating FanyImeProtocol::TrilingualCycle may receive this reply.
-constexpr std::uint32_t TrilingualCycle = 15;
+// Retired language-cycle reply. Keep its published opcode reserved.
+constexpr std::uint32_t Reserved15 = 15;
 // Highest opcode a live Server may send. Local-only sentinels are larger and
 // must never be accepted as a Server frame.
-constexpr std::uint32_t MaxKnown = TrilingualCycle;
+constexpr std::uint32_t MaxKnown = Reserved15;
 // Local-only result. It is never sent over the pipe and must never be
 // interpreted as candidate text to commit.
 constexpr std::uint32_t TransportUnavailable = static_cast<std::uint32_t>(-1);
@@ -382,8 +380,8 @@ constexpr std::uint32_t SmartPunctuationRepeatToChineseChanged = 14;
 constexpr std::uint32_t UpdateVoiceComposition = 15;
 constexpr std::uint32_t CancelVoiceComposition = 16;
 constexpr std::uint32_t CommitVoiceComposition = 17;
-// Payload "1" when the active CJK input mode is Japanese, otherwise "0".
-constexpr std::uint32_t InputModeChanged = 18;
+// Retired native-language state; do not reuse.
+constexpr std::uint32_t Reserved18 = 18;
 // Payload "1" when Caps Lock is on. Server is the source of truth.
 constexpr std::uint32_t CapsLockChanged = 19;
 // Enables buffered TSF diagnostics sent to Server. Payload "0"/"1".
@@ -438,17 +436,17 @@ constexpr std::uint32_t MidSentenceHelpcodeUppercaseChanged = 31;
 // "2" V or v (quanpin); see FanyImeVModeInput::Trigger. TSF then eats digits and . + - * / ( ) after the prefix
 // (FanyImeVModeInput::AcceptsAt). Single-character payload, same rule as opcode 28.
 constexpr std::uint32_t VModeChanged = 32;
-// Whether language-switch hotkeys commit raw composition, then cycle Chinese/Japanese/English. Payload "0"/"1".
-// Separate from InputModeChanged so old DLLs retain its active-language meaning and ignore this switch.
-constexpr std::uint32_t TrilingualCycleChanged = 33;
+// Retired language-cycle setting; do not reuse.
+// Separate from Reserved18 so old DLLs retain its active-language meaning and ignore this switch.
+constexpr std::uint32_t Reserved33 = 33;
 // 34 was AiContextUploadChanged (the AI assistant's committed-text context). Never send or reuse.
-// UI-less hosts only: the Server replaced the candidate page outside a key reply (cloud suggestion, reranking,
+// UI-less hosts only: the Server replaced the candidate page outside a key reply (reranking,
 // mixed English). Payload has the UiLessComposition shape "<preedit>\t<page>\t<selection>\t<generation>" with an
 // empty preedit; see FanyImeUiLessPage. Without it the host keeps drawing the page it read on the last key while
 // digits commit from the new one.
 constexpr std::uint32_t UiLessCandidatesChanged = 35;
-// Temporary R-mode policy: one character 0..3, see temporary_japanese_input.h.
-constexpr std::uint32_t TemporaryJapanesePolicyChanged = 36;
+// Retired temporary-R policy; do not reuse.
+constexpr std::uint32_t Reserved36 = 36;
 // Which keys open a shuangpin end helpcode block while the end helpcode is indirect (triggered by a guide key instead
 // of being read off the input shape). Payload one character '0'..'7', see FanyImeEndHelpcode::PayloadFor: bit 1 '`',
 // bit 2 ';', bit 4 uppercase. TSF eats '`' / ';' that can start a block (FanyImeMidSentenceHelpcode::

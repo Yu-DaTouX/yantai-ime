@@ -17,7 +17,6 @@ flowchart TD
     Ime --> Providers[Candidate providers]
     Providers --> Dictionaries[User working dictionaries]
     Providers --> Decoder[PinyinDecoder serialized service]
-    Providers --> Japanese[Immutable Japanese model by resource path]
 ```
 
 `InputSession` remains the compatibility/advanced interface for existing hosts. Its raw
@@ -38,8 +37,7 @@ decoder's existing position validation. Other profiles leave this character unha
 `MoveLeft`, `MoveRight`, `MoveHome`, `MoveEnd` and `DeleteForward` are composition
 commands. `character` inserts at the session-owned caret; `Backspace` erases before it.
 Snapshots append `editing_text` (the ASCII source input, preserving case) and
-`caret_position` (its byte offset). These are distinct from rendered preedit, notably
-for Japanese romaji conversion. Hosts render the snapshot instead of rewriting raw input.
+`caret_position` (its byte offset). These are distinct from rendered preedit. Hosts render the snapshot instead of rewriting raw input.
 Movement alone preserves candidate/request identity; mutations invalidate online requests
 even when subsequent edits restore identical spelling. Selection places the caret at the
 end of any unconsumed suffix; cancel and scheme changes reset it. Local-mode markers
@@ -49,15 +47,15 @@ Empty-composition movement is unhandled so normal host navigation can proceed.
 `pin(index)` promotes a currently visible dictionary candidate without selecting it or changing
 preedit. It persists through the session's user journal and working dictionaries, then refreshes
 the snapshot. Explicit pinning works even when automatic learning is disabled. Pinyin (including
-shuangpin canonical keys), Wubi and English dictionary candidates use their existing ranking
-policy; generated, expressive, online and Japanese candidates are unhandled. English pinning
+shuangpin canonical keys) and English dictionary candidates use their existing ranking
+policy; generated, expressive, and online candidates are unhandled. English pinning
 changes dictionary order within the existing mixed/temporary-mode layout, so it does not move
 an English completion ahead of the temporary mode's raw-text entry. Invalid indices are unhandled;
 a failed write returns a handled result with a diagnostic and no commit. Hosts serialize this
 index action against the snapshot they display, just as they do for `select(index)`.
 
 `remove(index)` deletes a visible dictionary phrase without committing text or changing preedit.
-It uses the exact canonical pinyin key (or Wubi/English key), writes a deletion journal entry,
+It uses the exact canonical pinyin key (or English key), writes a deletion journal entry,
 and refreshes candidates. Automatic learning may be disabled. Single-character non-English
 candidates and non-dictionary sources are protected and return unhandled, as do invalid indices.
 A database or journal failure returns a diagnostic with no commit. The working-dictionary delete
@@ -75,7 +73,7 @@ snapshot without committing or changing preedit; persistence failure returns a d
 Unsupported sources and invalid indices/slots are unhandled. Fixed positions are applied
 during candidate refresh, so snapshot reads perform no extra database work. The public
 facade enables this ordering; compatibility InputSession callers retain their host-side
-ordering until migration. Pinyin, Wubi, super-jianpin and English contexts use the captured
+ordering until migration. Pinyin, super-jianpin and English contexts use the captured
 user layout, including temporary and mixed English candidates.
 
 The host first verifies the downloaded bundle using `contracts/assets/product.py` and its
@@ -133,8 +131,7 @@ copy. File names and helpcode scheme mappings come from generated `contracts/ass
 
 A host serializes calls on each session. Different sessions may run concurrently and can
 use different paths, profiles and helpcode schemes. Profiles are owned values, helpcode
-maps are immutable per-session values, and the Japanese model cache is keyed by resource
-path with weak ownership. Unused or failed models are not held forever by a global future.
+maps are immutable per-session values.
 `set_helpcode_schema()` affects only that session. Legacy static `select_helpcode_schema()`
 changes the default for subsequently created sessions; it no longer changes live sessions.
 
@@ -169,7 +166,7 @@ session is rejected even if the two sessions contain identical input.
 
 The root CTest targets include public-header compilation, two independent resource/user
 layouts, per-session helpcodes and punctuation, local query paths, concurrent sessions,
-Japanese model path isolation, real Google Pinyin model interleaving/concurrency,
+Real Google Pinyin model interleaving/concurrency,
 per-path sharing and missing-model degradation of the kenlm trigram, Unicode
 resource paths, user phrase replay, return to a previous generation and failed replay
 preserving old working data. Existing candidate, learning, temporary-mode and online tests

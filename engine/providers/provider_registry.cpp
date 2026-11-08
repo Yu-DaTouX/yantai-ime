@@ -2,10 +2,7 @@
 #include <stdexcept>
 
 ProviderRegistry::ProviderRegistry(const ShuangpinProfile &shuangpin_profile, metasequoia::RuntimePaths paths)
-    : pinyin_provider_(shuangpin_profile, paths),
-      wubi_provider_(metasequoia::path_to_utf8(paths.dictionary(metasequoia::assets::main_dictionary)), paths),
-      japanese_provider_(metasequoia::path_to_utf8(paths.dictionary(metasequoia::assets::main_dictionary)),
-                         metasequoia::path_to_utf8(paths.resource(metasequoia::assets::japanese_model)))
+    : pinyin_provider_(shuangpin_profile, paths)
 {
 }
 
@@ -16,10 +13,6 @@ ICandidateProvider &ProviderRegistry::resolve(SchemeType scheme_type)
     case SchemeType::Quanpin:
     case SchemeType::Shuangpin:
         return pinyin_provider_;
-    case SchemeType::Wubi:
-        return wubi_provider_;
-    case SchemeType::JapaneseRomaji:
-        return japanese_provider_;
     default:
         throw std::runtime_error("Unknown scheme type.");
     }
@@ -32,12 +25,6 @@ void ProviderRegistry::reset_cache(SchemeType scheme_type)
     case SchemeType::Quanpin:
     case SchemeType::Shuangpin:
         pinyin_provider_.reset_cache();
-        return;
-    case SchemeType::Wubi:
-        wubi_provider_.reset_cache();
-        return;
-    case SchemeType::JapaneseRomaji:
-        japanese_provider_.reset_cache();
         return;
     default:
         throw std::runtime_error("Unknown scheme type.");

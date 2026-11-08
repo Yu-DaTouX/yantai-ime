@@ -373,33 +373,6 @@ HRESULT CCompositionProcessorEngine::SetKeyboardOpenCompartment(_In_ ITfThreadMg
     return result;
 }
 
-HRESULT CCompositionProcessorEngine::SetIMEModeForLanguageCycle(_In_ ITfThreadMgr *pThreadMgr, TfClientId tfClientId,
-                                                                BOOL bOpen)
-{
-    BOOL isOpen = FALSE;
-    CCompartment compartment(pThreadMgr, tfClientId, GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
-    HRESULT result = compartment._GetCompartmentBOOL(isOpen);
-    if (result != S_OK || isOpen == bOpen)
-    {
-        return result;
-    }
-
-    ReleaseConfiguredImeModeDefense();
-    result = SetKeyboardOpenCompartment(pThreadMgr, tfClientId, bOpen);
-    if (result != S_OK)
-    {
-        return result;
-    }
-    result = compartment._GetCompartmentBOOL(isOpen);
-    if (result != S_OK || isOpen != bOpen)
-    {
-        return result == S_OK ? S_FALSE : result;
-    }
-    // Same punctuation follow-up as the binary toggle (OnPreservedKey), and the
-    // same rule the deferred FIFO projected for the keys behind this one.
-    SyncPunctuationWithImeMode(pThreadMgr, tfClientId, bOpen);
-    return S_OK;
-}
 
 void CCompositionProcessorEngine::ReleaseConfiguredImeModeDefense()
 {
@@ -576,8 +549,6 @@ void CCompositionProcessorEngine::InitializeMetasequoiaIMECompartment(_In_ ITfTh
 {
     // Default CN/EN on IME activate / switch-in (input.default_ime_mode).
     const BOOL openChinese = FanyUtils::ReadConfiguredDefaultImeModeChinese();
-    Global::JapaneseInputModeEnabled.store(FanyUtils::ReadConfiguredJapaneseInputMode() != FALSE,
-                                           std::memory_order_relaxed);
     // Use the suppressing writer so the OPENCLOSE sink does not treat this as
     // a user choice and drop the defense we are about to arm.
     SetKeyboardOpenCompartment(pThreadMgr, tfClientId, openChinese);

@@ -188,7 +188,7 @@ VisualPtr BuildDictionaryPage(PageContext &context)
 
     // .dict-card
     auto cardBody = std::make_shared<Column>(0.0f);
-    auto tabs = std::make_shared<DictTabs>(std::vector<std::wstring>{L"全拼词库", L"五笔词库", L"英文词库", L"字母词"});
+    auto tabs = std::make_shared<DictTabs>(std::vector<std::wstring>{L"全拼词库", L"英文词库", L"字母词"});
     cardBody->Add(tabs);
     panel->AddTo(*cardBody);
     auto card = std::make_shared<PageCard>(cardBody, PageCard::Style::DictCard, Thickness{});
@@ -213,7 +213,7 @@ VisualPtr BuildDictionaryPage(PageContext &context)
     page.AddRaw(hans, 0.0f);
 
     tabs->SetOnSelect([panel](size_t index) {
-        static const char *const kDictionaries[] = {"quanpin", "wubi", "english", "latin"};
+        static const char *const kDictionaries[] = {"quanpin", "english", "latin"};
         panel->SetDictionary(kDictionaries[std::min<size_t>(index, std::size(kDictionaries) - 1)]);
     });
     std::weak_ptr<DictionaryPanel> weakPanel = panel;
@@ -224,9 +224,8 @@ VisualPtr BuildDictionaryPage(PageContext &context)
         // 纯汉字导入按当前标签页出码；英文词库收不了纯汉字，整块隐藏。字母词页换成按词导入、自动注音。
         const std::string &dictionary = locked->Dictionary();
         hans->SetVisible(dictionary != "english");
-        hansTitle->SetText(dictionary == "quanpin" ? L"批量导入纯汉字词组(e.g.人名)到拼音词库"
-                           : dictionary == "latin" ? L"批量导入字母词(e.g.T恤)，每行一个词，自动注音"
-                                                   : L"批量导入纯汉字词组(e.g.人名)到五笔词库");
+        hansTitle->SetText(dictionary == "latin" ? L"批量导入字母词(e.g.T恤)，每行一个词，自动注音"
+                                                 : L"批量导入纯汉字词组(e.g.人名)到拼音词库");
     });
 
     // .dict-export-section: padding-top 18px, padding-bottom 0.
@@ -235,7 +234,6 @@ VisualPtr BuildDictionaryPage(PageContext &context)
     exportTitle->SetMargin({0.0f, 0.0f, 0.0f, 14.0f});
     exportBody->Add(exportTitle);
     exportBody->Add(MakeExportRow(L"导出拼音用户词库", [panel]() { panel->Export("quanpin"); }, 62.0f, true));
-    exportBody->Add(MakeExportRow(L"导出五笔用户词库", [panel]() { panel->Export("wubi"); }, 62.0f, true));
     exportBody->Add(MakeExportRow(L"导出英文用户词库", [panel]() { panel->Export("english"); }, 62.0f, true));
     exportBody->Add(MakeExportRow(L"导出字母词用户词库", [panel]() { panel->Export("latin"); }, 62.0f, true));
     page.AddRaw(std::make_shared<PageCard>(exportBody, PageCard::Style::Section, Thickness{24.0f, 18.0f, 24.0f, 0.0f}),

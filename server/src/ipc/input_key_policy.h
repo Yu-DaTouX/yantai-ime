@@ -6,30 +6,14 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "engine/contracts/temporary_japanese_input.h"
 
 namespace FanyImeIpc
 {
-struct JapaneseKeyRoute
-{
-    bool long_vowel;
-    bool suppress_paging;
-};
-
-inline JapaneseKeyRoute ResolveJapaneseKeyRoute(bool japanese, uint32_t key, uint32_t character, uint32_t modifiers,
-                                                bool session_available)
-{
-    const auto action = FanyImeTemporaryJapanese::ClassifyKey(key, character, modifiers, japanese, 0,
-                                                              static_cast<const char *>(nullptr), 0, false);
-    return {session_available && action == FanyImeTemporaryJapanese::KeyAction::LongVowel,
-            japanese && (key == 0xBD || key == 0xBB)};
-}
 
 inline std::size_t ResolveCompositionCaret(std::size_t caret, const std::string &display_raw,
-                                           const std::string &engine_raw, bool temporary_japanese)
+                                           const std::string &engine_raw)
 {
-    return !temporary_japanese && display_raw != engine_raw && caret == 0 && !engine_raw.empty() ? engine_raw.size()
-                                                                                                 : caret;
+    return display_raw != engine_raw && caret == 0 && !engine_raw.empty() ? engine_raw.size() : caret;
 }
 
 inline constexpr uint32_t kVirtualKeyShift = 0x10;
@@ -79,9 +63,9 @@ constexpr bool IsShiftedPagingSymbolKey(uint32_t keycode, uint32_t character, ui
 
 // Return -1 / +1 for the first / last Han character, or zero for an ordinary key.
 constexpr int WordToCharacterDirection(uint32_t keycode, uint32_t character, uint32_t modifiers, bool enabled,
-                                       bool minus_equal, bool japanese_long_vowel = false)
+                                       bool minus_equal)
 {
-    if (!enabled || japanese_long_vowel || (modifiers & kKeyModifierMask) != 0)
+    if (!enabled || (modifiers & kKeyModifierMask) != 0)
         return 0;
     if (minus_equal)
         return keycode == 0xBD && character == '-' ? -1 : keycode == 0xBB && character == '=' ? 1 : 0;
@@ -111,36 +95,6 @@ constexpr bool ShouldResetCompositionForImeMode(bool chinese_mode)
     return !chinese_mode;
 }
 
-// A complete four-letter wubi code the table answered with exactly one candidate is committed as
-// soon as the fourth letter lands, so the user never has to press space. The switch defaults on
-// (industry wubi IMEs default this on), so leaving it alone keeps that behavior; turning it off is
-// the only exit a user who keeps hitting the wrong commit has. On top of the switch, the wubi
-// engine's own report that the code is complete, table-answered and unique is the only other gate.
-// A word being created keeps the composition open: the raw belongs to the prefix the user is still
-// assembling, and committing it would end that word early.
-constexpr bool ShouldAutoCommitCompleteWubiCode(bool auto_commit_enabled, bool unique_four_code,
-                                                bool creating_word_active)
-{
-    return auto_commit_enabled && unique_four_code && !creating_word_active;
-}
-
-// The user is typing past a complete four-letter wubi code (a letter key with the caret at the end
-// of a four-letter table-answered code). The first candidate is committed and the key that was just
-// typed starts the next composition instead of being dropped. Committing the first candidate matches
-// the user, who is already typing the next word and is not looking at the candidate window. Its own
-// switch defaults on and is independent of the auto-commit switch above. Turning it off only has
-// somewhere to put the letter when mixed input is on: the composition then grows into a mixed
-// spelling. With mixed input off the engine clips the code back to four letters, which drops the
-// key on the Server while a raw-preedit client already shows it, so the switch yields to the top
-// commit there: an extra key never loses input, whatever the setting says.
-constexpr bool ShouldCommitCompleteWubiCodeOnNextKey(bool top_commit_enabled, bool mixed_pinyin_enabled,
-                                                     bool four_code_is_complete, bool key_is_letter, bool caret_at_end,
-                                                     bool creating_word_active)
-{
-    return (top_commit_enabled || !mixed_pinyin_enabled) && four_code_is_complete && key_is_letter && caret_at_end &&
-           !creating_word_active;
-}
-
 // Enter commits the raw composition instead of choosing a special-mode
 // candidate. Therefore a Shift+letter wake key must not by itself prevent an
 // otherwise non-pinyin English word (for example "Metasequoia") from being
@@ -151,20 +105,12 @@ constexpr bool ShouldLearnEnteredEnglishWord(bool dedicated_english_mode, bool s
     return dedicated_english_mode || shift_letter_special_mode || (chinese_scheme && !all_complete_pinyin);
 }
 
-constexpr bool InputSessionMatchesConfig(bool configured_scheme_matches, bool temporary_r_mode_active,
-                                         bool session_is_japanese)
-{
-    return configured_scheme_matches || (temporary_r_mode_active && session_is_japanese);
-}
-
 // is_date_time_input_key：Shift+T 指定日期时间里进输入串的数字、/ 和 :。TSF 把它们当输入键，pinyin 预编辑
 // 样式和 UILess 下同样要等这一帧。
 constexpr bool ShouldSendCompositionReply(bool is_alpha_key, bool is_manual_pinyin_separator,
-                                          bool is_microsoft_shuangpin_ing_key, bool is_japanese_long_vowel,
-                                          bool is_date_time_input_key = false)
+                                          bool is_microsoft_shuangpin_ing_key, bool is_date_time_input_key = false)
 {
-    return is_alpha_key || is_manual_pinyin_separator || is_microsoft_shuangpin_ing_key || is_japanese_long_vowel ||
-           is_date_time_input_key;
+    return is_alpha_key || is_manual_pinyin_separator || is_microsoft_shuangpin_ing_key || is_date_time_input_key;
 }
 
 // Backspace inside a live creating-word state retracts the newest selection
@@ -257,11 +203,9 @@ constexpr bool HasEscapeCreatingWordShape(uint32_t keycode, bool creating_word_a
 // Rime's ClearNonConfirmedComposition: with the option on, Esc drops only the
 // unselected spelling and keeps the selected word on screen alone. With no
 // spelling left (the word is already alone) the next Esc cancels everything.
-// R mode is excluded: its temporary Japanese session is only restored by a
-// full reset.
-constexpr bool ShouldEscapeKeepSelectedWord(bool option_enabled, std::size_t raw_length, bool r_mode_active)
+constexpr bool ShouldEscapeKeepSelectedWord(bool option_enabled, std::size_t raw_length)
 {
-    return option_enabled && raw_length > 0 && !r_mode_active;
+    return option_enabled && raw_length > 0;
 }
 
 // Ctrl+Backspace inside a composition deletes one segmentation unit instead of
