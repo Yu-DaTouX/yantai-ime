@@ -44,9 +44,9 @@ paging_comma_period = true
 paging_brackets = false
 paging_tab = true
 paging_page_up_down = true
-# 鼠标滚轮在候选窗口上翻页（默认关闭）
+# 鼠标滚轮在候选窗口上翻页（默认开启）
 # 依赖 Windows「当我悬停在非活动窗口上方时滚动它们」，该系统设置关闭时本项不生效
-paging_mouse_wheel = false
+paging_mouse_wheel = true
 candidate_arrow_navigation = true
 # 横排候选时左右方向键移动高亮：光标在拼音串尾时右键移高亮，左键回到第一个候选后再按才移动光标（默认关闭）
 candidate_horizontal_arrow_navigation = false

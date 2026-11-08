@@ -143,9 +143,9 @@ bool g_paging_comma_period_enabled = false;
 bool g_paging_brackets_enabled = false;
 bool g_paging_tab_enabled = true;
 bool g_paging_page_up_down_enabled = true;
-// Off by default: the wheel only reaches the candidate host when Windows'
-// "scroll inactive windows on hover" is on, so the feature is opt-in.
-bool g_paging_mouse_wheel_enabled = false;
+// On by default: the wheel only reaches the candidate host when Windows'
+// "scroll inactive windows on hover" is on, so the system setting still gates it.
+bool g_paging_mouse_wheel_enabled = true;
 bool g_candidate_arrow_navigation_enabled = true;
 bool g_candidate_horizontal_arrow_navigation_enabled = false;
 bool g_word_to_character_enabled = false;
@@ -503,7 +503,7 @@ bool LoadImeConfig()
         g_paging_tab_enabled =
             tbl["general"]["paging_tab"].value_or(legacy_paging_mode && *legacy_paging_mode == "Shift+Tab/Tab");
         g_paging_page_up_down_enabled = tbl["general"]["paging_page_up_down"].value_or(true);
-        g_paging_mouse_wheel_enabled = tbl["general"]["paging_mouse_wheel"].value_or(false);
+        g_paging_mouse_wheel_enabled = tbl["general"]["paging_mouse_wheel"].value_or(true);
         g_candidate_arrow_navigation_enabled = tbl["general"]["candidate_arrow_navigation"].value_or(true);
         g_candidate_horizontal_arrow_navigation_enabled =
             tbl["general"]["candidate_horizontal_arrow_navigation"].value_or(false);
