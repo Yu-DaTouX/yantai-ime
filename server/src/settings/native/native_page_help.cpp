@@ -195,12 +195,7 @@ VisualPtr BuildHelpPage(PageContext &context)
                 paragraph({{text, {}}}, 8.0f);
         };
         section(L"快速上手", {L"安装输入法后，可以使用 Win + Space 快捷键切换到水杉输入法。默认是全拼输入法。"});
-        section(L"基本功能",
-                {L"支持全拼输入。辅助码方案目前支持自然码辅助码、蓝天小雨点、首右2."
-                 L"0、首右plus、小鹤和拼音加加，也可以把自己的辅助码文件放进数据目录下的 helpcodes\\custom "
-                 L"文件夹导入。可以在设置的辅助码分区进行辅助码的开关和切换。打字过程中，全拼使用辅助码需要用大写的字母"
-                 L"唤起单码和双码辅助。",
-                 L"更多功能欢迎自由探索~"});
+        section(L"基本功能", {L"支持全拼输入。", L"更多功能欢迎自由探索~"});
         auto card = std::make_shared<PaddedSection>(doc, Thickness{28.0f, 24.0f, 28.0f, 26.0f});
         // .default-ime-section { margin-top: 24px } collapses with the 18px below.
         page.AddRaw(card, 24.0f);

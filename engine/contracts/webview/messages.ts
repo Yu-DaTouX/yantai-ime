@@ -6,7 +6,6 @@ export type ClientMessage =
   | { "type": "skinCatalogRequest"; "protocolVersion"?: 1 }
   | { "type": "openSkinDirectory"; "protocolVersion"?: 1 }
   | { "type": "openLogDirectory"; "protocolVersion"?: 1 }
-  | { "type": "openHelpcodeDirectory"; "protocolVersion"?: 1 }
   | { "type": "collocationModelDownload"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelCheckUpdate"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelDelete"; "protocolVersion"?: 1; "data": { "modelId": string } }
@@ -74,7 +73,6 @@ export type SettingsMessage =
   | { "type": "skinCatalogRequest"; "protocolVersion"?: 1 }
   | { "type": "openSkinDirectory"; "protocolVersion"?: 1 }
   | { "type": "openLogDirectory"; "protocolVersion"?: 1 }
-  | { "type": "openHelpcodeDirectory"; "protocolVersion"?: 1 }
   | { "type": "collocationModelDownload"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelCheckUpdate"; "protocolVersion"?: 1; "data": { "modelId": string } }
   | { "type": "collocationModelDelete"; "protocolVersion"?: 1; "data": { "modelId": string } }

@@ -508,8 +508,6 @@ VisualPtr BuildAppearancePage(PageContext &context)
             options.horizontal = horizontal;
             options.pageSize = static_cast<size_t>(model->GetInt("appearance.page_size", 6));
             options.preedit = model->GetString("appearance.candidate_window_preedit_style", "pinyin") != "empty";
-            options.helpcode = model->GetBool("helpcode.quanpin_helpcode", true) &&
-                               model->GetBool("helpcode.show_qp_helpcode_in_candidate_window", true);
             // 翻页箭头与卷轴展开按钮由预览按皮肤清单自己决定，与候选窗同一套判定。
             const Json *external = skinpreview::FindExternalSkin(*model, skin);
             previewBox->SetDecorated(external && external->contains("decorationTopDip") &&

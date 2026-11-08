@@ -186,14 +186,6 @@ void ResetTitlebarHoverAfterVisibilityChange()
     }
 }
 
-static nlohmann::json CustomHelpcodeSchemasJson()
-{
-    nlohmann::json schemas = nlohmann::json::array();
-    for (const auto &schema : GetCustomHelpcodeSchemas())
-        schemas.push_back({{"id", schema.schema}, {"name", schema.name}, {"name_en", schema.name_en}});
-    return schemas;
-}
-
 // Index of the input-state shortcut written by a config path, or Definitions.size().
 std::size_t InputStateShortcutIndex(const std::string &path)
 {
@@ -468,10 +460,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"candidate_skin_catalog_revision", g_candidate_skin_catalog_revision},
             {"candidate_skin_directory", skins_root.u8string()}}},
           {"network", {{"proxy_mode", network_proxy.mode}, {"proxy_server", network_proxy.server}}},
-          {"helpcode",
-           {{"quanpin_helpcode", GetConfiguredQuanpinHelpcodeEnabled()},
-            {"quanpin_helpcode_schema", GetConfiguredQuanpinHelpcodeSchema()},
-            {"show_qp_helpcode_in_candidate_window", GetConfiguredShowQuanpinHelpcodeInCandidateWindow()}}},
           {"quanpin",
            {{"autocorrect_transposition", GetConfiguredQuanpinAutocorrectTransposition()},
             {"autocorrect_neighbor", GetConfiguredQuanpinAutocorrectNeighbor()},
@@ -479,8 +467,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"autocorrect_insertion", GetConfiguredQuanpinAutocorrectInsertion()},
             {"autocorrect_marker", GetConfiguredQuanpinAutocorrectMarker()}}},
           }}};
-    payload["data"]["helpcode"]["custom_schemas"] = CustomHelpcodeSchemasJson();
-    payload["data"]["helpcode"]["custom_directory"] = GetCustomHelpcodeDirectory();
     payload["protocolVersion"] = metasequoia::webview::Version;
     const std::string serialized = payload.dump();
     if (!metasequoia::webview::Validate(json::parse(serialized), "server"))
@@ -866,14 +852,6 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
             std::filesystem::create_directories(logs, ec);
             if (!ec)
                 ShellExecuteW(hwnd, L"open", logs.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-        }
-        else if (type == "openHelpcodeDirectory")
-        {
-            const std::filesystem::path directory = metasequoia::path_from_utf8(GetCustomHelpcodeDirectory().c_str());
-            std::error_code ec;
-            std::filesystem::create_directories(directory, ec);
-            if (!ec)
-                ShellExecuteW(hwnd, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         }
         else if (type == "collocationModelDownload")
         {

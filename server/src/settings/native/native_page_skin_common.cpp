@@ -396,7 +396,6 @@ SizeF ImageFileSize(const std::wstring &path)
 namespace
 {
 const wchar_t *kSampleWords[] = {L"你们", L"你", L"尼", L"妮", L"泥", L"逆", L"拟", L"腻", L"拧"};
-const wchar_t *kSampleCodes[] = {L"(rR)", L"(rX)", L"(uV)", L"(nV)", L"(dV)", L"(zQ)", L"(fR)", L"(oD)", L"(nG)"};
 const wchar_t kSamplePreedit[] = L"ni'mf";
 // Replaced scene roots kept alive (see CandidatePreview::retired_).
 constexpr size_t kRetiredRoots = 8;
@@ -459,8 +458,6 @@ void CandidatePreview::Set(const SettingsModel &model, const std::string &skinId
         msimeui::CandidateList::Item item;
         item.label = std::to_wstring(i + 1);
         item.text = kSampleWords[i];
-        if (options.helpcode)
-            item.annotation = kSampleCodes[i];
         items.push_back(std::move(item));
         words.push_back({kSampleWords[i], L""});
     }
