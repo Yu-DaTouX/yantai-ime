@@ -598,8 +598,9 @@ begin
   DataDirPage.Add('');
   DataDirPage.Values[0] := ResolvePreviousDataDir;
   DataDirPage.Buttons[0].OnClick := @DataDirBrowseClick;
-
 end;
+
+#include "cloud_choice.iss"
 
 
 procedure LaunchInstalledComponents;
