@@ -2,6 +2,10 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#ifdef MSIME_TRANSLATION_MODE_TESTING
+#include "translation/translation_worker.h"
+extern translation::Worker::Infer translation_mode_test_inference;
+#endif
 struct WordItem;
 namespace translation_mode
 {

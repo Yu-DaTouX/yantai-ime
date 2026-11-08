@@ -34,6 +34,8 @@ jobs:
         run: python3 scripts/check-product-lock-contract.py
       - name: Test rejection of changed or mismatched inputs
         run: python3 -m unittest discover -s tests -p 'test_product_lock.py'
+      - name: Test the full frost source recipe, filters and product integration
+        run: python3 -m unittest discover -s tests -p 'test_frost_dictionary.py'
       - name: Test local environment setup in a moved checkout
         run: python3 -m unittest discover -s tests -p 'test_prepare_env.py'
       - name: Test the automatic release CI gate

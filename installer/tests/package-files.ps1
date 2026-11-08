@@ -34,7 +34,8 @@ try {
         'windows/image/msime.ico',
         'engine/radical/decomposition.txt',
         'engine/googlepinyinime-rev/data/dict_pinyin.dat',
-        'MetasequoiaImeDict/source/mozc_dictionary_oss/README.txt',
+        'MetasequoiaImeDict/out/rime-frost-NOTICE.md',
+        'MetasequoiaImeDict/out/rime-frost-LICENSE.txt',
         # 仓库里有 sc.lm 也不能进安装包，见下面的断言。
         'language-model/sc.lm',
         'language-model/NOTICE.md',
@@ -46,6 +47,10 @@ try {
         'skins/default/fluent/skin.toml',
         'skins/default/canvas/skin.toml'
     )) { Write-Fixture $file }
+    # Packaging now verifies the real bundled flag font digest, so an arbitrary
+    # text fixture cannot stand in for that third-party asset.
+    $fonts = New-Item -ItemType Directory -Force -Path (Join-Path $fixture 'server/assets/fonts')
+    Copy-Item (Join-Path $PSScriptRoot '../../server/assets/fonts/*') $fonts
     Write-Fixture 'skins/demo-skin/skin.toml' "schema_version = 1`nid = `"demo-skin`"`n"
     Write-Fixture 'skins/demo-skin/assets/background.png' 'png'
     Write-Fixture 'skins/unverified/skin.toml' "schema_version = 1`nid = `"unverified`"`n[license]`nassets = `"UNVERIFIED-DEMO-ONLY`"`n"
@@ -69,6 +74,7 @@ with sqlite3.connect(out / "others.db") as db:
     & (Join-Path $installer 'Prepare-PackageFiles.ps1') -RepoRoot $fixture -TargetVersion '2026.9.1' -IncludeSymbols
     foreach ($file in @('app_data/assets/settings/arrow.svg', 'app_data/assets/settings/sidebar/about.svg',
                          'app_data/dictionary-manifest.json',
+                         'app_data/rime-frost-NOTICE.md', 'app_data/rime-frost-LICENSE.txt',
                          'app_data/dict_pinyin.dat',
                          'app_data/sentence-model.safetensors', 'app_data/chinese-ime-lm-NOTICE.md',
                          'tsf_dll/32/MetasequoiaImeTsf.dll', 'tsf_dll/32/MetasequoiaImeTsf.pdb',

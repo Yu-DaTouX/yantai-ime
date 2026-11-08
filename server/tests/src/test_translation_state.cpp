@@ -111,6 +111,24 @@ TEST_CASE(translation_missing_model_uses_only_supplied_local_glosses)
     REQUIRE_EQ(state.TakeCommit(CommitKind::English).text, "hello world");
 }
 
+TEST_CASE(translation_missing_model_accepts_background_glosses_for_only_the_current_request)
+{
+    State state;
+    Time now{};
+    state.Enter();
+    state.Append("你好", "", now);
+    state.Append("世界", "", now);
+    const auto request = state.TakeDueRequest(now + 100ms);
+    REQUIRE_EQ(request->words.size(), size_t(2));
+    REQUIRE_EQ(request->words.front().chinese, "你好");
+    REQUIRE(state.Apply({request->generation, Status::Missing, "hello world"}, now + 101ms));
+    REQUIRE_EQ(state.TakeCommit(CommitKind::English).text, "hello world");
+    state.Append("再见", "", now);
+    REQUIRE(state.TakeDueRequest(now + 100ms));
+    REQUIRE(!state.Apply({request->generation, Status::Missing, "old fallback"}, now + 101ms));
+    REQUIRE(state.english().empty());
+}
+
 TEST_CASE(translation_timeout_at_one_second_does_not_commit_partial_or_stale_english)
 {
     State state;

@@ -111,7 +111,21 @@ int main()
           0); // old client/new server
     CHECK(FanyImeReplyType::CompositionRestored == 14);
     CHECK(FanyImeReplyType::Reserved15 == 15);
-    CHECK(FanyImeReplyType::MaxKnown == FanyImeReplyType::TranslationCommitEnd);
+    CHECK(FanyImeReplyType::TranslationCommitPart == 16);
+    CHECK(FanyImeReplyType::TranslationCommitEnd == 17);
+    CHECK(FanyImeReplyType::TranslationComposition == 18);
+    CHECK(FanyImeReplyType::MaxKnown == FanyImeReplyType::TranslationComposition);
+    constexpr auto translationCaps =
+        FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode | FanyImeProtocol::TranslationModeState;
+    CHECK(!FanyImeProtocol::SupportsTranslationMode(FanyImeProtocol::TranslationMode));
+    CHECK(!FanyImeProtocol::SupportsTranslationMode(FanyImeProtocol::TranslationModeState));
+    CHECK(FanyImeProtocol::SupportsTranslationMode(translationCaps));
+    const auto translationHello = FanyImeProtocol::Hello(7, 22, translationCaps);
+    CHECK(FanyImeProtocol::SupportsTranslationMode(
+        FanyImeProtocol::Negotiate(translationHello, translationCaps).capabilities));
+    CHECK(!FanyImeProtocol::SupportsTranslationMode(
+        FanyImeProtocol::Negotiate(translationHello, translationCaps & ~FanyImeProtocol::TranslationModeState)
+            .capabilities));
     CHECK(FanyImeReplyType::TransportUnavailable > FanyImeReplyType::MaxKnown);
 
     hello.wch += 1;

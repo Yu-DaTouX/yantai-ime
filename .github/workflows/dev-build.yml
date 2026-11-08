@@ -308,6 +308,8 @@ jobs:
         run: ./scripts/build-language-model.ps1
       - name: Download the neural sentence models
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/fetch-neural-model.ps1
       - name: Collect the installer payload
         shell: pwsh

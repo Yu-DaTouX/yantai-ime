@@ -338,7 +338,9 @@ constexpr std::uint32_t Reserved15 = 15;
 // must never be accepted as a Server frame.
 constexpr std::uint32_t TranslationCommitPart = 16;
 constexpr std::uint32_t TranslationCommitEnd = 17;
-constexpr std::uint32_t MaxKnown = TranslationCommitEnd;
+// Negotiated TranslationModeState: active \t revision \t composition-restore payload.
+constexpr std::uint32_t TranslationComposition = 18;
+constexpr std::uint32_t MaxKnown = TranslationComposition;
 // Local-only result. It is never sent over the pipe and must never be
 // interpreted as candidate text to commit.
 constexpr std::uint32_t TransportUnavailable = static_cast<std::uint32_t>(-1);
@@ -450,8 +452,10 @@ constexpr std::uint32_t Reserved41 = 41;
 // 英文词义清单页是否打开。Payload "1"/"0"。打开时 TSF 把 Esc / Backspace 当作服务端候选键
 // 发给 Server（只退回中文候选，不取消组合、不删字符）；关闭后恢复本来的本地行为。
 constexpr std::uint32_t EnglishSensesPageChanged = 42;
-constexpr std::uint32_t TranslationModeChanged = 43;        // "1"/"0", scoped to current focus session
-constexpr std::uint32_t TranslationCompositionChanged = 44; // composition restore after toolbar/mouse selection
+// TranslationModeState peers: active \t revision. Activation may send the old "0" marker.
+constexpr std::uint32_t TranslationModeChanged = 43;
+// active \t revision \t composition restore after toolbar/mouse selection.
+constexpr std::uint32_t TranslationCompositionChanged = 44;
 constexpr std::uint32_t MaxKnown = TranslationCompositionChanged;
 // Source compatibility for the Server's historical spellings.
 constexpr std::uint32_t SwitchToEn = SwitchToEnglish;

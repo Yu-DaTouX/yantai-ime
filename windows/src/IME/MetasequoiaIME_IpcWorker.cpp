@@ -264,7 +264,9 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         bool validFrame = true;
         if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitCurCandidate ||
             buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitCandidateAndContinue ||
-            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged)
+            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged ||
+            buf.msg_type == FanyImeWorkerReplyType::TranslationModeChanged ||
+            buf.msg_type == FanyImeWorkerReplyType::TranslationCompositionChanged)
         {
             bool hasTerminator = false;
             for (const wchar_t ch : buf.data)
@@ -472,12 +474,15 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         }
         else if (buf.msg_type == FanyImeWorkerReplyType::TranslationModeChanged)
         {
-            Global::TranslationModeSupported.store(true);
-            Global::TranslationModeActive.store(buf.data[0] == L'1');
+            // The activation's legacy "0" is only a marker. Negotiation is the
+            // authority for support; state updates use the focus-scoped owner queue.
+            if (Global::TranslationModeSupported.load())
+                pIME->_PostServerTextDelivery(WM_ApplyTranslationMode, buf.data);
         }
         else if (buf.msg_type == FanyImeWorkerReplyType::TranslationCompositionChanged)
         {
-            pIME->_PostServerTextDelivery(WM_ApplyTranslationComposition, buf.data);
+            if (Global::TranslationModeSupported.load())
+                pIME->_PostServerTextDelivery(WM_ApplyTranslationComposition, buf.data);
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::EnglishSensesPageChanged)
         {
