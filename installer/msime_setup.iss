@@ -582,7 +582,9 @@ begin
     DataDirPage.Values[0] := Chosen;
 end;
 
-{ 词库、用户配置、皮肤和界面资源都在这个目录下，整包有几百 MB，
+procedure InitializeWizard;
+begin
+  { 词库、用户配置、皮肤和界面资源都在这个目录下，整包有几百 MB，
     所以要让用户能把它放到别的盘。程序本体仍然装在 Program Files：
     Server 带 uiAccess=true，只有装在受信任目录里这个标志才生效。}
   DataDirPage := CreateInputDirPage(
