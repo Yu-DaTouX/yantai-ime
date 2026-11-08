@@ -26,6 +26,8 @@ class CGetTextExtentEditSession : public CEditSessionBase
                               _In_ ITfContextView *pContextView, _In_ ITfRange *pRangeComposition,
                               _In_ CTfTextLayoutSink *pTextLayoutSink);
 
+    ~CGetTextExtentEditSession() override;
+
     // ITfEditSession
     STDMETHODIMP DoEditSession(TfEditCookie ec);
 

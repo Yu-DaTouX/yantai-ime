@@ -23,6 +23,18 @@ CGetTextExtentEditSession::CGetTextExtentEditSession(_In_ CMetasequoiaIME *pText
     _pContextView = pContextView;
     _pRangeComposition = pRangeComposition;
     _pTfTextLayoutSink = pTfTextLayoutSink;
+    // GetTextExt may re-enter the host and end the composition/presenter even
+    // during a synchronous edit session. Keep every borrowed input alive.
+    _pContextView->AddRef();
+    _pRangeComposition->AddRef();
+    _pTfTextLayoutSink->AddRef();
+}
+
+CGetTextExtentEditSession::~CGetTextExtentEditSession()
+{
+    _pContextView->Release();
+    _pRangeComposition->Release();
+    _pTfTextLayoutSink->Release();
 }
 
 //+---------------------------------------------------------------------------
@@ -37,7 +49,17 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
     BOOL isClipped = TRUE;
     HRESULT hr = S_OK;
 
+    if (!_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+    {
+        return S_OK;
+    }
     hr = _pContextView->GetTextExt(ec, _pRangeComposition, &rc, &isClipped);
+    // A successful extent from a composition the host just terminated must
+    // not move or revive a newer candidate session.
+    if (!_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+    {
+        return S_OK;
+    }
 
     if (SUCCEEDED(hr))
     {
@@ -50,6 +72,10 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
         }
 
         const POINT anchor = GetPhysicalTextAnchor(_pContextView, rc);
+        if (!_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+        {
+            return S_OK;
+        }
         Global::Point[0] = anchor.x;
         Global::Point[1] = anchor.y;
         // This is the per-keystroke caret source. Tell the sink the session now

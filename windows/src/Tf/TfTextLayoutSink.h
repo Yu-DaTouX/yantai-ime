@@ -30,6 +30,11 @@ class CTfTextLayoutSink : public ITfTextLayoutSink
         return _pContextDocument;
     };
 
+    bool _IsLayoutCurrent(ITfContext *context, ITfRange *range) const
+    {
+        return context && context == _pContextDocument && range && range == _pRangeComposition;
+    }
+
     // Callers that read the caret straight from ITfContextView (the edit-session
     // path) report their success here, so _GetTextExt knows whether Global::Point
     // already holds a usable anchor for this layout session.
