@@ -76,11 +76,13 @@ function Cand {
     $why = if ($ok) { 'OK' } elseif ($cloaked) { '未显示' } else { "在屏幕外($($r.L),$($r.T))" }
     return [pscustomobject]@{ ok = [bool]$ok; why = $why; rect = $r }
 }
+# 截图文件名里的 : \ / * ? " < > | 在 Windows 上非法（"a:b.png" 会写成 NTFS 备用数据流，资源管理器看不到图），一律换成 -。
+function SafeName([string]$name) { return ($name -replace '[:\\/*?"<>|]', '-') }
 function Shot($name, $rect) {
     try {
         $bmp = New-Object System.Drawing.Bitmap ([Math]::Max(1, $rect.R - $rect.L)), ([Math]::Max(1, $rect.B - $rect.T))
         $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($rect.L, $rect.T, 0, 0, $bmp.Size); $g.Dispose()
-        $path = Join-Path $OutDir "$name.png"; $bmp.Save($path); $bmp.Dispose(); return $path
+        $path = Join-Path $OutDir "$(SafeName $name).png"; $bmp.Save($path); $bmp.Dispose(); return $path
     } catch { return '' }
 }
 $script:snapN = 0
