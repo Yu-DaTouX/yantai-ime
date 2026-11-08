@@ -35,7 +35,7 @@ TEST_CASE(candidate_text_boundary_discards_bad_page_and_accepts_next_candidate)
         REQUIRE(cache.empty());
         REQUIRE_EQ(recoveries, 1);
         REQUIRE_EQ(composition, std::string("nihao"));
-        REQUIRE_EQ(*FanyImeIpc::CandidateTextLength("你好", [&] { ++recoveries; }), size_t{2});
+        REQUIRE_EQ(FanyImeIpc::CandidateTextLength("你好", [&] { ++recoveries; }).value_or(size_t{99}), size_t{2});
         REQUIRE_EQ(recoveries, 1);
     }
 }

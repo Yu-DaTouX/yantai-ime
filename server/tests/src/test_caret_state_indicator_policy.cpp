@@ -40,8 +40,8 @@ TEST_CASE(caret_state_indicator_upper_positions_clear_the_caret_line)
 TEST_CASE(caret_state_indicator_flips_away_from_work_area_and_suppresses_when_neither_side_fits)
 {
     using FanyImeUi::CaretStateIndicatorPlacementY;
-    REQUIRE_EQ(*CaretStateIndicatorPlacementY(true, 170, 30, 24, 6, 0, 200), 110);
-    REQUIRE_EQ(*CaretStateIndicatorPlacementY(false, 30, 30, 24, 6, 0, 200), 36);
+    REQUIRE_EQ(CaretStateIndicatorPlacementY(true, 170, 30, 24, 6, 0, 200).value_or(-1), 110);
+    REQUIRE_EQ(CaretStateIndicatorPlacementY(false, 30, 30, 24, 6, 0, 200).value_or(-1), 36);
     REQUIRE(!CaretStateIndicatorPlacementY(true, 50, 80, 24, 6, 0, 100));
     REQUIRE(!CaretStateIndicatorPlacementY(false, 50, 80, 24, 6, 0, 100));
 }
