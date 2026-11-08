@@ -5,6 +5,7 @@
 #include "session/engine_input_session.h"
 #include "global/globals.h"
 #include "utils/common_utils.h"
+#include "config/ime_config_internal.h"
 #include "engine/contracts/key_chord.h"
 #include "engine/contracts/translation_mode.h"
 #include <chrono>
@@ -23,8 +24,11 @@ std::vector<std::pair<UINT, std::wstring>> workerPayloads;
 struct Session
 {
     std::shared_ptr<IInputSession> previous = g_inputSession;
+    // 出厂不绑定 translate_mode（65368e58），这些用例走真实按键入口，要显式绑上 Ctrl+T。
+    std::string previousBinding = ime_config_detail::g_translate_mode_binding;
     Session()
     {
+        ime_config_detail::g_translate_mode_binding = "Ctrl+T";
         current = true;
         supports = true;
         event_listener_detail::g_english_input_mode = false;
@@ -34,6 +38,7 @@ struct Session
     ~Session()
     {
         translation_mode::Shutdown();
+        ime_config_detail::g_translate_mode_binding = previousBinding;
         g_inputSession = previous;
         event_listener_detail::g_english_input_mode = false;
         current = true;
