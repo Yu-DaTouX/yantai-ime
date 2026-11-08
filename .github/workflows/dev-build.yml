@@ -231,6 +231,8 @@ jobs:
         shell: pwsh
         env:
           DEV_CERT_PATH: ${{ runner.temp }}/dev-server-certificate.cer
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
           # -Include 只有在 -Path 带通配符或同时给 -Recurse 时才生效，这里显式计算再交给参数，
           # 免得把一条空列表传进脚本后它才在内部报错。
@@ -321,6 +323,8 @@ jobs:
         working-directory: installer
         env:
           DEV_CERT_PATH: ${{ runner.temp }}/dev-build.cer
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
         run: ./sign-dev-build.ps1
       - name: Install the Chinese language file for Inno Setup
         shell: pwsh
@@ -334,6 +338,8 @@ jobs:
         working-directory: installer
         env:
           DEV_CERT_PATH: ${{ runner.temp }}/dev-build.cer
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
         run: ./sign-dev-build.ps1 -Installer
       - name: Name the artifact and record its checksum
         id: asset

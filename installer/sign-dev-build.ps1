@@ -84,6 +84,28 @@ function New-RunCertificate {
     return $certificate
 }
 
+# 仓库配置了固定签名证书（WINDOWS_SIGNING_CERTIFICATE_BASE64 / _PASSWORD，与 release 同一张）时
+# 优先用它：用户只需导入一次公钥，每个 dev 包、正式版和自动更新都认同一个签名。没配置时才走下面
+# 每次运行现场生成的临时证书。
+function Import-FixedCertificate {
+    if (-not $env:CERTIFICATE_BASE64 -or -not $env:CERTIFICATE_PASSWORD) { return $null }
+    $bytes = [Convert]::FromBase64String($env:CERTIFICATE_BASE64)
+    $pfx = Join-Path ([IO.Path]::GetTempPath()) ("fixed-sign-" + [guid]::NewGuid() + ".pfx")
+    try {
+        [IO.File]::WriteAllBytes($pfx, $bytes)
+        $secure = ConvertTo-SecureString $env:CERTIFICATE_PASSWORD -AsPlainText -Force
+        $imported = Import-PfxCertificate -FilePath $pfx -CertStoreLocation 'Cert:\CurrentUser\My' -Password $secure
+        return @($imported | Where-Object { $_.HasPrivateKey })[0]
+    } finally {
+        Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$certificate = Import-FixedCertificate
+if ($certificate) {
+    Write-Host "Using the repository's fixed signing certificate: $($certificate.Thumbprint)"
+}
+else {
 $certificate = Get-RunCertificate
 if ($certificate) {
     Write-Host "Reusing the certificate created earlier in this run: $($certificate.Thumbprint)"
@@ -93,6 +115,7 @@ else {
     # 先落标记再往下走：后面任何一步失败重跑，都应该复用这一张而不是再生成一张。
     Set-Content -LiteralPath (Get-RunMarkerPath) -Value $certificate.Thumbprint -NoNewline -Encoding utf8NoBOM
     Write-Host "Created the dev-build signing certificate: $($certificate.Thumbprint)"
+}
 }
 
 $certPath = $env:DEV_CERT_PATH
