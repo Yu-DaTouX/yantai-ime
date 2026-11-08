@@ -41,10 +41,25 @@ try {
     $staging = Join-Path ([IO.Path]::GetTempPath()) ('msime-deploy-' + [guid]::NewGuid())
     New-Item -ItemType Directory -Path $staging | Out-Null
 
+    # 本地编译的 Server 不带 uiAccess 清单（云端由 scripts/ci/embed-server-manifest.ps1 嵌入）。
+    # 漏了它 Server 照样能跑，但候选窗拿不到 uiAccess 的 Z 序，在 Chromium 系宿主里会被压在下面看不见。
+    $mt = Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\*\x64\mt.exe') |
+        Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    $serverManifest = Join-Path $RepoRoot 'server\MetasequoiaImeServer.manifest'
+
     function Sign-Copy([string]$source) {
         if (-not (Test-Path -LiteralPath $source)) { throw "编译产物不存在：$source" }
         $target = Join-Path $staging ([IO.Path]::GetFileName($source))
         Copy-Item -LiteralPath $source -Destination $target -Force
+        if ([IO.Path]::GetFileName($source) -eq 'MetasequoiaImeServer.exe') {
+            if (-not $mt) { throw '找不到 mt.exe（Windows SDK），无法嵌入 uiAccess 清单。' }
+            & $mt -nologo -manifest $serverManifest "-outputresource:$target;1" | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "嵌入 uiAccess 清单失败：$LASTEXITCODE" }
+            $probe = Join-Path $staging 'server-manifest.xml'
+            & $mt -nologo "-inputresource:$target;#1" "-out:$probe" | Out-Null
+            if ((Get-Content -LiteralPath $probe -Raw) -notmatch 'uiAccess\s*=\s*["'']true["'']') { throw '嵌入后读回的清单没有 uiAccess=true。' }
+            Write-Host '已嵌入 uiAccess 清单'
+        }
         & $signTool sign /fd SHA256 /sha1 $cert.Thumbprint /s My $target | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "签名失败：$source" }
         return $target
