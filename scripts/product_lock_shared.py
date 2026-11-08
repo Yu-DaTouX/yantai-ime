@@ -8,11 +8,13 @@ consumer must compare its vendored copy byte-for-byte with this file in CI.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import subprocess
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping
@@ -102,7 +104,35 @@ def download_with_retries(url: str, target: Path, *, attempts: int = 3, timeout:
                     Path(temporary_name).unlink()
                 except OSError:
                     pass
+    # github.com/<owner>/<repo>/releases/download/... sometimes answers 504 for a long stretch
+    # while the REST API still serves the same asset. Callers verify SHA256, so the source of
+    # the bytes does not matter.
+    match = re.fullmatch(r"https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/]+)", url)
+    if match:
+        try:
+            _download_release_asset_via_api(*match.groups(), target, timeout)
+            return
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError) as error:
+            last_error = error
     raise ValueError(f"Could not download {url}: {last_error}") from last_error
+
+
+def _download_release_asset_via_api(owner: str, repo: str, tag: str, name: str, target: Path, timeout: int) -> None:
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "msime-product-lock"}
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    api = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{urllib.parse.quote(tag)}"
+    with urllib.request.urlopen(urllib.request.Request(api, headers=headers), timeout=timeout) as response:
+        release = json.load(response)
+    asset = next(a for a in release["assets"] if a["name"] == urllib.parse.unquote(name))
+    request = urllib.request.Request(asset["url"], headers={**headers, "Accept": "application/octet-stream"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as temporary:
+            temporary_name = temporary.name
+            for chunk in iter(lambda: response.read(1 << 20), b""):
+                temporary.write(chunk)
+    os.replace(temporary_name, target)
 
 
 def resolve_tag_commit(repository_url: str, tag: str) -> str:
