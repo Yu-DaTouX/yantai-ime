@@ -1,6 +1,7 @@
 #include "Private.h"
 #include "EditSession.h"
 #include "GetTextExtentEditSession.h"
+#include "MetasequoiaIME.h"
 #include "TfTextLayoutSink.h"
 #include "Ipc.h"
 #include "FanyDefines.h"
@@ -23,6 +24,30 @@ CGetTextExtentEditSession::CGetTextExtentEditSession(_In_ CMetasequoiaIME *pText
     _pContextView = pContextView;
     _pRangeComposition = pRangeComposition;
     _pTfTextLayoutSink = pTfTextLayoutSink;
+    _compositionEpoch = pTextService->_CaptureCompositionEpoch();
+    // GetTextExt can re-enter and end the composition. Retain the COM inputs;
+    // the presenter is explicitly deleted by its owner, so AddRef cannot keep
+    // it alive. Validate its identity/epoch before dereferencing it instead.
+    if (_pContextView)
+    {
+        _pContextView->AddRef();
+    }
+    if (_pRangeComposition)
+    {
+        _pRangeComposition->AddRef();
+    }
+}
+
+CGetTextExtentEditSession::~CGetTextExtentEditSession()
+{
+    if (_pContextView)
+    {
+        _pContextView->Release();
+    }
+    if (_pRangeComposition)
+    {
+        _pRangeComposition->Release();
+    }
 }
 
 //+---------------------------------------------------------------------------
@@ -37,7 +62,20 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
     BOOL isClipped = TRUE;
     HRESULT hr = S_OK;
 
+    if (!_pContextView || !_pRangeComposition ||
+        !_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+        !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+    {
+        return S_OK;
+    }
     hr = _pContextView->GetTextExt(ec, _pRangeComposition, &rc, &isClipped);
+    // A successful extent from a composition the host just terminated must
+    // not move or revive a newer candidate session.
+    if (!_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+        !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+    {
+        return S_OK;
+    }
 
     if (SUCCEEDED(hr))
     {
@@ -50,6 +88,11 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
         }
 
         const POINT anchor = GetPhysicalTextAnchor(_pContextView, rc);
+        if (!_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+            !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+        {
+            return S_OK;
+        }
         Global::Point[0] = anchor.x;
         Global::Point[1] = anchor.y;
         // This is the per-keystroke caret source. Tell the sink the session now

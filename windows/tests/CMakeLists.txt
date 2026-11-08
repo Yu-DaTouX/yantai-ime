@@ -127,15 +127,51 @@ target_include_directories(test_focus_activation PRIVATE "${CMAKE_CURRENT_BINARY
 target_compile_features(test_focus_activation PRIVATE cxx_std_17)
 add_test(NAME focus_activation COMMAND test_focus_activation)
 
+# Compile the real Aux sender: bounded mode must be set before any write,
+# including fire-and-forget lifecycle notifications on the host thread.
+set(aux_pipe_generator "${CMAKE_CURRENT_SOURCE_DIR}/generate_aux_pipe_fixture.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${focus_activation_ipc_source}" "${aux_pipe_generator}")
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -B "${aux_pipe_generator}"
+        "${focus_activation_ipc_source}" "${CMAKE_CURRENT_BINARY_DIR}/aux_pipe_source.h"
+    COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_aux_pipe aux_pipe.cpp)
+target_include_directories(test_aux_pipe PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(test_aux_pipe PRIVATE cxx_std_17)
+add_test(NAME aux_pipe COMMAND test_aux_pipe)
+
+find_package(Threads REQUIRED)
+add_executable(test_tsf_preedit_style tsf_preedit_style.cpp)
+target_include_directories(test_tsf_preedit_style PRIVATE ../src)
+target_compile_features(test_tsf_preedit_style PRIVATE cxx_std_17)
+target_link_libraries(test_tsf_preedit_style PRIVATE Threads::Threads)
+add_test(NAME tsf_preedit_style COMMAND test_tsf_preedit_style)
+
+set(candidate_page_generator "${CMAKE_CURRENT_SOURCE_DIR}/generate_candidate_page_fixture.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${focus_activation_ipc_source}" "${candidate_page_generator}")
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -B "${candidate_page_generator}"
+        "${focus_activation_ipc_source}" "${CMAKE_CURRENT_BINARY_DIR}/candidate_page_source.h"
+    COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_shared_candidate_page shared_candidate_page.cpp)
+target_include_directories(test_shared_candidate_page PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(test_shared_candidate_page PRIVATE cxx_std_17)
+add_test(NAME shared_candidate_page COMMAND test_shared_candidate_page)
+
 # Exercise both production extent handlers with clipped and collapsed host rectangles
 set(caret_layout_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Tf/TfTextLayoutSink.cpp")
 set(caret_edit_source "${CMAKE_CURRENT_SOURCE_DIR}/../src/Edit/GetTextExtentEditSession.cpp")
+set(caret_layout_header "${CMAKE_CURRENT_SOURCE_DIR}/../src/Tf/TfTextLayoutSink.h")
 set(caret_fixture_generator "${CMAKE_CURRENT_SOURCE_DIR}/generate_caret_extent_fixture.py")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${caret_layout_source}" "${caret_edit_source}" "${caret_fixture_generator}" "${reconnect_fixture_generator}")
+    "${caret_layout_source}" "${caret_edit_source}" "${caret_layout_header}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/IME/MetasequoiaIME.cpp" "${caret_fixture_generator}" "${reconnect_fixture_generator}")
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" -B "${caret_fixture_generator}"
-        "${caret_layout_source}" "${caret_edit_source}" "${CMAKE_CURRENT_BINARY_DIR}/caret_extent_source.h"
+        "${caret_layout_source}" "${caret_edit_source}" "${caret_layout_header}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/IME/MetasequoiaIME.cpp" "${CMAKE_CURRENT_BINARY_DIR}/caret_extent_source.h"
     COMMAND_ERROR_IS_FATAL ANY)
 add_executable(test_caret_extent caret_extent.cpp)
 target_include_directories(test_caret_extent PRIVATE ../src "${CMAKE_CURRENT_BINARY_DIR}")

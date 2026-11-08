@@ -5,6 +5,7 @@
 #include <list>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 template <typename Key, typename Value> class CircularBuffer
 {
@@ -15,29 +16,12 @@ template <typename Key, typename Value> class CircularBuffer
 
     void insert(const Key &key, const Value &value)
     {
-        if (_capacity == 0)
-        {
-            return;
-        }
+        insert_value(key, value);
+    }
 
-        auto it = _map.find(key);
-
-        if (it != _map.end())
-        {
-            it->second.first = value;
-            _list.splice(_list.end(), _list, it->second.second);
-            return;
-        }
-
-        if (_list.size() >= _capacity)
-        {
-            const Key &oldest_key = _list.front();
-            _map.erase(oldest_key);
-            _list.pop_front();
-        }
-
-        _list.push_back(key);
-        _map[key] = {value, std::prev(_list.end())};
+    void insert(const Key &key, Value &&value)
+    {
+        insert_value(key, std::move(value));
     }
 
     // 命中时把条目挪到最近使用端（真正的 LRU 淘汰），返回指向缓存值的指针而不复制。
@@ -92,6 +76,40 @@ template <typename Key, typename Value> class CircularBuffer
     }
 
   private:
+    template <typename V> void insert_value(const Key &key, V &&value)
+    {
+        if (_capacity == 0)
+        {
+            return;
+        }
+        auto it = _map.find(key);
+        if (it != _map.end())
+        {
+            it->second.first = std::forward<V>(value);
+            _list.splice(_list.end(), _list, it->second.second);
+            return;
+        }
+
+        _list.push_back(key);
+        try
+        {
+            _map.emplace(key, std::make_pair(std::forward<V>(value), std::prev(_list.end())));
+        }
+        catch (...)
+        {
+            // A throwing value copy/allocation must not leave an orphan LRU
+            // key that can later evict a different incarnation of that key.
+            _list.pop_back();
+            throw;
+        }
+        // Do not evict a working entry until the replacement is fully stored.
+        if (_list.size() > _capacity)
+        {
+            _map.erase(_list.front());
+            _list.pop_front();
+        }
+    }
+
     size_t _capacity;
     std::list<Key> _list;
     std::unordered_map<Key, std::pair<Value, typename std::list<Key>::iterator>> _map;

@@ -16,6 +16,7 @@
 
 class CLangBarItemButton;
 class CCandidateListUIPresenter;
+class CTfTextLayoutSink;
 class CCompositionProcessorEngine;
 
 const DWORD WM_CheckGlobalCompartment = WM_USER;
@@ -424,6 +425,7 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     // so an old worker/key message cannot commit into the next document.
     uint64_t _CaptureFocusSessionToken() const;
     bool _IsFocusSessionCurrent(uint64_t focusToken, _In_opt_ ITfContext *expectedContext = nullptr) const;
+    bool _IsCandidateLayoutCurrent(const CTfTextLayoutSink *layout, uint64_t compositionEpoch) const;
     uint64_t _CaptureCompositionEpoch() const;
     bool _IsCompositionEpochCurrent(uint64_t compositionEpoch) const;
     bool _IsCompositionCurrent(_In_opt_ ITfComposition *expectedComposition) const;
