@@ -4,6 +4,7 @@
 #include "Private.h"
 #include "MetasequoiaIME.h"
 #include "CompositionProcessorEngine.h"
+#include "VirtualKeyNeedPolicy.h"
 #include "TfInputProcessorProfile.h"
 #include "Globals.h"
 #include "FanyDefines.h"
@@ -21,51 +22,6 @@
 #include "TfTextLayoutSink.h"
 #include "../../../engine/contracts/date_time_input.h"
 #include <new>
-
-// '_' '=' '+' 在日语模式下也不翻页，但它们没有假名写法，按标点上屏处理，
-// 且只在已有编码时接管——空编码时仍然是普通标点，归应用程序。
-
-bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT uCode, WCHAR wch, CANDIDATE_MODE candidateMode,
-                                                                const WCHAR *raw, DWORD_PTR keystrokeLength)
-{
-    if (candidateMode == CANDIDATE_NONE)
-    {
-        return false;
-    }
-
-    // Candidate paging keys must keep their navigation semantics even if the
-    // corresponding character is also listed in CommitWithHighlightedCandPunc.
-    switch (uCode)
-    {
-    case VK_PRIOR:
-    case VK_NEXT:
-    case VK_HOME:
-    case VK_END:
-    case VK_TAB:
-        return false;
-    case VK_OEM_MINUS:
-    case VK_OEM_PLUS:
-        return false;
-    default:
-        break;
-    }
-
-    return wch != 0 && Global::CommitWithHighlightedCandPunc.count(wch) > 0;
-}
-
-bool IsManualPinyinSeparatorInComposition(WCHAR wch, BOOL fComposing, CANDIDATE_MODE candidateMode,
-                                          DWORD_PTR keystrokeLength)
-{
-    if (wch != L'\'')
-    {
-        return false;
-    }
-    if (keystrokeLength == 0)
-    {
-        return false;
-    }
-    return fComposing || candidateMode != CANDIDATE_NONE;
-}
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -86,7 +42,7 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeedForFreshComposition(UINT uCode
     // the old focus session is still being cancelled, so none of its candidate
     // mode, wildcard flags, or virtual-key buffer may affect the first key in
     // the replacement session.
-    if (IsManualPinyinSeparatorInComposition(pwch ? *pwch : 0, FALSE, CANDIDATE_NONE, 0))
+    if (virtual_key_need_policy::IsManualPinyinSeparator(pwch ? *pwch : 0, FALSE, CANDIDATE_NONE, 0))
     {
         if (pKeyState)
         {
@@ -135,593 +91,62 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
     _Out_opt_ _KEYSTROKE_STATE *pKeyState           //
 )
 {
-    if (pKeyState)
-    {
-        pKeyState->Category = CATEGORY_NONE;
-        pKeyState->Function = FUNCTION_NONE;
-    }
-
+    // The decision itself lives in VirtualKeyNeedPolicy.h, free of COM/TSF, so windows/tests can
+    // drive it. Everything below only gathers what that policy needs from this engine.
     if (candidateMode == CANDIDATE_ORIGINAL)
     {
         fComposing = FALSE;
     }
 
-    if (IsManualPinyinSeparatorInComposition(pwch ? *pwch : 0, fComposing, candidateMode, _keystrokeBuffer.GetLength()))
+    const WCHAR character = pwch ? *pwch : 0;
+    const WCHAR *buffer = _keystrokeBuffer.Get();
+    const DWORD_PTR bufferLength = _keystrokeBuffer.GetLength();
+
+    virtual_key_need_policy::Context context;
+    context.virtualKey = uCode;
+    context.character = character;
+    context.composing = fComposing != FALSE;
+    context.candidateMode = candidateMode;
+    context.hasCandidateWithWildcard = hasCandidateWithWildcard != FALSE;
+    context.keystrokeBufferLength = bufferLength;
+    context.wildcardEnabled = IsWildcard() != FALSE;
+    context.disableWildcardAtFirst = IsDisableWildcardAtFirst() != FALSE;
+    context.wildcardInKeystrokeBuffer = _hasWildcardIncludedInKeystrokeBuffer != FALSE;
+    context.usesHorizontalArrowSelection = UsesHorizontalArrowSelection();
+    context.shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    context.pureShiftKeyUp = Global::PureShiftKeyUp != FALSE;
+    context.dateTimeInputKey = IsDateTimeInputKey(uCode, character, buffer, bufferLength, _caretPosition) != FALSE;
+    context.vModeInputKey = IsVModeInputKey(character, buffer, bufferLength, _caretPosition) != FALSE;
+    context.vModeShiftDigitSelectionKey = IsVModeShiftDigitSelectionKey(uCode, buffer, bufferLength) != FALSE;
+    context.characterCommitsHighlightedCandidate = Global::CommitWithHighlightedCandPunc.count(character) > 0;
+    context.virtualKeyInCandidateRange = _candidateListIndexRange.IsRange(uCode) != FALSE;
+
+    // A scratch state keeps the table lookups side-effect free for the policy: they only ever
+    // report whether the key matched and with which function.
+    _KEYSTROKE_STATE compositionState{CATEGORY_NONE, FUNCTION_NONE};
+    if (IsVirtualKeyKeystrokeComposition(uCode, &compositionState, FUNCTION_NONE))
     {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            pKeyState->Function = FUNCTION_INPUT;
-        }
-        return TRUE;
+        context.compositionKeystroke.matched = true;
+        context.compositionKeystroke.function = compositionState.Function;
+    }
+    context.compositionInputKeystroke =
+        IsVirtualKeyKeystrokeComposition(uCode, &compositionState, FUNCTION_INPUT) != FALSE;
+
+    _KEYSTROKE_STATE candidateState{CATEGORY_NONE, FUNCTION_NONE};
+    BOOL candidateRetCode = FALSE;
+    if (IsVirtualKeyKeystrokeCandidate(uCode, &candidateState, candidateMode, &candidateRetCode, &_KeystrokeCandidate))
+    {
+        context.candidateKeystroke.matched = true;
+        context.candidateKeystroke.function = candidateState.Function;
+    }
+    if (IsVirtualKeyKeystrokeCandidate(uCode, &candidateState, candidateMode, &candidateRetCode,
+                                       &_KeystrokeCandidateWildcard))
+    {
+        context.candidateWildcardKeystroke.matched = true;
+        context.candidateWildcardKeystroke.function = candidateState.Function;
     }
 
-
-    // T-mode: digits, '/' and ':' that still extend a date/time are input. The rest keep their usual
-    // meaning below (digits select, '/' and ':' are punctuation); Shift+digit never matches here.
-    // V-mode: digits and . + - * / ( ) after the V prefix are input, so they neither select, page nor commit
-    // punctuation. Shift+8/9/0 give * ( ) and are input too; other Shift+digits still select.
-    if (IsDateTimeInputKey(uCode, pwch ? *pwch : 0, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength(),
-                           _caretPosition) ||
-        IsVModeInputKey(pwch ? *pwch : 0, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength(), _caretPosition))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            pKeyState->Function = FUNCTION_INPUT;
-        }
-        return TRUE;
-    }
-    // V-mode: bare digits are input, so Shift+1..9 selects. It must be decided here,
-    // before the punctuation rule below would commit the highlighted candidate together with '!' '@' ...
-    // Shift+8/9 produce '*' '(' and were already taken as input above.
-    if (IsVModeShiftDigitSelectionKey(uCode, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength()))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_CANDIDATE;
-            pKeyState->Function = FUNCTION_SELECT_BY_NUMBER;
-        }
-        return TRUE;
-    }
-
-
-    // The Server owns the configurable comma/period behavior. Always route
-    // these keys through it while candidates are active; its response decides
-    // whether the key navigates or commits the highlighted candidate with punctuation.
-    const bool isCommaPeriodPagingKey = uCode == VK_OEM_COMMA || uCode == VK_OEM_PERIOD;
-    const bool isBracketPagingKey = uCode == VK_OEM_4 || uCode == VK_OEM_6;
-    const bool isMinusEqualPagingKey = (uCode == VK_OEM_MINUS || uCode == VK_OEM_PLUS);
-    if (candidateMode != CANDIDATE_NONE &&
-        (isMinusEqualPagingKey || isCommaPeriodPagingKey || isBracketPagingKey || uCode == VK_TAB ||
-         uCode == VK_PRIOR || uCode == VK_NEXT || uCode == VK_UP || uCode == VK_DOWN))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_CANDIDATE;
-            pKeyState->Function = FUNCTION_SERVER_CANDIDATE_KEY;
-        }
-        return TRUE;
-    }
-
-    if (candidateMode != CANDIDATE_NONE && (uCode == VK_LEFT || uCode == VK_RIGHT))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            // 横排候选左右键选词开着时，移高亮还是移光标由 Server 定，TSF 只应用它的回复。
-            if (UsesHorizontalArrowSelection())
-            {
-                pKeyState->Function = uCode == VK_LEFT ? FUNCTION_MOVE_LEFT_CANDIDATE : FUNCTION_MOVE_RIGHT_CANDIDATE;
-            }
-            else
-            {
-                pKeyState->Function = uCode == VK_LEFT ? FUNCTION_MOVE_LEFT : FUNCTION_MOVE_RIGHT;
-            }
-        }
-        return TRUE;
-    }
-
-    if (IsCommitWithHighlightedCandidatePunctuationInCandidateMode(
-            uCode, pwch ? *pwch : 0, candidateMode, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength()))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_COMPOSING;
-            pKeyState->Function = FUNCTION_PUNCTUATION;
-        }
-        return TRUE;
-    }
-
-    if (fComposing || candidateMode == CANDIDATE_INCREMENTAL || candidateMode == CANDIDATE_NONE)
-    {
-        if (IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_NONE)) // 26 basic English chars
-        {
-            return TRUE;
-        }
-        else if ((IsWildcard() && IsWildcardChar(*pwch) && !IsDisableWildcardAtFirst()) ||
-                 (IsWildcard() && IsWildcardChar(*pwch) && IsDisableWildcardAtFirst() && _keystrokeBuffer.GetLength()))
-        {
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_COMPOSING;
-                pKeyState->Function = FUNCTION_INPUT;
-            }
-            return TRUE;
-        }
-        else if (_hasWildcardIncludedInKeystrokeBuffer && uCode == VK_SPACE)
-        {
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_COMPOSING;
-                pKeyState->Function = FUNCTION_CONVERT_WILDCARD;
-            }
-            return TRUE;
-        }
-        if (Global::PureShiftKeyUp)
-        {
-            return TRUE;
-        }
-    }
-
-    if (candidateMode == CANDIDATE_ORIGINAL)
-    {
-        BOOL isRetCode = TRUE;
-        if (IsVirtualKeyKeystrokeCandidate(uCode, pKeyState, candidateMode, &isRetCode, &_KeystrokeCandidate))
-        {
-            return isRetCode;
-        }
-
-        if (hasCandidateWithWildcard)
-        {
-            if (IsVirtualKeyKeystrokeCandidate(uCode, pKeyState, candidateMode, &isRetCode,
-                                               &_KeystrokeCandidateWildcard))
-            {
-                return isRetCode;
-            }
-        }
-
-        // Candidate list could not handle key. We can try to restart the composition.
-        if (IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_INPUT))
-        {
-            if (candidateMode == CANDIDATE_ORIGINAL)
-            {
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELIST_AND_INPUT;
-                }
-                return TRUE;
-            }
-        }
-    }
-
-    // CANDIDATE_INCREMENTAL should process Keystroke.Candidate virtual keys.
-    else if (candidateMode == CANDIDATE_INCREMENTAL)
-    {
-        BOOL isRetCode = TRUE;
-        if (IsVirtualKeyKeystrokeCandidate(uCode, pKeyState, candidateMode, &isRetCode, &_KeystrokeCandidate))
-        {
-            return isRetCode;
-        }
-    }
-
-    if (!fComposing && candidateMode != CANDIDATE_ORIGINAL)
-    {
-        if (IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_INPUT))
-        {
-            return TRUE;
-        }
-    }
-
-    // System pre-defined keystroke
-    if (fComposing)
-    {
-        if ((candidateMode != CANDIDATE_INCREMENTAL))
-        {
-            switch (uCode)
-            {
-            case VK_LEFT:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_LEFT;
-                }
-                return TRUE;
-            case VK_RIGHT:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_RIGHT;
-                }
-                return TRUE;
-            case VK_RETURN:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELIST;
-                }
-                return TRUE;
-            case VK_ESCAPE:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_CANCEL;
-                }
-                return TRUE;
-            case VK_BACK:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_BACKSPACE;
-                }
-                return TRUE;
-            case VK_DELETE:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_DELETE;
-                }
-                return TRUE;
-
-            case VK_UP:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_UP;
-                }
-                return TRUE;
-            case VK_DOWN:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_DOWN;
-                }
-                return TRUE;
-            case VK_PRIOR:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                }
-                return TRUE;
-            case VK_OEM_MINUS:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                }
-                return TRUE;
-            case VK_NEXT:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                }
-                return TRUE;
-            case VK_OEM_PLUS:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                }
-                return TRUE;
-            case VK_TAB:
-                if (pKeyState)
-                {
-                    if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
-                    {
-                        pKeyState->Category = CATEGORY_COMPOSING;
-                        pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                    }
-                    else
-                    {
-                        pKeyState->Category = CATEGORY_COMPOSING;
-                        pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                    }
-                }
-                return TRUE;
-
-            case VK_HOME:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_TOP;
-                }
-                return TRUE;
-            case VK_END:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_BOTTOM;
-                }
-                return TRUE;
-
-            case VK_SPACE:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_CONVERT;
-                }
-                return TRUE;
-            }
-        }
-        else if (candidateMode == CANDIDATE_INCREMENTAL)
-        {
-            switch (uCode)
-            {
-                // VK_LEFT, VK_RIGHT - set *pIsEaten = FALSE for application could move caret left or right.
-                // and for CUAS, invoke _HandleCompositionCancel() edit session due to ignore CUAS default key handler
-                // for send out terminate composition
-            case VK_LEFT:
-            case VK_RIGHT: {
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_INVOKE_COMPOSITION_EDIT_SESSION;
-                    pKeyState->Function = FUNCTION_CANCEL;
-                }
-            }
-                return FALSE;
-
-            case VK_RETURN:
-                // Do something when user press return key
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELISTForVKReturn;
-                }
-                return TRUE;
-            case VK_ESCAPE:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_CANCEL;
-                }
-                return TRUE;
-
-                // VK_BACK - remove one char from reading string.
-            case VK_BACK:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_BACKSPACE;
-                }
-                return TRUE;
-            case VK_DELETE:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_DELETE;
-                }
-                return TRUE;
-
-            case VK_UP:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_UP;
-                }
-                return TRUE;
-            case VK_DOWN:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_DOWN;
-                }
-                return TRUE;
-            case VK_PRIOR:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                }
-                return TRUE;
-            case VK_OEM_MINUS:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                }
-                return TRUE;
-            case VK_NEXT:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                }
-                return TRUE;
-            case VK_OEM_PLUS:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                }
-                return TRUE;
-            case VK_TAB:
-                if (pKeyState)
-                {
-                    if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
-                    {
-                        pKeyState->Category = CATEGORY_COMPOSING;
-                        pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                    }
-                    else
-                    {
-                        pKeyState->Category = CATEGORY_COMPOSING;
-                        pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                    }
-                }
-                return TRUE;
-            case VK_HOME:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_TOP;
-                }
-                return TRUE;
-            case VK_END:
-                if (pKeyState)
-                {
-                    pKeyState->Category = CATEGORY_CANDIDATE;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_BOTTOM;
-                }
-                return TRUE;
-
-            case VK_SPACE: {
-                if (candidateMode == CANDIDATE_INCREMENTAL)
-                {
-                    if (pKeyState)
-                    {
-                        pKeyState->Category = CATEGORY_CANDIDATE;
-                        pKeyState->Function = FUNCTION_CONVERT;
-                    }
-                    return TRUE;
-                }
-                else
-                {
-                    if (pKeyState)
-                    {
-                        pKeyState->Category = CATEGORY_COMPOSING;
-                        pKeyState->Function = FUNCTION_CONVERT;
-                    }
-                    return TRUE;
-                }
-            }
-            }
-        }
-    }
-
-    if (candidateMode == CANDIDATE_ORIGINAL)
-    {
-        switch (uCode)
-        {
-        case VK_UP:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_UP;
-            }
-            return TRUE;
-        case VK_DOWN:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_DOWN;
-            }
-            return TRUE;
-        case VK_PRIOR:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-            }
-            return TRUE;
-        case VK_OEM_MINUS:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-            }
-            return TRUE;
-        case VK_NEXT:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-            }
-            return TRUE;
-        case VK_OEM_PLUS:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-            }
-            return TRUE;
-        case VK_TAB:
-            if (pKeyState)
-            {
-                if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
-                }
-                else
-                {
-                    pKeyState->Category = CATEGORY_COMPOSING;
-                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
-                }
-            }
-            return TRUE;
-        case VK_HOME:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_PAGE_TOP;
-            }
-            return TRUE;
-        case VK_END:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_MOVE_PAGE_BOTTOM;
-            }
-            return TRUE;
-        case VK_RETURN:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELIST;
-            }
-            return TRUE;
-        case VK_SPACE:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_CONVERT;
-            }
-            return TRUE;
-        case VK_BACK:
-        case VK_DELETE:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_CANCEL;
-            }
-            return TRUE;
-
-        case VK_ESCAPE:
-            if (pKeyState)
-            {
-                pKeyState->Category = CATEGORY_CANDIDATE;
-                pKeyState->Function = FUNCTION_CANCEL;
-            }
-            return TRUE;
-        }
-    }
-
-    //
-    // Check whether the keystroke is number(for selecting candidate) and is in the range
-    //
-    if (IsKeystrokeRange(uCode, pKeyState, candidateMode))
-    {
-        return TRUE;
-    }
-    else if (pKeyState && pKeyState->Category != CATEGORY_NONE)
-    {
-        return FALSE;
-    }
-
-    if (*pwch && !IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_NONE))
-    {
-        if (pKeyState)
-        {
-            pKeyState->Category = CATEGORY_INVOKE_COMPOSITION_EDIT_SESSION;
-            pKeyState->Function = FUNCTION_FINALIZE_TEXTSTORE;
-        }
-        return FALSE;
-    }
-
-    return FALSE;
+    return virtual_key_need_policy::Classify(context, pKeyState);
 }
 
 // Server 按同一条形状规则改输入串（engine/contracts/date_time_input.h）。看不到 T 模式开没开，只认开头的 T，

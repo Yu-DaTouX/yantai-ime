@@ -35,6 +35,19 @@ target_include_directories(test_caps_lock_input_policy PRIVATE ../src)
 target_compile_features(test_caps_lock_input_policy PRIVATE cxx_std_17)
 add_test(NAME caps_lock_input_policy COMMAND test_caps_lock_input_policy)
 
+# The decision half of IsVirtualKeyNeed, compiled without the TSF DLL or a host: a deleted
+# branch shows up as a key that is no longer eaten (674e405d).
+add_executable(test_virtual_key_need_policy virtual_key_need_policy.cpp)
+target_include_directories(test_virtual_key_need_policy PRIVATE ../src ../src/Header ../src/IME)
+target_compile_features(test_virtual_key_need_policy PRIVATE cxx_std_17)
+add_test(NAME virtual_key_need_policy COMMAND test_virtual_key_need_policy)
+
+# Which layer owns a chord before the local classifier: Server candidate keys vs. the application.
+add_executable(test_key_route_policy key_route_policy.cpp)
+target_include_directories(test_key_route_policy PRIVATE ../src)
+target_compile_features(test_key_route_policy PRIVATE cxx_std_17)
+add_test(NAME key_route_policy COMMAND test_key_route_policy)
+
 add_executable(test_pinyin_commit_shortcut_policy pinyin_commit_shortcut_policy.cpp)
 target_include_directories(test_pinyin_commit_shortcut_policy PRIVATE ../src)
 target_compile_features(test_pinyin_commit_shortcut_policy PRIVATE cxx_std_17)
