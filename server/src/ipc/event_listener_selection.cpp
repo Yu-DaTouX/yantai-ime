@@ -1,5 +1,6 @@
 // 选词上屏：解析页内候选、等待候选窗渲染同步，以及 ProcessSelectionKey 的造词与调频学习。
 #include "ipc/event_listener_internal.h"
+#include "translation/translation_mode.h"
 #include <Windows.h>
 #include <string>
 #include <algorithm>
@@ -240,6 +241,9 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         Global::MsgTypeToTsf = Global::DataFromServerMsgType::OutofRange;
         return;
     }
+
+    if (is_valid_selection && translation_mode::Select(curWordItem, client_id, activation_epoch))
+        return;
 
     if (is_valid_selection)
     {

@@ -31,6 +31,8 @@ constexpr std::uint32_t CaretStateIndicator = 1u << 5;
 constexpr std::uint32_t ReservedCapability6 = 1u << 6;
 constexpr std::uint32_t InputStateShortcuts = 1u << 7;
 constexpr std::uint32_t ReservedCapability8 = 1u << 8;
+// Optional Server-owned translation draft, key routing and long commit fragments.
+constexpr std::uint32_t TranslationMode = 1u << 9;
 constexpr std::uint32_t Capabilities = RequestIds | FocusEpochs;
 constexpr std::uint32_t RequiredCapabilities = RequestIds | FocusEpochs;
 

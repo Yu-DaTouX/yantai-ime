@@ -9,6 +9,7 @@
 #include "CapsLockInputPolicy.h"
 #include "PinyinCommitShortcutPolicy.h"
 #include "KeyRoutingPolicy.h"
+#include "TranslationModeKeyPolicy.h"
 #include "CaretAnchorPolicy.h"
 #include "Compartment.h"
 #include "MetasequoiaIMEBaseStructure.h"
@@ -205,6 +206,22 @@ bool IsPinyinCommitShortcut(UINT code, UINT modifiers)
 // 候选词英文上屏：[keybindings] commit_english（上屏英文行）与 english_senses（展开全部词义）。
 // 只在候选列表面板显示时吃键（调用点判 _candidateMode），空串或写错的配置解析成 key 0，自然不吃。
 // 老的「候选词翻译」用 Ctrl+Enter 上屏译文：两者同时开时把 Ctrl+Enter 留给它，避免一条键两个含义。
+bool IsTranslationModeKey(UINT code, UINT modifiers, bool composing)
+{
+    translation_mode_key_policy::Context context;
+    context.active = Global::TranslationModeActive.load();
+    context.composing = composing;
+    context.serverAvailable = Global::TranslationModeSupported.load();
+    context.windowsKey = (GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000);
+    context.toggleBindingMatches =
+        FanyUtils::ReadConfiguredSwitchLanguageHotkeys().translate_mode.Matches(code, modifiers);
+    // Apostrophe remains the pinyin separator, not punctuation.
+    if (code == VK_OEM_7 && (modifiers & 7) == 0 && composing)
+        return false;
+    return translation_mode_key_policy::Classify(code, modifiers, context) !=
+           translation_mode_key_policy::Route::Existing;
+}
+
 bool IsEnglishCommitShortcut(UINT code, UINT modifiers)
 {
     const bool windowsKeyDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
@@ -282,6 +299,8 @@ bool CMetasequoiaIME::_IsCompositionActiveForKeyGuard()
 
 bool CMetasequoiaIME::_ApplyBackspaceHoldGuard(WPARAM wParam, LPARAM lParam)
 {
+    if (Global::TranslationModeActive.load())
+        return false;
     if (static_cast<UINT>(wParam) != VK_BACK)
     {
         return false;
@@ -412,6 +431,17 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
     if (isOpen) // Chinese mode
     {
         const UINT shortcutModifiers = CaptureIpcModifiers();
+        if (!_serverUnavailableFallbackActive &&
+            IsTranslationModeKey(*pCodeOut, shortcutModifiers,
+                                 !freshCompositionState && _IsCompositionActiveForKeyGuard()))
+        {
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_SERVER_CANDIDATE_KEY;
+            }
+            return TRUE;
+        }
         if (!_serverUnavailableFallbackActive && IsCharacterSetInputModeToggle(*pCodeOut, shortcutModifiers))
         {
             if (pKeyState)
@@ -1167,6 +1197,14 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
 
     Global::firefox_like_cnt = 0;
 
+    // Reclassify a queued key after the preceding mode toggle has completed.
+    if (*pIsEaten && !_serverUnavailableFallbackActive &&
+        IsTranslationModeKey(code, capturedModifiers, _IsCompositionActiveForKeyGuard()))
+    {
+        KeystrokeState.Category = CATEGORY_CANDIDATE;
+        KeystrokeState.Function = FUNCTION_SERVER_CANDIDATE_KEY;
+    }
+
     /* Send key event to server process */
     if (*pIsEaten && !isNoOpForwardDelete)
     {
@@ -1243,6 +1281,10 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
         WriteDataToSharedMemory(Global::Keycode, wch, Global::ModifiersDown, includeCaretAnchor ? keyPoint : nullptr, 0,
                                 L"", KeyEventPayloadWriteMask(includeCaretAnchor));
 
+        const bool translationToggle =
+            KeystrokeState.Function == FUNCTION_SERVER_CANDIDATE_KEY &&
+            FanyUtils::ReadConfiguredSwitchLanguageHotkeys().translate_mode.Matches(code, capturedModifiers);
+        const bool nextTranslationMode = !Global::TranslationModeActive.load();
         PerfTimer sendKeyEventTimer;
         const KeyEventSendResult sendResult = SendKeyEventToUIProcess(
             &requestId,
@@ -1275,6 +1317,8 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
             return KeyDownDispatchResult::Complete;
         }
 
+        if (translationToggle)
+            Global::TranslationModeActive.store(nextTranslationMode);
         if (KeystrokeState.Function == FUNCTION_SERVER_CANDIDATE_KEY && _msgWndHandle)
         {
             _PostAsyncKeyRequest(WM_AsyncServerCandidateKey, code, wch, requestId, {}, 0, 0, deferredReplayToken);

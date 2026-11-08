@@ -425,6 +425,14 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         return true;
     }
 
+    if (projectedImeOpen && !_serverUnavailableFallbackActive && !_IsKeyboardDisabled() &&
+        IsTranslationModeKey(*classifiedCode, capturedModifiers, projectedInputActive || projectedCandidateActive))
+    {
+        keyState->Category = CATEGORY_CANDIDATE;
+        keyState->Function = FUNCTION_SERVER_CANDIDATE_KEY;
+        return true;
+    }
+
     // Other Ctrl/Alt/Windows combinations belong to the application. In particular,
     // never turn a recovery FIFO into a shortcut sink. The segment edit chords
     // (Ctrl+Backspace, Ctrl+Left, Ctrl+Right) are the exception; their unit

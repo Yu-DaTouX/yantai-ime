@@ -226,6 +226,7 @@ endif()
 
 set(SRC_FILES
     "./src/translation/translation_state.cpp"
+    "./src/translation/translation_mode.cpp"
     "./src/translation/translation_worker.cpp"
     "./src/translation/local_engine.cpp"
     "./src/translation/local_inference.cpp"

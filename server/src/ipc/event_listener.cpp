@@ -36,6 +36,7 @@
 #include "conversion/traditional_spelling_index.h"
 #include "log/candidate_diag_log.h"
 #include "ipc/event_listener_internal.h"
+#include "translation/translation_mode.h"
 
 using namespace event_listener_detail;
 
@@ -685,7 +686,8 @@ bool SendCurrentDataToClient(uint64_t client_id, uint64_t activation_epoch, uint
     }
     if (sent &&
         (msg_type == Global::DataFromServerMsgType::Normal ||
-         msg_type == Global::DataFromServerMsgType::CommitExactText) &&
+         msg_type == Global::DataFromServerMsgType::CommitExactText ||
+         msg_type == FanyImeReplyType::TranslationCommitEnd) &&
         IsPipeActivationCurrent(client_id, activation_epoch))
     {
         ClearState();
@@ -739,6 +741,8 @@ void PushUiLessCandidatesToOwner()
 
 void ClearState()
 {
+    if (!translation_mode::PreservingCommit())
+        translation_mode::Reset();
     // 清单页的开关要先告诉候选属主，下面的 ClearCandidateUiOwner 之后就没有对象可发了。
     if (g_english_senses_page_active)
     {

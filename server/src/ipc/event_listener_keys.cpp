@@ -1,5 +1,6 @@
 // 按键处理：按键分类、组合编辑（光标/退格/插入）、译文副候选页，以及 HandleImeKey 主流程。
 #include "ipc/event_listener_internal.h"
+#include "translation/translation_mode.h"
 #include <Windows.h>
 #include <string>
 #include <algorithm>
@@ -876,6 +877,13 @@ void HandleToolbarLanguageToggle(bool from_ime_enabled)
  * 调频、造词也都在这里处理。
  *
  */
+void EditTranslationBackspace()
+{
+    bool restored = false;
+    ApplyCompositionEditKey(VK_BACK, 0, 0, true, restored);
+    PrepareCandidateList(GetActivePipeClient().client_id, GetActivePipeClient().epoch);
+}
+
 void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t request_id)
 {
     const ScopedServerKeyLatency latency{client_id, activation_epoch, request_id};
@@ -935,6 +943,9 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         ClearState();
         return;
     }
+
+    if (translation_mode::HandleKey(client_id, activation_epoch, request_id))
+        return;
 
     // 四条键位都落在 Ctrl+Enter 附近，谁先判谁就截走它。顺序集中在 RouteCandidateKey 一处：
     // 英文行 → 展开词义 → 译文上屏 → 普通选词。IsTranslationCommitKey 不看译文开关，排在英文行

@@ -281,6 +281,7 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch);
 bool RespellCandidatesForCharacterSetChange();
 void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t request_id);
 void ClearState();
+void EditTranslationBackspace();
 void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_epoch, int forced_index_in_page = -1);
 void WaitForCandidateRenderSync(UINT keycode);
 void ApplyRescoredOrder();

@@ -12,7 +12,8 @@ enum class Route
     CommitChinese,
     CommitEnglishAndExit,
     Backspace,
-    Escape
+    Escape,
+    DraftKey
 };
 
 struct Context
@@ -49,6 +50,10 @@ constexpr Route Classify(uint32_t key, uint32_t modifiers, const Context &contex
         return Route::Backspace;
     if (modifiers == 0 && key == 0x1B)
         return Route::Escape;
+    if ((modifiers & 6u) == 0 &&
+        ((key == 0x20 && modifiers == 0) || (key >= '0' && key <= '9') || (key >= 0x60 && key <= 0x6F) ||
+         (key >= 0xBA && key <= 0xC0) || (key >= 0xDB && key <= 0xE2)))
+        return Route::DraftKey;
     return Route::Existing;
 }
 } // namespace translation_mode_key_policy

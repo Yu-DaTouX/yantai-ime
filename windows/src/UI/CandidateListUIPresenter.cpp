@@ -1567,7 +1567,10 @@ void CCandidateListUIPresenter::EndCandidateUiSession()
         return;
     }
 
-    SendHideCandidateWndEventToUIProcess();
+    // Ending an inline spelling is not ending the Server-owned translation draft.
+    // Focus loss resets the flag before presenter teardown and still sends its lifecycle event.
+    if (!Global::TranslationModeActive.load())
+        SendHideCandidateWndEventToUIProcess();
     _candidateUiSessionActive = FALSE;
     _hasSentCaretPoint = false;
 }

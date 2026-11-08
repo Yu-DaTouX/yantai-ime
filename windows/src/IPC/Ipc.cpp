@@ -18,6 +18,7 @@
 #include "MetasequoiaIME.h"
 #include <fmt/xchar.h>
 #include "../Utils/PerfTimer.h"
+#include "../../../engine/contracts/translation_commit.h"
 
 static thread_local HANDLE hMapFile = nullptr;
 static thread_local void *pBuf = nullptr;
@@ -33,6 +34,11 @@ static thread_local FanyImeNamedpipeData namedpipeData = {};
 static thread_local FanyImeNamedpipeDataToTsf namedpipeDataFromServer = {};
 static thread_local FanyImeNamedpipeDataToTsf transportUnavailableReply = {};
 static thread_local std::map<uint64_t, FanyImeNamedpipeDataToTsf> pendingReplies;
+static thread_local FanyImeTranslationCommit::Assembly translationCommits;
+std::wstring TakeTranslationCommitText(uint64_t request)
+{
+    return translationCommits.Take(request);
+}
 static thread_local std::deque<FanyImeNamedpipeDataToTsf> unsolicitedReplies;
 static thread_local uint64_t nextRequestId = 0;
 static thread_local uint64_t nextFocusSessionToken = 0;
@@ -508,7 +514,7 @@ bool WritePipeHello(HANDLE hPipeHandle, UINT pipeRole)
             FanyImeProtocol::Hello(GetPipeClientId(), NextProtocolId(nextRequestId),
                                    FanyImeProtocol::Capabilities | FanyImeProtocol::CharacterSetShortcut |
                                        FanyImeProtocol::CompositionRestore | FanyImeProtocol::CaretStateIndicator |
-                                       FanyImeProtocol::InputStateShortcuts);
+                                       FanyImeProtocol::InputStateShortcuts | FanyImeProtocol::TranslationMode);
         BOOL ret = WriteFile(hPipeHandle, &hello, sizeof(hello), &bytesWritten, NULL);
         // Never authorize keys from merely writing a hello. An old Server
         // without negotiation times out into the existing raw-input fallback.
@@ -725,6 +731,7 @@ bool IsNamedpipeThreadFocused()
 
 UINT BeginNamedpipeLocalSessionReset()
 {
+    Global::TranslationModeActive.store(false);
     if (!boundLocalSessionResetPending || !boundLocalSessionResetToken)
     {
         return 0;
@@ -766,6 +773,8 @@ void RequireNamedpipeFocusActivation()
 
 void MarkNamedpipeFocusLost()
 {
+    Global::TranslationModeActive.store(false);
+    Global::TranslationModeSupported.store(false);
     if (boundFocusResetPending)
     {
         *boundFocusResetPending = true;
@@ -1004,6 +1013,7 @@ int CloseNamedpipe()
 
 void ResetNamedpipeReplyState()
 {
+    translationCommits.Clear();
     pendingReplies.clear();
     unsolicitedReplies.clear();
 }
@@ -1637,6 +1647,20 @@ static struct FanyImeNamedpipeDataToTsf *TryReadDataFromServerPipeWithDeadline(u
             return transportUnavailable();
         }
 
+        if (namedpipeDataFromServer.msg_type == FanyImeReplyType::TranslationCommitPart ||
+            namedpipeDataFromServer.msg_type == FanyImeReplyType::TranslationCommitEnd)
+        {
+            if (!translationCommits.Append(namedpipeDataFromServer.request_id,
+                                           namedpipeDataFromServer.candidate_string))
+            {
+                translationCommits.Clear();
+                ClosePipeHandleIfValid(hFromServerPipe);
+                RequestNamedpipeReconnect();
+                return transportUnavailable();
+            }
+            if (namedpipeDataFromServer.msg_type == FanyImeReplyType::TranslationCommitPart)
+                continue;
+        }
         // A delayed reply from a timed-out key must not be consumed as the
         // reply for the next key.
         if (namedpipeDataFromServer.msg_type != Global::DataFromServerMsgType::PipeReady &&

@@ -81,6 +81,7 @@ void QueueTsfDiagnosticLog(const std::wstring &line);
 // foreground/focus/caret windows. Window state only, never text. No-op while TSF diagnostics are off.
 void QueueTsfHostWindowDiagnostic(_In_z_ const wchar_t *event, const std::wstring &detail);
 int SendHideCandidateWndEventToUIProcess();
+std::wstring TakeTranslationCommitText(uint64_t request);
 int SendShowCandidateWndEventToUIProcess();
 int SendMoveCandidateWndEventToUIProcess();
 int SendLangbarRightClickEventToUIProcess(const RECT *prcArea);
@@ -293,6 +294,8 @@ inline std::atomic<FanyImeVModeInput::Trigger> VModeTrigger{FanyImeVModeInput::T
 // 英文词义清单页打开中（Server 发 EnglishSensesPageChanged）。开着时候选态的 Esc / Backspace
 // 交给 Server（只退回中文候选、不取消组合也不删字符），收到下一个焦点会话或开关帧后复位。
 inline std::atomic_bool EnglishSensesPageActive{false};
+inline std::atomic_bool TranslationModeActive{false};
+inline std::atomic_bool TranslationModeSupported{false};
 // Enabled only after a supporting Server sends the persisted setting.
 inline std::atomic_bool CapsLockEnabled{false};
 

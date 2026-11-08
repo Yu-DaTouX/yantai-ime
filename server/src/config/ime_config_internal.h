@@ -155,6 +155,7 @@ extern std::atomic_bool g_candidate_translation_single_sense;
 // english_senses）。键位是原样保存的字符串，空串表示未绑定。
 extern bool g_english_line_enabled;
 extern std::string g_commit_english_binding;
+extern std::string g_translate_mode_binding;
 extern std::string g_english_senses_binding;
 extern int g_english_mixed_input_min_chars;
 extern int g_english_mixed_input_first_page_count;

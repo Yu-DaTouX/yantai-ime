@@ -46,6 +46,7 @@ TaskClass ClassifyTask(TaskType type)
     case TaskType::UiExpandCandidates:
     case TaskType::ExitEnglishInputMode:
     case TaskType::ToolbarLanguageToggle:
+    case TaskType::ToolbarTranslationToggle:
         return TaskClass::UserAction;
 
     // 后台算完的富化结果：晚一轮就可能随下一次按键失效，但绝不能挡住下一次按键。
