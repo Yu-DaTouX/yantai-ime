@@ -54,9 +54,11 @@ bool record_user_insert(const std::string &user_db_path, DictionaryKind kind, co
 // 一次上屏：全局上屏计数 +1，这一行的 commits / dee / tick 更新，按衰减后的 dee 换算成权重与出厂词频
 // 合并，写进词库与日志（同一个跨库事务）。直接上屏首选也算。词库里没有这一行、用户手动加的词、
 // 设置页改过权重的词、删除过的词都不学习（前两者不记 tick 或原样保留权重）。每隔
-// dynamics::kSweepIntervalTicks 次上屏顺带对全部学习条目结算一遍，遗忘过期的。
+// dynamics::kSweepIntervalTicks 次上屏顺带对全部学习条目结算一遍，遗忘过期的（sweep = false 时跳过，
+// 条目多时结算要几百毫秒量级）。调用方必须在后台写线程上调用：Server 里是 DictionaryWriter，
+// 不在按键/上屏的同步路径上。同步调用的宿主传 sweep = false，另在自己的后台线程调 sweep_learned_entries。
 bool learn_pinyin_commit(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
-                         const std::string &value, bool *ranking_changed = nullptr);
+                         const std::string &value, bool *ranking_changed = nullptr, bool sweep = true);
 // 立刻对全部学习条目做一遍衰减结算：dee 衰减到阈值以下的遗忘（学来的整句从词库删掉，出厂词回到出厂词频），
 // 其余把权重刷新到此刻的衰减值。
 bool sweep_learned_entries(const std::string &main_db_path, const std::string &user_db_path);

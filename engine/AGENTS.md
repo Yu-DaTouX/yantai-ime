@@ -58,6 +58,7 @@ ctest --test-dir build --output-on-failure --timeout 20
 
 - 日志 `user_dictionary_operations` 每行多 `commits / dee / tick / base_weight`（`commits > 0` 的行归衰减管），全局上屏计数在 `dictionary_state` 的 `learn_tick`。每次上屏（含直接上屏首选）：`tick + 1`，`dee = 1 + dee·exp((旧tick − tick)/200)`（librime 的 `formula_d`，约 139 次上屏减半），`commits + 1`。
 - 权重 = 出厂词频 `base_weight` × 倍率，倍率由 librime 的 `formula_p` 换算：`(dee/0.05)^0.8`（dee < 20 段），一次上屏约 ×11；衰减到 dee < 0.05（只上屏一次约 600 次后）视为遗忘，倍率回到 1 再遗忘：出厂词回到出厂词频，学来的整句从词库删掉。
+- 结算不在按键/上屏路径上：Server 里 `learn_pinyin_commit` 只从 `DictionaryWriter`（低优先级后台线程）调用；引擎自带的同步 `commit()`（`QuanpinDictionary::update_weight_by_pinyin_and_word`）传 `sweep=false`，需要遗忘的宿主自己在后台线程调 `sweep_learned_entries`。5000 条学习条目的结算耗时见 `UserDictionarySweepOfFiveThousandLearnedEntriesIsMeasured`。
 - 衰减不在每次查询时算，而是每 8 次上屏对全部学习条目结算一次（`sweep_learned_rows`，同一个事务回写词库权重与日志），所以「遗忘」最多滞后 8 次上屏。
 - 不归衰减管：出厂词没学过的、`user_inserted` 且 `commits = 0` 的手动加的词、`weight_edited` 的设置页权重、置顶写下的权重（`commits = -1`，学习跳过它）。整句/分段造词走 `record_learned_phrase`（`commits = 1`，`user_inserted = 1`），超过 7 音节不落库（`create_word*` 里拦，`kMaxLearnedPhraseSyllables`）。
 - 升级回放（`replay`）同一份出厂词库上用日志里的 `base_weight` 重算权重（不能拿词库里已写入的权重当出厂词频，否则重复回放会越乘越大），换了词库才用新词库里的行；过期的不写回。旧日志迁移：旧调频抬高的权重（`commits = 0`、高于出厂词频）换算成初始 dee（上限 100）；旧版整句造词的长条目（`user_inserted`、10000、超过 7 音节）从 dee = 1 起随衰减淘汰；10000 的短条目与设置页手动加的（缺省权重也是 10000）分不开，按手动词保留；不高于出厂词频的旧权重（给提升让位的邻居）丢弃。新字段随 `dictionary_state` 导出导入往返（全局计数取各条目 `tick` 的最大值）。

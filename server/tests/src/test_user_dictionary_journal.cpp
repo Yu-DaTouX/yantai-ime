@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -1700,4 +1701,55 @@ TEST_CASE(UserDictionaryReplayOfARealLearningJournalKeepsTheLearning)
     REQUIRE_EQ(again.migrated, 0);
     REQUIRE_EQ(again.learned, replay.learned);
     read_carried(false);
+}
+
+// 衰减结算（每 kSweepIntervalTicks 次上屏一次）遍历全部学习条目，条目多时要几十毫秒到上百毫秒。
+// 结算只在 learn_pinyin_commit / sweep_learned_entries 里发生，它们由 Server 的 DictionaryWriter
+// 后台线程调用（EnqueueAdjustCandidateRankingTask / EnqueueBumpPinyinWeightTask），不在按键与上屏的
+// 同步路径上；Server 的会话不调用引擎的同步 commit()。这里用 5000 条学习条目量一次结算耗时。
+TEST_CASE(UserDictionarySweepOfFiveThousandLearnedEntriesIsMeasured)
+{
+    const auto directory = test::TempRoot() / ("msime-decay-sweep-" + std::to_string(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(directory, ec);
+    const auto main_path = MakeLearningDictionary(directory);
+    const auto user_path = directory / "msime_user.db";
+    const std::string main = test::Utf8(main_path), user = test::Utf8(user_path);
+    REQUIRE(user_dictionary::ensure_user_database(user));
+    {
+        TestDatabase main_db(main_path);
+        TestDatabase journal(user_path);
+        main_db.exec("CREATE INDEX idx_key_2_n ON tbl_2_n(key)"); // 与出厂词库一样按 key 建索引
+        main_db.exec("BEGIN");
+        journal.exec("BEGIN");
+        for (int i = 0; i < 5000; ++i)
+        {
+            const std::string word = "词" + std::to_string(i);
+            main_db.exec(
+                ("INSERT INTO tbl_2_n VALUES('n" + std::to_string(i) + "''hao','nh','" + word + "',1000)").c_str());
+            journal.exec(("INSERT INTO user_dictionary_operations(dictionary,key,value,operation,weight,commits,dee,"
+                          "tick,base_weight) VALUES('pinyin','n" +
+                          std::to_string(i) + "''hao','" + word + "','upsert',1000,1,1.0,1,1000)")
+                             .c_str());
+        }
+        main_db.exec("COMMIT");
+        journal.exec("COMMIT");
+    }
+    const auto timed = [&](std::int64_t tick) {
+        SetLearnTick(user_path, tick);
+        const auto start = std::chrono::steady_clock::now();
+        REQUIRE(user_dictionary::sweep_learned_entries(main, user));
+        return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    };
+    const double rewrite_ms = timed(100); // 5000 条全部要回写
+    const double forget_ms = timed(5000); // 5000 条全部过期、删除
+    std::cout << "[sweep] 5000 learned entries: rewrite " << rewrite_ms << " ms, forget " << forget_ms << " ms"
+              << std::endl;
+    // 过期的出厂词回到出厂词频，日志行全部删除。
+    REQUIRE_EQ(WeightOf(main_path, "SELECT COUNT(*) FROM tbl_2_n WHERE weight=1000"), 5000);
+    {
+        TestDatabase journal(user_path);
+        REQUIRE_EQ(journal.scalar_int("SELECT COUNT(*) FROM user_dictionary_operations"), 0);
+    }
+    std::filesystem::remove_all(directory, ec);
 }

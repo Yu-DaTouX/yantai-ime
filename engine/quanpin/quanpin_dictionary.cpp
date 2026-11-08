@@ -2350,7 +2350,7 @@ int QuanpinDictionary::update_weight_by_pinyin_and_word(std::string pinyin, std:
     bool changed = false;
     if (!user_dictionary::learn_pinyin_commit(db_path_,
                                               metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal)),
-                                              normalized, word, &changed))
+                                              normalized, word, &changed, /*sweep=*/false))
     {
         return ERROR_CODE;
     }

@@ -19,6 +19,7 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <numeric>
 #include "../core/data_path.h"
@@ -1105,6 +1106,9 @@ bool sweep_learned_rows(sqlite3 *db, const std::string &journal_schema, std::int
         if (status != SQLITE_DONE)
             return false;
     }
+    // 语句按表缓存：条目成千上万时，逐条重新 prepare 比执行本身还贵。
+    std::map<std::string, Stmt> rewrite_main, forget_main;
+    Stmt note, drop;
     for (const auto &entry : entries)
     {
         const std::string table = pinyin_table(entry.key);
@@ -1114,18 +1118,23 @@ bool sweep_learned_rows(sqlite3 *db, const std::string &journal_schema, std::int
         if (dynamics::forgotten(current_dee))
         {
             // 学来的整句没有出厂行，直接删；出厂词回到出厂词频。两种都不留日志行，回放时不会再被写回。
-            const std::string statement = entry.user_inserted
-                                              ? "DELETE FROM main.\"" + table + "\" WHERE key=?1 AND value=?2"
-                                              : "UPDATE main.\"" + table + "\" SET weight=?3 WHERE key=?1 AND value=?2";
-            auto stmt = prepare(db, statement);
+            auto &stmt = forget_main[(entry.user_inserted ? "d" : "u") + table];
+            if (!stmt)
+                stmt = prepare(db, entry.user_inserted
+                                       ? "DELETE FROM main.\"" + table + "\" WHERE key=?1 AND value=?2"
+                                       : "UPDATE main.\"" + table + "\" SET weight=?3 WHERE key=?1 AND value=?2");
+            if (stmt)
+                sqlite3_reset(stmt.get());
             if (!stmt || !bind_text(stmt.get(), 1, entry.key) || !bind_text(stmt.get(), 2, entry.value) ||
                 (!entry.user_inserted &&
                  sqlite3_bind_int64(stmt.get(), 3, clamp_managed_weight(entry.base_weight)) != SQLITE_OK) ||
                 sqlite3_step(stmt.get()) != SQLITE_DONE)
                 return false;
-            auto drop =
-                prepare(db, "DELETE FROM " + journal_schema +
-                                ".user_dictionary_operations WHERE dictionary='pinyin' AND key=?1 AND value=?2");
+            if (!drop)
+                drop = prepare(db, "DELETE FROM " + journal_schema +
+                                       ".user_dictionary_operations WHERE dictionary='pinyin' AND key=?1 AND value=?2");
+            if (drop)
+                sqlite3_reset(drop.get());
             if (!drop || !bind_text(drop.get(), 1, entry.key) || !bind_text(drop.get(), 2, entry.value) ||
                 sqlite3_step(drop.get()) != SQLITE_DONE)
                 return false;
@@ -1137,14 +1146,18 @@ bool sweep_learned_rows(sqlite3 *db, const std::string &journal_schema, std::int
                               static_cast<double>((std::max)(entry.weight, std::int64_t{1}));
         if (change < dynamics::kSweepRewriteRatio)
             continue;
-        auto stmt = prepare(db, "UPDATE main.\"" + table + "\" SET weight=?3 WHERE key=?1 AND value=?2");
-        auto note = prepare(db, "UPDATE " + journal_schema +
-                                    ".user_dictionary_operations SET weight=?3 WHERE dictionary='pinyin' AND key=?1 "
-                                    "AND value=?2");
+        auto &stmt = rewrite_main[table];
+        if (!stmt)
+            stmt = prepare(db, "UPDATE main.\"" + table + "\" SET weight=?3 WHERE key=?1 AND value=?2");
+        if (!note)
+            note = prepare(db, "UPDATE " + journal_schema +
+                                   ".user_dictionary_operations SET weight=?3 WHERE dictionary='pinyin' AND key=?1 "
+                                   "AND value=?2");
         if (!stmt || !note)
             return false;
         for (sqlite3_stmt *update : {stmt.get(), note.get()})
         {
+            sqlite3_reset(update);
             if (!bind_text(update, 1, entry.key) || !bind_text(update, 2, entry.value) ||
                 sqlite3_bind_int64(update, 3, target) != SQLITE_OK || sqlite3_step(update) != SQLITE_DONE)
                 return false;
@@ -1194,7 +1207,7 @@ struct LearningTransaction
 } // namespace
 
 bool learn_pinyin_commit(const std::string &main_db_path, const std::string &user_db_path, const std::string &key,
-                         const std::string &value, bool *ranking_changed)
+                         const std::string &value, bool *ranking_changed, bool sweep)
 {
     if (ranking_changed)
         *ranking_changed = false;
@@ -1245,7 +1258,7 @@ bool learn_pinyin_commit(const std::string &main_db_path, const std::string &use
     }
     if (!write_learned_row(db, "candidate_journal", key, value, weight, commits, dee, now, base_weight))
         return transaction.rollback();
-    if (now % dynamics::kSweepIntervalTicks == 0 && !sweep_learned_rows(db, "candidate_journal", now))
+    if (sweep && now % dynamics::kSweepIntervalTicks == 0 && !sweep_learned_rows(db, "candidate_journal", now))
         return transaction.rollback();
     if (!transaction.commit())
         return transaction.rollback();
