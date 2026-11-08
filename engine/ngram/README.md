@@ -23,7 +23,7 @@ const float score = model.score(state, "你好", next); // log10 概率
 - **从 `null_state()` 起算，不要用 `begin_state()`。** 出货的 `sc.lm` 是从一份不带 `<s>` / `</s>` 的 ARPA 建的，句首上下文只会带进一个模型没有任何 n-gram 的词。
 - **分数是 log10**，和词格原先那套自然对数的启发式不能混着加。
 - 未登录词按 `unknown_penalty()` 罚分，默认 `log10(1/6e7) ≈ -7.78`，与 libime 的 `DEFAULT_LANGUAGE_MODEL_UNKNOWN_PROBABILITY_PENALTY` 取同一个值。换这个数等于整体重调未登录词相对已登录词的代价。
-- `shared_language_model()` 按路径共享实例。`sc.lm` 有 34 MB，全拼和双拼两本词典各载一份是白白多映射一遍；kenlm 的查询全是只读的，共享实例可以被多个线程同时用。
+- `shared_language_model()` 按路径共享实例。`sc.lm` 有 34 MB，全拼词典各载一份是白白多映射一遍；kenlm 的查询全是只读的，共享实例可以被多个线程同时用。
 
 ## 重新生成语言模型
 

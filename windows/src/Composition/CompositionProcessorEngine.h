@@ -45,21 +45,6 @@ class CCompositionProcessorEngine
                                              _Out_opt_ _KEYSTROKE_STATE *pKeyState);
 
     BOOL AddVirtualKey(WCHAR wch);
-    // 句中辅助码或双拼末尾辅助码（间接）的触发键（反引号、分号，按 Server 发来的设置）在 buffer 的 caret 处
-    // 是不是编码键，规则见 engine/contracts/mid_sentence_helpcode.h。分号先让给 ing 韵母。
-    static bool IsMidSentenceHelpcodeTriggerKey(UINT uCode, WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer,
-                                                DWORD_PTR length, DWORD_PTR caret);
-    // 双拼直接辅助码开着时额外收的编码键：四码后的 /，以及不看奇偶的 ; 韵母。规则见
-    // engine/contracts/direct_helpcode.h。
-    static bool IsDirectHelpcodeInputKey(UINT uCode, WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer,
-                                         DWORD_PTR length, DWORD_PTR caret);
-    // 直接辅助码下用引导键进入末尾辅助码时交给 Server 改写输入串的键（FUNCTION_SERVER_COMPOSITION_REWRITE）：输入
-    // 末尾形状合适的引导键（反引号、分号），以及删掉它留下的末尾段开头的退格。规则见
-    // engine/contracts/direct_helpcode.h。
-    static bool IsDirectHelpcodeEndTriggerRewriteKey(UINT uCode, WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer,
-                                                     DWORD_PTR length, DWORD_PTR caret);
-    // Shift+T 指定日期时间收的编码键：buffer 以 T 开头、插入后还能接成某种日期时间形状的数字、/ 和 :。
-    // 规则见 engine/contracts/date_time_input.h。接不上的数字仍是选词键，Shift+数字始终选词。
     static bool IsDateTimeInputKey(UINT uCode, WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer, DWORD_PTR length,
                                    DWORD_PTR caret);
     // V 模式（数字转中文、算式计算）收的编码键：V 后面的数字和 . + - * / ( )。规则见
@@ -69,15 +54,6 @@ class CCompositionProcessorEngine
     // V 模式里数字键用来输入，选词改用 Shift+数字。放在 IsVModeInputKey 之后判断：Shift+8/9
     // 打出的 * ( 在那里已经当编码键收下了。
     static bool IsVModeShiftDigitSelectionKey(UINT uCode, _In_reads_opt_(length) const WCHAR *buffer, DWORD_PTR length);
-    // 当句中辅助码触发键的分号在缓冲里记成反引号，当末尾辅助码（间接）触发键的反引号、分号记成 kEndMarker
-    // （与 Server 的 raw 一致），其余字符原样返回。
-    static WCHAR NormalizeMidSentenceHelpcodeTrigger(WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer,
-                                                     DWORD_PTR length, DWORD_PTR caret);
-    WCHAR NormalizeMidSentenceHelpcodeTrigger(WCHAR wch) const
-    {
-        return NormalizeMidSentenceHelpcodeTrigger(wch, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength(),
-                                                   _caretPosition);
-    }
     void RemoveVirtualKey(DWORD_PTR dwIndex);
     BOOL RemoveVirtualKeyBeforeCaret();
     BOOL RemoveVirtualKeyAtCaret();

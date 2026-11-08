@@ -1,8 +1,6 @@
 #include "../date_time_input.h"
-#include "../direct_helpcode.h"
 #include "../enumeration_comma.h"
 #include "../ipc_negotiation.h"
-#include "../mid_sentence_helpcode.h"
 #include "../uiless_page.h"
 #include "../v_mode_input.h"
 
@@ -36,7 +34,7 @@ int main()
     CHECK(FanyImeProtocol::ReservedCapability8 == (1u << 8));
     CHECK(FanyImeWorkerReplyType::Reserved36 == 36);
     CHECK(FanyImeWorkerReplyType::UpdateInstallerReady == 40);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::DirectHelpcodeEndTriggerChanged);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::Reserved41);
     CHECK(FanyImePipeEventType::HideCaretState == 16);
     CHECK(FanyImePipeEventType::HideCaretState != FanyImePipeEventType::HideCandidateWnd);
     CHECK(!FanyImePipeEventType::IsRouteDeactivation(FanyImePipeEventType::HideCaretState));
@@ -145,21 +143,21 @@ int main()
     CHECK(FanyImeWorkerReplyType::SwitchToEn == FanyImeWorkerReplyType::SwitchToEnglish);
     CHECK(FanyImeWorkerReplyType::CommitCandidate == FanyImeWorkerReplyType::CommitCurCandidate);
     CHECK(FanyImeWorkerReplyType::CommitCandidateAndContinue == 27);
-    CHECK(FanyImeWorkerReplyType::MidSentenceHelpcodeChanged == 28);
-    CHECK(FanyImeWorkerReplyType::MidSentenceHelpcodeSemicolonChanged == 29);
-    CHECK(FanyImeWorkerReplyType::DirectHelpcodeChanged == 30);
-    CHECK(FanyImeWorkerReplyType::MidSentenceHelpcodeUppercaseChanged == 31);
+    CHECK(FanyImeWorkerReplyType::Reserved28 == 28);
+    CHECK(FanyImeWorkerReplyType::Reserved29 == 29);
+    CHECK(FanyImeWorkerReplyType::Reserved30 == 30);
+    CHECK(FanyImeWorkerReplyType::Reserved31 == 31);
     CHECK(FanyImeWorkerReplyType::VModeChanged == 32);
     CHECK(FanyImeWorkerReplyType::Reserved33 == 33);
     // 34 was AiContextUploadChanged, retired with the AI assistant; never reused.
     CHECK(FanyImeWorkerReplyType::UiLessCandidatesChanged == 35);
     CHECK(FanyImeWorkerReplyType::Reserved36 == 36);
-    CHECK(FanyImeWorkerReplyType::EndHelpcodeTriggersChanged == 37);
+    CHECK(FanyImeWorkerReplyType::Reserved37 == 37);
     CHECK(FanyImeWorkerReplyType::EnumerationCommaKeysChanged == 38);
     CHECK(FanyImeWorkerReplyType::HorizontalArrowSelectionChanged == 39);
     CHECK(FanyImeWorkerReplyType::UpdateInstallerReady == 40);
-    CHECK(FanyImeWorkerReplyType::DirectHelpcodeEndTriggerChanged == 41);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::DirectHelpcodeEndTriggerChanged);
+    CHECK(FanyImeWorkerReplyType::Reserved41 == 41);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::Reserved41);
     // EnumerationCommaKeysChanged 的载荷：\ 和 / 各一位，两个都没勾按只有 \ 发。
     CHECK(FanyImeEnumerationComma::PayloadFor(true, false) == L'1' &&
           FanyImeEnumerationComma::PayloadFor(false, true) == L'2' &&
@@ -188,12 +186,6 @@ int main()
     CHECK((kRetiredSensitiveField & 7u) == 0);
     CHECK((kRetiredSensitiveField & (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
                                      FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | 0x1C000000u)) == 0);
-    // The direct helpcode end trigger flag stays clear of every other flag bit.
-    CHECK((FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite & 7u) == 0);
-    CHECK((FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite &
-           (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
-            FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | 0x1C000000u | kRetiredSensitiveField |
-            FanyImePipeFlags::HorizontalArrowSelection)) == 0);
     // Same for the horizontal arrow selection flag, which also stays clear of the sensitive-field bit.
     CHECK((FanyImePipeFlags::HorizontalArrowSelection & 7u) == 0);
     CHECK((FanyImePipeFlags::HorizontalArrowSelection &
@@ -229,119 +221,6 @@ int main()
               FanyImeVModeInput::TriggerFromPayload(L'x') == Trigger::Off &&
               FanyImeVModeInput::PayloadFromTrigger(Trigger::UppercaseOnly) == L'1');
     }
-    // 直接辅助码的 / 与 ; 形状规则，TSF（WCHAR）与引擎（char）共用。
-    const auto slash_at = [](const std::wstring &text, std::size_t caret) {
-        return FanyImeDirectHelpcode::AcceptsSlashAt(text.data(), text.size(), caret);
-    };
-    CHECK(slash_at(L"uiab", 4) && slash_at(L"x;ab", 4) && !slash_at(L"uia", 3) && !slash_at(L"ui'b", 4));
-    CHECK(!slash_at(L"uiab/", 4) && slash_at(L"uiabui", 4) && !slash_at(L"uiab", 5));
-    CHECK(FanyImeDirectHelpcode::AcceptsSemicolonFinalAt("uiax", 4, 4) &&
-          !FanyImeDirectHelpcode::AcceptsSemicolonFinalAt("uix;", 4, 4) &&
-          !FanyImeDirectHelpcode::AcceptsSemicolonFinalAt("", 0, 0));
-    // DirectHelpcodeChanged 的载荷：开关和 / 勾没勾。旧 DLL 认的 "0"/"1" 意思不变。
-    CHECK(FanyImeDirectHelpcode::PayloadFor(false, true) == L'0' &&
-          FanyImeDirectHelpcode::PayloadFor(true, true) == L'1' &&
-          FanyImeDirectHelpcode::PayloadFor(true, false) == L'2');
-    CHECK(FanyImeDirectHelpcode::EnabledFromPayload(L'2') && !FanyImeDirectHelpcode::SlashFromPayload(L'2') &&
-          FanyImeDirectHelpcode::SlashFromPayload(L'1') && !FanyImeDirectHelpcode::EnabledFromPayload(L'0') &&
-          !FanyImeDirectHelpcode::IsValidPayload(L'3'));
-    // 直接辅助码下用 ; 进入末尾辅助码的形状规则，TSF（WCHAR）与 Server（char）共用。
-    const auto end_trigger_at = [](const std::wstring &text, std::size_t caret) {
-        return FanyImeDirectHelpcode::AcceptsEndTriggerAt(text.data(), text.size(), caret);
-    };
-    CHECK(end_trigger_at(L"uixulpb", 7) && end_trigger_at(L"ui", 2) && end_trigger_at(L"uiab/ulpb", 9));
-    CHECK(end_trigger_at(L"uiaBul", 6) && end_trigger_at(L"ui'ulpb", 7) && end_trigger_at(L"uix'ul", 6));
-    // 光标不在末尾、一节只有一键、开头是大写（特殊模式）、已有末尾段或带别的字符时都不收。
-    CHECK(!end_trigger_at(L"uixulpb", 3) && !end_trigger_at(L"u", 1) && !end_trigger_at(L"", 0));
-    CHECK(!end_trigger_at(L"ui'u", 4) && !end_trigger_at(L"ui'", 3) && !end_trigger_at(L"'ui", 3));
-    CHECK(!end_trigger_at(L"Uabc", 4) && !end_trigger_at(L"Tui", 3) && !end_trigger_at(L"uiul|", 5));
-    CHECK(!end_trigger_at(L"uiul`x", 6) && !end_trigger_at(L"ui;ul", 5) && !end_trigger_at(L"ui12", 4));
-    CHECK(FanyImeDirectHelpcode::AcceptsEndTriggerAt("uixulpb", 7, 7));
-    const auto end_backspace_at = [](const std::wstring &text, std::size_t caret) {
-        return FanyImeDirectHelpcode::IsEndTriggerBackspaceAt(text.data(), text.size(), caret);
-    };
-    CHECK(end_backspace_at(L"uiulpb|", 7) && end_backspace_at(L"|", 1));
-    CHECK(!end_backspace_at(L"uiulpb|f", 8) && !end_backspace_at(L"uiulpb|", 6) && !end_backspace_at(L"", 0));
-    // TSF（WCHAR）与引擎（char）共用同一条句中辅助码形状规则。
-    const auto accepts = [](const std::wstring &text) {
-        return FanyImeMidSentenceHelpcode::AcceptsMarker(text.data(), text.size());
-    };
-    CHECK(accepts(L"ulpb") && !accepts(L"ulp") && !accepts(L"") && !accepts(L"ulpb'"));
-    CHECK(!accepts(L"ulpb`") && !accepts(L"ulpb`x") && !accepts(L"ulpb`xY") && !accepts(L"ulpb`xi"));
-    CHECK(accepts(L"ulpb`xih") && !accepts(L"ulpb`xihf") && accepts(L"ulpb`xYih") && accepts(L"ulpb`xihfa"));
-    CHECK(FanyImeMidSentenceHelpcode::AcceptsMarker("ni'hc", 5) &&
-          !FanyImeMidSentenceHelpcode::AcceptsMarker("ni'h", 4));
-    // 光标移回句中：只看光标前的部分，光标后已是这个音节的段时不收。
-    const auto accepts_at = [](const std::wstring &text, std::size_t caret) {
-        return FanyImeMidSentenceHelpcode::AcceptsMarkerAt(text.data(), text.size(), caret);
-    };
-    CHECK(accepts_at(L"ulpbih", 2) && accepts_at(L"ulpbih", 4) && accepts_at(L"ulpbih", 6));
-    CHECK(!accepts_at(L"ulpbih", 0) && !accepts_at(L"ulpbih", 3) && !accepts_at(L"ulpbih", 7));
-    CHECK(!accepts_at(L"ul`xpb", 2) && accepts_at(L"ul`xpb", 6) && !accepts_at(L"ul`xpb", 3));
-    // 大写触发：完整音节后的大写字母自己开一段（≡ 反引号 + 这个字母），紧跟的大写字母是第二码。
-    const auto upper_marker = [](const std::wstring &text) {
-        return FanyImeMidSentenceHelpcode::AcceptsMarker(text.data(), text.size(), true);
-    };
-    CHECK(!upper_marker(L"ulX") && upper_marker(L"ulXpb") && !upper_marker(L"ulXp") && upper_marker(L"ulXYpb"));
-    // 关着时大写字母只是普通的一个键：ulXpb 是 5 键（奇数），ulXpbi 是 6 键。
-    CHECK(!accepts(L"ulXpb") && accepts(L"ulXpbi"));
-    const auto upper_at = [](const std::wstring &text, std::size_t caret) {
-        return FanyImeMidSentenceHelpcode::AcceptsMarkerAt(text.data(), text.size(), caret, true);
-    };
-    CHECK(!upper_at(L"ulXpb", 2) && upper_at(L"ulXpb", 5) && upper_at(L"ulpb", 2));
-    const auto second_at = [](const std::wstring &text, std::size_t caret, bool upper) {
-        return FanyImeMidSentenceHelpcode::AcceptsSecondCodeAt(text.data(), text.size(), caret, upper);
-    };
-    CHECK(second_at(L"ulX", 3, true) && !second_at(L"ulXY", 4, true) && !second_at(L"ulX", 3, false));
-    CHECK(second_at(L"ul`x", 4, false) && !second_at(L"ul`xY", 5, false) && !second_at(L"ul", 2, true));
-    const auto semicolon_at = [](const std::wstring &text, bool upper) {
-        return FanyImeMidSentenceHelpcode::AcceptsSemicolonFinalAt(text.data(), text.size(), text.size(), upper);
-    };
-    // 关着时与原来的规则一致（只看最后一个 '）；开着时大写段不算键：nihkXb 里 b 后面接 ; 是 b; 音节。
-    CHECK(semicolon_at(L"nihkb", false) && !semicolon_at(L"nihkXb", false) && semicolon_at(L"nihkXb", true));
-    CHECK(semicolon_at(L"ni'b", false) && !semicolon_at(L"nihk", true));
-    // 末尾辅助码（间接）：触发键记成 |，后面至多两码、大小写都算；只在输入串末尾、完整音节之后能开段。
-    using FanyImeMidSentenceHelpcode::UppercaseTriggers;
-    const auto end_at = [](const std::wstring &text, std::size_t caret, UppercaseTriggers triggers) {
-        return FanyImeMidSentenceHelpcode::AcceptsEndMarkerAt(text.data(), text.size(), caret, triggers);
-    };
-    CHECK(end_at(L"ulpb", 4, {}) && !end_at(L"ulp", 3, {}) && !end_at(L"ulpb", 2, {}) && !end_at(L"", 0, {}));
-    CHECK(!end_at(L"ulpb|", 5, {}) && !end_at(L"ulpb|xy", 7, {}) && end_at(L"ul`xpb", 6, {}));
-    // 末尾段之后这一节从零数起：再敲两个键才又是完整音节。
-    CHECK(!accepts(L"ulpb|xy") && !accepts(L"ulpb|xyi") && accepts(L"ulpb|xyih"));
-    // 末尾大写触发：段首大写，第二码大小写都算；与句中大写触发互斥，都给时按句中。
-    const UppercaseTriggers end_upper(false, true);
-    CHECK(!FanyImeMidSentenceHelpcode::AcceptsMarker(L"ulpbXy", 6, end_upper) &&
-          FanyImeMidSentenceHelpcode::AcceptsMarker(L"ulpbXyih", 8, end_upper) &&
-          FanyImeMidSentenceHelpcode::AcceptsMarker(L"ulpbXy", 6, false));
-    CHECK(!UppercaseTriggers(true, true).end && UppercaseTriggers(true, true).mid);
-    const auto end_blocks = [](const std::wstring &text, UppercaseTriggers triggers) {
-        std::wstring kinds;
-        FanyImeMidSentenceHelpcode::ScanBlocks(
-            text.data(), text.size(), triggers,
-            [&](std::size_t begin, std::size_t end, std::size_t, FanyImeMidSentenceHelpcode::BlockKind kind) {
-                kinds += kind == FanyImeMidSentenceHelpcode::BlockKind::End ? L'E' : L'M';
-                kinds += std::to_wstring(begin) + L"-" + std::to_wstring(end) + L";";
-            });
-        return kinds;
-    };
-    CHECK(end_blocks(L"ulpb|xy", {}) == L"E4-7;" && end_blocks(L"ulpb|x", {}) == L"E4-6;");
-    CHECK(end_blocks(L"ul`xpb|XY", {}) == L"M2-4;E6-9;" && end_blocks(L"ulpbXy", end_upper) == L"E4-6;");
-    CHECK(end_blocks(L"ulpbXY", true) == L"M4-6;" && end_blocks(L"ulpbXy", {}) == L"");
-    // 句中段的第二码只认句中段。
-    CHECK(!FanyImeMidSentenceHelpcode::AcceptsSecondCodeAt(L"ulpb|x", 6, 6, {}) &&
-          !FanyImeMidSentenceHelpcode::AcceptsSecondCodeAt(L"ulpbX", 5, 5, end_upper));
-    // 末尾段后面的 ; 不是韵母；末尾段之后另起的一节照常数奇偶。
-    CHECK(!semicolon_at(L"ulpb|xy", false) && !semicolon_at(L"ulpb|x", false) && semicolon_at(L"ulpb|xyi", false));
-    CHECK(!FanyImeMidSentenceHelpcode::AcceptsSemicolonFinalAt(L"ulpbXy", 6, 6, end_upper) &&
-          FanyImeMidSentenceHelpcode::AcceptsSemicolonFinalAt(L"ulpbXyi", 7, 7, end_upper));
-    // EndHelpcodeTriggersChanged 的载荷。
-    CHECK(FanyImeEndHelpcode::PayloadFor<wchar_t>(false, false, false) == L'0' &&
-          FanyImeEndHelpcode::PayloadFor<wchar_t>(true, true, true) == L'7' &&
-          FanyImeEndHelpcode::PayloadFor<wchar_t>(false, true, false) == L'2');
-    CHECK(FanyImeEndHelpcode::FlagsFromPayload(L'5') ==
-              (FanyImeEndHelpcode::kBacktick | FanyImeEndHelpcode::kUppercase) &&
-          !FanyImeEndHelpcode::IsValidPayload(L'8') && FanyImeEndHelpcode::FlagsFromPayload(L'x') == 0);
     // Shift+T 指定日期时间的形状规则，TSF（WCHAR）、Server 与引擎（char）共用。
     const auto date_time_at = [](const std::wstring &text, std::size_t caret, wchar_t ch) {
         return FanyImeDateTimeInput::AcceptsAt(text.data(), text.size(), caret, ch);

@@ -750,11 +750,6 @@ struct InputPage
     // Input mode
     std::vector<std::shared_ptr<Hideable>> chineseSections;
     std::shared_ptr<RadioGroup> schemeGroup = std::make_shared<RadioGroup>();
-    std::shared_ptr<Dropdown> shuangpin;
-    std::shared_ptr<Label> shuangpinDirectory;
-    std::shared_ptr<Hideable> shuangpinDirectoryBox;
-    UINT_PTR shuangpinRefreshTimer = 0;
-    bool shuangpinRefreshPending = false;
 
     // Word to character
     std::shared_ptr<RadioGroup> wordKeys = std::make_shared<RadioGroup>();
@@ -889,19 +884,6 @@ VisualPtr WithMarginTop(VisualPtr visual, float top)
     return visual;
 }
 
-std::vector<DropdownOption> BuiltinShuangpin()
-{
-    return Options({{"xiaohe", L"小鹤双拼"},
-                    {"ziranma", L"自然码双拼"},
-                    {"shoudao", L"首道双拼"},
-                    {"microsoft", L"微软双拼"},
-                    {"sogou", L"搜狗双拼"},
-                    {"ziguang", L"紫光双拼"},
-                    {"zhinengabc", L"智能ABC"},
-                    {"guobiao", L"国标双拼"},
-                    {"pinyinjiajia", L"拼音加加"}});
-}
-
 VisualPtr ItemSetting(std::wstring title, std::wstring description, VisualPtr control, bool first, bool last)
 {
     auto row = std::make_shared<ItemRow>(
@@ -926,70 +908,12 @@ VisualPtr BuildInputPage(PageContext &context)
     // ---- 输入方案 ----
     {
         auto quanpin = s->schemeGroup->Add(L"全拼", "quanpin");
-        auto shuangpin = s->schemeGroup->Add(L"双拼", "shuangpin");
         s->schemeGroup->SetValue("quanpin");
         s->schemeGroup->SetOnChanged([model](const std::string &value) { model->Update("input.schema", value); });
         // .input-option-content: margin-top 12px, gap 8px
-        auto options = Col({quanpin, std::make_shared<Divider>(Divider::Kind::Option), shuangpin}, 8.0f);
+        auto options = Col({quanpin}, 8.0f);
         options->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
         s->chineseSections.push_back(AddHideableSection(page, Col({MakeTitle(L"输入方案"), options})));
-    }
-
-    // ---- 双拼方案 ----
-    {
-        Dropdown::Options settings;
-        settings.paddingLeft = 9.0f;
-        settings.minWidth = 110.0f;
-        settings.menuMinWidth = 110.0f;
-        s->shuangpin = BindDropdown(context, "input.shuangpin_schema", BuiltinShuangpin(), settings);
-        s->chineseSections.push_back(AddHideableSection(page, MakeRow(L"双拼方案", L"", s->shuangpin)));
-    }
-
-    // ---- 自定义双拼 ----
-    {
-        // The NSimSun runs make each line box taller than 1.6 x 12px (31 device px at 150%).
-        auto description = std::make_shared<RichText>(kFontCaption, 20.67f / kFontCaption, DWRITE_WORD_WRAPPING_WRAP);
-        description->SetSpans(
-            {Plain(L"把 UTF-8 编码的 "), Code(L".toml"),
-             Plain(L" 双拼方案文件放进下面的文件夹，点击“刷新方案”后即可在上方双拼方案中选择。 文件里用 "),
-             Code(L"zero_initial_rule"), Plain(L" 选择零声母规则，在 "), Code(L"[initials]"), Plain(L" 和 "),
-             Code(L"[finals]"), Plain(L" 中写声母、韵母对应的按键，完整写法见项目文档中的 "),
-             Code(L"docs/custom-shuangpin.example.toml"),
-             Plain(L"。 "
-                   L"有错误的方案会显示为灰色，鼠标悬停可查看原因。修改正在使用的方案文件后，需要切换一次方案或重启输入"
-                   L"法才会生效。")});
-        description->SetMargin({0.0f, 4.0f, 0.0f, 0.0f});
-        s->shuangpinDirectory = std::make_shared<Label>(L"", CaptionStyle(), TextRole::Muted);
-        s->shuangpinDirectory->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-        s->shuangpinDirectoryBox = std::make_shared<Hideable>(s->shuangpinDirectory, false);
-        auto left = Col({MakeTitle(L"自定义双拼"), description, s->shuangpinDirectoryBox});
-
-        auto open = std::make_shared<GhostButton>(L"打开目录");
-        open->SetOnClick([model]() { model->Post("openShuangpinDirectory"); });
-        auto refresh = std::make_shared<GhostButton>(L"刷新方案");
-        refresh->SetOnClick([s, model, host]() {
-            // Wait for the rescanned snapshot; report a failure if it does not come back.
-            PageTimers::Stop(s->shuangpinRefreshTimer);
-            s->shuangpinRefreshPending = true;
-            s->shuangpinRefreshTimer = PageTimers::Start(host->Hwnd(), 5000, false, [s, host]() {
-                s->shuangpinRefreshTimer = 0;
-                if (!s->shuangpinRefreshPending)
-                    return;
-                s->shuangpinRefreshPending = false;
-                host->ShowToast(L"刷新失败，请稍后重试", false);
-            });
-            model->Post("configRequest");
-        });
-        auto actions = std::make_shared<Row>(8.0f);
-        actions->SetAlign(Row::Align::Start);
-        actions->Add(open);
-        actions->Add(refresh);
-        // .section-header:has(> .helpcode-custom-actions) { align-items: flex-start; gap: 16px }
-        auto row = std::make_shared<Row>(16.0f);
-        row->SetAlign(Row::Align::Start);
-        row->Add(left, 1.0f);
-        row->Add(actions);
-        s->chineseSections.push_back(AddHideableSection(page, row));
     }
 
     // ---- 输入纠错 ----
@@ -1029,10 +953,9 @@ VisualPtr BuildInputPage(PageContext &context)
         auto finalList = OptionList(finals);
         s->fuzzyRules = {std::make_shared<Dimmable>(initialList), std::make_shared<Dimmable>(finalList)};
         s->fuzzyHint = std::make_shared<Hideable>(DisabledHint(), false);
-        auto details =
-            Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词；全拼与双拼均生效", 0.0f),
-                 Padded(MakeSubTitle(L"声母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[0],
-                 Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
+        auto details = Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词", 0.0f),
+                            Padded(MakeSubTitle(L"声母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[0],
+                            Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
         auto section = MakeToggleSection(L"模糊音", details);
         page.AddSection(Col({std::make_shared<SettingRow>(section.expander, master), section.details}));
     }
@@ -1261,51 +1184,7 @@ VisualPtr BuildInputPage(PageContext &context)
     // ---- Snapshot -> page (config-sync.ts) ----
     context.OnConfig([s, state, model, host, &context]() {
         (void)state;
-        const std::string schema = model->GetString("input.schema");
-        if (schema == "quanpin" || schema == "shuangpin")
-            s->schemeGroup->SetValue(schema);
-
-        // Custom shuangpin schemas follow the built-in ones; broken ones are listed greyed out.
-        if (const Json *schemas = model->Find("input.custom_shuangpin_schemas"); schemas && schemas->is_array())
-        {
-            std::vector<DropdownOption> options = BuiltinShuangpin();
-            size_t broken = 0;
-            size_t count = 0;
-            for (const Json &entry : *schemas)
-            {
-                if (!entry.is_object() || !entry.contains("id") || !entry["id"].is_string() ||
-                    !entry.contains("name") || !entry["name"].is_string())
-                    continue;
-                ++count;
-                const bool error = !entry.value("error", std::string()).empty();
-                broken += error ? 1 : 0;
-                options.push_back({Widen(entry["name"].get<std::string>()), entry["id"].get<std::string>(), error, {}});
-            }
-            if (options.size() != s->shuangpin->GetOptions().size() || count > 0)
-            {
-                s->shuangpin->SetOptions(std::move(options));
-                s->shuangpin->SetValue(model->GetString("input.shuangpin_schema"));
-            }
-            if (s->shuangpinRefreshPending)
-            {
-                s->shuangpinRefreshPending = false;
-                PageTimers::Stop(s->shuangpinRefreshTimer);
-                if (count == 0)
-                    host->ShowToast(L"刷新成功，文件夹里还没有自定义双拼方案", true);
-                else if (broken > 0)
-                    host->ShowToast(L"找到 " + std::to_wstring(count) + L" 个自定义方案，其中 " +
-                                        std::to_wstring(broken) + L" 个有错误，悬停在灰色方案上可查看原因",
-                                    false);
-                else
-                    host->ShowToast(L"刷新成功，找到 " + std::to_wstring(count) + L" 个自定义方案", true);
-            }
-        }
-        if (const Json *directory = model->Find("input.custom_shuangpin_directory");
-            directory && directory->is_string())
-        {
-            s->shuangpinDirectory->SetText(L"文件夹：" + Widen(directory->get<std::string>()));
-            s->shuangpinDirectoryBox->SetVisible(true);
-        }
+        s->schemeGroup->SetValue("quanpin");
 
         // 以词定字: a key pair that pages candidates cannot also pick characters.
         if (const Json *paging = model->Find("general.paging_brackets"); paging && paging->is_boolean())

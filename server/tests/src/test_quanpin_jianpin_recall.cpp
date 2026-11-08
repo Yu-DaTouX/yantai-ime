@@ -14,7 +14,7 @@ using quanpin::KeyedQueryItem;
 using quanpin::QuerySource;
 using quanpin::Segments;
 
-// 自包含的词库夹具：全拼前缀区间、jp 简拼同层合并、全拼双字母声母、双拼单字母声母
+// 自包含的词库夹具：全拼前缀区间、jp 简拼同层合并、全拼双字母声母
 // 四条规则都只需要这几行就能区分开，不依赖真实词库，也不需要 DictionaryAvailable 判断。
 std::filesystem::path CreateRecallDatabase()
 {
@@ -139,26 +139,6 @@ TEST_CASE(quanpin_supports_two_letter_initials)
     if (Contains(zly, "自来也"))
     {
         throw std::runtime_error("zly 不能命中 自来也：它首音节是 zi，不是 zh，两字母声母不能退化成单字母。");
-    }
-    std::filesystem::remove(db_path);
-}
-
-// 双拼的声母规则独立于全拼：单字母 z 只认初始码为 z 的音节，zhang 的初始码是 zh，
-// 所以同一份数据、同一组片段，双拼不召回 张浩，全拼召回。
-TEST_CASE(shuangpin_keeps_its_own_initial_rule)
-{
-    const auto db_path = CreateRecallDatabase();
-
-    const auto shuangpin = QueryRecall(db_path, Segments{"z", "h"}, QuerySource::Shuangpin);
-    if (Contains(shuangpin, "张浩"))
-    {
-        throw std::runtime_error("双拼查询 z'h 不能召回 张浩，说明双拼被全拼的 zh/ch/sh 声母规则改掉了。");
-    }
-
-    const auto quanpin_items = QueryRecall(db_path, Segments{"z", "h"}, QuerySource::Quanpin);
-    if (!Contains(quanpin_items, "张浩"))
-    {
-        throw std::runtime_error("全拼查询 z'h 必须召回 张浩，因为单字母 z 在全拼里匹配 zhang。");
     }
     std::filesystem::remove(db_path);
 }

@@ -139,47 +139,6 @@ void test_runtime_isolation()
     {
         SessionOptions options;
         options.paths = paths_a;
-        options.scheme = SchemeType::Shuangpin;
-        options.shuangpin_profile = GetMicrosoftShuangpinProfile();
-        options.learning = false;
-        Session session(options);
-        require(!session.character(';').handled, "Microsoft semicolon started a syllable");
-        session.character('n');
-        const auto ing = session.character(';');
-        require(ing.handled && !ing.commit && session.snapshot().preedit == "n;",
-                "Public Session rejected Microsoft ing final");
-        const auto query = session.online_query();
-        require(query && query->query_text == "ning", "Microsoft ing lost its canonical query");
-        require(!session.character(';').handled && session.snapshot().preedit == "n;",
-                "Microsoft semicolon accepted outside the final position");
-        session.command(Command::Backspace);
-        require(session.snapshot().preedit == "n", "Microsoft final could not be erased");
-        session.command(Command::Cancel);
-        type(session, "ni'n");
-        require(session.character(';').handled && session.snapshot().preedit == "ni'n;",
-                "Microsoft final after a manual separator was rejected");
-        session.command(Command::MoveLeft);
-        session.command(Command::DeleteForward);
-        // Leave a suffix so the replacement exercises the middle-edit path.
-        session.command(Command::MoveEnd);
-        type(session, "ni");
-        session.command(Command::MoveLeft);
-        session.command(Command::MoveLeft);
-        require(session.character(';').handled && session.snapshot().editing_text == "ni'n;ni",
-                "Microsoft ing could not be inserted before a suffix");
-        session.command(Command::Cancel);
-        type(session, "ni'");
-        require(!session.character(';').handled && session.snapshot().preedit == "ni'",
-                "Microsoft separator was counted as a syllable initial");
-        options.shuangpin_profile = GetXiaoheShuangpinProfile();
-        Session xiaohe(options);
-        xiaohe.character('n');
-        require(!xiaohe.character(';').handled && xiaohe.snapshot().preedit == "n",
-                "Microsoft semicolon leaked to Xiaohe");
-    }
-    {
-        SessionOptions options;
-        options.paths = paths_a;
         options.learning = false;
         Session session(options), other(options);
         require(!session.command(Command::MoveLeft).handled, "Empty caret movement consumed host input");
@@ -227,14 +186,11 @@ void test_runtime_isolation()
         type(session, "ni");
         require(session.snapshot().caret_position == 2, "New composition inherited the old caret");
     }
-    for (const char marker : {'Y', 'J', 'E', 'M', 'K', 'U'})
+    for (const char marker : {'Y', 'E', 'M', 'K', 'U'})
     {
         SessionOptions options;
         options.paths = paths_a;
         options.learning = false;
-        // 超级简拼只对双拼生效，J 用双拼会话验证本地模式的光标边界。
-        if (marker == 'J')
-            options.scheme = SchemeType::Shuangpin;
         Session session(options);
         session.character(marker, true);
         // U 模式是部件拆字：受理小写字母，数字会被吞，所以这里用字母载荷。
@@ -252,11 +208,10 @@ void test_runtime_isolation()
         require(session.snapshot().editing_text.empty() && session.snapshot().caret_position == 0,
                 "Cancel retained local-mode editing state");
     }
-    for (const auto scheme : {SchemeType::Shuangpin})
     {
         SessionOptions options;
         options.paths = paths_a;
-        options.scheme = scheme;
+        options.scheme = SchemeType::Quanpin;
         options.learning = false;
         Session session(options);
         type(session, "ka");
@@ -407,7 +362,7 @@ void test_runtime_isolation()
             "INSERT INTO english_words(word,display,weight) VALUES('help','help',5);");
     const auto pin_main_bytes = bytes(pin_resources / assets::main_dictionary);
     const auto pin_english_bytes = bytes(pin_resources / assets::english_dictionary);
-    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
+    for (const auto scheme : {SchemeType::Quanpin})
     {
         const auto suffix = std::to_string(static_cast<int>(scheme));
         const auto user = root / ("position-user-" + suffix);
@@ -416,7 +371,7 @@ void test_runtime_isolation()
         options.paths = prepare_runtime_paths(pin_resources, user, cache, "v1");
         options.scheme = scheme;
         options.learning = false;
-        const auto input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
+        const auto input = "nihao";
         {
             Session session(options);
             type(session, input);
@@ -496,7 +451,7 @@ void test_runtime_isolation()
                 "Pin did not refresh dictionary candidate order");
         require(!session.pin(before.candidates.size() + 100).handled, "Invalid pin index was accepted");
     };
-    for (const auto scheme : {SchemeType::Quanpin, SchemeType::Shuangpin})
+    for (const auto scheme : {SchemeType::Quanpin})
     {
         const auto suffix = std::to_string(static_cast<int>(scheme));
         const auto user = root / ("pin-user-" + suffix);
@@ -505,7 +460,7 @@ void test_runtime_isolation()
         options.paths = prepare_runtime_paths(pin_resources, user, cache, "v1");
         options.scheme = scheme;
         options.learning = false;
-        const std::string input = scheme == SchemeType::Quanpin ? "nihao" : "nihc";
+        const std::string input = "nihao";
         {
             Session session(options);
             require(!session.pin(0).handled, "Empty session accepted pin");

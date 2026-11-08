@@ -133,8 +133,8 @@ int run_test()
                 english.local_input_mode() == metasequoia::LocalInputMode::None,
             "Cancel did not leave temporary English mode.");
     require(english.handle_character('Y', true).handled, "Temporary English could not start before a scheme switch.");
-    english.switch_scheme(SchemeType::Shuangpin);
-    require(english.scheme() == SchemeType::Shuangpin &&
+    english.switch_scheme(SchemeType::Quanpin);
+    require(english.scheme() == SchemeType::Quanpin &&
                 english.local_input_mode() == metasequoia::LocalInputMode::None && !english.has_composition(),
             "A scheme switch did not clear temporary English mode.");
 

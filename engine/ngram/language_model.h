@@ -66,7 +66,7 @@ class LanguageModel
     std::unique_ptr<Impl> impl_;
 };
 
-// 进程内按路径共享的模型。出货的 sc.lm 有 34 MB，全拼词典和双拼词典各载一份
+// 进程内按路径共享的模型。出货的 sc.lm 有 34 MB，全拼词典各载一份
 // 会白白多映射一遍；kenlm 的查询全是只读的（Score 是 const，状态在调用方的
 // State 里），共享实例可以被多个线程同时使用。
 //

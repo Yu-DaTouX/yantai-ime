@@ -6,12 +6,9 @@ This project now includes a lightweight regression test target wired into the ma
 
 Current tests focus on high-value IME behaviors that are easy to accidentally break during refactors:
 
-- `shuangpin` scheme request construction
 - `quanpin` scheme request construction
-- case-preserving shuangpin segmentation
 - full-helpcode detection
-- `engine + shuangpin` continuation behavior
-- cloud suggestion trigger timing for shuangpin
+- cloud suggestion trigger timing
 
 The goal is not to fully simulate the whole IME UI pipeline yet. The goal is to protect the core input rules and
 session behavior.
@@ -70,14 +67,8 @@ ctest --test-dir server/build-release -C Release --output-on-failure --no-tests=
   - tiny custom test runner
 - `tests/includes/test_framework.h`
   - lightweight assertion helpers
-- `tests/src/test_shuangpin_scheme.cpp`
-  - shuangpin scheme unit tests
 - `tests/src/test_quanpin_scheme.cpp`
   - quanpin scheme unit tests
-- `tests/src/test_shuangpin_query.cpp`
-  - query/helper function tests
-- `tests/src/test_engine_shuangpin_session.cpp`
-  - session-level behavior tests
 
 ## Model path benchmark
 

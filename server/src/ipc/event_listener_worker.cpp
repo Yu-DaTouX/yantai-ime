@@ -839,9 +839,8 @@ void WorkerThread()
                 else
                 {
                     // Pinyin candidates carry both the typed code and, when
-                    // available, the canonical quanpin database key.  Delete
-                    // with the canonical key so a raw shuangpin sequence is
-                    // not mistaken for an equally valid quanpin spelling.
+                    // available, the canonical quanpin database key. Delete
+                    // with the canonical key.
                     const std::string delete_pinyin =
                         item.canonical_pinyin.empty() ? item.pinyin : item.canonical_pinyin;
                     g_inputSession->remove_candidate(delete_pinyin, item.word, item.scheme);
@@ -1002,7 +1001,7 @@ void WorkerThread()
             // 拼音整句，而且 PrepareCandidateList 在英文模式下会故意发出空页，直接跳过。
             // 拼音方案的整句在停手后补算一次。
             const SchemeType scheme = g_inputSession->current_scheme_type();
-            const bool pinyin_sentence_scheme = scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin;
+            const bool pinyin_sentence_scheme = scheme == SchemeType::Quanpin;
             if (g_english_input_mode || !pinyin_sentence_scheme || !CanMergeAsyncCandidates() ||
                 GlobalIme::composition.creating_word.active || Global::candidate_ui.items.empty())
             {

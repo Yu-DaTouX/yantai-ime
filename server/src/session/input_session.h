@@ -1,7 +1,7 @@
 #pragma once
 
 #include "engine/core/input_session.h"
-#include "engine/shuangpin/shuangpin_dictionary.h"
+#include "engine/core/word_item.h"
 #include <Windows.h>
 #include <string>
 #include <vector>
@@ -10,12 +10,11 @@
 class IInputSession
 {
   public:
-    using WordItem = DictionaryUlPb::WordItem;
+    using WordItem = ::WordItem;
 
     using SelectionTransition = metasequoia::InputSession::SelectionTransition;
     using CloudQueryState = metasequoia::InputSession::CloudQueryState;
     using CreatingWordProgress = metasequoia::InputSession::CreatingWordProgress;
-    using ShuangpinPreeditForms = metasequoia::InputSession::ShuangpinPreeditForms;
 
     virtual ~IInputSession() = default;
 
@@ -55,11 +54,6 @@ class IInputSession
     virtual const std::string &get_pure_pinyin_sequence() const = 0;
     virtual const std::string &get_pinyin_segmentation() const = 0;
     virtual std::string get_pinyin_segmentation_with_cases() const = 0;
-    // 双拼的原串切分与转换后的全拼切分，语义见 engine 同名方法。默认（非双拼会话）为空。
-    virtual ShuangpinPreeditForms get_shuangpin_preedit_forms() const
-    {
-        return {};
-    }
     // Raw offsets where one input unit starts, for segment deletion. Empty when
     // the scheme or mode has no unit model.
     virtual std::vector<std::size_t> segment_raw_boundaries() const = 0;
@@ -68,41 +62,6 @@ class IInputSession
     // 整串能否读成拼音（允许简拼声母和打到一半的音节），语义见 engine 同名方法。
     virtual bool reads_as_pinyin() const = 0;
     virtual bool has_active_helpcode() const = 0;
-    // 光标停在 caret 处时反引号能否作为句中辅助码插进编码串，语义见 engine
-    // accepts_mid_sentence_helpcode_marker_at。默认不能。
-    virtual bool accepts_mid_sentence_helpcode_marker(std::size_t) const
-    {
-        return false;
-    }
-    // 光标停在 caret 处时能否开一段双拼末尾辅助码（间接），语义见 engine accepts_end_helpcode_marker_at。
-    // 默认不能。
-    virtual bool accepts_end_helpcode_marker(std::size_t) const
-    {
-        return false;
-    }
-    // 光标停在 caret 处时 / 能否作为直接辅助码四码后的终止键插进编码串，语义见 engine
-    // accepts_direct_helpcode_slash_at。默认不能。
-    virtual bool accepts_direct_helpcode_slash(std::size_t) const
-    {
-        return false;
-    }
-    // 直接辅助码下用 ; 进入末尾辅助码时，typed（光标在末尾）去掉各音节辅码后的纯双拼；不能这样改写时为空。
-    // 语义见 engine direct_helpcode_end_trigger_prefix。默认不能。
-    virtual std::optional<std::string> direct_helpcode_end_trigger_prefix(const std::string &)
-    {
-        return std::nullopt;
-    }
-    // 当前输入带着生效的句中辅助码约束（候选是筛过的）。默认没有。
-    virtual bool has_mid_sentence_helpcode() const
-    {
-        return false;
-    }
-    // 去掉句中辅助码约束后的候选，调频拿它当排位参照，语义见 engine 同名方法。默认空。
-    virtual std::vector<WordItem> candidates_without_mid_sentence_helpcode()
-    {
-        return {};
-    }
-
     // 本会话最近上屏的文本，给神经整句重排当前文。空实现：除引擎会话外没人需要前文。
     virtual void set_rescoring_context(std::string)
     {

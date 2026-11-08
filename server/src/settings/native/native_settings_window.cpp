@@ -2110,7 +2110,7 @@ class ModalLayer : public msimeui::Visual
 // ---------------------------------------------------------------------------------
 // Splash: the Settings app's launch screen, a large gear in the middle of the window,
 // shown until the first configSnapshot has filled in the controls (otherwise their
-// defaults show for a frame, e.g. 全拼 before the configured 双拼), then faded out.
+// defaults show for a frame), then faded out.
 // ---------------------------------------------------------------------------------
 class SplashView : public msimeui::Visual
 {

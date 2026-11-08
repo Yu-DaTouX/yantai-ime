@@ -16,7 +16,7 @@ QuickPhraseQueryResult query_quick_phrases(const std::string &prefix, int limit 
 QuickPhraseQueryResult query_quick_phrases(const std::string &prefix, const std::filesystem::path &database_path,
                                            int limit = 100);
 
-// 混进全拼/双拼普通候选的那组：按编码精确匹配，组内按权重降序。
+// 混进全拼普通候选的那组：按编码精确匹配，组内按权重降序。
 QuickPhraseQueryResult query_quick_phrases_by_code(const std::string &code, int limit = 20);
 QuickPhraseQueryResult query_quick_phrases_by_code(const std::string &code, const std::filesystem::path &database_path,
                                                    int limit = 20);

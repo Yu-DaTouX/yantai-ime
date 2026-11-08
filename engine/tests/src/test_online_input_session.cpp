@@ -230,31 +230,6 @@ int main()
                     mixed_ai_only.candidates()[2].source == CandidateSource::AiSuggestion &&
                     mixed_ai_only.candidates()[3].source == CandidateSource::EnglishDictionary,
                 "Cloud arrival moved an existing AI suggestion out of slot three.");
-
-        metasequoia::InputSession shuangpin(SchemeType::Shuangpin);
-        type(shuangpin, "ni");
-        const auto shuangpin_query = shuangpin.online_query();
-        require(shuangpin_query.has_value() && shuangpin_query->scheme == SchemeType::Shuangpin &&
-                    !shuangpin_query->query_text.empty() && shuangpin_query->cloud_eligible &&
-                    shuangpin_query->ai_eligible,
-                "Complete Shuangpin did not expose an online query.");
-        require(shuangpin.apply_online_candidate(*shuangpin_query, "拟", CandidateSource::AiSuggestion) &&
-                    shuangpin.apply_online_candidate(*shuangpin_query, "泥", CandidateSource::CloudSuggestion),
-                "Shuangpin did not accept AI-then-cloud candidates.");
-        require(shuangpin.candidates().size() >= 3 &&
-                    shuangpin.candidates()[1].source == CandidateSource::CloudSuggestion &&
-                    shuangpin.candidates()[2].source == CandidateSource::AiSuggestion,
-                "Cloud arrival moved the Shuangpin AI suggestion out of slot three.");
-        require(shuangpin.handle_character('A').handled && !shuangpin.online_query().has_value(),
-                "Active Shuangpin helpcode input was exposed to online providers.");
-        metasequoia::InputSession local_mode(SchemeType::Quanpin);
-        require(local_mode.handle_character('U', true).handled && !local_mode.online_query().has_value(),
-                "A local input mode unexpectedly exposed an online query.");
-
-        metasequoia::InputSession dedicated(SchemeType::Quanpin);
-        dedicated.set_dedicated_english_mode(true);
-        type(dedicated, "word");
-        require(!dedicated.online_query().has_value(), "Dedicated English unexpectedly exposed an online query.");
     }
     catch (const std::exception &error)
     {

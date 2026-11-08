@@ -3,7 +3,6 @@
 #include "local_database.h"
 
 #include "../core/data_path.h"
-#include "../shuangpin/shuangpin_query.h"
 
 #include <algorithm>
 #include <cctype>
@@ -34,13 +33,13 @@ LocalQueryResult query_failure(const char *diagnostic)
 }
 } // namespace
 
-LocalQueryResult query_kaomoji(const std::string &code, SchemeType scheme, int limit, const ShuangpinProfile &profile)
+LocalQueryResult query_kaomoji(const std::string &code, SchemeType scheme, int limit)
 {
-    return query_kaomoji(code, scheme, data_file_path(metasequoia::assets::other_dictionary), limit, profile);
+    return query_kaomoji(code, scheme, data_file_path(metasequoia::assets::other_dictionary), limit);
 }
 
-LocalQueryResult query_kaomoji(const std::string &code, SchemeType scheme, const std::filesystem::path &database_path,
-                               int limit, const ShuangpinProfile &profile)
+LocalQueryResult query_kaomoji(const std::string &code, SchemeType /*scheme*/,
+                               const std::filesystem::path &database_path, int limit)
 {
     if (!valid_code(code) || limit <= 0)
     {
@@ -53,17 +52,6 @@ LocalQueryResult query_kaomoji(const std::string &code, SchemeType scheme, const
 
     const std::string lower = lower_ascii(code);
     std::vector<RankedLookup> lookups{{lower, true}};
-    if (scheme == SchemeType::Shuangpin)
-    {
-        const std::string quanpin = shuangpin::normalize_input(lower, profile);
-        if (!quanpin.empty() && quanpin != lower)
-        {
-            // 同 emoji：双拼下精确命中只认展开后的全拼，原始码只按目录顺序参与前缀命中。
-            lookups.front().exact_ranks = false;
-            lookups.push_back({quanpin, true});
-        }
-    }
-
     const std::shared_ptr<sqlite3> database = open_local_database(database_path);
     if (!database)
     {

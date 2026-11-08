@@ -31,7 +31,7 @@ the leading-candidate behavior. Snapshots include `dedicated_english` even with 
 so hosts need not maintain a second mode flag. `set_helpcode_enabled` applies to both pinyin
 schemes; a host with separate persisted preferences applies the selected flag on scheme change.
 
-For the Microsoft shuangpin profile, `character(';')` routes the ing final through the
+For quanpin, `character(';')` follows the ordinary punctuation path; the
 decoder's existing position validation. Other profiles leave this character unhandled.
 
 `MoveLeft`, `MoveRight`, `MoveHome`, `MoveEnd` and `DeleteForward` are composition
@@ -47,7 +47,7 @@ Empty-composition movement is unhandled so normal host navigation can proceed.
 `pin(index)` promotes a currently visible dictionary candidate without selecting it or changing
 preedit. It persists through the session's user journal and working dictionaries, then refreshes
 the snapshot. Explicit pinning works even when automatic learning is disabled. Pinyin (including
-shuangpin canonical keys) and English dictionary candidates use their existing ranking
+canonical keys) and English dictionary candidates use their existing ranking
 policy; generated, expressive, and online candidates are unhandled. English pinning
 changes dictionary order within the existing mixed/temporary-mode layout, so it does not move
 an English completion ahead of the temporary mode's raw-text entry. Invalid indices are unhandled;
@@ -61,7 +61,7 @@ candidates and non-dictionary sources are protected and return unhandled, as do 
 A database or journal failure returns a diagnostic with no commit. The working-dictionary delete
 and journal entry share an attached SQLite transaction, so a statement/commit failure rolls back
 both; this does not promise multi-file power-loss atomicity when SQLite uses WAL. Existing
-quanpin/shuangpin and English deletion callers share this persistence helper. Hosts serialize
+Quanpin and English deletion callers share this persistence helper. Hosts serialize
 candidate-index actions against their displayed snapshot.
 
 ## Resources and user state
@@ -147,7 +147,7 @@ adapters for UTF-8 paths without modifying the vendored decoder or the process l
 The dictionary word lattice is the other whole-sentence source, and it is scored by a kenlm
 trigram rather than by Google Pinyin. `ngram::LanguageModel` (engine/ngram) wraps the vendored
 kenlm query subset; `ngram::shared_language_model` hands out one mmapped instance per resource
-path, so the quanpin and shuangpin dictionaries in every session share a single 34 MB mapping.
+path, so the quanpin dictionary in every session shares a single 34 MB mapping.
 kenlm queries are const and carry their context in the caller's `ngram::State`, so concurrent
 sessions need no lock around it. A missing or unreadable `sc.lm` yields a `valid() == false`
 model and the lattice falls back to its previous uncalibrated unigram heuristic: sentences get

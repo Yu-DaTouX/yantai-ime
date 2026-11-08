@@ -1,6 +1,6 @@
 # 输入方案
 
-一个「输入方案」负责把按键序列变成一次候选查询。全拼与双拼共用同一个接口，彼此不知道对方存在——加一种新方案（注音、粤拼、仓颉……）不需要改动任何一个已有方案。
+一个「输入方案」负责把按键序列变成一次候选查询。方案通过 `IInputScheme` 接口接入——加一种新方案（注音、粤拼、仓颉……）不需要改动已有方案。
 
 这一页说明加一种方案要动哪几处、每一处要做什么。招募文档把「实现新的输入方案」列为门槛最高的方向，但此前这个目录下只有一个 17 行、零注释的纯虚基类。
 
@@ -46,11 +46,11 @@ class IInputScheme
 
 ## 加一种新方案要动的地方
 
-以现有的两个方案为参照走一遍（[`quanpin_scheme.h`](quanpin_scheme.h) / [`quanpin_scheme.cpp`](quanpin_scheme.cpp) 与 [`shuangpin_scheme.h`](shuangpin_scheme.h) / [`shuangpin_scheme.cpp`](shuangpin_scheme.cpp)）：
+以现有的全拼方案为参照走一遍（[`quanpin_scheme.h`](quanpin_scheme.h) / [`quanpin_scheme.cpp`](quanpin_scheme.cpp)）：
 
 1. **`../core/scheme_type.h`** — 在 `SchemeType` 里加一个枚举值。
 
-2. **`schemes/<name>_scheme.{h,cpp}`** — 实现 `IInputScheme`。构造函数可以带参数：双拼方案就接收一个 `ShuangpinProfile`，方案表由调用方注入而不是硬编码在方案里。
+2. **`schemes/<name>_scheme.{h,cpp}`** — 实现 `IInputScheme`。构造函数可以带参数，方案表由调用方注入而不是硬编码在方案里。
 
 3. **`../core/ime_session.cpp` 的 `create_scheme()`** — 在 switch 里加一个分支返回你的实现。这是唯一注册点，没有别的注册表或工厂宏。
 
@@ -60,7 +60,7 @@ class IInputScheme
 
 6. **`../CMakeLists.txt` 与 `../tests/CMakeLists.txt`** — 两份源码列表都要加上新文件。只加前者会导致测试链接失败，只加后者会导致产品里没有这个方案。
 
-7. **测试** — `tests/src/` 下加一个 `test_<name>_scheme.cpp`，并登记到 `tests/CMakeLists.txt`。参考 [`test_shuangpin.cpp`](../tests/src/test_shuangpin.cpp)（方案层的按键与 preedit）与 [`test_pinyin.cpp`](../tests/src/test_pinyin.cpp)（编码与查询）。最低限度要覆盖：一串典型按键得到的 `get_preedit()`、`build_request()` 的 `valid` 何时为真、`reset()` 之后状态确实干净、以及非法按键不会破坏状态。
+7. **测试** — `tests/src/` 下加一个 `test_<name>_scheme.cpp`，并登记到 `tests/CMakeLists.txt`。参考 [`test_pinyin.cpp`](../tests/src/test_pinyin.cpp)（编码与查询）。最低限度要覆盖：一串典型按键得到的 `get_preedit()`、`build_request()` 的 `valid` 何时为真、`reset()` 之后状态确实干净、以及非法按键不会破坏状态。
 
 ## 提交之前
 

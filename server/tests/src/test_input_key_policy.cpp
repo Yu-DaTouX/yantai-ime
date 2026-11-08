@@ -10,18 +10,6 @@ TEST_CASE(pinyin_commit_requires_shift_enter)
     REQUIRE(!FanyImeIpc::IsPinyinCommitKey('A', 1));
 }
 
-TEST_CASE(pinyin_commit_converts_shuangpin_and_preserves_raw_fallback)
-{
-    using FanyImeIpc::EnteredPinyinText;
-    REQUIRE_EQ(EnteredPinyinText("nihc", "ni'hao", true), std::string("nihao"));
-    REQUIRE_EQ(EnteredPinyinText("ni'hc", "ni'hao'", true), std::string("nihao"));
-    REQUIRE_EQ(EnteredPinyinText("vgh", "zheng'h", true), std::string("zhengh"));
-    REQUIRE_EQ(EnteredPinyinText("nihc", "ni'hao", false), std::string("nihc"));
-    REQUIRE_EQ(EnteredPinyinText("hello", "", true), std::string("hello"));
-    REQUIRE_EQ(EnteredPinyinText("U4E00", "", false), std::string("U4E00"));
-    REQUIRE_EQ(EnteredPinyinText("", "", true), std::string(""));
-}
-
 TEST_CASE(word_to_character_uses_only_the_selected_unmodified_key_pair)
 {
     using FanyImeIpc::WordToCharacterDirection;
@@ -114,13 +102,13 @@ TEST_CASE(english_mode_toggle_requires_ctrl_shift_e)
     REQUIRE(!FanyImeIpc::IsEnglishModeToggleKey('A', 0b00000011u));
 }
 
-TEST_CASE(composition_reply_includes_microsoft_shuangpin_ing_key)
+TEST_CASE(composition_reply_covers_letters_and_date_time_keys)
 {
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, true));
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(true, false, false));
-    REQUIRE(!FanyImeIpc::ShouldSendCompositionReply(false, false, false));
+    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(true, false));
+    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, true));
+    REQUIRE(!FanyImeIpc::ShouldSendCompositionReply(false, false));
     // T 模式指定日期时间的数字、/ 和 : 进输入串，TSF 同样在等这一帧。
-    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, false, true));
+    REQUIRE(FanyImeIpc::ShouldSendCompositionReply(false, false, true));
 }
 
 TEST_CASE(backspace_retracts_the_last_selected_segment_before_deleting)

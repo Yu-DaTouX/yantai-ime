@@ -53,7 +53,7 @@ std::vector<WordItem> Expand(std::vector<WordItem> items)
 WordItem Rich(const std::string &word, CandidateSource source = CandidateSource::Database)
 {
     WordItem item("tai", word, 4321, source, "tai");
-    item.scheme = SchemeType::Shuangpin;
+    item.scheme = SchemeType::Quanpin;
     item.fixed_position = 3;
     item.fuzzy = true;
     item.corrected_from = "tia";

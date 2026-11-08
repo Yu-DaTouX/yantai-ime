@@ -74,7 +74,7 @@ class LatinWords
 };
 
 // 词典对象持有的那一份字母词。词库被别的连接写过（data_version 不同于 loaded_version，或词典清缓存时
-// 置了 stale）就重读；读出来和手上那份完全相同时沿用原对象，双拼按它反推的按键表也就不用重建——调频
+// 置了 stale）就重读；读出来和手上那份完全相同时沿用原对象——调频
 // 每选一次词都会让 data_version 变一次，不能每次都重建。用 shared_ptr：重读时，正在解词格的那一轮仍
 // 握着旧的一份。statement_cache 是词典的语句缓存（随词典析构 finalize），查 data_version 的语句放在里面。
 std::shared_ptr<const LatinWords> refresh_latin_words(std::shared_ptr<const LatinWords> current, bool &stale,
@@ -117,7 +117,7 @@ inline constexpr std::size_t kLatinWordCompletionLimit = 2;
 // 覆盖整串：整句（sentence_association），或 pinyin 去掉分隔符后的键数不少于 covered_code 的键数。这是按读音
 // 字母数与键数比较的长度判断，不是候选实际消费了整串：开着模糊音或拼音纠错时两者可能差一两位，字母词的位置
 // 跟着偏一两位。整句一律算覆盖整串，前提是调用方只对整串解出整句。
-// covered_code 是读音要盖到的那一串，与候选的 pinyin 同一种写法（全拼是切分，双拼是键串）；双拼的末尾
+// covered_code 是读音要盖到的那一串，与候选的 pinyin 同一种写法（切分）；末尾
 // 辅码键不在其中。selection_code 是字母词选中后要吃掉的输入。
 void insert_latin_candidates(std::vector<WordItem> &result, const std::vector<const LatinWord *> &exact,
                              const std::vector<const LatinWord *> &completions, const std::string &selection_code,

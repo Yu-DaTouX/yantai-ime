@@ -47,7 +47,6 @@ bool g_date_time_mode_triggered = false;
 bool g_emoji_mode_triggered = false;
 bool g_kaomoji_mode_triggered = false;
 bool g_symbol_mode_triggered = false;
-bool g_jianpin_mode_triggered = false;
 bool g_y_mode_triggered = false;
 bool g_english_input_mode = false;
 } // namespace event_listener_detail
@@ -277,11 +276,6 @@ bool IsSymbolCompositionActive(const std::string &raw)
                        [](unsigned char ch) { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'); });
 }
 
-bool IsJianpinCompositionActive(const std::string &raw)
-{
-    return g_jianpin_mode_triggered && !raw.empty() && raw.front() == 'J';
-}
-
 bool IsYModeCompositionActive(const std::string &raw)
 {
     return g_y_mode_triggered && !raw.empty() && raw.front() == 'Y' &&
@@ -314,18 +308,17 @@ void ClearSpecialModeTriggers()
     g_emoji_mode_triggered = false;
     g_kaomoji_mode_triggered = false;
     g_symbol_mode_triggered = false;
-    g_jianpin_mode_triggered = false;
     g_y_mode_triggered = false;
 }
 
-// True whenever a K/U/T/E/M/S/J/Y special-mode composition is in progress, even when the
+// True whenever a K/U/T/E/M/S/Y special-mode composition is in progress, even when the
 // typed text is not yet a complete keyword/letter sequence. Such input must never
 // be interpreted as normal pinyin.
 bool IsSpecialModeCompositionActive(const std::string &raw)
 {
     return IsQuickPhraseCompositionActive(raw) || IsRadicalCompositionActive(raw) || IsDateTimeCompositionActive(raw) ||
            IsEmojiCompositionActive(raw) || IsKaomojiCompositionActive(raw) || IsSymbolCompositionActive(raw) ||
-           IsJianpinCompositionActive(raw) || IsYModeCompositionActive(raw) || IsVModeCompositionActive(raw);
+           IsYModeCompositionActive(raw) || IsVModeCompositionActive(raw);
 }
 
 } // namespace event_listener_detail
@@ -636,30 +629,6 @@ void AppendRescoringContext(const std::string &committed_word)
     g_rescoring_context = FanyImeIpc::TrimRescoringContextFront(std::move(g_rescoring_context));
     if (g_inputSession)
         g_inputSession->set_rescoring_context(g_rescoring_context);
-}
-
-void SyncShuangpinPreeditForms()
-{
-    auto &composition = GlobalIme::composition;
-    composition.shuangpin_raw_segmentation.clear();
-    composition.shuangpin_quanpin_segmentation.clear();
-    composition.shuangpin_forms_source.clear();
-    // 只有 segmented_pinyin 就是双拼会话自己的切分时才换成全拼：特殊模式和英文模式都会把它
-    // 改写成按键原串，那些组合里的字母不是双拼编码。
-    if (!g_inputSession || g_inputSession->current_scheme_type() != SchemeType::Shuangpin || g_english_input_mode ||
-        IsSpecialModeCompositionActive(composition.raw_input_with_cases) ||
-        composition.segmented_pinyin != g_inputSession->get_pinyin_segmentation_with_cases())
-    {
-        return;
-    }
-    auto forms = g_inputSession->get_shuangpin_preedit_forms();
-    if (forms.quanpin.empty())
-    {
-        return;
-    }
-    composition.shuangpin_raw_segmentation = std::move(forms.raw);
-    composition.shuangpin_quanpin_segmentation = std::move(forms.quanpin);
-    composition.shuangpin_forms_source = composition.segmented_pinyin;
 }
 
 std::wstring BuildCreateWordPipePayload(const std::string &remaining_raw_input_with_cases,

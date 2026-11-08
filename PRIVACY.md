@@ -28,7 +28,7 @@ Settings live in `%LOCALAPPDATA%\metasequoiaime\config.toml`. Learned word frequ
 
 ## Uninstall
 
-Uninstalling deletes `%LOCALAPPDATA%\metasequoiaime` and `%PROGRAMDATA%\metasequoiaime` in full, including the user dictionary, settings and any installed skins. Back up `msime_user.db` first if you want to keep learned words. An in-place upgrade behaves differently: it preserves `msime_user.db`, `config.toml`, `config.base.toml`, `custom_translations.txt`, and the `skins`, `shuangpin`, `models` and `helpcodes\custom` directories, and replaces everything else.
+Uninstalling deletes `%LOCALAPPDATA%\metasequoiaime` and `%PROGRAMDATA%\metasequoiaime` in full, including the user dictionary, settings and any installed skins. Back up `msime_user.db` first if you want to keep learned words. An in-place upgrade behaves differently: it preserves `msime_user.db`, `config.toml`, `config.base.toml`, `custom_translations.txt`, and the `skins`, `models` and `helpcodes\custom` directories, and replaces everything else.
 
 ## General
 

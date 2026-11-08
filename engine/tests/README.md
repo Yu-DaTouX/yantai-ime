@@ -4,7 +4,7 @@
 
 | 目标 | main | 用途 |
 |---|---|---|
-| `imetest` | `src/test_pinyin.cpp` | 引擎测试：全拼/双拼会话、退格、词典增删与查询时序；注册源只有 `test_pinyin.cpp`，CI 不执行，仅作本地跑测试的入口 |
+| `imetest` | `src/test_pinyin.cpp` | 引擎测试：全拼会话、退格、词典增删与查询时序；注册源只有 `test_pinyin.cpp`，CI 不执行，仅作本地跑测试的入口 |
 | `eval_quanpin_autocorrect` | `src/eval_quanpin_autocorrect.cpp` | 全拼纠错离线评测：采样真实 msime.db 注错，测召回（R@1/R@3）、读音还原与温态延迟 |
 
 ## 构建

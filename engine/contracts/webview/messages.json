@@ -26,11 +26,6 @@
         "settings"
       ]
     },
-    "openShuangpinDirectory": {
-      "surfaces": [
-        "settings"
-      ]
-    },
     "collocationModelDownload": {
       "surfaces": [
         "settings"
@@ -301,7 +296,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Active configuration path; removed Japanese input mode, schema, R-mode, trilingual-cycle and Wubi settings are ignored."
+            "description": "Active configuration path; removed Japanese input mode, schema, R-mode, trilingual-cycle, Wubi and shuangpin settings are ignored."
           },
           "value": {
             "anyOf": [
@@ -725,8 +720,7 @@
       "data": {
         "type": "string",
         "enum": [
-          "quanpin",
-          "shuangpin"
+          "quanpin"
         ]
       }
     },

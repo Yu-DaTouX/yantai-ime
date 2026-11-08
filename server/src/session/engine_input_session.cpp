@@ -52,41 +52,26 @@ std::string ResolveLatticeLanguageModelPath()
     return file.empty() ? std::string() : metasequoia::path_to_utf8(file);
 }
 
-EngineInputSession::EngineInputSession(SchemeType scheme, const ShuangpinProfile &profile)
-    : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, profile, paths_)
+EngineInputSession::EngineInputSession(SchemeType scheme)
+    : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, 0, true, true, true, paths_)
 {
     ApplyConfiguration();
 }
 
 void EngineInputSession::ApplyConfiguration()
 {
-    const auto scheme = session_.scheme();
-    if (scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin)
+    const auto &schema = GetConfiguredQuanpinHelpcodeSchema();
+    if (schema != helpcode_schema_)
     {
-        const auto &schema = scheme == SchemeType::Quanpin ? GetConfiguredQuanpinHelpcodeSchema()
-                                                           : GetConfiguredShuangpinHelpcodeSchema();
-        if (schema != helpcode_schema_)
+        // Keep filtering and annotations on this session's captured resource layout.
+        // Applying unchanged settings on each key must not reload the tables.
+        auto keymap = HelpcodeUtils::load_helpcode_keymap(paths_.resources, schema);
+        if (session_.set_helpcode_schema(schema))
         {
-            // Keep filtering and annotations on this session's captured resource layout.
-            // Applying unchanged settings on each key must not reload the tables.
-            auto keymap = HelpcodeUtils::load_helpcode_keymap(paths_.resources, schema);
-            if (session_.set_helpcode_schema(schema))
-            {
-                helpcode_schema_ = schema;
-                helpcode_keymap_ = std::move(keymap);
-            }
+            helpcode_schema_ = schema;
+            helpcode_keymap_ = std::move(keymap);
         }
     }
-    session_.set_shuangpin_helpcode_enabled(GetConfiguredShuangpinHelpcodeEnabled());
-    // 大写触发给生效值：句中辅助码占着大写时末尾辅助码不收，与发给 TSF 的 EndHelpcodeTriggersChanged 一致。
-    session_.set_shuangpin_helpcode_triggers(GetConfiguredShuangpinHelpcodeDirect(),
-                                             IsConfiguredEndHelpcodeUppercaseTrigger());
-    session_.set_mid_sentence_helpcode_enabled(GetConfiguredShuangpinMidSentenceHelpcodeEnabled());
-    session_.set_direct_helpcode_enabled(GetConfiguredShuangpinDirectHelpcodeEnabled());
-    session_.set_direct_helpcode_end_trigger_enabled(GetConfiguredShuangpinDirectHelpcodeEndTrigger());
-    session_.set_direct_helpcode_markers(GetConfiguredShuangpinDirectHelpcodeSlash(),
-                                         GetConfiguredShuangpinDirectHelpcodeUppercase());
-    session_.set_mid_sentence_uppercase_trigger_enabled(GetConfiguredShuangpinMidSentenceHelpcodeUppercase());
     session_.set_quanpin_helpcode_enabled(GetConfiguredQuanpinHelpcodeEnabled());
     // One config key per correction type, no linkage: the server-side session carries the
     // same four-bit mask the engine and the preedit rebuild derive from the same request
@@ -96,9 +81,7 @@ void EngineInputSession::ApplyConfiguration()
         GetConfiguredQuanpinAutocorrectTransposition(), GetConfiguredQuanpinAutocorrectNeighbor(),
         GetConfiguredQuanpinAutocorrectDeletion(), GetConfiguredQuanpinAutocorrectInsertion());
     session_.set_quanpin_autocorrect_types(autocorrect_types);
-    // Fuzzy pinyin applies to both quanpin and shuangpin; the engine fuzzes on the
-    // converted quanpin syllables for shuangpin. Re-read on every key so setting
-    // changes take effect immediately.
+    // Re-read on every key so setting changes take effect immediately.
     session_.set_fuzzy_pinyin_options(GetConfiguredFuzzyPinyinOptions());
     // 长词前缀补全（#1343），同样每次击键重读。打分优先用设置页激活的万象等语法模型：补全和整句加成是
     // 两件事，整句加成关着时补全照样用它（文件不在时解析为空，退到 sc.lm 与随包神经模型）。补全关着时
@@ -153,7 +136,6 @@ void EngineInputSession::ApplyConfiguration()
         }
     }
     session_.set_sentence_association(association);
-    session_.set_shuangpin_preedit_uses_raw(GetConfiguredShuangpinPreeditMode() == "shuangpin");
 }
 
 void EngineInputSession::handle_key(UINT vk, UINT modifiers_down, WCHAR wch)
@@ -244,11 +226,6 @@ std::string EngineInputSession::get_pinyin_segmentation_with_cases() const
     return session_.get_pinyin_segmentation_with_cases();
 }
 
-IInputSession::ShuangpinPreeditForms EngineInputSession::get_shuangpin_preedit_forms() const
-{
-    return session_.get_shuangpin_preedit_forms();
-}
-
 std::vector<std::size_t> EngineInputSession::segment_raw_boundaries() const
 {
     return session_.segment_raw_boundaries();
@@ -272,48 +249,6 @@ bool EngineInputSession::reads_as_pinyin() const
 bool EngineInputSession::has_active_helpcode() const
 {
     return session_.has_active_helpcode();
-}
-
-bool EngineInputSession::accepts_mid_sentence_helpcode_marker(std::size_t caret) const
-{
-    // 开关在 ApplyConfiguration 里随每键重读；这里在吃键之前被问到，那一刻配置可能刚改过，
-    // 所以直接按当前配置判断，不等下一次重读。
-    return GetConfiguredShuangpinMidSentenceHelpcodeEnabled() && !GetConfiguredShuangpinDirectHelpcodeEnabled() &&
-           session_.accepts_mid_sentence_helpcode_marker_at(caret);
-}
-
-bool EngineInputSession::accepts_end_helpcode_marker(std::size_t caret) const
-{
-    // 同上，按当前配置判断。
-    return GetConfiguredShuangpinHelpcodeEnabled() && !GetConfiguredShuangpinHelpcodeDirect() &&
-           !GetConfiguredShuangpinDirectHelpcodeEnabled() && session_.accepts_end_helpcode_marker_at(caret);
-}
-
-bool EngineInputSession::accepts_direct_helpcode_slash(std::size_t caret) const
-{
-    // 同上，按当前配置判断。
-    return GetConfiguredShuangpinDirectHelpcodeEnabled() && GetConfiguredShuangpinDirectHelpcodeSlash() &&
-           session_.accepts_direct_helpcode_slash_at(caret);
-}
-
-std::optional<std::string> EngineInputSession::direct_helpcode_end_trigger_prefix(const std::string &typed)
-{
-    // 同上，按当前配置判断。
-    if (!IsConfiguredDirectHelpcodeEndTriggerActive())
-    {
-        return std::nullopt;
-    }
-    return session_.direct_helpcode_end_trigger_prefix(typed);
-}
-
-bool EngineInputSession::has_mid_sentence_helpcode() const
-{
-    return session_.has_mid_sentence_helpcode();
-}
-
-std::vector<IInputSession::WordItem> EngineInputSession::candidates_without_mid_sentence_helpcode()
-{
-    return session_.candidates_without_mid_sentence_helpcode();
 }
 
 void EngineInputSession::set_rescoring_context(std::string context)
@@ -403,8 +338,7 @@ std::vector<IInputSession::WordItem> EngineInputSession::query_radical(const std
 
 std::string EngineInputSession::get_helpcode_annotation(const std::string &word, bool uppercase_all) const
 {
-    const auto scheme = session_.scheme();
-    if (!helpcode_keymap_ || (scheme != SchemeType::Quanpin && scheme != SchemeType::Shuangpin))
+    if (!helpcode_keymap_ || session_.scheme() != SchemeType::Quanpin)
         return {};
     return HelpcodeUtils::compute_helpcodes(word, uppercase_all, helpcode_keymap_.get());
 }

@@ -7,7 +7,6 @@
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
 #include "engine/core/input_session.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 
 #include <sqlite3.h>
 #include <windows.h>
@@ -139,12 +138,6 @@ std::vector<std::string> QuanpinCandidateWordsFor(const std::string &typed, cons
     return CandidateWords(session);
 }
 
-std::vector<std::string> ShuangpinCandidateWordsFor(const std::string &typed, const metasequoia::RuntimePaths &paths)
-{
-    metasequoia::InputSession session(SchemeType::Shuangpin, GetMicrosoftShuangpinProfile(), paths);
-    TypeText(session, typed);
-    return CandidateWords(session);
-}
 } // namespace
 
 // R2/R3/R7：音节内 caret 向下取整到最后一个完整单元边界，候选等于独立键入该前缀的
@@ -270,56 +263,6 @@ TEST_CASE(CaretPrefixSuffixKeepsTheTypedCasing)
         session.set_caret(std::nullopt);
         session.recompute_candidates();
         REQUIRE_EQ(session.editing_text(), std::string("Hni'hao"));
-    }
-
-    std::filesystem::remove_all(directory);
-}
-
-// 双拼贪心配对（engine spec #187）：nihkb; → {0,2,4,6}、nihcb; → {0,2,3,5,6}，
-// caret 落在段中间时同样 floor 到完整段边界；首单元内侧向上取整到首单元末尾。
-TEST_CASE(CaretPrefixFloorsInsideShuangpinGreedyUnits)
-{
-    const auto directory = CreateCaretPrefixFixture();
-    const auto paths = FixturePaths(directory);
-
-    {
-        metasequoia::InputSession session(SchemeType::Shuangpin, GetMicrosoftShuangpinProfile(), paths);
-        TypeText(session, "nihkb;");
-        REQUIRE(CandidateWordIndex(session, "你好") < session.candidates().size());
-        REQUIRE_EQ(session.prefix_end(), std::size_t{6});
-        REQUIRE(session.pending_suffix().empty());
-
-        session.set_caret(1);
-        session.recompute_candidates();
-        REQUIRE_EQ(session.prefix_end(), std::size_t{2});
-        REQUIRE_EQ(session.pending_suffix(), std::string("hkb;"));
-        REQUIRE(SameCandidateWords(session, ShuangpinCandidateWordsFor("ni", paths)));
-
-        session.set_caret(3);
-        session.recompute_candidates();
-        REQUIRE_EQ(session.prefix_end(), std::size_t{2});
-        REQUIRE_EQ(session.pending_suffix(), std::string("hkb;"));
-        REQUIRE(SameCandidateWords(session, ShuangpinCandidateWordsFor("ni", paths)));
-
-        session.set_caret(5);
-        session.recompute_candidates();
-        REQUIRE_EQ(session.prefix_end(), std::size_t{4});
-        REQUIRE_EQ(session.pending_suffix(), std::string("b;"));
-        REQUIRE(CandidateWordIndex(session, "你好") < session.candidates().size());
-        REQUIRE(SameCandidateWords(session, ShuangpinCandidateWordsFor("nihk", paths)));
-
-        session.set_caret(6);
-        session.recompute_candidates();
-        REQUIRE_EQ(session.prefix_end(), std::size_t{6});
-        REQUIRE(!session.candidates().empty());
-
-        session.handle_command(metasequoia::Command::Cancel);
-        TypeText(session, "nihcb;");
-        session.set_caret(4);
-        session.recompute_candidates();
-        REQUIRE_EQ(session.prefix_end(), std::size_t{3});
-        REQUIRE_EQ(session.pending_suffix(), std::string("cb;"));
-        REQUIRE(SameCandidateWords(session, ShuangpinCandidateWordsFor("nih", paths)));
     }
 
     std::filesystem::remove_all(directory);

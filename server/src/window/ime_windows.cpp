@@ -198,13 +198,6 @@ void ApplyConfiguredInputScheme()
     BroadcastConfiguredKeyPolicies();
 }
 
-void ApplyConfiguredShuangpinSchema()
-{
-    FanyNamedPipe::EnqueueReloadInputSessionTask();
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::MicrosoftShuangpinChanged,
-                                           IsConfiguredShuangpinSemicolonFinal() ? L"1" : L"0");
-}
-
 LRESULT RegisterCandidateWindowMessage()
 {
 

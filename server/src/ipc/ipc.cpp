@@ -831,7 +831,6 @@ bool ClientNegotiatedCaretStateIndicator(uint64_t client_id)
            (it->second.protocol.capabilities & FanyImeProtocol::CaretStateIndicator) != 0;
 }
 
-
 bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
 {
     std::lock_guard lock(g_pipe_clients_mutex);
@@ -839,7 +838,6 @@ bool ClientNegotiatedInputStateShortcuts(uint64_t client_id)
     return it != g_pipe_clients.end() && !it->second.protocol.legacy &&
            (it->second.protocol.capabilities & FanyImeProtocol::InputStateShortcuts) != 0;
 }
-
 
 uint64_t RegisterToTsfPipeClient(uint64_t client_id, HANDLE pipe)
 {
@@ -1753,21 +1751,6 @@ void SendToTsfWorkerThreadViaNamedpipe(UINT msg_type, const std::wstring &pipeDa
 
 void BroadcastConfiguredKeyPolicies()
 {
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged,
-                                           FormatMidSentenceHelpcodeWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(
-        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged,
-        FormatMidSentenceHelpcodeSemicolonWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged,
-                                           FormatDirectHelpcodeWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(
-        Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged,
-        FormatDirectHelpcodeEndTriggerWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(
-        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged,
-        FormatMidSentenceHelpcodeUppercaseWorkerPayload());
-    BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged,
-                                           FormatEndHelpcodeTriggersWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged,
                                            FormatVModeWorkerPayload());
     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged,

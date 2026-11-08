@@ -514,21 +514,6 @@ bool SetConfiguredSymbolModeEnabled(bool enabled)
     return true;
 }
 
-bool GetConfiguredJianpinModeEnabled()
-{
-    return g_jianpin_mode_enabled;
-}
-
-bool SetConfiguredJianpinModeEnabled(bool enabled)
-{
-    if (!WriteConfiguredValue("utility", "jianpin_mode", enabled ? "true" : "false"))
-    {
-        return false;
-    }
-    g_jianpin_mode_enabled = enabled;
-    return true;
-}
-
 bool GetConfiguredYModeEnabled()
 {
     return g_y_mode_enabled;
@@ -562,13 +547,7 @@ bool SetConfiguredVModeEnabled(bool enabled)
 std::wstring FormatVModeWorkerPayload()
 {
     using FanyImeVModeInput::Trigger;
-    // 双拼只认大写 V：小写 v 在双拼里是合法码字，大小写都认会把「码 v 选第 N 个候选」
-    // 变成 V 模式，破坏选词。
-    const SchemeType scheme = GetConfiguredInputScheme();
-    const Trigger trigger = !g_v_mode_enabled                 ? Trigger::Off
-                            : scheme == SchemeType::Quanpin   ? Trigger::AnyCase
-                            : scheme == SchemeType::Shuangpin ? Trigger::UppercaseOnly
-                                                              : Trigger::Off;
+    const Trigger trigger = g_v_mode_enabled ? Trigger::AnyCase : Trigger::Off;
     return std::wstring(1, FanyImeVModeInput::PayloadFromTrigger(trigger));
 }
 

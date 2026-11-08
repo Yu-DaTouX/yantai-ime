@@ -170,9 +170,8 @@ void CMetasequoiaIME::_StartThemeRegistryWatcher()
                 break;
             }
 
-            if (!ResetEvent(_themeRegEvent) ||
-                RegNotifyChangeKeyValue(_themeRegKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, _themeRegEvent, TRUE) !=
-                    ERROR_SUCCESS)
+            if (!ResetEvent(_themeRegEvent) || RegNotifyChangeKeyValue(_themeRegKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET,
+                                                                       _themeRegEvent, TRUE) != ERROR_SUCCESS)
             {
                 break;
             }

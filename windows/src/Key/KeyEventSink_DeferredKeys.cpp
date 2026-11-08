@@ -25,7 +25,6 @@
 #include "../Utils/PerfTimer.h"
 #include <chrono>
 #include "../../../engine/contracts/ipc_negotiation.h"
-#include "../../../engine/contracts/mid_sentence_helpcode.h"
 #include "KeyEventSinkInternal.h"
 
 using namespace key_event_sink_detail;
@@ -84,9 +83,6 @@ void ApplyDeferredKeyState(DeferredShadowState &shadow, const _KEYSTROKE_STATE &
     {
     case FUNCTION_INPUT:
         shadow.caret = min(shadow.caret, shadow.rawInput.size());
-        // 和真正加入按键缓冲时一样，分号触发的句中辅助码记成反引号，末尾辅助码的触发键记成 kEndMarker。
-        wch = CCompositionProcessorEngine::NormalizeMidSentenceHelpcodeTrigger(wch, shadow.rawInput.data(),
-                                                                               shadow.rawInput.size(), shadow.caret);
         if (shadow.rawInput.size() < MAX_PINYIN_LENGTH && wch != L'\0')
         {
             const bool duplicateSeparator =
@@ -127,7 +123,6 @@ void ApplyDeferredKeyState(DeferredShadowState &shadow, const _KEYSTROKE_STATE &
     case FUNCTION_MOVE_RIGHT_SEGMENT:
     case FUNCTION_MOVE_LEFT_CANDIDATE:
     case FUNCTION_MOVE_RIGHT_CANDIDATE:
-    case FUNCTION_SERVER_COMPOSITION_REWRITE:
         // How much one unit covers is Server-owned, as is whether a candidate
         // arrow moves the highlight or the caret (or how the direct helpcode end
         // trigger rewrites the spelling), so the future raw and caret
@@ -484,7 +479,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         shadow.candidateActive = _candidateMode == CANDIDATE_ORIGINAL;
     }
 
-
     const auto setKeyState = [keyState](KEYSTROKE_CATEGORY category, KEYSTROKE_FUNCTION function) {
         keyState->Category = category;
         keyState->Function = function;
@@ -510,15 +504,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         return setKeyState(CATEGORY_COMPOSING, FUNCTION_BACKSPACE);
     }
 
-    // 与同步路径（CompositionProcessorEngine_KeyClassify.cpp）一致：直接辅助码下进入末尾辅助码的引导键和删掉它的退格
-    // 交给 Server 改写，按影子状态算。
-    if (shadow.imeOpen &&
-        CCompositionProcessorEngine::IsDirectHelpcodeEndTriggerRewriteKey(
-            *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret))
-    {
-        return setKeyState(CATEGORY_COMPOSING, FUNCTION_SERVER_COMPOSITION_REWRITE);
-    }
-
     _KEYSTROKE_STATE inputState = {};
     WCHAR inputWch = *classifiedWch;
     bool isInputKey = false;
@@ -531,30 +516,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
                                            _pCompositionProcessorEngine->IsWildcardChar(*classifiedWch))))
         {
             isInputKey = true;
-        }
-        // 直接辅助码开着时 ; 韵母不看奇偶（辅码会打乱奇偶），交给下面的 IsDirectHelpcodeInputKey，与同步路径和
-        // Server 用同一条规则；这里再按奇偶放行，uiab/; 这类输入两边就会分叉。
-        if (!isInputKey && Global::MicrosoftShuangpinEnabled.load(std::memory_order_relaxed) &&
-            !Global::DirectHelpcodeEnabled.load(std::memory_order_relaxed) && *classifiedCode == VK_OEM_1 &&
-            *classifiedWch == L';' && !shadow.rawInput.empty())
-        {
-            // 与同步路径同一条规则：大写触发开着、或缓冲里有末尾段时，段不算这一节的键。
-            isInputKey = FanyImeMidSentenceHelpcode::AcceptsSemicolonFinalAt(
-                shadow.rawInput.data(), shadow.rawInput.size(), min(shadow.caret, shadow.rawInput.size()),
-                {Global::MidSentenceHelpcodeUppercaseEnabled.load(std::memory_order_relaxed),
-                 (Global::EndHelpcodeTriggers.load(std::memory_order_relaxed) & FanyImeEndHelpcode::kUppercase) != 0});
-        }
-        // 与 CompositionProcessorEngine_KeyClassify.cpp 的句中辅助码、末尾辅助码（间接）判断一致，按影子状态算。
-        if (!isInputKey)
-        {
-            isInputKey = CCompositionProcessorEngine::IsMidSentenceHelpcodeTriggerKey(
-                *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
-        }
-        // 直接辅助码的 / 与不看奇偶的 ; 韵母，同样按影子状态算。
-        if (!isInputKey)
-        {
-            isInputKey = CCompositionProcessorEngine::IsDirectHelpcodeInputKey(
-                *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
         }
         // T 模式指定日期时间的数字、/ 和 :，与同步路径同一条形状规则，按影子状态算。
         if (!isInputKey)
@@ -581,7 +542,6 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
             isInputKey = false;
         }
     }
-
 
     if (shadow.candidateActive && isInputKey)
     {
@@ -1070,7 +1030,6 @@ void CMetasequoiaIME::_DrainOneDeferredKeyDown()
             // raw text already held by the TSF composition.
             offlineState.Function = FUNCTION_FINALIZE_TEXTSTORE;
             break;
-        case FUNCTION_SERVER_COMPOSITION_REWRITE:
             // Nothing can rewrite the spelling offline: Backspace deletes one
             // character, a guide key commits the raw text like the other Server keys.
             offlineState.Function = key.wParam == VK_BACK ? FUNCTION_BACKSPACE : FUNCTION_FINALIZE_TEXTSTORE;

@@ -34,7 +34,7 @@ TEST_CASE(v_mode_composition_follows_the_scheme_trigger)
     const std::string upper = "V12";
     const std::string lower = "v12";
     const std::string word = "vip";
-    // 全拼大小写都认；双拼只认大写；关着都不认。
+    // 全拼大小写都认；关着都不认。
     REQUIRE(FanyImeVModeInput::IsComposition(upper.data(), upper.size(), Trigger::AnyCase));
     REQUIRE(FanyImeVModeInput::IsComposition(lower.data(), lower.size(), Trigger::AnyCase));
     REQUIRE(FanyImeVModeInput::IsComposition(upper.data(), upper.size(), Trigger::UppercaseOnly));

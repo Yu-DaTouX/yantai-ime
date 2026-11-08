@@ -42,14 +42,6 @@ constexpr bool IsPinyinCommitKey(uint32_t keycode, uint32_t modifiers_down)
     return keycode == 0x0D && (modifiers_down & kKeyModifierMask) == kModifierShift;
 }
 
-inline std::string EnteredPinyinText(const std::string &raw, std::string quanpin, bool convert_shuangpin)
-{
-    if (!convert_shuangpin || quanpin.empty())
-        return raw;
-    quanpin.erase(std::remove(quanpin.begin(), quanpin.end(), '\''), quanpin.end());
-    return quanpin;
-}
-
 // Shift+- and Shift+= insert the ASCII underscore and plus instead of changing
 // pages. Only a bare Shift qualifies: Ctrl and Alt combinations keep their
 // meaning, and the unshifted keys stay paging keys. The UI-less bit sits outside
@@ -108,9 +100,9 @@ constexpr bool ShouldLearnEnteredEnglishWord(bool dedicated_english_mode, bool s
 // is_date_time_input_key：Shift+T 指定日期时间里进输入串的数字、/ 和 :。TSF 把它们当输入键，pinyin 预编辑
 // 样式和 UILess 下同样要等这一帧。
 constexpr bool ShouldSendCompositionReply(bool is_alpha_key, bool is_manual_pinyin_separator,
-                                          bool is_microsoft_shuangpin_ing_key, bool is_date_time_input_key = false)
+                                          bool is_date_time_input_key = false)
 {
-    return is_alpha_key || is_manual_pinyin_separator || is_microsoft_shuangpin_ing_key || is_date_time_input_key;
+    return is_alpha_key || is_manual_pinyin_separator || is_date_time_input_key;
 }
 
 // Backspace inside a live creating-word state retracts the newest selection

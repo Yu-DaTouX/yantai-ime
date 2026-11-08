@@ -2,7 +2,6 @@
 
 #include "../../core/input_session_types.h"
 #include "../../core/runtime_paths.h"
-#include "../../shuangpin/shuangpin_profile.h"
 #include "../../core/fuzzy_pinyin_options.h"
 #include <memory>
 
@@ -12,7 +11,6 @@ struct SessionOptions
 {
     RuntimePaths paths;
     SchemeType scheme = SchemeType::Quanpin;
-    ShuangpinProfile shuangpin_profile = GetXiaoheShuangpinProfile();
     std::string helpcode_schema = "lantian";
     // Quanpin autocorrection type mask (quanpin::kAutocorrect* bits); 0 keeps the
     // user's spelling untouched, which is the default for a fresh install.
@@ -77,8 +75,7 @@ class Session
     void switch_scheme(SchemeType scheme);
     static bool is_supported_helpcode_schema(const std::string &schema);
     bool set_helpcode_schema(const std::string &schema);
-    // Apply the same enable flag to quanpin and shuangpin, as SessionOptions::helpcode does.
-    // Hosts with per-scheme preferences apply the selected preference after switching.
+    // Applies the helpcode enable flag, as SessionOptions::helpcode does at construction.
     void set_helpcode_enabled(bool enabled);
     void set_dedicated_english(bool enabled);
     SessionSnapshot snapshot() const;

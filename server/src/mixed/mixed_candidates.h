@@ -25,10 +25,9 @@ struct Request
     bool emoji = false;
     bool kaomoji = false;
     // 符号只认整串精确等于编码、且建库时标了可混输的行（alpha、szq、yi → ①），和 emoji 的前缀匹配不同。
-    // 按顺序试，取第一个查得到的：双拼先放换算出的全拼（sj → san），再放原始按键；空表示这次不查。
+    // 按顺序试，取第一个查得到的；空表示这次不查。
     std::vector<std::string> symbol_codes;
-    // 日期时间唤醒词（rq / riqi / sj ...），空串表示这次不查。双拼要先换算成全拼才认得出
-    // shijian 这类整拼，换算依赖会话，所以在任务线程上算好再交过来。
+    // 日期时间唤醒词（rq / riqi / sj ...），空串表示这次不查。
     std::string date_time_keyword;
 };
 

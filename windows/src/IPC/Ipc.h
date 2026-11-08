@@ -10,9 +10,7 @@
 #include <vector>
 
 #include "../../../engine/contracts/windows_ipc.h"
-#include "../../../engine/contracts/direct_helpcode.h"
 #include "../../../engine/contracts/enumeration_comma.h"
-#include "../../../engine/contracts/mid_sentence_helpcode.h"
 #include "../../../engine/contracts/v_mode_input.h"
 
 class CMetasequoiaIME;
@@ -56,9 +54,6 @@ bool SupportsCompositionRestore();
 // 候选态下的普通左右键交给 Server 决定移高亮还是移光标：Server 打开了横排左右键选词、协商过 CompositionRestore
 // （光标移动要靠它的回复落地），且不是 UILess 宿主。
 bool UsesHorizontalArrowSelection();
-// 直接辅助码下用引导键进入末尾辅助码：Server 发来了生效的引导键（DirectHelpcodeEndTriggerChanged）、协商过
-// CompositionRestore（改写后的输入串要靠它的回复落地），且不是 UILess 宿主。
-bool UsesDirectHelpcodeEndTrigger();
 bool SupportsCaretStateIndicator();
 bool SupportsInputStateShortcuts();
 bool FlushNamedpipeFocusSessionReset();
@@ -292,30 +287,8 @@ inline std::atomic<unsigned> EnumerationCommaKeys{FanyImeEnumerationComma::kLega
 // 横排候选时左右方向键移动高亮（Server 发 HorizontalArrowSelectionChanged）。开着时候选态下的左右键交给 Server
 // 决定移高亮还是移光标，TSF 只应用回复；Server 连上之前和旧 Server 都是关，左右键照旧本地移光标。
 inline std::atomic_bool HorizontalArrowSelectionEnabled{false};
-inline std::atomic_bool MicrosoftShuangpinEnabled{false};
-// 双拼句中辅助码开着、勾了反引号且当前是双拼：组合中的反引号按
-// engine/contracts/mid_sentence_helpcode.h 的形状规则当编码键吃掉，见 CompositionProcessorEngine_KeyClassify.cpp。
-inline std::atomic_bool MidSentenceHelpcodeEnabled{false};
-// 同上，换成分号触发键（设置里多选）。分号触发的段在按键缓冲里同样记成反引号。
-inline std::atomic_bool MidSentenceHelpcodeSemicolonEnabled{false};
-// 句中辅助码的大写触发生效：完整音节后的大写字母自己开一段。字母键照常吃，只改变反引号/分号与 ; 韵母
-// 判断时这一节怎么数（大写段不算键），规则见 engine/contracts/mid_sentence_helpcode.h。
-inline std::atomic_bool MidSentenceHelpcodeUppercaseEnabled{false};
-// 双拼末尾辅助码（间接）此刻生效的触发键，FanyImeEndHelpcode::kBacktick / kSemicolon / kUppercase 的组合。
-// 反引号、分号在输入末尾能开一段时当编码键吃掉，缓冲里记成 kEndMarker；大写位只改变 ; 韵母等判断时这一节
-// 怎么数。规则见 engine/contracts/mid_sentence_helpcode.h。
-inline std::atomic<unsigned> EndHelpcodeTriggers{0};
-// 双拼直接辅助码（万象式）开着且当前是双拼：四码后的 / 当编码键吃掉，; 韵母不再看奇偶，规则见
-// engine/contracts/direct_helpcode.h。
-inline std::atomic_bool DirectHelpcodeEnabled{false};
-// 直接辅助码开着时 / 是不是四码的终止键（设置里可以只留「第二位辅码大写」）。没勾时 / 仍按标点处理。
-inline std::atomic_bool DirectHelpcodeSlashEnabled{true};
-// 直接辅助码下进入末尾辅助码的引导键（Server 发 DirectHelpcodeEndTriggerChanged），FanyImeEndHelpcode::kBacktick /
-// kSemicolon 的组合。输入末尾形状合适的引导键、以及删掉它留下的末尾段开头的退格都交给 Server 改写输入串，TSF 照
-// 它的 CompositionRestored 重建缓冲，规则见 engine/contracts/direct_helpcode.h。
-inline std::atomic<unsigned> DirectHelpcodeEndTriggerKeys{0};
-// V 模式（数字转中文、算式计算）由哪个前缀开启：双拼只认大写 V，全拼 V、v 都认，关着或不是全拼/双拼时
-// 不开。V 后面的数字和 . + - * / ( ) 按 engine/contracts/v_mode_input.h 的规则当编码键吃掉。
+// V 模式（数字转中文、算式计算）由哪个前缀开启：全拼 V、v 都认，关着时不开。V 后面的数字和
+// . + - * / ( ) 按 engine/contracts/v_mode_input.h 的规则当编码键吃掉。
 inline std::atomic<FanyImeVModeInput::Trigger> VModeTrigger{FanyImeVModeInput::Trigger::Off};
 // Enabled only after a supporting Server sends the persisted setting.
 inline std::atomic_bool CapsLockEnabled{false};

@@ -216,18 +216,8 @@ int main()
         type(session, "zhong");
         require(session.select(index(session, "宗")).commit == "宗" && session.snapshot().preedit.empty(),
                 "reverse selection left input behind");
-        options.scheme = SchemeType::Shuangpin;
-        Session doublePinyin(options);
-        type(doublePinyin, "zsgo");
-        require(doublePinyin.select(index(doublePinyin, "中")).commit == "中" &&
-                    doublePinyin.snapshot().editing_text == "go",
-                "shuangpin fuzzy consumption");
-        require(doublePinyin.finish().commit == "国", "shuangpin suffix failed");
         options.helpcode = true;
         Session helped(options);
-        type(helped, "zsaB");
-        require(helped.select(index(helped, "中")).commit == "中" && helped.snapshot().preedit.empty(),
-                "shuangpin helpcode fuzzy selection");
         options.scheme = SchemeType::Quanpin;
         Session helpedFull(options);
         type(helpedFull, "zongAB");
@@ -241,11 +231,6 @@ int main()
         require(learned.select(index(learned, "国")).commit == "国", "learn suffix");
         require(dictionary.find_candidate("zhong'guo", "中国").has_value(), "canonical phrase lost");
         require(!dictionary.find_candidate("zong'guo", "中国").has_value(), "learned mistyped pronunciation");
-        options.scheme = SchemeType::Shuangpin;
-        options.fuzzy_pinyin.rules = 0;
-        Session exact(options);
-        type(exact, "zsgo");
-        require(!contains(exact.snapshot().candidates, "中国"), "session configuration leaked");
         const auto start = std::chrono::steady_clock::now();
         for (int i = 0; i < 200; ++i)
             dictionary.query("zongguo", "zong'guo", false, {0x7ff});

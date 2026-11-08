@@ -49,4 +49,3 @@ void RevealAutoHiddenFloatingToolbar(const wchar_t *reason);
 std::wstring DescribeTrayMenuHostState();
 void ApplyConfiguredFloatingToolbarSize();
 void ApplyConfiguredInputScheme();
-void ApplyConfiguredShuangpinSchema();

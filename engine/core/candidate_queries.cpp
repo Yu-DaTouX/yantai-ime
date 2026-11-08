@@ -2,7 +2,6 @@
 #include "data_path.h"
 #include "../contracts/assets/assets.h"
 #include "../local_modes/emoji_query.h"
-#include "../local_modes/jianpin_query.h"
 #include "../local_modes/kaomoji_query.h"
 #include "../local_modes/quick_phrase_query.h"
 #include "../local_modes/radical_query.h"
@@ -38,24 +37,15 @@ local_modes::LocalQueryResult CandidateQueries::local(LocalInputMode mode, const
         return result;
     }
     case LocalInputMode::Emoji: {
-        local_modes::LocalQueryResult query = local_modes::query_emoji(
-            preedit.substr(1), scheme, paths_.resource(assets::other_dictionary), 10, shuangpin_profile_);
+        local_modes::LocalQueryResult query =
+            local_modes::query_emoji(preedit.substr(1), scheme, paths_.resource(assets::other_dictionary), 10);
         result.candidates = std::move(query.candidates);
         result.diagnostic = std::move(query.diagnostic);
         return result;
     }
     case LocalInputMode::Kaomoji: {
-        local_modes::LocalQueryResult query = local_modes::query_kaomoji(
-            preedit.substr(1), scheme, paths_.resource(assets::other_dictionary), 10, shuangpin_profile_);
-        result.candidates = std::move(query.candidates);
-        result.diagnostic = std::move(query.diagnostic);
-        return result;
-    }
-    case LocalInputMode::SuperJianpin: {
-        const std::string code = preedit.substr(1);
-        const int limit = code.size() == 1 ? 24 : 100;
-        local_modes::LocalQueryResult query = local_modes::query_jianpin(
-            code, scheme, paths_.dictionary(assets::main_dictionary), limit, shuangpin_profile_);
+        local_modes::LocalQueryResult query =
+            local_modes::query_kaomoji(preedit.substr(1), scheme, paths_.resource(assets::other_dictionary), 10);
         result.candidates = std::move(query.candidates);
         result.diagnostic = std::move(query.diagnostic);
         return result;
@@ -104,8 +94,7 @@ std::vector<WordItem> CandidateQueries::mixed(std::vector<WordItem> candidates, 
 
     if ((!english_options.mixed_candidates && !expressive_options.emoji_candidates &&
          !expressive_options.kaomoji_candidates) ||
-        dedicated_english || local_mode != LocalInputMode::None ||
-        (scheme != SchemeType::Quanpin && scheme != SchemeType::Shuangpin))
+        dedicated_english || local_mode != LocalInputMode::None || scheme != SchemeType::Quanpin)
     {
         return candidates;
     }
@@ -145,18 +134,15 @@ std::vector<WordItem> CandidateQueries::mixed(std::vector<WordItem> candidates, 
     std::vector<WordItem> emoji_candidates;
     if (expressive_options.emoji_candidates && prefix.size() >= 2)
     {
-        emoji_candidates =
-            collect_unique(local_modes::query_mixed_emoji(prefix, scheme, paths_.resource(assets::other_dictionary), 3,
-                                                          shuangpin_profile_)
-                               .candidates);
+        emoji_candidates = collect_unique(
+            local_modes::query_mixed_emoji(prefix, scheme, paths_.resource(assets::other_dictionary), 3).candidates);
     }
 
     std::vector<WordItem> kaomoji_candidates;
     if (expressive_options.kaomoji_candidates && prefix.size() >= 2)
     {
         kaomoji_candidates = collect_unique(
-            local_modes::query_kaomoji(prefix, scheme, paths_.resource(assets::other_dictionary), 3, shuangpin_profile_)
-                .candidates);
+            local_modes::query_kaomoji(prefix, scheme, paths_.resource(assets::other_dictionary), 3).candidates);
     }
 
     std::size_t priority_slot = std::min<std::size_t>(1, candidates.size());

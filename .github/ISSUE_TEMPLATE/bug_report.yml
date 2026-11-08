@@ -50,7 +50,6 @@ body:
       label: 输入方案 / Input Scheme
       options:
         - 全拼 / Full Pinyin
-        - 双拼 / Double Pinyin
         - 五笔 / Wubi
         - 其他 / Other
         - 不适用 / N/A

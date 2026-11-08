@@ -11,9 +11,7 @@
 #include "ipc/candidate_translation_policy.h"
 #include "ipc/input_key_policy.h"
 #include "engine/contracts/date_time_input.h"
-#include "engine/contracts/direct_helpcode.h"
 #include "engine/contracts/ipc_negotiation.h"
-#include "engine/contracts/mid_sentence_helpcode.h"
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "utils/common_utils.h"
@@ -33,8 +31,7 @@ namespace
 bool IsShiftLetterSpecialModeTriggered()
 {
     return g_quick_phrase_triggered || g_radical_mode_triggered || g_date_time_mode_triggered ||
-           g_emoji_mode_triggered || g_kaomoji_mode_triggered || g_symbol_mode_triggered || g_jianpin_mode_triggered ||
-           g_y_mode_triggered;
+           g_emoji_mode_triggered || g_kaomoji_mode_triggered || g_symbol_mode_triggered || g_y_mode_triggered;
 }
 
 // 字母键写进 raw 的那个字母：键产生了字母就照收（保留大小写），否则取键位本身的小写字母。
@@ -105,47 +102,11 @@ bool IsManualPinyinSeparatorKey(UINT keycode, WCHAR wch)
            !g_inputSession->get_pinyin_sequence().empty();
 }
 
-bool IsMicrosoftShuangpinIngKeyAt(UINT keycode, WCHAR wch, const std::string &raw_input, size_t caret)
-{
-    if (keycode != VK_OEM_1 || wch != L';' || !IsConfiguredShuangpinSemicolonFinal() || g_inputSession == nullptr ||
-        g_inputSession->current_scheme_type() != SchemeType::Shuangpin)
-    {
-        return false;
-    }
-
-    // 直接辅助码的辅码会打乱奇偶，改成只看前一个键是不是字母；TSF 按同一条规则吃键。
-    if (GetConfiguredShuangpinDirectHelpcodeEnabled())
-    {
-        return FanyImeDirectHelpcode::AcceptsSemicolonFinalAt(raw_input.data(), raw_input.size(), caret);
-    }
-    // 句中辅助码或末尾辅助码的大写触发生效时大写段不算这一节的键，末尾段同样不算；都没有时就是原来「最后一个 '
-    // 之后数奇偶」。TSF 同规则。
-    return FanyImeMidSentenceHelpcode::AcceptsSemicolonFinalAt(
-        raw_input.data(), raw_input.size(), caret,
-        {IsConfiguredMidSentenceHelpcodeUppercaseTrigger(), IsConfiguredEndHelpcodeUppercaseTrigger()});
-}
-
-// 双拼直接辅助码四码后的 /：光标前是「两键音节 + 两位辅码」的形状时它是编码键而不是标点。TSF 按同一条
-// 形状规则（FanyImeDirectHelpcode::AcceptsSlashAt）预判吃键，光标按 IsMidSentenceHelpcodeMarkerKey 同样的
-// 方式算。
-bool IsDirectHelpcodeSlashKey(UINT keycode, WCHAR wch, const std::string &raw_input)
-{
-    if (keycode != VK_OEM_2 || wch != L'/' || g_english_input_mode || g_inputSession == nullptr)
-    {
-        return false;
-    }
-    const auto &composition = GlobalIme::composition;
-    const size_t caret = composition.raw_input_with_cases != raw_input && composition.caret_position == 0
-                             ? raw_input.size()
-                             : (std::min)(composition.caret_position, raw_input.size());
-    return g_inputSession->accepts_direct_helpcode_slash(caret);
-}
-
 // Shift+T 指定日期时间的数字、/ 和 :：插入后 T 后面那一串还能接成某种日期时间形状时它是编码键，否则数字
 // 仍是选词键、/ 和 : 仍是标点；Shift+数字的字符不是数字，始终选词。TSF 看不到配置，只按开头的 T 和同一条
 // 形状规则（FanyImeDateTimeInput::AcceptsAt）预判吃键，所以这里也不看 T 模式开没开，两边的输入串才不会
 // 分叉。小键盘数字到这里时已经归一成主键盘数字（NormalizeNumpadDigitKey），TSF 同样收它。光标按
-// IsDirectHelpcodeSlashKey 同样的方式算。
+// 同一方式算。
 bool IsDateTimeInputKey(UINT keycode, WCHAR wch, const std::string &raw_input)
 {
     const bool digit = keycode >= '0' && keycode <= '9' && wch >= L'0' && wch <= L'9';
@@ -164,8 +125,7 @@ bool IsDateTimeInputKey(UINT keycode, WCHAR wch, const std::string &raw_input)
 
 // V 模式的数字和 . + - * / ( )：插入后仍是一段 V 模式输入时是编码键，不再选词、翻页或当标点。只看字符不看
 // 键位，主键盘和小键盘一样；Shift+1 这类出 ! 的仍是选词键。TSF 按同一条规则
-// （FanyImeVModeInput::AcceptsAt）和同一个 Trigger（VModeChanged）预判吃键。光标按 IsDirectHelpcodeSlashKey
-// 同样的方式算。
+// （FanyImeVModeInput::AcceptsAt）和同一个 Trigger（VModeChanged）预判吃键。光标按同一方式算。
 bool IsVModeInputKey(WCHAR wch, const std::string &raw_input)
 {
     if (wch > 0x7f || g_inputSession == nullptr)
@@ -178,80 +138,6 @@ bool IsVModeInputKey(WCHAR wch, const std::string &raw_input)
                              : (std::min)(composition.caret_position, raw_input.size());
     return FanyImeVModeInput::AcceptsAt(raw_input.data(), raw_input.size(), caret, static_cast<char>(wch),
                                         CurrentVModeTrigger());
-}
-
-bool IsMicrosoftShuangpinIngKey(UINT keycode, WCHAR wch, const std::string &raw_input)
-{
-    return IsMicrosoftShuangpinIngKeyAt(keycode, wch, raw_input,
-                                        (std::min)(GlobalIme::composition.caret_position, raw_input.size()));
-}
-
-// 句中辅助码的触发键（反引号或分号，按设置里勾选的）：开关开着、双拼，且光标前这一节能接一段时，
-// 它是编码键而不是标点，输入串里一律记成反引号。光标可以在句中（用箭头移回去补辅助码）。TSF 端按
-// 同一条形状规则（FanyImeMidSentenceHelpcode::AcceptsMarkerAt）预判吃键，光标也按
-// ApplyCompositionEditKey 插字时的同一个位置算。分号先让给 ing 韵母（IsMicrosoftShuangpinIngKey），
-// 两侧判断顺序一致。
-bool IsMidSentenceHelpcodeMarkerKey(UINT keycode, WCHAR wch, const std::string &raw_input)
-{
-    const bool backtick = keycode == VK_OEM_3 && wch == L'`';
-    const bool semicolon = keycode == VK_OEM_1 && wch == L';';
-    if ((!backtick && !semicolon) || !IsConfiguredMidSentenceHelpcodeTrigger(wch) || g_english_input_mode ||
-        g_inputSession == nullptr)
-    {
-        return false;
-    }
-    const auto &composition = GlobalIme::composition;
-    const size_t caret = composition.raw_input_with_cases != raw_input && composition.caret_position == 0
-                             ? raw_input.size()
-                             : (std::min)(composition.caret_position, raw_input.size());
-    if (semicolon && IsMicrosoftShuangpinIngKeyAt(keycode, wch, raw_input, caret))
-    {
-        return false;
-    }
-    return g_inputSession->accepts_mid_sentence_helpcode_marker(caret);
-}
-
-// 双拼末尾辅助码（间接）的触发键（反引号或分号，按设置里勾选的、且没被句中辅助码占着的）：开关开着、
-// 关着直接触发、双拼，且光标在输入串末尾、前面是一个个完整音节时，它是编码键而不是标点，输入串里一律
-// 记成 FanyImeMidSentenceHelpcode::kEndMarker。TSF 按同一条形状规则（AcceptsEndMarkerAt）预判吃键；
-// 分号同样先让给 ing 韵母。
-bool IsEndHelpcodeMarkerKey(UINT keycode, WCHAR wch, const std::string &raw_input)
-{
-    const bool backtick = keycode == VK_OEM_3 && wch == L'`';
-    const bool semicolon = keycode == VK_OEM_1 && wch == L';';
-    if ((!backtick && !semicolon) || !IsConfiguredEndHelpcodeTrigger(wch) || g_english_input_mode ||
-        g_inputSession == nullptr)
-    {
-        return false;
-    }
-    const auto &composition = GlobalIme::composition;
-    const size_t caret = composition.raw_input_with_cases != raw_input && composition.caret_position == 0
-                             ? raw_input.size()
-                             : (std::min)(composition.caret_position, raw_input.size());
-    if (semicolon && IsMicrosoftShuangpinIngKeyAt(keycode, wch, raw_input, caret))
-    {
-        return false;
-    }
-    return g_inputSession->accepts_end_helpcode_marker(caret);
-}
-
-// 直接辅助码下用引导键（末尾辅助码设置里勾了的反引号、分号）进入末尾辅助码：TSF 把输入末尾形状合适的引导键、
-// 以及删掉它留下的末尾段开头的退格打上
-// FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite 交过来，并且一定会读这次的回复。是否这样处理以标记为准，
-// 不再按配置和形状重算：配置刚改、TSF 还没收到新状态时，两边仍按同一个约定走。HandleImeKey 每键解析一次。
-bool g_key_direct_end_trigger_request = false;
-
-// 这颗引导键真的要改写输入串：TSF 打了标记，且直接辅助码的切分里每个音节都是「完整双拼 + 0~2 个辅码」，返回
-// 去掉辅码后的纯双拼。改写不了时引导键照旧当标点（上屏高亮候选 + 标点），TSF 等的回帧就是那一帧。
-std::optional<std::string> DirectHelpcodeEndTriggerPrefix(UINT keycode, WCHAR wch, const std::string &raw_input)
-{
-    const bool trigger_key = (keycode == VK_OEM_1 && wch == L';') || (keycode == VK_OEM_3 && wch == L'`');
-    if (!g_key_direct_end_trigger_request || !trigger_key || g_english_input_mode || g_inputSession == nullptr ||
-        IsUiLessMode())
-    {
-        return std::nullopt;
-    }
-    return g_inputSession->direct_helpcode_end_trigger_prefix(raw_input);
 }
 
 bool IsSelectionKey(UINT keycode)
@@ -355,29 +241,7 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
     // know this key produced that state on purpose.
     bool keep_creating_word_after_empty_raw = false;
 
-    if (keycode == VK_BACK && g_key_direct_end_trigger_request && client_supports_restore && !IsUiLessMode() &&
-        !FanyImeIpc::IsSegmentBackspaceKey(keycode, modifiers_down))
-    {
-        // 删的是进入末尾辅助码的那个引导键：前面还是当时整理出的样子就恢复整理前的原串（句中辅码重新生效），
-        // 否则只删光标前的一个字符。两种结果都回 CompositionRestored，TSF 照着重建，自己不删。
-        if (!composition.direct_end_trigger_original.empty() && raw == composition.direct_end_trigger_rewritten)
-        {
-            raw = composition.direct_end_trigger_original;
-            composition.caret_position = raw.size();
-        }
-        else if (composition.caret_position > 0)
-        {
-            raw.erase(composition.caret_position - 1, 1);
-            --composition.caret_position;
-        }
-        composition.clear_direct_end_trigger();
-        composition_restored = true;
-        keep_creating_word_after_empty_raw =
-            raw.empty() && FanyImeIpc::ShouldKeepCreatingWordAfterRawEmptied(composition.creating_word.active,
-                                                                             IsUiLessMode(), client_supports_restore,
-                                                                             composition.selection_history.size());
-    }
-    else if (keycode == VK_BACK)
+    if (keycode == VK_BACK)
     {
         // Ctrl+Backspace deletes one segmentation unit (one character's pinyin)
         // instead of one character. The boundaries are the engine's, so TSF
@@ -473,34 +337,6 @@ bool ApplyCompositionEditKey(UINT keycode, WCHAR wch, UINT modifiers_down, bool 
         else if (keycode == VK_OEM_7 && wch == L'\'')
         {
             input = '\'';
-        }
-        else if (IsMicrosoftShuangpinIngKey(keycode, wch, raw))
-        {
-            input = ';';
-        }
-        else if (IsMidSentenceHelpcodeMarkerKey(keycode, wch, raw))
-        {
-            input = '`';
-        }
-        else if (IsEndHelpcodeMarkerKey(keycode, wch, raw))
-        {
-            input = FanyImeMidSentenceHelpcode::kEndMarker;
-        }
-        else if (const auto prefix =
-                     client_supports_restore ? DirectHelpcodeEndTriggerPrefix(keycode, wch, raw) : std::nullopt)
-        {
-            // 直接辅助码下用引导键进入末尾辅助码：各音节上的辅码删掉，整串改写成「纯双拼 + 末尾段开头」，记下
-            // 原串供删掉这个引导键时恢复。改写由 CompositionRestored 带给 TSF。
-            composition.direct_end_trigger_original = raw;
-            raw = *prefix + FanyImeMidSentenceHelpcode::kEndMarker;
-            composition.direct_end_trigger_rewritten = raw;
-            composition.caret_position = raw.size();
-            composition.note_raw_inserted();
-            composition_restored = true;
-        }
-        else if (IsDirectHelpcodeSlashKey(keycode, wch, raw))
-        {
-            input = '/';
         }
         else if (keycode == VK_OEM_MINUS && (wch == L'-' || wch == L'_'))
         {
@@ -963,9 +799,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     // 是否生效以标记为准而不是再查配置：配置刚改、TSF 还没收到新状态时，两边仍按同一个约定走。
     const bool horizontal_arrow_request = (Global::ModifiersDown & FanyImePipeFlags::HorizontalArrowSelection) != 0;
     Global::ModifiersDown &= ~FanyImePipeFlags::HorizontalArrowSelection;
-    // 同理：直接辅助码下进入末尾辅助码的引导键和删掉它的退格，见 g_key_direct_end_trigger_request。
-    g_key_direct_end_trigger_request = (Global::ModifiersDown & FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite) != 0;
-    Global::ModifiersDown &= ~FanyImePipeFlags::DirectHelpcodeEndTriggerRewrite;
 
     // MainPipeClientThread only enqueues this from a negotiated client with a known action.
     if (namedpipeData.event_type == FanyImePipeEventType::InputStateAction)
@@ -1055,15 +888,11 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     const bool shift_only = (Global::ModifiersDown & 0b00000111u) == 0b00000001u;
     const std::optional<SchemeType> scheme =
         g_inputSession ? std::optional<SchemeType>(g_inputSession->current_scheme_type()) : std::nullopt;
-    const bool chinese_scheme = scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin;
-    const bool shuangpin_scheme = scheme == SchemeType::Shuangpin;
+    const bool chinese_scheme = scheme == SchemeType::Quanpin;
     const bool date_time_scheme = chinese_scheme;
     const bool pinyin_commit =
         FanyImeIpc::IsPinyinCommitKey(Global::Keycode, Global::ModifiersDown) && !input_before_key.empty();
-    const bool convert_shuangpin = pinyin_commit && g_inputSession->current_scheme_type() == SchemeType::Shuangpin &&
-                                   !g_english_input_mode && !IsSpecialModeCompositionActive(input_before_key);
-    if (Global::Keycode == VK_RETURN && !input_before_key.empty() && !convert_shuangpin &&
-        GetConfiguredEnterLearnsEnglishWord())
+    if (Global::Keycode == VK_RETURN && !input_before_key.empty() && GetConfiguredEnterLearnsEnglishWord())
     {
         std::string english_word;
         // V 模式没有触发标记，按输入串认：回车上屏的 V123 不是要学的英文词。
@@ -1077,8 +906,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     if (pinyin_commit)
     {
         const std::string raw = input_before_key;
-        const std::string text = FanyImeIpc::EnteredPinyinText(
-            raw, convert_shuangpin ? g_inputSession->get_quanpin() : std::string{}, convert_shuangpin);
+        const std::string &text = raw;
         Global::candidate_ui.selected_text = string_to_wstring(GlobalIme::composition.creating_word.prefix_text + text);
         Global::MsgTypeToTsf = Global::DataFromServerMsgType::CommitExactText;
         SendCurrentDataToClient(client_id, activation_epoch, request_id);
@@ -1102,10 +930,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     if (chinese_scheme && !g_english_input_mode && GetConfiguredSymbolModeEnabled() && input_before_key.empty() &&
         Global::Keycode == 'S' && Global::Wch == L'S' && shift_only)
         g_symbol_mode_triggered = true;
-    // 超级简拼只留给双拼：全拼直接打声母就是简拼，Shift+J 在全拼下按普通大写 J 处理。
-    if (shuangpin_scheme && !g_english_input_mode && GetConfiguredJianpinModeEnabled() && input_before_key.empty() &&
-        Global::Keycode == 'J' && Global::Wch == L'J' && shift_only)
-        g_jianpin_mode_triggered = true;
     if (chinese_scheme && !g_english_input_mode && GetConfiguredYModeEnabled() && input_before_key.empty() &&
         Global::Keycode == 'Y' && Global::Wch == L'Y' && shift_only)
         g_y_mode_triggered = true;
@@ -1129,18 +953,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
 
     const bool is_paging_key = IsPagingKey(Global::Keycode);
     const bool is_manual_pinyin_separator = IsManualPinyinSeparatorKey(Global::Keycode, Global::Wch);
-    const bool is_microsoft_shuangpin_ing_key =
-        IsMicrosoftShuangpinIngKey(Global::Keycode, Global::Wch, input_before_key);
-    // 句中辅助码与末尾辅助码（间接）的引导键在这之后的判断里待遇相同：只进输入串。
-    const bool is_mid_sentence_helpcode_marker =
-        IsMidSentenceHelpcodeMarkerKey(Global::Keycode, Global::Wch, input_before_key) ||
-        IsEndHelpcodeMarkerKey(Global::Keycode, Global::Wch, input_before_key);
-    const bool is_direct_helpcode_slash = IsDirectHelpcodeSlashKey(Global::Keycode, Global::Wch, input_before_key);
-    // 直接辅助码下用引导键进入末尾辅助码：改写得了就当编辑键改写输入串；改写不了时照旧当标点，TSF 等的回帧
-    // 就是标点那一帧（见 g_key_direct_end_trigger_request）。
-    const bool is_direct_helpcode_end_trigger =
-        ClientNegotiatedCompositionRestore(client_id) &&
-        DirectHelpcodeEndTriggerPrefix(Global::Keycode, Global::Wch, input_before_key).has_value();
     const bool is_date_time_input_key = IsDateTimeInputKey(Global::Keycode, Global::Wch, input_before_key);
     // V 模式的数字和 . + - * / ( )：只进输入串，不选词、不翻页、不当标点。
     const bool is_v_mode_input_key = IsVModeInputKey(Global::Wch, input_before_key);
@@ -1154,18 +966,16 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
                                              GetConfiguredWordToCharacterKeys() == "minus_equal");
     const bool is_commit_with_highlighted_candidate_punctuation =
         word_character_direction != 0 ||
-        (!is_manual_pinyin_separator && !is_microsoft_shuangpin_ing_key && !is_mid_sentence_helpcode_marker &&
-         !is_direct_helpcode_slash && !is_direct_helpcode_end_trigger && !is_date_time_input_key &&
-         !is_v_mode_input_key && !is_v_mode_shift_digit_selection &&
+        (!is_manual_pinyin_separator && !is_date_time_input_key && !is_v_mode_input_key &&
+         !is_v_mode_shift_digit_selection &&
          IsCommitWithHighlightedCandidatePunctuationInCandidateMode(Global::Keycode, Global::Wch));
     const bool is_selection_key = IsSelectionKey(Global::Keycode);
     // 移高亮的左右键不碰组合，交给下面的候选导航分支。
     const bool is_composition_edit_key =
         ((Global::Keycode == VK_LEFT || Global::Keycode == VK_RIGHT) && !arrow_moves_selection) ||
         Global::Keycode == VK_BACK || Global::Keycode == VK_DELETE ||
-        (Global::Keycode >= 'A' && Global::Keycode <= 'Z') || is_manual_pinyin_separator ||
-        is_microsoft_shuangpin_ing_key || is_mid_sentence_helpcode_marker || is_direct_helpcode_slash ||
-        is_direct_helpcode_end_trigger || is_date_time_input_key || is_v_mode_input_key;
+        (Global::Keycode >= 'A' && Global::Keycode <= 'Z') || is_manual_pinyin_separator || is_date_time_input_key ||
+        is_v_mode_input_key;
     const bool should_forward_key_to_session = !is_commit_with_highlighted_candidate_punctuation && !is_selection_key &&
                                                !is_paging_key && !is_composition_edit_key;
 
@@ -1299,11 +1109,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         // Keep preedit identical to the typed S-prefixed code.
         GlobalIme::composition.segmented_pinyin = GlobalIme::composition.raw_input_with_cases;
     }
-    if (!g_english_input_mode && IsJianpinCompositionActive(GlobalIme::composition.raw_input_with_cases))
-    {
-        // Keep preedit identical to the typed J-prefixed code.
-        GlobalIme::composition.segmented_pinyin = GlobalIme::composition.raw_input_with_cases;
-    }
     if (!g_english_input_mode && IsYModeCompositionActive(GlobalIme::composition.raw_input_with_cases))
     {
         // Keep preedit identical to the typed Y-prefixed English.
@@ -1314,7 +1119,6 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         // Keep preedit identical to the typed V-prefixed number or expression.
         GlobalIme::composition.segmented_pinyin = GlobalIme::composition.raw_input_with_cases;
     }
-    SyncShuangpinPreeditForms();
 
     // The shape the key leaves behind: a Backspace that keeps the creating word
     // alive still owes the client's hold a frame even when nothing was restored
@@ -1327,7 +1131,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     // 普通的拼音字符，发送 preedit 到 TSF 端
     //
     if (FanyImeIpc::ShouldSendCompositionReply(Global::Keycode >= 'A' && Global::Keycode <= 'Z',
-                                               is_manual_pinyin_separator, is_microsoft_shuangpin_ing_key,
+                                               is_manual_pinyin_separator,
                                                is_date_time_input_key || is_v_mode_input_key))
     {
         if (IsUiLessMode())

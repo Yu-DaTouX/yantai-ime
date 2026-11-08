@@ -7,8 +7,7 @@
 class ProviderRegistry
 {
   public:
-    explicit ProviderRegistry(const ShuangpinProfile &shuangpin_profile = GetXiaoheShuangpinProfile(),
-                              metasequoia::RuntimePaths paths = metasequoia::RuntimePaths::legacy());
+    explicit ProviderRegistry(metasequoia::RuntimePaths paths = metasequoia::RuntimePaths::legacy());
     ICandidateProvider &resolve(SchemeType scheme_type);
     std::optional<WordItem> find_candidate(SchemeType scheme_type, const std::string &key, const std::string &value);
     // 容错仲裁选中读音后的分段显示（大小写原样）；空表示当前串没有容错布局。
@@ -18,11 +17,6 @@ class ProviderRegistry
     }
     bool can_expand_initial_candidates(const QueryRequest &request, const std::vector<WordItem> &candidates) const;
     bool expand_initial_candidates(const QueryRequest &request, std::vector<WordItem> &candidates);
-    // 双拼直接辅助码只出在拼音 provider 上，见 PinyinCandidateProvider::resolve_direct_helpcode。
-    bool resolve_direct_helpcode(QueryRequest &request)
-    {
-        return pinyin_provider_.resolve_direct_helpcode(request);
-    }
     void reset_cache(SchemeType scheme_type);
     // 整句（词格 + 神经重排）只出在拼音 provider 上。
     void reset_sentence_cache()

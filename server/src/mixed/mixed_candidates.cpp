@@ -7,7 +7,6 @@
 #include "engine/local_modes/emoji_query.h"
 #include "engine/local_modes/kaomoji_query.h"
 #include "engine/local_modes/symbol_query.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 #include "config/ime_config.h"
 #include <algorithm>
 #include <atomic>
@@ -108,8 +107,7 @@ void WorkerLoop()
         {
             // emoji 和符号一样只认整串精确等于键，打到一半的前缀不混进来。
             result.emoji = metasequoia::local_modes::query_mixed_emoji(
-                               request.input, request.scheme, others_db_path, kExpressiveCandidateLimit,
-                               GetShuangpinProfile(GetConfiguredShuangpinSchema()))
+                               request.input, request.scheme, others_db_path, kExpressiveCandidateLimit)
                                .candidates;
             if (IsStale(observed_generation))
                 continue;
@@ -117,8 +115,7 @@ void WorkerLoop()
         if (request.kaomoji && expressive_prefix)
         {
             result.kaomoji = metasequoia::local_modes::query_kaomoji(
-                                 request.input, request.scheme, others_db_path, kExpressiveCandidateLimit,
-                                 GetShuangpinProfile(GetConfiguredShuangpinSchema()))
+                                 request.input, request.scheme, others_db_path, kExpressiveCandidateLimit)
                                  .candidates;
             if (IsStale(observed_generation))
                 continue;

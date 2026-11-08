@@ -649,7 +649,6 @@ void BindNamedpipeFocusState(CMetasequoiaIME *owner, bool *focusResetPending, bo
     boundWorkerPipeGeneration = workerPipeGeneration;
 }
 
-
 void BindNamedpipeWakeEvents(const void *owner, HANDLE workerAckEvent, HANDLE workerPipePublishedEvent)
 {
     if (owner == nullptr || boundFocusStateOwner != owner)
@@ -1018,18 +1017,11 @@ bool UsesHorizontalArrowSelection()
            SupportsCompositionRestore();
 }
 
-bool UsesDirectHelpcodeEndTrigger()
-{
-    return Global::DirectHelpcodeEndTriggerKeys.load(std::memory_order_relaxed) != 0 && !Global::IsUiLessMode() &&
-           SupportsCompositionRestore();
-}
-
 bool SupportsCaretStateIndicator()
 {
     return hPipe && hPipe != INVALID_HANDLE_VALUE &&
            (negotiatedServerCapabilities & FanyImeProtocol::CaretStateIndicator) != 0;
 }
-
 
 bool SupportsInputStateShortcuts()
 {

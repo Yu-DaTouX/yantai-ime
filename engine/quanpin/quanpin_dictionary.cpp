@@ -6,7 +6,6 @@
 #include "quanpin_query.h"
 #include "query_status.h"
 #include "quanpin_utils.h"
-#include "../shuangpin/shuangpin_utils.h"
 #include <algorithm>
 #include <climits>
 #include <cstring>
@@ -998,7 +997,7 @@ std::vector<WordItem> QuanpinDictionary::query_series(const std::string &raw_inp
         //
         // Google 解码器自己重新切分，这正是它的价值所在（词格覆盖不到的输入靠它），
         // 所以默认喂裸串。但手动分隔符是用户明确表达的切分意图，去掉之后 nu'e 会被
-        // 它读成 nüe 而出「虐」。撇号本来就是它认的音节分隔符（双拼那条一直是连着
+        // 它读成 nüe 而出「虐」。撇号本来就是它认的音节分隔符（另一条一直是连着
         // 撇号传的），手打分隔符时原样传下去即可。
         //
         // 不管走哪条，送进去之前都要把 ü 换成它认的写法：它的音节表里只有 nue/lue，
@@ -2475,7 +2474,7 @@ quanpin::WordLatticeLookup QuanpinDictionary::lattice_lookup(int limit, bool wit
         return rows;
     };
     return [this, lookup = std::move(lookup), limit, fuzzy](const quanpin::Segments &span) {
-        // 超过上限整体清掉，免得一次长时间输入把内存撑大（同双拼的 direct_span_cache_）。
+        // 超过上限整体清掉，免得一次长时间输入把内存撑大。
         constexpr std::size_t kLatticeSpanCacheLimit = 8192;
         std::string key = quanpin::join_segments(span);
         key.push_back('#');

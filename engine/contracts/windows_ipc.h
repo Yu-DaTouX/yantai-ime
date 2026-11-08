@@ -158,13 +158,6 @@ constexpr std::uint32_t ImeSwitchCapsSnapshotEnabled = 0x20000000u;
 // and a caret move with CompositionRestored carrying the caret. The DLL only sets it after the Server turned the
 // feature on and CompositionRestore was negotiated; the Server strips it before any key-modifier policy runs.
 constexpr std::uint32_t HorizontalArrowSelection = 0x01000000u;
-// KeyEvent only: ';' or Backspace the DLL routed as a direct helpcode end trigger rewrite
-// (DirectHelpcodeEndTriggerChanged, FanyImeDirectHelpcode::AcceptsEndTriggerAt / IsEndTriggerBackspaceAt) and whose
-// reply it will apply. The Server then always answers: CompositionRestored with the rewritten (or restored)
-// composition, or, for a ';' it cannot rewrite, the ordinary punctuation commit. The DLL only sets it after the Server
-// turned the feature on and CompositionRestore was negotiated; the Server strips it before any key-modifier policy
-// runs.
-constexpr std::uint32_t DirectHelpcodeEndTriggerRewrite = 0x00800000u;
 
 constexpr std::uint32_t EncodeImeSwitchCapsLockSnapshot(bool enabled)
 {
@@ -370,9 +363,8 @@ constexpr std::uint32_t InsertText = 10;
 constexpr std::uint32_t SmartPunctuationChanged = 11;
 // Auto-complete opening paired punctuation and leave the caret inside. Payload "0"/"1".
 constexpr std::uint32_t PairedPunctuationChanged = 12;
-// Whether ';' is an input key for the configured shuangpin profile (Microsoft, Sogou and
-// Ziguang put the ing final there). The name predates the other profiles.
-constexpr std::uint32_t MicrosoftShuangpinChanged = 13;
+// Retired shuangpin setting; do not reuse.
+constexpr std::uint32_t Reserved13 = 13;
 // Revert a converted ASCII punctuation back to Chinese when the same
 // punctuation key is pressed within the revert window. Payload "0"/"1".
 constexpr std::uint32_t SmartPunctuationRepeatToChineseChanged = 14;
@@ -414,26 +406,13 @@ constexpr std::uint32_t StatisticsEnabledChanged = 26;
 // applying a remainder the Server computed from a possibly stale view, so letters the
 // user typed past the committed code survive as the next composition.
 constexpr std::uint32_t CommitCandidateAndContinue = 27;
-// Whether '`' can open a shuangpin mid-sentence helpcode block while composing. Payload "0"/"1".
-// TSF still checks the block shape at its caret itself (FanyImeMidSentenceHelpcode::AcceptsMarkerAt)
-// and the Server makes the final call; this flag only keeps TSF from eating '`' when the feature is off.
-// The payload must stay a single "0"/"1": the worker drops any longer frame for this opcode.
-constexpr std::uint32_t MidSentenceHelpcodeChanged = 28;
-// Same as MidSentenceHelpcodeChanged for the optional ';' trigger. Payload "0"/"1". A separate
-// opcode keeps 28 meaning "'`' is a trigger" for older DLLs, which ignore this one.
-constexpr std::uint32_t MidSentenceHelpcodeSemicolonChanged = 29;
-// Whether shuangpin direct helpcode (Wanxiang style, no guide key) is on. Payload "0" off, "1" on with '/' ending a
-// four-key code, "2" on with '/' left as punctuation (FanyImeDirectHelpcode::PayloadFor). When on, TSF stops requiring
-// an odd chunk before the ';' final (FanyImeDirectHelpcode::AcceptsSemicolonFinalAt); with "1" it also eats '/' after a
-// four-key code (FanyImeDirectHelpcode::AcceptsSlashAt). Single-character payload, same rule as opcode 28; a DLL that
-// only knows "0"/"1" drops "2" and keeps its previous state.
-constexpr std::uint32_t DirectHelpcodeChanged = 30;
-// Whether the uppercase trigger of shuangpin mid-sentence helpcode is in effect (mid-sentence helpcode on, uppercase
-// trigger checked, shuangpin, direct helpcode off). Payload "0"/"1". TSF still eats letters as before; the flag only
-// changes how it counts the chunk before '`' / ';' (FanyImeMidSentenceHelpcode::ChunkStart with uppercase blocks).
-constexpr std::uint32_t MidSentenceHelpcodeUppercaseChanged = 31;
-// Which prefix opens V mode (number to Chinese, arithmetic). Payload "0" off, "1" uppercase V only (shuangpin),
-// "2" V or v (quanpin); see FanyImeVModeInput::Trigger. TSF then eats digits and . + - * / ( ) after the prefix
+// 28..31 retired shuangpin helpcode settings; do not reuse.
+constexpr std::uint32_t Reserved28 = 28;
+constexpr std::uint32_t Reserved29 = 29;
+constexpr std::uint32_t Reserved30 = 30;
+constexpr std::uint32_t Reserved31 = 31;
+// Which prefix opens V mode (number to Chinese, arithmetic). Payload "0" off, "2" V or v;
+// see FanyImeVModeInput::Trigger. TSF then eats digits and . + - * / ( ) after the prefix
 // (FanyImeVModeInput::AcceptsAt). Single-character payload, same rule as opcode 28.
 constexpr std::uint32_t VModeChanged = 32;
 // Retired language-cycle setting; do not reuse.
@@ -447,12 +426,8 @@ constexpr std::uint32_t Reserved33 = 33;
 constexpr std::uint32_t UiLessCandidatesChanged = 35;
 // Retired temporary-R policy; do not reuse.
 constexpr std::uint32_t Reserved36 = 36;
-// Which keys open a shuangpin end helpcode block while the end helpcode is indirect (triggered by a guide key instead
-// of being read off the input shape). Payload one character '0'..'7', see FanyImeEndHelpcode::PayloadFor: bit 1 '`',
-// bit 2 ';', bit 4 uppercase. TSF eats '`' / ';' that can start a block (FanyImeMidSentenceHelpcode::
-// AcceptsEndMarkerAt) and records them as FanyImeMidSentenceHelpcode::kEndMarker; with the uppercase bit it counts an
-// uppercase end block as no keys of the chunk. Older DLLs ignore the opcode and keep treating the keys as punctuation.
-constexpr std::uint32_t EndHelpcodeTriggersChanged = 37;
+// Retired shuangpin end-helpcode trigger setting; do not reuse.
+constexpr std::uint32_t Reserved37 = 37;
 // Which keys produce the enumeration comma 、 under Chinese punctuation. Payload one character '1'..'3', see
 // FanyImeEnumerationComma::PayloadFor: bit 1 '\', bit 2 '/'. A key whose bit is clear is not Chinese punctuation and
 // passes through as itself. Older DLLs ignore the opcode and keep '\' only.
@@ -468,14 +443,9 @@ constexpr std::uint32_t HorizontalArrowSelectionChanged = 39;
 // Server re-derives the path from its own state and starts the installer. Broadcast to every
 // connected client: the download usually finishes while the user types elsewhere.
 constexpr std::uint32_t UpdateInstallerReady = 40;
-// Which keys enter the shuangpin end helpcode while direct helpcode is on (helpcode.shuangpin_direct_helpcode_end_
-// trigger, keys from the end helpcode trigger settings). Payload one character, FanyImeEndHelpcode::PayloadFor with
-// the uppercase bit always clear: bit 1 '`', bit 2 ';'; "0" when either switch is off or the active scheme is not
-// shuangpin. The DLL sends such a key at the end of a FanyImeDirectHelpcode::AcceptsEndTriggerAt composition, and
-// Backspace over the end block it opened (IsEndTriggerBackspaceAt), as Server-authoritative keys and rebuilds its
-// buffer from the Server's CompositionRestored reply. Older DLLs ignore the opcode and keep the keys as punctuation.
-constexpr std::uint32_t DirectHelpcodeEndTriggerChanged = 41;
-constexpr std::uint32_t MaxKnown = DirectHelpcodeEndTriggerChanged;
+// Retired shuangpin direct-helpcode end trigger setting; do not reuse.
+constexpr std::uint32_t Reserved41 = 41;
+constexpr std::uint32_t MaxKnown = Reserved41;
 // Source compatibility for the Server's historical spellings.
 constexpr std::uint32_t SwitchToEn = SwitchToEnglish;
 constexpr std::uint32_t SwitchToCn = SwitchToChinese;

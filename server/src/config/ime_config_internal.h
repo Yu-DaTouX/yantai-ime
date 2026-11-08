@@ -126,30 +126,11 @@ extern int g_candidate_window_preedit_font_size;
 extern std::atomic_bool g_diagnostic_log_enabled;
 extern std::atomic_bool g_tsf_diagnostic_log_enabled;
 extern std::string g_candidate_text_color;
-extern std::string g_shuangpin_schema;
 extern bool g_escape_keeps_selected_word;
 extern bool g_enter_learns_english_word;
-extern std::string g_shuangpin_preedit_mode;
 extern std::string g_tsf_preedit_style;
-extern bool g_tsf_preedit_shuangpin_quanpin;
-extern bool g_candidate_window_preedit_shuangpin_quanpin;
-extern bool g_shuangpin_helpcode_enabled;
-extern bool g_shuangpin_helpcode_direct;
-extern bool g_shuangpin_helpcode_trigger_backtick;
-extern bool g_shuangpin_helpcode_trigger_semicolon;
-extern bool g_shuangpin_helpcode_trigger_uppercase;
-extern bool g_shuangpin_mid_sentence_helpcode_enabled;
-extern bool g_shuangpin_mid_sentence_helpcode_backtick;
-extern bool g_shuangpin_mid_sentence_helpcode_semicolon;
-extern bool g_shuangpin_mid_sentence_helpcode_uppercase;
-extern bool g_shuangpin_direct_helpcode_enabled;
-extern bool g_shuangpin_direct_helpcode_slash;
-extern bool g_shuangpin_direct_helpcode_uppercase;
-extern bool g_shuangpin_direct_helpcode_end_trigger;
 extern bool g_quanpin_helpcode_enabled;
-extern std::string g_shuangpin_helpcode_schema;
 extern std::string g_quanpin_helpcode_schema;
-extern bool g_show_shuangpin_helpcode_in_candidate_window;
 extern bool g_show_quanpin_helpcode_in_candidate_window;
 extern bool g_quanpin_autocorrect_transposition;
 extern bool g_quanpin_autocorrect_neighbor;
@@ -208,7 +189,6 @@ extern bool g_date_time_mode_enabled;
 extern bool g_emoji_mode_enabled;
 extern bool g_kaomoji_mode_enabled;
 extern bool g_symbol_mode_enabled;
-extern bool g_jianpin_mode_enabled;
 extern bool g_y_mode_enabled;
 extern bool g_v_mode_enabled;
 extern bool g_clipboard_history_enabled;
@@ -257,12 +237,8 @@ extern FrequencyAdjustmentConfig g_frequency_adjustment;
 extern std::filesystem::path g_config_path;
 
 bool IsHelpcodeSchemaAvailable(const std::string &schema);
-// ime_config_input.cpp：按用户选的行内预编辑样式、「双拼显示全拼」开关和当前方案算出 TSF 实际
-// 使用的样式，写进 GlobalSettings。
+// ime_config_input.cpp：把用户选的行内预编辑样式写进 GlobalSettings。
 void RefreshEffectiveTsfPreeditStyle();
-// ime_config_shuangpin.cpp：内置方案直接返回 true；自定义方案重新读文件、解析并登记给引擎，
-// 文件缺失或写错时返回 false，调用方据此回落到小鹤。
-bool LoadShuangpinSchema(const std::string &schema);
 bool IsValidCandidateSkinId(const std::string &skin);
 bool IsValidCandidateFixedBadgeStyle(const std::string &style);
 bool IsValidSettingsWindowLinger(const std::string &linger);

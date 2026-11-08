@@ -196,14 +196,10 @@ VisualPtr BuildHelpPage(PageContext &context)
         };
         section(L"快速上手", {L"安装输入法后，可以使用 Win + Space 快捷键切换到水杉输入法。默认是全拼输入法。"});
         section(L"基本功能",
-                {L"支持全拼、双拼和五笔。可以在设置窗口下的输入功能分区进行切换。全拼和双拼均支持辅助码。辅助码方案目前"
-                 L"支持自然码辅助码、蓝天小雨点、首右2."
+                {L"支持全拼输入。辅助码方案目前支持自然码辅助码、蓝天小雨点、首右2."
                  L"0、首右plus、小鹤和拼音加加，也可以把自己的辅助码文件放进数据目录下的 helpcodes\\custom "
                  L"文件夹导入。可以在设置的辅助码分区进行辅助码的开关和切换。打字过程中，全拼使用辅助码需要用大写的字母"
-                 L"唤起单码和双码辅助。双拼在开启辅助码的状态下默认使用单码辅助，第二个码是大写字母的情况下，则会使用完"
-                 L"整双码进行筛选。",
-                 L"AI 联想需要自行填入 API 和 token。内测期间，将默认使用开发者个人的 api 和 "
-                 L"token，仅供测试使用。云联想目前支持谷歌的云接口，请用户注意网络问题，需要时可在下方设置网络代理。",
+                 L"唤起单码和双码辅助。",
                  L"更多功能欢迎自由探索~"});
         auto card = std::make_shared<PaddedSection>(doc, Thickness{28.0f, 24.0f, 28.0f, 26.0f});
         // .default-ime-section { margin-top: 24px } collapses with the 18px below.
@@ -384,7 +380,7 @@ VisualPtr BuildHelpPage(PageContext &context)
     {
         auto column = std::make_shared<Column>(0.0f);
         column->Add(MakeTitle(L"网络代理"));
-        column->Add(Description(L"云输入、语法模型下载、AI 联想和翻译等联网功能共用这里的设置，修改后立即生效"));
+        column->Add(Description(L"语法模型下载等联网功能共用这里的设置，修改后立即生效"));
         auto options = std::make_shared<Column>(0.0f);
         options->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         const std::pair<const char *, const wchar_t *> modes[] = {

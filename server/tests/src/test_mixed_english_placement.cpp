@@ -3,7 +3,6 @@
 #include "src/ipc/candidate_selection_policy.h"
 #include "src/ipc/queried_candidate_arrangement_policy.h"
 #include "engine/core/input_session.h"
-#include "engine/shuangpin/shuangpin_profile.h"
 
 #include <sqlite3.h>
 #include <windows.h>
@@ -1008,17 +1007,6 @@ TEST_CASE(QueriedLatinWordsMoveToTheFirstPageEndThroughTheRealEngine)
     FanyImeIpc::PlaceQueriedLatinWords(placed, 6);
     RequireWords(placed, WordsOf(nab));
     REQUIRE_EQ(placed.front().word, std::string("那边"));
-
-    const auto &xiaohe = GetXiaoheShuangpinProfile();
-    const auto shuangpin = [&](const std::string &input) {
-        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
-        session.set_shuangpin_helpcode_enabled(false);
-        return QueriedCandidates(session, input);
-    };
-    RequireQueriedPlacement(shuangpin("vel"), "xiaohe vel", "这里");
-    RequireQueriedPlacement(shuangpin("txu"), "xiaohe txu", "特许");
-    RequireQueriedPlacement(shuangpin("nabla"), "xiaohe nabla", "");
-    REQUIRE(WordsWhere(shuangpin("nab"), true).empty());
 
     std::error_code ec;
     std::filesystem::remove_all(directory, ec);

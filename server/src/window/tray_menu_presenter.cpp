@@ -49,7 +49,6 @@ struct SchemeChoice
 
 constexpr SchemeChoice kSchemeChoices[] = {
     {"quanpin", L"全拼"},
-    {"shuangpin", L"双拼"},
 };
 
 const char kSvgInputScheme[] =

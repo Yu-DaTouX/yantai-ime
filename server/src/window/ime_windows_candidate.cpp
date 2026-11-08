@@ -585,7 +585,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         if (wParam == TIMER_ID_CONFIG_SYNC)
         {
             const SchemeType previous_input_scheme = GetConfiguredInputScheme();
-            const std::string previous_shuangpin_schema = GetConfiguredShuangpinSchema();
             const std::string previous_character_set = GetConfiguredCharacterSet();
             const bool previous_translation_show_pos = GetConfiguredCandidateTranslationShowPos();
             const bool previous_translation_single_sense = GetConfiguredCandidateTranslationSingleSense();
@@ -613,15 +612,7 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             const std::wstring previous_horizontal_arrow_selection = FormatHorizontalArrowSelectionWorkerPayload();
             const std::string previous_punctuation_lock = GetConfiguredPunctuationLock();
             const bool previous_tsf_diagnostic_log = GetConfiguredTsfDiagnosticLogEnabled();
-            const std::wstring previous_mid_sentence_helpcode = FormatMidSentenceHelpcodeWorkerPayload();
-            const std::wstring previous_mid_sentence_helpcode_semicolon =
-                FormatMidSentenceHelpcodeSemicolonWorkerPayload();
-            const std::wstring previous_direct_helpcode = FormatDirectHelpcodeWorkerPayload();
-            const std::wstring previous_direct_helpcode_end_trigger = FormatDirectHelpcodeEndTriggerWorkerPayload();
             const std::wstring previous_v_mode = FormatVModeWorkerPayload();
-            const std::wstring previous_mid_sentence_helpcode_uppercase =
-                FormatMidSentenceHelpcodeUppercaseWorkerPayload();
-            const std::wstring previous_end_helpcode_triggers = FormatEndHelpcodeTriggersWorkerPayload();
             const std::wstring previous_paging_worker_payload = FormatPagingCommaPeriodWorkerPayload();
             const std::string previous_theme_mode = GetConfiguredThemeMode();
             const std::string previous_theme_cand = GetConfiguredThemeCand();
@@ -643,8 +634,6 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                 // ApplyConfiguredInputScheme broadcasts the policy with the rest of the mode state.
                 if (previous_input_scheme != GetConfiguredInputScheme())
                     ApplyConfiguredInputScheme();
-                else if (previous_shuangpin_schema != GetConfiguredShuangpinSchema())
-                    ApplyConfiguredShuangpinSchema();
                 if (previous_character_set != GetConfiguredCharacterSet())
                 {
                     UpdateFtbCharacterSetState();
@@ -786,46 +775,10 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                         Global::DataFromServerMsgTypeToTsfWorkerThread::TsfDiagnosticLogChanged,
                         GetConfiguredTsfDiagnosticLogEnabled() ? L"1" : L"0");
                 }
-                if (previous_mid_sentence_helpcode != FormatMidSentenceHelpcodeWorkerPayload())
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged,
-                        FormatMidSentenceHelpcodeWorkerPayload());
-                }
-                if (previous_mid_sentence_helpcode_semicolon != FormatMidSentenceHelpcodeSemicolonWorkerPayload())
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged,
-                        FormatMidSentenceHelpcodeSemicolonWorkerPayload());
-                }
-                if (previous_direct_helpcode != FormatDirectHelpcodeWorkerPayload())
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged,
-                        FormatDirectHelpcodeWorkerPayload());
-                }
-                if (previous_direct_helpcode_end_trigger != FormatDirectHelpcodeEndTriggerWorkerPayload())
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged,
-                        FormatDirectHelpcodeEndTriggerWorkerPayload());
-                }
                 if (previous_v_mode != FormatVModeWorkerPayload())
                 {
                     BroadcastToTsfWorkerThreadViaNamedpipe(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged,
                                                            FormatVModeWorkerPayload());
-                }
-                if (previous_mid_sentence_helpcode_uppercase != FormatMidSentenceHelpcodeUppercaseWorkerPayload())
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged,
-                        FormatMidSentenceHelpcodeUppercaseWorkerPayload());
-                }
-                if (previous_end_helpcode_triggers != FormatEndHelpcodeTriggersWorkerPayload())
-                {
-                    BroadcastToTsfWorkerThreadViaNamedpipe(
-                        Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged,
-                        FormatEndHelpcodeTriggersWorkerPayload());
                 }
             }
             FanyNamedPipe::EnqueueEnsureInputSessionMatchesConfigTask();

@@ -40,7 +40,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::InsertText, 10u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::SmartPunctuationChanged, 11u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::PairedPunctuationChanged, 12u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MicrosoftShuangpinChanged, 13u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved13, 13u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::SmartPunctuationRepeatToChineseChanged, 14u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateVoiceComposition, 15u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::CancelVoiceComposition, 16u);
@@ -57,20 +57,20 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     // Opcode 23 (the removed paired-symbol space conversion) is intentionally
     // left unused, and the number is never recycled: a shipped test build would
     // otherwise misread a new frame. New frames take the next free number.
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged, 28u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged, 29u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged, 30u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged, 31u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved28, 28u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved29, 29u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved30, 30u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved31, 31u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged, 32u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33, 33u);
     // Opcode 34 (AiContextUploadChanged) was retired with the AI assistant; never reused.
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged, 35u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved36, 36u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged, 37u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved37, 37u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged, 38u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::HorizontalArrowSelectionChanged, 39u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady, 40u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged, 41u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41, 41u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 41u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady >
             Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged);
@@ -82,10 +82,10 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::InsertText);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::PairedPunctuationChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::SmartPunctuationChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::MicrosoftShuangpinChanged >
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved13 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::PairedPunctuationChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::SmartPunctuationRepeatToChineseChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::MicrosoftShuangpinChanged);
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved13);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateVoiceComposition >
             Global::DataFromServerMsgTypeToTsfWorkerThread::SmartPunctuationRepeatToChineseChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::CancelVoiceComposition >
@@ -110,32 +110,32 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::SmartPunctuationDirectLetterChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidateAndContinue >
             Global::DataFromServerMsgTypeToTsfWorkerThread::StatisticsEnabledChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged >
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved28 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::CommitCandidateAndContinue);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeSemicolonChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeChanged);
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved29 >
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved28);
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved30 >
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved29);
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved31 >
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved30);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::MidSentenceHelpcodeUppercaseChanged);
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved31);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::VModeChanged);
     REQUIRE(34u > Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved33);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UiLessCandidatesChanged > 34u);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged >
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved37 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved36);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged >
-            Global::DataFromServerMsgTypeToTsfWorkerThread::EndHelpcodeTriggersChanged);
+            Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved37);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::HorizontalArrowSelectionChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::EnumerationCommaKeysChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady >
             Global::DataFromServerMsgTypeToTsfWorkerThread::HorizontalArrowSelectionChanged);
-    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged >
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41 >
             Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown,
-               Global::DataFromServerMsgTypeToTsfWorkerThread::DirectHelpcodeEndTriggerChanged);
+               Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41);
 }
 
 TEST_CASE(ipc_client_suspension_is_a_distinct_nonterminal_route_reset)
