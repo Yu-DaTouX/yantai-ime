@@ -182,7 +182,6 @@ int run_test()
     public_options.paths = metasequoia::RuntimePaths::legacy();
     public_options.english = english_options;
     public_options.expressive = expressive_options;
-    public_options.helpcode = false;
     metasequoia::Session public_session(public_options);
     require(public_session.character('n').handled && public_session.character('i').handled,
             "The public Session facade did not handle mixed-expression input.");

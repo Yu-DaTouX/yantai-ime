@@ -94,79 +94,10 @@
       ]
     },
     {
-      "id": "helpcode_lantian",
-      "path": "helpcodes/helpcode.txt",
-      "role": "resource",
-      "source": "helpcode/helpcodes/helpcode.txt",
-      "profiles": [
-        "desktop"
-      ],
-      "schema": "lantian"
-    },
-    {
-      "id": "helpcode_ziranma",
-      "path": "helpcodes/zrm_helpcode_big_unique.txt",
-      "role": "resource",
-      "source": "helpcode/helpcodes/zrm_helpcode_big_unique.txt",
-      "profiles": [
-        "desktop"
-      ],
-      "schema": "ziranma"
-    },
-    {
-      "id": "helpcode_shouyou2_0",
-      "path": "helpcodes/shouyou2_0_helpcode.txt",
-      "role": "resource",
-      "source": "helpcode/helpcodes/shouyou2_0_helpcode.txt",
-      "profiles": [
-        "desktop"
-      ],
-      "schema": "shouyou2_0"
-    },
-    {
-      "id": "helpcode_shouyouplus",
-      "path": "helpcodes/shouyouplus_helpcode.txt",
-      "role": "resource",
-      "source": "helpcode/helpcodes/shouyouplus_helpcode.txt",
-      "profiles": [
-        "desktop"
-      ],
-      "schema": "shouyouplus"
-    },
-    {
-      "id": "helpcode_xiaohe",
-      "path": "helpcodes/xiaohe_helpcode.txt",
-      "role": "resource",
-      "source": "helpcode/helpcodes/xiaohe_helpcode.txt",
-      "profiles": [
-        "desktop"
-      ],
-      "schema": "xiaohe"
-    },
-    {
-      "id": "helpcode_jiajia",
-      "path": "helpcodes/jiajia_helpcode.txt",
-      "role": "resource",
-      "source": "helpcode/helpcodes/jiajia_helpcode.txt",
-      "profiles": [
-        "desktop"
-      ],
-      "schema": "jiajia"
-    },
-    {
       "id": "notice_13",
       "path": "licenses/googlepinyinime-LICENSE",
       "role": "notice",
       "source": "googlepinyinime-rev/LICENSE",
-      "profiles": [
-        "desktop"
-      ]
-    },
-    {
-      "id": "notice_14",
-      "path": "licenses/helpcode-NOTICE.md",
-      "role": "notice",
-      "source": "helpcode/NOTICE.md",
       "profiles": [
         "desktop"
       ]

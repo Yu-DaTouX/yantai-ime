@@ -16,7 +16,6 @@ class ImeSession
 
     void handle_key(ImeKeyCode vk, ImeModifierMask modifiers_down = 0, ImeCharacter wch = 0);
     void switch_scheme(SchemeType scheme_type);
-    void set_quanpin_helpcode_enabled(bool enabled);
     void set_quanpin_autocorrect_types(unsigned autocorrect_types);
     void set_fuzzy_pinyin_options(metasequoia::FuzzyPinyinOptions options)
     {
@@ -42,7 +41,7 @@ class ImeSession
     void replace_active_raw_input(const std::string &raw_input, const std::string &raw_input_with_cases);
     // Runs one standalone candidate query for the given raw input without touching the live
     // composition: the active scheme's raw/key strokes and state_'s request/candidates stay put.
-    // Query options (helpcode, autocorrect, fuzzy) match refresh_candidates exactly. The caret
+    // Query options (autocorrect, fuzzy) match refresh_candidates exactly. The caret
     // driven prefix decoding in InputSession uses this to decode a prefix while the composition
     // still owns the full raw string.
     std::vector<WordItem> query_raw_candidates(const std::string &raw_input, const std::string &raw_input_with_cases);
@@ -72,12 +71,6 @@ class ImeSession
         return provider_registry_.fault_segmentation_with_cases();
     }
 
-    void set_helpcode_keymap(HelpcodeUtils::SharedKeymap table)
-    {
-        provider_registry_.set_helpcode_keymap(std::move(table));
-        refresh_candidates();
-    }
-
   private:
     // Shared option injection for refresh_candidates() and query_raw_candidates(); the two must
     // not drift or a prefix query would answer with different candidates than the live pipeline.
@@ -94,7 +87,6 @@ class ImeSession
     ProviderRegistry provider_registry_;
     std::unique_ptr<IInputScheme> scheme_;
     CompositionState state_;
-    bool enable_quanpin_helpcode_ = false;
     unsigned quanpin_autocorrect_types_ = 0;
     metasequoia::FuzzyPinyinOptions fuzzy_pinyin_;
     metasequoia::PrefixCompletionOptions prefix_completion_;

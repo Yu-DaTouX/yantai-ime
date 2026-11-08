@@ -7,9 +7,6 @@
 
 void test_public_session_interface()
 {
-    if (!metasequoia::Session::is_supported_helpcode_schema("xiaohe") ||
-        metasequoia::Session::is_supported_helpcode_schema("unknown-schema"))
-        throw std::runtime_error("Public session cannot validate a host helpcode preference");
     bool rejected = false;
     try
     {

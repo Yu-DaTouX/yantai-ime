@@ -133,7 +133,7 @@ std::size_t CandidateWordIndex(const metasequoia::InputSession &session, const s
 // 前缀等价断言的基准：同一拼写独立键入得到的候选列表。
 std::vector<std::string> QuanpinCandidateWordsFor(const std::string &typed, const metasequoia::RuntimePaths &paths)
 {
-    metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+    metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
     TypeText(session, typed);
     return CandidateWords(session);
 }
@@ -150,7 +150,7 @@ TEST_CASE(CaretPrefixDecodesQuanpinByCompleteSyllablePrefix)
     // 会话必须先于 remove_all 析构：它持有词库句柄，Windows 上删不掉打开的文件。
     {
         const std::string sentence = "ni'hao'shi'jie";
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         TypeText(session, sentence);
         REQUIRE(session.has_composition());
         REQUIRE_EQ(session.prefix_end(), sentence.size());
@@ -220,7 +220,7 @@ TEST_CASE(PrefixCandidatesRefreshAfterResetCache)
     const auto paths = FixturePaths(directory);
 
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         TypeText(session, "ni'hao");
         session.set_caret(4);
         session.recompute_candidates();
@@ -241,28 +241,28 @@ TEST_CASE(PrefixCandidatesRefreshAfterResetCache)
     std::filesystem::remove_all(directory);
 }
 
-// pending_suffix 保留原始大小写：光标处插入的大写字母原样留在后缀里。
-TEST_CASE(CaretPrefixSuffixKeepsTheTypedCasing)
+// pending_suffix 保留原始输入：光标处插入的字母原样留在后缀里。
+TEST_CASE(CaretPrefixSuffixKeepsTheTypedInput)
 {
     const auto directory = CreateCaretPrefixFixture();
     const auto paths = FixturePaths(directory);
 
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         TypeText(session, "ni'hao");
         session.handle_command(metasequoia::Command::MoveHome);
-        REQUIRE(session.handle_character('H').handled);
-        REQUIRE_EQ(session.editing_text(), std::string("Hni'hao"));
+        REQUIRE(session.handle_character('h').handled);
+        REQUIRE_EQ(session.editing_text(), std::string("hni'hao"));
         REQUIRE_EQ(session.caret_position(), std::size_t{1});
 
         session.set_caret(0);
         session.recompute_candidates();
         REQUIRE_EQ(session.prefix_end(), std::size_t{0});
-        REQUIRE_EQ(session.pending_suffix(), std::string("Hni'hao"));
+        REQUIRE_EQ(session.pending_suffix(), std::string("hni'hao"));
 
         session.set_caret(std::nullopt);
         session.recompute_candidates();
-        REQUIRE_EQ(session.editing_text(), std::string("Hni'hao"));
+        REQUIRE_EQ(session.editing_text(), std::string("hni'hao"));
     }
 
     std::filesystem::remove_all(directory);
@@ -279,7 +279,7 @@ TEST_CASE(PrefixSelectionSettlementLeavesFreshFullStringSuffix)
 
     {
         const std::string sentence = "ni'hao'shi'jie";
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         TypeText(session, sentence);
 
         // 光标在 ni'hao 之后：候选等于前缀 ni'hao 的候选，选中「你好」。
@@ -308,7 +308,7 @@ TEST_CASE(PrefixSelectionSettlementLeavesFreshFullStringSuffix)
     {
         // 部分消费：光标在 ni 之后（floor 到边界 2），选中的「你」只消耗 ni，
         // 剩余 raw 从 hao 重新开始；hao 此时不完整，属于新的待转后缀。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         TypeText(session, "ni'hao'shi'jie");
         session.set_caret(4);
         session.recompute_candidates();
@@ -344,7 +344,7 @@ TEST_CASE(CaretReturnToTailAfterPrefixActivationRestoresFreshFullStringDecode)
 
     {
         const std::string sentence = "ni'hao'shi'jie";
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, true, false, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false, paths);
         TypeText(session, sentence);
         const auto full_words = CandidateWords(session);
 

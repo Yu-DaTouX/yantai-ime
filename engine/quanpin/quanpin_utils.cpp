@@ -2,7 +2,7 @@
 #include "quanpin_query.h"
 
 #include "autocorrect_table.h"
-#include "../common/helpcode_utils.h"
+#include "../common/string_utils.h"
 #include <algorithm>
 #include <cctype>
 #include <limits>
@@ -577,45 +577,6 @@ std::string to_google_spelling(const std::string &segmentation)
         chunk_start = separator + 1;
     }
     return result;
-}
-
-size_t detect_active_helpcode_length(const std::string &raw_input, const std::string &raw_input_with_cases)
-{
-    const auto &input_with_cases = raw_input_with_cases.empty() ? raw_input : raw_input_with_cases;
-    if (HelpcodeUtils::is_quanpin_double_help_mode(input_with_cases) && raw_input.size() >= 2 &&
-        is_complete_pinyin_input(raw_input.substr(0, raw_input.size() - 2)))
-    {
-        return 2;
-    }
-
-    if (HelpcodeUtils::is_quanpin_single_help_mode(input_with_cases) && !raw_input.empty() &&
-        is_complete_pinyin_input(raw_input.substr(0, raw_input.size() - 1)))
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
-std::string strip_active_helpcodes(const std::string &raw_input, const std::string &raw_input_with_cases)
-{
-    const size_t helpcode_length = detect_active_helpcode_length(raw_input, raw_input_with_cases);
-    if (helpcode_length == 0 || raw_input.size() < helpcode_length)
-    {
-        return raw_input;
-    }
-    return raw_input.substr(0, raw_input.size() - helpcode_length);
-}
-
-std::string strip_active_helpcodes_with_cases(const std::string &raw_input, const std::string &raw_input_with_cases)
-{
-    const auto &input_with_cases = raw_input_with_cases.empty() ? raw_input : raw_input_with_cases;
-    const size_t helpcode_length = detect_active_helpcode_length(raw_input, raw_input_with_cases);
-    if (helpcode_length == 0 || input_with_cases.size() < helpcode_length)
-    {
-        return input_with_cases;
-    }
-    return input_with_cases.substr(0, input_with_cases.size() - helpcode_length);
 }
 
 std::vector<Segments> sparse_pinyin_fallback_segments(const Segments &segments)

@@ -134,8 +134,6 @@ int main()
         insert_weighted("bian", "边", 800000);
         insert_weighted("ling'yi", "另一", 50000);
         sqlite3_close(db);
-        std::filesystem::create_directories(directory / "helpcodes");
-        std::ofstream(directory / "helpcodes" / "helpcode.txt") << "中=ab\n宗=cd\n国=ef\n";
         RuntimePaths paths{directory, directory, directory, directory};
         QuanpinDictionary dictionary({}, paths);
         for (std::size_t i = 0; i < pairs.size(); ++i)
@@ -200,7 +198,6 @@ int main()
                 "unbounded fuzzy beam");
         SessionOptions options;
         options.paths = paths;
-        options.helpcode = false;
         options.autocorrect_types = 0;
         options.learning = false;
         options.fuzzy_pinyin.rules = 1;
@@ -216,14 +213,6 @@ int main()
         type(session, "zhong");
         require(session.select(index(session, "宗")).commit == "宗" && session.snapshot().preedit.empty(),
                 "reverse selection left input behind");
-        options.helpcode = true;
-        Session helped(options);
-        options.scheme = SchemeType::Quanpin;
-        Session helpedFull(options);
-        type(helpedFull, "zongAB");
-        require(helpedFull.select(index(helpedFull, "中")).commit == "中" && helpedFull.snapshot().preedit.empty(),
-                "quanpin helpcode fuzzy selection");
-        options.helpcode = false;
         options.learning = true;
         Session learned(options);
         type(learned, "zongguo");

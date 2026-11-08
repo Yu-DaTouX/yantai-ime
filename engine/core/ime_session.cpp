@@ -41,11 +41,6 @@ void ImeSession::switch_scheme(SchemeType scheme_type)
     state_ = CompositionState{};
 }
 
-void ImeSession::set_quanpin_helpcode_enabled(bool enabled)
-{
-    enable_quanpin_helpcode_ = enabled;
-}
-
 void ImeSession::set_quanpin_autocorrect_types(unsigned autocorrect_types)
 {
     quanpin_autocorrect_types_ = autocorrect_types;
@@ -181,7 +176,6 @@ bool ImeSession::expand_initial_candidates()
 
 void ImeSession::apply_request_options(QueryRequest &request) const
 {
-    request.enable_quanpin_helpcode = enable_quanpin_helpcode_;
     request.enable_quanpin_autocorrect_transposition =
         (quanpin_autocorrect_types_ & quanpin::kAutocorrectTransposition) != 0;
     request.enable_quanpin_autocorrect_neighbor = (quanpin_autocorrect_types_ & quanpin::kAutocorrectNeighbor) != 0;

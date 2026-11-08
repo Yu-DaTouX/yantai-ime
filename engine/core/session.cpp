@@ -8,14 +8,12 @@ class Session::Impl
 {
   public:
     explicit Impl(const SessionOptions &options)
-        : session(options.scheme, options.autocorrect_types, options.helpcode, options.chinese_punctuation,
-                  options.learning, options.paths)
+        : session(options.scheme, options.autocorrect_types, options.chinese_punctuation, options.learning,
+                  options.paths)
     {
         session.set_quanpin_autocorrect_types(options.autocorrect_types);
         session.set_fuzzy_pinyin_options(options.fuzzy_pinyin);
-        session.set_quanpin_helpcode_enabled(options.helpcode);
-        if (!session.set_helpcode_schema(options.helpcode_schema) ||
-            !session.set_frequency_adjustment(options.frequency) || !session.set_english_input_options(options.english))
+        if (!session.set_frequency_adjustment(options.frequency) || !session.set_english_input_options(options.english))
             throw std::invalid_argument("Invalid session options");
         session.set_local_mode_options(options.local_modes);
         session.set_mixed_expressive_options(options.expressive);
@@ -89,18 +87,6 @@ KeyResult Session::finish(std::size_t first_index)
 void Session::switch_scheme(SchemeType scheme)
 {
     impl_->session.switch_scheme(scheme);
-}
-bool Session::is_supported_helpcode_schema(const std::string &schema)
-{
-    return InputSession::is_supported_helpcode_schema(schema);
-}
-bool Session::set_helpcode_schema(const std::string &schema)
-{
-    return impl_->session.set_helpcode_schema(schema);
-}
-void Session::set_helpcode_enabled(bool enabled)
-{
-    impl_->session.set_quanpin_helpcode_enabled(enabled);
 }
 void Session::set_dedicated_english(bool enabled)
 {

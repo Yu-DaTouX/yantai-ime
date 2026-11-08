@@ -182,12 +182,12 @@ void test_guessed_head(const std::filesystem::path &directory)
 void test_quanpin(const metasequoia::RuntimePaths &paths, const std::filesystem::path &directory)
 {
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "zhonghuarenmin");
         require(completion_index(session) == session.candidates().size(), "Prefix completion must default to off.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         session.set_prefix_completion_options(enabled());
         type(session, "zhonghuarenmin");
         const auto &candidates = session.candidates();
@@ -207,20 +207,20 @@ void test_quanpin(const metasequoia::RuntimePaths &paths, const std::filesystem:
             "Selecting a completion must not touch the head's row.");
     {
         // 三个字不补：zhonghuaren 的首选只有三个字。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         session.set_prefix_completion_options(enabled());
         type(session, "zhonghuaren");
         require(completion_index(session) == session.candidates().size(),
                 "A head shorter than the minimum must not be completed.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         session.set_prefix_completion_options(enabled(5));
         type(session, "zhonghuarenmin");
         require(completion_index(session) == session.candidates().size(), "The minimum length must follow the option.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         session.set_prefix_completion_options(enabled());
         type(session, "beijingdaxue");
         require(session.candidates().front().word == "北京大学" &&
@@ -228,7 +228,7 @@ void test_quanpin(const metasequoia::RuntimePaths &paths, const std::filesystem:
                 "Rows at the shipped flat weight must not be offered without a language model.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         session.set_prefix_completion_options(enabled());
         type(session, "haineicunzhi");
         const auto &candidates = session.candidates();
@@ -238,7 +238,7 @@ void test_quanpin(const metasequoia::RuntimePaths &paths, const std::filesystem:
     }
     {
         // 置顶会拿别的键当阶梯，补全行不接受。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         session.set_prefix_completion_options(enabled());
         type(session, "zhonghuarenmin");
         require(completion_index(session) == 1 && !session.pin_candidate(1).handled,

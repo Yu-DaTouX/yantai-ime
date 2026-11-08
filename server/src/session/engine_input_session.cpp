@@ -52,7 +52,7 @@ std::string ResolveLatticeLanguageModelPath()
 }
 
 EngineInputSession::EngineInputSession(SchemeType scheme)
-    : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, 0, false, true, true, paths_)
+    : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, 0, true, true, paths_)
 {
     ApplyConfiguration();
 }

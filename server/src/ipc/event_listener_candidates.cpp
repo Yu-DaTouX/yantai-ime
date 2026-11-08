@@ -17,7 +17,7 @@
 #include "utils/hanzi_pinyin.h"
 #include <utf8.h>
 #include "global/globals.h"
-#include "engine/common/helpcode_utils.h"
+#include "engine/common/string_utils.h"
 #include "engine/quanpin/quanpin_query.h"
 #include "engine/user_dictionary/user_dictionary_journal.h"
 #include "english/english_ime.h"
@@ -86,7 +86,7 @@ bool BuildTranslationQuery(const WordItem &item, EnglishIme::TranslationQuery &q
         query = {std::move(normalized), EnglishIme::TranslationDirection::EnglishToChinese};
         return true;
     }
-    if (HelpcodeUtils::count_han_chars(visible) > 0)
+    if (CommonUtils::count_han_chars(visible) > 0)
     {
         query = {visible, EnglishIme::TranslationDirection::ChineseToEnglish};
         return true;
@@ -611,7 +611,7 @@ std::string CandidateDatabaseKey(const WordItem &item, const std::string &contex
     if (g_inputSession->get_pinyin_sequence().size() == 1)
         return item.pinyin;
     auto segments = quanpin::split_segments(context_key);
-    const size_t han_count = HelpcodeUtils::count_han_chars(item.word);
+    const size_t han_count = CommonUtils::count_han_chars(item.word);
     if (segments.empty() || han_count == 0)
         return item.pinyin;
     if (segments.size() > han_count)

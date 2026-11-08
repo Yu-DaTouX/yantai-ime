@@ -2,7 +2,7 @@
 
 [中文 README](README.md) · [Website](https://msime.app)
 
-The C++ conversion engine behind Metasequoia IME for Windows: input sessions, candidate lookup, helpcodes and the shared contracts.
+The C++ conversion engine behind Metasequoia IME for Windows: input sessions, candidate lookup and the shared contracts.
 
 This directory used to be a submodule of `metasequoiaime/MSIME-Engine`. It is now a component of this repository, a sibling of `server/`, `ui/`, `windows/` and `installer/`. Its upstream commit, and exactly what the Windows specialization removed, are recorded in [UPSTREAM.md](UPSTREAM.md). **Treat it as first-party code**: reviewed, formatted and tested like anything else here, no longer merged from upstream.
 
@@ -10,7 +10,6 @@ This directory used to be a submodule of `metasequoiaime/MSIME-Engine`. It is no
 | --- | --- |
 | `core/`, `quanpin/`, `english/` | Input sessions and candidate lookup |
 | `contracts/` | The authoritative IPC wire format, dictionary format, punctuation policy and settings-window message schema |
-| `helpcode/` | Helpcode (形码) tables and generators |
 | `local_modes/`, `providers/`, `user_dictionary/` | Local modes, online candidate sources, the user dictionary |
 | `googlepinyinime-rev/`, `ngram/kenlm/`, `utfcpp/`, `voice/third_party/` | Vendored third-party code, kept in its upstream formatting and licence |
 

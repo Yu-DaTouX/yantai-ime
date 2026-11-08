@@ -7,7 +7,7 @@
 #include "settings/dictionary_validation.h"
 #include "utils/common_utils.h"
 #include "utils/hanzi_pinyin.h"
-#include "engine/common/helpcode_utils.h"
+#include "engine/common/string_utils.h"
 #include "engine/quanpin/latin_words.h"
 #include "engine/quanpin/quanpin_query.h"
 #include "engine/quanpin/quanpin_utils.h"
@@ -285,7 +285,7 @@ json::object ExportUserDictionary(const std::string &dictionary)
         const auto weight = sqlite3_column_int64(stmt.get(), 2);
         const std::string display = text(3);
 
-        if (dictionary == "quanpin" && HelpcodeUtils::count_utf8_chars(value) <= 1)
+        if (dictionary == "quanpin" && CommonUtils::count_utf8_chars(value) <= 1)
             continue;
         if (dictionary == "quanpin")
             content << value << '\t' << key << '\t' << weight << '\n';
@@ -326,7 +326,7 @@ bool ValidateChineseEntry(const std::string &mode, const std::string &code, cons
         message = "词条不能为空";
         return false;
     }
-    const size_t han_count = HelpcodeUtils::count_han_chars(word);
+    const size_t han_count = CommonUtils::count_han_chars(word);
     if (!Validation::NormalizeFullPinyin(code, segments, normalized, han_count))
     {
         message = "全拼必须由拼音表中的完整音节组成，不能使用简拼";

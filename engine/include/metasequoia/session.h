@@ -11,11 +11,9 @@ struct SessionOptions
 {
     RuntimePaths paths;
     SchemeType scheme = SchemeType::Quanpin;
-    std::string helpcode_schema = "lantian";
     // Quanpin autocorrection type mask (quanpin::kAutocorrect* bits); 0 keeps the
     // user's spelling untouched, which is the default for a fresh install.
     unsigned autocorrect_types = 0;
-    bool helpcode = true;
     bool chinese_punctuation = true;
     bool learning = true;
     FuzzyPinyinOptions fuzzy_pinyin;
@@ -73,10 +71,6 @@ class Session
     // Remaining segments use their leading candidate; an invalid index commits raw input.
     KeyResult finish(std::size_t first_index);
     void switch_scheme(SchemeType scheme);
-    static bool is_supported_helpcode_schema(const std::string &schema);
-    bool set_helpcode_schema(const std::string &schema);
-    // Applies the helpcode enable flag, as SessionOptions::helpcode does at construction.
-    void set_helpcode_enabled(bool enabled);
     void set_dedicated_english(bool enabled);
     SessionSnapshot snapshot() const;
     std::optional<OnlineQuery> online_query() const;

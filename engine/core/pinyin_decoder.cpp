@@ -28,14 +28,6 @@ DecoderService &service()
     return instance;
 }
 
-bool accept_constrained_char(std::size_t index, ime_pinyin::char16 hanzi, void *user)
-{
-    const auto &constraints = *static_cast<const std::vector<DecoderCharConstraint> *>(user);
-    if (index >= constraints.size() || !constraints[index].accept)
-        return true;
-    const std::u16string text(1, static_cast<char16_t>(hanzi));
-    return constraints[index].accept(utf8::utf16to8(text));
-}
 } // namespace
 
 PinyinDecoder::PinyinDecoder(std::filesystem::path model, std::filesystem::path user_dictionary)
@@ -59,8 +51,7 @@ PinyinDecoder::~PinyinDecoder()
     }
 }
 
-std::string PinyinDecoder::sentence(const std::string &pinyin,
-                                    const std::vector<DecoderCharConstraint> &constraints) const
+std::string PinyinDecoder::sentence(const std::string &pinyin) const
 {
     if (pinyin.empty() || pinyin.size() > 128 || model_.empty() || user_dictionary_.empty())
         return {};
@@ -84,17 +75,6 @@ std::string PinyinDecoder::sentence(const std::string &pinyin,
     }
     if (!decoder.ready)
         return {};
-    std::vector<ime_pinyin::uint16> positions;
-    positions.reserve(constraints.size());
-    for (const auto &constraint : constraints)
-    {
-        if (constraint.pinyin_offset >= pinyin.size())
-            return {};
-        positions.push_back(static_cast<ime_pinyin::uint16>(constraint.pinyin_offset));
-    }
-    // 约束变化时解码器会整段重解，增量搜索只在前后都不带约束时继续生效。
-    ime_pinyin::im_set_char_constraints(positions.data(), positions.size(), accept_constrained_char,
-                                        const_cast<std::vector<DecoderCharConstraint> *>(&constraints));
     // 不先 im_reset_search：upstream 的 search 自己会与上一次的输入比公共前缀，从分歧处
     // 回退再往后解，连续打字时每键只多解一个字母。前缀为零时它走的就是整段重置。
     const auto count = ime_pinyin::im_search(pinyin.data(), pinyin.size());
@@ -110,9 +90,6 @@ std::string PinyinDecoder::sentence(const std::string &pinyin,
         if (length)
             result = utf8::utf16to8(std::u16string(reinterpret_cast<const char16_t *>(buffer), length));
     }
-    // 回调的 user 指针指向调用方的 constraints，出了这个函数就悬空，不能留在解码器里。
-    if (!constraints.empty())
-        ime_pinyin::im_set_char_constraints(nullptr, 0, nullptr, nullptr);
     return result;
 }
 } // namespace metasequoia

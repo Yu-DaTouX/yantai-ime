@@ -387,7 +387,7 @@ void insert_prefix_completion(std::vector<WordItem> &result, const std::string &
     // 首选是词库里的行，前缀本身就是一个词；整句猜出来的首选（马克思主、计算机科）往往只是半个词。
     const bool prefix_is_word =
         head.source == CandidateSource::Database || head.source == CandidateSource::UserDatabase;
-    // 同一个读音可能对应不同的首选（打了辅助码、换了整句来源），缓存键带上字、它是不是词库词，以及这次
+    // 同一个读音可能对应不同的首选（换了整句来源），缓存键带上字、它是不是词库词，以及这次
     // 是哪个模型在打分（下载或删掉模型之后不能拿旧排序）。
     const std::string cache_key = prefix_key + '\t' + head.word + (prefix_is_word ? "\tw" : "\ts") +
                                   static_cast<char>('0' + static_cast<int>(active_prefix_completion_scorer(scorers)));

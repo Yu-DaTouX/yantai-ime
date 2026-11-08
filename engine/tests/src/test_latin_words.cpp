@@ -242,14 +242,6 @@ void prepare_dictionary(const std::filesystem::path &directory, bool with_latin_
             "COMMIT;");
 }
 
-// 蓝天辅码表（会话默认的辅码方案）里几个字的码。
-void prepare_helpcodes(const std::filesystem::path &directory)
-{
-    std::filesystem::create_directories(directory / "helpcodes");
-    std::ofstream(directory / "helpcodes" / "helpcode.txt", std::ios::binary)
-        << "特=ua\n同=ub\n知=nb\n智=nk\n职=nz\n这=lw\n";
-}
-
 // Google 整句解码器的模型取源码树里那一份。
 void prepare_google_model(const std::filesystem::path &directory)
 {
@@ -280,7 +272,7 @@ void with_lattice(metasequoia::InputSession &session)
 void test_quanpin_candidates(const metasequoia::RuntimePaths &paths)
 {
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "txu");
         const auto &candidates = session.candidates();
         require(latin_follows_leader(session, "特许", "T恤") && candidates[1].canonical_pinyin == "t'xu" &&
@@ -293,14 +285,14 @@ void test_quanpin_candidates(const metasequoia::RuntimePaths &paths)
     }
     {
         // tx 是常用简拼；只有两个字母时不补全，单个字母什么都不配。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "tx");
         require(!has_latin_word(session) && first_is(session, "同学"),
                 "Two letters that are only a prefix of a latin word must not bring it in.");
     }
     {
         // 切分是 ka'lao'k，字母词按字母串认，不看切分。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "kalaok");
         const auto index = find_index(session, "卡拉OK");
         require(index < session.candidates().size() && session.candidates()[index].latin_word,
@@ -310,7 +302,7 @@ void test_quanpin_candidates(const metasequoia::RuntimePaths &paths)
     }
     {
         // u 开头切不成拼音，照样按字母串认；U 模式要按 Shift+U 才进。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "upan");
         require(first_is(session, "U盘"), "A latin word starting with u must be offered on its own.");
     }
@@ -318,7 +310,7 @@ void test_quanpin_candidates(const metasequoia::RuntimePaths &paths)
 
 void test_quanpin_sentence(const metasequoia::RuntimePaths &paths)
 {
-    metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+    metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
     with_lattice(session);
     type(session, "maiyijiantxu");
     require(!session.candidates().empty() && session.candidates()[0].word == "买一件T恤" &&
@@ -331,19 +323,19 @@ void test_quanpin_sentence(const metasequoia::RuntimePaths &paths)
 void test_exact_only(const metasequoia::RuntimePaths &paths)
 {
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "zhee");
         const auto index = find_index(session, "浙E");
         require(index < session.candidates().size() && session.candidates()[index].latin_word,
                 "A license plate must be offered when the input is exactly its code.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "zhe");
         require(find_index(session, "浙E") == session.candidates().size(), "A license plate must not be completed.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         with_lattice(session);
         type(session, "maizhee");
         require(find_index(session, "买浙E") == session.candidates().size(),
@@ -354,7 +346,7 @@ void test_exact_only(const metasequoia::RuntimePaths &paths)
 void test_no_learning(const std::filesystem::path &directory, const metasequoia::RuntimePaths &paths)
 {
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         require(session.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Linear, 1, 1}),
                 "The frequency adjustment fixture was not accepted.");
         type(session, "txu");
@@ -363,7 +355,7 @@ void test_no_learning(const std::filesystem::path &directory, const metasequoia:
         require(session.select_candidate(index).commit == "T恤衫", "The completion must be selectable.");
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         with_lattice(session);
         type(session, "maiyijiantxu");
         require(session.select_candidate(0).commit == "买一件T恤", "The latin sentence must be selectable.");
@@ -378,7 +370,7 @@ void test_no_learning(const std::filesystem::path &directory, const metasequoia:
 
 void test_old_dictionary(const metasequoia::RuntimePaths &paths)
 {
-    metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+    metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
     with_lattice(session);
     type(session, "maiyijiantxu");
     require(!has_latin_word(session) && find_index(session, "买一件T恤") == session.candidates().size(),
@@ -414,23 +406,23 @@ void expect_latin_after_full_input(const metasequoia::InputSession &session, con
 void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
 {
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "zhel");
         expect_latin_after_full_input(session, "zhel", {"这里", "这类"}, "浙L", {"这"});
     }
     {
         // 打全字母段 nabla 之后的补全：没有普通词覆盖整串，补出的字母词排第一。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "nablas");
         expect_latin_after_full_input(session, "nablas", {}, "Nabla算子", {});
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "jib");
         expect_latin_after_full_input(session, "jib", {"基本"}, "吉B", {"机"});
     }
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "txu");
         expect_latin_after_full_input(session, "txu", {"特许"}, "T恤", {});
         const auto completion = find_index(session, "T恤衫");
@@ -440,7 +432,7 @@ void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
     }
     {
         // 词格对 t'xu 解出的整句就是 T恤：去掉那条整句，字母词只出一次，位置照旧在 特许 之后。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         with_lattice(session);
         type(session, "txu");
         expect_latin_after_full_input(session, "txu", {"特许"}, "T恤", {});
@@ -450,7 +442,7 @@ void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
     }
     {
         // 词格整句覆盖整串输入，车牌排在它之后。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         with_lattice(session);
         type(session, "zhee");
         expect_latin_after_full_input(session, "zhee", {"这鹅"}, "浙E", {"这"});
@@ -461,7 +453,7 @@ void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
         // 同组的几条字母词按权重排：整串命中 B超（6）在 B潮（1）前，补全同样如此。
         for (const char *input : {"bchao", "bch"})
         {
-            metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+            metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
             type(session, input);
             const auto &candidates = session.candidates();
             require(candidates.size() > 1 && candidates[0].word == "B超" && candidates[0].latin_word &&
@@ -472,7 +464,7 @@ void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
     }
     {
         // 没有普通词覆盖整串时字母词排第一；那边 只覆盖 na'b，排在后面。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "nabla");
         expect_latin_after_full_input(session, "nabla", {}, "Nabla算子", {"那边", "那"});
     }
@@ -483,7 +475,7 @@ void test_latin_after_full_input(const metasequoia::RuntimePaths &paths)
 void test_completion_gate(const metasequoia::RuntimePaths &paths)
 {
     const auto quanpin = [&](const std::string &input) {
-        auto session = std::make_unique<metasequoia::InputSession>(SchemeType::Quanpin, 0u, true, true, true, paths);
+        auto session = std::make_unique<metasequoia::InputSession>(SchemeType::Quanpin, 0u, true, true, paths);
         type(*session, input);
         return session;
     };
@@ -534,7 +526,7 @@ void test_completion_gate_shapes(const metasequoia::RuntimePaths &paths)
 {
     {
         // e人e本：打完第一段 e 就够门槛，eren 还没打到第二段 e，照样补出。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "eren");
         const auto index = find_index(session, "e人e本");
         require(index < session.candidates().size() && session.candidates()[index].latin_word,
@@ -543,7 +535,7 @@ void test_completion_gate_shapes(const metasequoia::RuntimePaths &paths)
     {
         // dna 盖住了 DNA检测、DNA鉴定、DNA序列 的字母段，没盖住最重的 DNAS芯片 的 dnas。
         // 打那 覆盖整串，补出来的字母词排在它后面，按权重取前两条。
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths);
         type(session, "dna");
         expect_latin_after_full_input(session, "dna", {"打那"}, "DNA检测", {});
         const auto second = find_index(session, "DNA鉴定");
@@ -590,8 +582,8 @@ void test_ordinary_order_unchanged(const metasequoia::RuntimePaths &paths, const
              {"zuobi", true, false},
          })
     {
-        metasequoia::InputSession current(SchemeType::Quanpin, 0u, true, true, true, paths);
-        metasequoia::InputSession old(SchemeType::Quanpin, 0u, true, true, true, old_paths);
+        metasequoia::InputSession current(SchemeType::Quanpin, 0u, true, true, paths);
+        metasequoia::InputSession old(SchemeType::Quanpin, 0u, true, true, old_paths);
         compare(current, old, input, lattice, expect_latin);
     }
 }
@@ -675,7 +667,7 @@ void test_user_words(const std::filesystem::path &directory)
     const auto paths = paths_for(directory);
     const auto main = utf8_path(directory / "msime.db");
     const auto journal = utf8_path(paths.user(metasequoia::assets::user_journal));
-    metasequoia::InputSession quanpin_session(SchemeType::Quanpin, 0u, true, true, true, paths);
+    metasequoia::InputSession quanpin_session(SchemeType::Quanpin, 0u, true, true, paths);
     with_lattice(quanpin_session);
     type(quanpin_session, "xguang");
     require(find_index(quanpin_session, "X光") == quanpin_session.candidates().size(),
@@ -750,7 +742,7 @@ void test_replay(const std::filesystem::path &root, const std::filesystem::path 
             user_dictionary::replay(journal, utf8_path(directory / "msime.db"), utf8_path(directory / "english.db"));
         if (!result.error.empty() || result.failed != 0)
             throw std::runtime_error(std::string("Replaying user latin words failed on ") + name + ": " + result.error);
-        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths_for(directory));
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, paths_for(directory));
         type(session, "xxian");
         if (!first_is(session, "X线"))
             throw std::runtime_error(std::string("A replayed user latin word must show on ") + name);

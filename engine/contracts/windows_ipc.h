@@ -316,7 +316,7 @@ constexpr std::uint32_t PipeReady = 9;
 // candidate_string is the complete text to commit; do not append punctuation.
 constexpr std::uint32_t CommitExactText = 10;
 // UILess hosts (games): candidate_string = preedit + L'\t' + cand1,cand2,...
-// Plain words only — no helpcodes — so ITfCandidateListUIElement::GetString
+// Plain words only, so ITfCandidateListUIElement::GetString
 // matches Microsoft IME behavior for host-drawn candidate UI.
 constexpr std::uint32_t UiLessComposition = 11;
 // Registration-only replies, consumed before a new client may send keys.

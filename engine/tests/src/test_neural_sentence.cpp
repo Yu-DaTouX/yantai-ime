@@ -595,7 +595,7 @@ int run_test()
 
     // The product uses InputSession; fixed positions must still override contextual ranking.
     {
-        metasequoia::InputSession session(SchemeType::Quanpin, 0, false, true, false);
+        metasequoia::InputSession session(SchemeType::Quanpin, 0, true, false);
         SentenceAssociationOptions options;
         options.context_candidate_rerank = true;
         session.set_sentence_association(options);

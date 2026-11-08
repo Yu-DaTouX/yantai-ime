@@ -1,6 +1,4 @@
 #pragma once
-#include "../common/helpcode_utils.h"
-
 #include "../core/query_request.h"
 #include "../core/word_item.h"
 #include "../common/cache.h"
@@ -35,13 +33,7 @@ class QuanpinEngine
         return dictionary_.fault_segmentation_with_cases();
     }
     void reset_sentence_cache();
-    void set_helpcode_keymap(HelpcodeUtils::SharedKeymap table)
-    {
-        helpcodes_ = std::move(table);
-        reset_cache();
-    }
 
   private:
     QuanpinDictionary dictionary_;
-    HelpcodeUtils::SharedKeymap helpcodes_;
 };

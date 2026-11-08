@@ -214,9 +214,9 @@ void run_candidate_consistency_tests(const std::filesystem::path &data_directory
 
         // ① 两个各自新建的会话给出同一份结果：进程级共享状态（共享模型、语句缓存）不得
         //    让第二次查询看到第一次的结果。
-        metasequoia::InputSession first(SchemeType::Quanpin, 0u, false, true, false, paths);
+        metasequoia::InputSession first(SchemeType::Quanpin, 0u, true, false, paths);
         const std::vector<Snapshot> first_keys = type_and_snapshot_each_key(first, typed);
-        metasequoia::InputSession second(SchemeType::Quanpin, 0u, false, true, false, paths);
+        metasequoia::InputSession second(SchemeType::Quanpin, 0u, true, false, paths);
         require_same_snapshots(first_keys, type_and_snapshot_each_key(second, typed),
                                typed + " across two fresh sessions");
 

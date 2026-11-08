@@ -26,7 +26,6 @@ struct QueryRequest
     std::string raw_segmentation;
     std::string normalized_segmentation;
     std::string segmentation;
-    bool enable_quanpin_helpcode = false;
     // Autocorrection is type-gated (bit0 transposition, bit1 neighbor, bit2 deletion,
     // bit3 insertion in the session-level mask). One bool per switch, no linkage
     // between them; all default off, so a fresh install never rewrites the user's

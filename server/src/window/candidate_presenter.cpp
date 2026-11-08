@@ -28,7 +28,6 @@
 #include "msimeui/Theme.h"
 #include "msimeui/Window.h"
 
-#include "engine/common/helpcode_utils.h"
 #include "engine/core/scheme_type.h"
 #include "engine/core/word_item.h"
 

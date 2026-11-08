@@ -39,7 +39,6 @@ def assets(profile='desktop'):
 STATIC_FILES = {name: entry['source'] for name, entry in assets().items()
                 if entry['source'] != 'dictionary'}
 DICTIONARY_FILES = frozenset(assets()) - STATIC_FILES.keys()
-HELPCODES = {entry['schema']: entry['path'] for entry in CONTRACT['assets'] if 'schema' in entry}
 
 
 def sha256(data):
