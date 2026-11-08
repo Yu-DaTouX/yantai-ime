@@ -52,6 +52,7 @@ const DWORD WM_CommitCandidateAndContinue = WM_USER + 28;
 const DWORD WM_SyncCapsLockPunctuation = WM_USER + 30;
 const DWORD WM_ApplyUiLessCandidates = WM_USER + 31;
 const DWORD WM_ApplyTranslationComposition = WM_USER + 33;
+const DWORD WM_ApplyTranslationMode = WM_USER + 34;
 const DWORD WM_ApplyCapsLockEdge = WM_USER + 32;
 constexpr ULONG_PTR SMART_PUNCTUATION_SENDINPUT_EXTRA_INFO = 0x4D535050u;
 constexpr ULONG_PTR PAIRED_PUNCTUATION_SENDINPUT_EXTRA_INFO = 0x4D535051u;

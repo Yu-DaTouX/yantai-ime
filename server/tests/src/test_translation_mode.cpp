@@ -6,6 +6,7 @@
 #include "global/globals.h"
 #include "utils/common_utils.h"
 #include "engine/contracts/key_chord.h"
+#include "engine/contracts/translation_mode.h"
 #include <chrono>
 #include <atomic>
 #include <thread>
@@ -16,6 +17,9 @@ bool current = true;
 bool supports = true;
 std::wstring committed;
 UINT replyType = 0;
+uint64_t replyRequest = 0;
+std::wstring replyPayload;
+std::vector<std::pair<UINT, std::wstring>> workerPayloads;
 struct Session
 {
     std::shared_ptr<IInputSession> previous = g_inputSession;
@@ -23,12 +27,15 @@ struct Session
     {
         current = true;
         supports = true;
+        event_listener_detail::g_english_input_mode = false;
+        workerPayloads.clear();
         g_inputSession = std::make_shared<EngineInputSession>();
     }
     ~Session()
     {
         translation_mode::Shutdown();
         g_inputSession = previous;
+        event_listener_detail::g_english_input_mode = false;
         current = true;
     }
     void Spell(const std::string &text)
@@ -84,8 +91,9 @@ bool SendToTsfClientViaNamedpipe(uint64_t, uint64_t, UINT, uint64_t, const std::
 {
     return true;
 }
-bool SendToTsfWorkerThreadClientViaNamedpipe(uint64_t, uint64_t, UINT, const std::wstring &)
+bool SendToTsfWorkerThreadClientViaNamedpipe(uint64_t, uint64_t, UINT type, const std::wstring &payload)
 {
+    workerPayloads.emplace_back(type, payload);
     return true;
 }
 namespace FanyNamedPipe
@@ -127,9 +135,11 @@ void ClearState()
         translation_mode::Reset();
     g_inputSession->reset_state();
 }
-bool SendCurrentDataToClient(uint64_t, uint64_t, uint64_t)
+bool SendCurrentDataToClient(uint64_t, uint64_t, uint64_t request)
 {
+    replyRequest = request;
     replyType = Global::MsgTypeToTsf;
+    replyPayload = Global::candidate_ui.selected_text;
     if (replyType == FanyImeReplyType::TranslationCommitEnd)
     {
         committed = Global::candidate_ui.selected_text;
@@ -149,7 +159,12 @@ TEST_CASE(translation_controller_composing_default_ctrl_t_replies_without_waitin
     session.Key('T', FanyImeKeyChord::Control); // Use actual key entry, not Toggle().
     const auto elapsed = std::chrono::steady_clock::now() - start;
     REQUIRE(elapsed < std::chrono::milliseconds(250)); // Well below TSF's 1500 ms timeout.
-    REQUIRE_EQ(replyType, FanyImeReplyType::CompositionRestored);
+    REQUIRE_EQ(replyType, FanyImeReplyType::TranslationComposition);
+    REQUIRE_EQ(replyRequest, uint64_t(3));
+    FanyImeTranslationMode::Snapshot acknowledgment;
+    REQUIRE(FanyImeTranslationMode::Parse(replyPayload, acknowledgment));
+    REQUIRE(acknowledgment.active);
+    REQUIRE(!acknowledgment.composition.empty());
     REQUIRE(translation_mode::Active());
     REQUIRE_EQ(translation_mode::Snapshot()->draft, expected);
     REQUIRE_EQ(translation_mode::Snapshot()->english, L"翻译中…");
@@ -159,6 +174,43 @@ TEST_CASE(translation_controller_composing_default_ctrl_t_replies_without_waitin
     Global::Keycode = 'T';
     Global::ModifiersDown = FanyImeKeyChord::Control;
     REQUIRE(!translation_mode::HandleKey(7, 9, 4)); // Idle chord belongs to Chrome.
+}
+
+TEST_CASE(translation_controller_refused_toggle_acknowledges_actual_mode_and_preserves_pinyin)
+{
+    Session session;
+    session.Spell("nihao");
+    event_listener_detail::g_english_input_mode = true;
+    session.Key('T', FanyImeKeyChord::Control);
+    FanyImeTranslationMode::Snapshot acknowledgment;
+    REQUIRE_EQ(replyType, FanyImeReplyType::TranslationComposition);
+    REQUIRE(FanyImeTranslationMode::Parse(replyPayload, acknowledgment));
+    REQUIRE(!acknowledgment.active);
+    REQUIRE(!translation_mode::Active());
+    REQUIRE_EQ(g_inputSession->get_pinyin_sequence(), "nihao");
+}
+
+TEST_CASE(translation_controller_idle_toolbar_state_and_composition_are_revisioned)
+{
+    Session session;
+    translation_mode::Toggle(7, 9, true);
+    REQUIRE(translation_mode::Active());
+    REQUIRE(!workerPayloads.empty());
+    FanyImeTranslationMode::Snapshot entered;
+    REQUIRE(FanyImeTranslationMode::Parse(workerPayloads.back().second, entered));
+    REQUIRE(entered.active);
+    const auto revision = entered.revision;
+    translation_mode::Toggle(7, 9, true);
+    REQUIRE(!translation_mode::Active());
+    REQUIRE_EQ(workerPayloads.back().first, FanyImeWorkerReplyType::TranslationCompositionChanged);
+    FanyImeTranslationMode::Snapshot exited;
+    REQUIRE(FanyImeTranslationMode::Parse(workerPayloads.back().second, exited));
+    REQUIRE(!exited.active);
+    REQUIRE(exited.revision > revision);
+    REQUIRE(!exited.composition.empty());
+    current = false;
+    translation_mode::Toggle(7, 9, true);
+    REQUIRE(!translation_mode::Active()); // An old toolbar task cannot resurrect a focus session.
 }
 
 TEST_CASE(translation_controller_toggle_and_toolbar_never_wait_for_slow_cold_inference)

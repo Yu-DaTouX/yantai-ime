@@ -34,7 +34,7 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgType::UiLessComposition, 11u);
     REQUIRE(Global::DataFromServerMsgType::UiLessComposition > Global::DataFromServerMsgType::CommitExactText);
     REQUIRE_EQ(Global::DataFromServerMsgType::Reserved15, 15u);
-    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::TranslationCommitEnd);
+    REQUIRE_EQ(Global::DataFromServerMsgType::MaxKnown, Global::DataFromServerMsgType::TranslationComposition);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady, 8u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady, 9u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::InsertText, 10u);
@@ -154,6 +154,16 @@ TEST_CASE(ipc_translation_mode_capability_is_optional_and_preserves_old_layout)
     REQUIRE_EQ(sizeof(FanyImeNamedpipeDataToTsf), size_t(416));
     REQUIRE_EQ(FanyImeReplyType::TranslationCommitPart, 16u);
     REQUIRE_EQ(FanyImeReplyType::TranslationCommitEnd, 17u);
+    REQUIRE_EQ(FanyImeReplyType::TranslationComposition, 18u);
+    REQUIRE_EQ(FanyImeProtocol::TranslationModeState, 1u << 10);
+    const auto capabilities =
+        FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode | FanyImeProtocol::TranslationModeState;
+    const auto state_hello = FanyImeProtocol::Hello(1, 3, capabilities);
+    REQUIRE(
+        FanyImeProtocol::SupportsTranslationMode(FanyImeProtocol::Negotiate(state_hello, capabilities).capabilities));
+    REQUIRE(!FanyImeProtocol::SupportsTranslationMode(new_server.capabilities));
+    REQUIRE(!FanyImeProtocol::SupportsTranslationMode(
+        FanyImeProtocol::Negotiate(hello, capabilities).capabilities)); // Do not send opcode 18 to the old DLL.
 }
 
 TEST_CASE(ipc_client_suspension_is_a_distinct_nonterminal_route_reset)

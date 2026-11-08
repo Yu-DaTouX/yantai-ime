@@ -1281,10 +1281,6 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
         WriteDataToSharedMemory(Global::Keycode, wch, Global::ModifiersDown, includeCaretAnchor ? keyPoint : nullptr, 0,
                                 L"", KeyEventPayloadWriteMask(includeCaretAnchor));
 
-        const bool translationToggle =
-            KeystrokeState.Function == FUNCTION_SERVER_CANDIDATE_KEY &&
-            FanyUtils::ReadConfiguredSwitchLanguageHotkeys().translate_mode.Matches(code, capturedModifiers);
-        const bool nextTranslationMode = !Global::TranslationModeActive.load();
         PerfTimer sendKeyEventTimer;
         const KeyEventSendResult sendResult = SendKeyEventToUIProcess(
             &requestId,
@@ -1317,8 +1313,7 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
             return KeyDownDispatchResult::Complete;
         }
 
-        if (translationToggle)
-            Global::TranslationModeActive.store(nextTranslationMode);
+        // Delivery is not acceptance: only a focus-scoped Server snapshot changes the mode.
         if (KeystrokeState.Function == FUNCTION_SERVER_CANDIDATE_KEY && _msgWndHandle)
         {
             _PostAsyncKeyRequest(WM_AsyncServerCandidateKey, code, wch, requestId, {}, 0, 0, deferredReplayToken);

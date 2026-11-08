@@ -1,5 +1,6 @@
 #include "Key/TranslationModeKeyPolicy.h"
 #include "../../engine/contracts/key_chord.h"
+#include "../../engine/contracts/translation_mode.h"
 
 #include <cstdio>
 #include <initializer_list>
@@ -66,6 +67,25 @@ int main()
     check("normal Enter unchanged", Classify(0x0D, 0, context), Route::Existing);
     check("normal Backspace unchanged", Classify(0x08, 0, context), Route::Existing);
     check("normal Escape unchanged", Classify(0x1B, 0, context), Route::Existing);
+    FanyImeTranslationMode::Mirror mirror;
+    FanyImeTranslationMode::Snapshot snapshot;
+    const auto apply = [&](const std::wstring &payload) {
+        return FanyImeTranslationMode::Parse(payload, snapshot) && mirror.Apply(snapshot);
+    };
+    if (!apply(L"1\t2\t\t\t\t0") || !mirror.active || snapshot.composition != L"\t\t\t0")
+        ++failures;
+    if (!apply(L"0\t3") || mirror.active || apply(L"1\t2") || mirror.active)
+        ++failures; // A delayed Worker ON cannot undo the Main-pipe OFF.
+    if (apply(L"1\t3") || mirror.active)
+        ++failures; // Conflicting snapshots cannot reuse one revision.
+    if (!apply(L"0\t3"))
+        ++failures; // Exact duplicates are harmless.
+    mirror = {};    // Transport/focus reset: new process can start at revision 1.
+    if (!apply(L"1\t1") || !mirror.active)
+        ++failures;
+    for (const auto payload : {L"1", L"1\t", L"0\t0", L"2\t4", L"1\t-1", L"1\t18446744073709551616"})
+        if (FanyImeTranslationMode::Parse(payload, snapshot))
+            ++failures;
     if (failures)
         return 1;
     std::puts("PASS: translation-mode key ownership");
