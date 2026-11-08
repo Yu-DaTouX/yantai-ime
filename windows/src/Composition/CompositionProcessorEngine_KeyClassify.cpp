@@ -156,6 +156,7 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
         return TRUE;
     }
 
+
     // T-mode: digits, '/' and ':' that still extend a date/time are input. The rest keep their usual
     // meaning below (digits select, '/' and ':' are punctuation); Shift+digit never matches here.
     // V-mode: digits and . + - * / ( ) after the V prefix are input, so they neither select, page nor commit
@@ -183,6 +184,7 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
         }
         return TRUE;
     }
+
 
     // The Server owns the configurable comma/period behavior. Always route
     // these keys through it while candidates are active; its response decides
@@ -218,6 +220,495 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
             }
         }
         return TRUE;
+    }
+
+    if (IsCommitWithHighlightedCandidatePunctuationInCandidateMode(
+            uCode, pwch ? *pwch : 0, candidateMode, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength()))
+    {
+        if (pKeyState)
+        {
+            pKeyState->Category = CATEGORY_COMPOSING;
+            pKeyState->Function = FUNCTION_PUNCTUATION;
+        }
+        return TRUE;
+    }
+
+    if (fComposing || candidateMode == CANDIDATE_INCREMENTAL || candidateMode == CANDIDATE_NONE)
+    {
+        if (IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_NONE)) // 26 basic English chars
+        {
+            return TRUE;
+        }
+        else if ((IsWildcard() && IsWildcardChar(*pwch) && !IsDisableWildcardAtFirst()) ||
+                 (IsWildcard() && IsWildcardChar(*pwch) && IsDisableWildcardAtFirst() && _keystrokeBuffer.GetLength()))
+        {
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_COMPOSING;
+                pKeyState->Function = FUNCTION_INPUT;
+            }
+            return TRUE;
+        }
+        else if (_hasWildcardIncludedInKeystrokeBuffer && uCode == VK_SPACE)
+        {
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_COMPOSING;
+                pKeyState->Function = FUNCTION_CONVERT_WILDCARD;
+            }
+            return TRUE;
+        }
+        if (Global::PureShiftKeyUp)
+        {
+            return TRUE;
+        }
+    }
+
+    if (candidateMode == CANDIDATE_ORIGINAL)
+    {
+        BOOL isRetCode = TRUE;
+        if (IsVirtualKeyKeystrokeCandidate(uCode, pKeyState, candidateMode, &isRetCode, &_KeystrokeCandidate))
+        {
+            return isRetCode;
+        }
+
+        if (hasCandidateWithWildcard)
+        {
+            if (IsVirtualKeyKeystrokeCandidate(uCode, pKeyState, candidateMode, &isRetCode,
+                                               &_KeystrokeCandidateWildcard))
+            {
+                return isRetCode;
+            }
+        }
+
+        // Candidate list could not handle key. We can try to restart the composition.
+        if (IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_INPUT))
+        {
+            if (candidateMode == CANDIDATE_ORIGINAL)
+            {
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELIST_AND_INPUT;
+                }
+                return TRUE;
+            }
+        }
+    }
+
+    // CANDIDATE_INCREMENTAL should process Keystroke.Candidate virtual keys.
+    else if (candidateMode == CANDIDATE_INCREMENTAL)
+    {
+        BOOL isRetCode = TRUE;
+        if (IsVirtualKeyKeystrokeCandidate(uCode, pKeyState, candidateMode, &isRetCode, &_KeystrokeCandidate))
+        {
+            return isRetCode;
+        }
+    }
+
+    if (!fComposing && candidateMode != CANDIDATE_ORIGINAL)
+    {
+        if (IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_INPUT))
+        {
+            return TRUE;
+        }
+    }
+
+    // System pre-defined keystroke
+    if (fComposing)
+    {
+        if ((candidateMode != CANDIDATE_INCREMENTAL))
+        {
+            switch (uCode)
+            {
+            case VK_LEFT:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_LEFT;
+                }
+                return TRUE;
+            case VK_RIGHT:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_RIGHT;
+                }
+                return TRUE;
+            case VK_RETURN:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELIST;
+                }
+                return TRUE;
+            case VK_ESCAPE:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_CANCEL;
+                }
+                return TRUE;
+            case VK_BACK:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_BACKSPACE;
+                }
+                return TRUE;
+            case VK_DELETE:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_DELETE;
+                }
+                return TRUE;
+
+            case VK_UP:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_UP;
+                }
+                return TRUE;
+            case VK_DOWN:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_DOWN;
+                }
+                return TRUE;
+            case VK_PRIOR:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                }
+                return TRUE;
+            case VK_OEM_MINUS:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                }
+                return TRUE;
+            case VK_NEXT:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                }
+                return TRUE;
+            case VK_OEM_PLUS:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                }
+                return TRUE;
+            case VK_TAB:
+                if (pKeyState)
+                {
+                    if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+                    {
+                        pKeyState->Category = CATEGORY_COMPOSING;
+                        pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                    }
+                    else
+                    {
+                        pKeyState->Category = CATEGORY_COMPOSING;
+                        pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                    }
+                }
+                return TRUE;
+
+            case VK_HOME:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_TOP;
+                }
+                return TRUE;
+            case VK_END:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_BOTTOM;
+                }
+                return TRUE;
+
+            case VK_SPACE:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_CONVERT;
+                }
+                return TRUE;
+            }
+        }
+        else if (candidateMode == CANDIDATE_INCREMENTAL)
+        {
+            switch (uCode)
+            {
+                // VK_LEFT, VK_RIGHT - set *pIsEaten = FALSE for application could move caret left or right.
+                // and for CUAS, invoke _HandleCompositionCancel() edit session due to ignore CUAS default key handler
+                // for send out terminate composition
+            case VK_LEFT:
+            case VK_RIGHT: {
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_INVOKE_COMPOSITION_EDIT_SESSION;
+                    pKeyState->Function = FUNCTION_CANCEL;
+                }
+            }
+                return FALSE;
+
+            case VK_RETURN:
+                // Do something when user press return key
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELISTForVKReturn;
+                }
+                return TRUE;
+            case VK_ESCAPE:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_CANCEL;
+                }
+                return TRUE;
+
+                // VK_BACK - remove one char from reading string.
+            case VK_BACK:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_BACKSPACE;
+                }
+                return TRUE;
+            case VK_DELETE:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_DELETE;
+                }
+                return TRUE;
+
+            case VK_UP:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_UP;
+                }
+                return TRUE;
+            case VK_DOWN:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_DOWN;
+                }
+                return TRUE;
+            case VK_PRIOR:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                }
+                return TRUE;
+            case VK_OEM_MINUS:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                }
+                return TRUE;
+            case VK_NEXT:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                }
+                return TRUE;
+            case VK_OEM_PLUS:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                }
+                return TRUE;
+            case VK_TAB:
+                if (pKeyState)
+                {
+                    if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+                    {
+                        pKeyState->Category = CATEGORY_COMPOSING;
+                        pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                    }
+                    else
+                    {
+                        pKeyState->Category = CATEGORY_COMPOSING;
+                        pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                    }
+                }
+                return TRUE;
+            case VK_HOME:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_TOP;
+                }
+                return TRUE;
+            case VK_END:
+                if (pKeyState)
+                {
+                    pKeyState->Category = CATEGORY_CANDIDATE;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_BOTTOM;
+                }
+                return TRUE;
+
+            case VK_SPACE: {
+                if (candidateMode == CANDIDATE_INCREMENTAL)
+                {
+                    if (pKeyState)
+                    {
+                        pKeyState->Category = CATEGORY_CANDIDATE;
+                        pKeyState->Function = FUNCTION_CONVERT;
+                    }
+                    return TRUE;
+                }
+                else
+                {
+                    if (pKeyState)
+                    {
+                        pKeyState->Category = CATEGORY_COMPOSING;
+                        pKeyState->Function = FUNCTION_CONVERT;
+                    }
+                    return TRUE;
+                }
+            }
+            }
+        }
+    }
+
+    if (candidateMode == CANDIDATE_ORIGINAL)
+    {
+        switch (uCode)
+        {
+        case VK_UP:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_UP;
+            }
+            return TRUE;
+        case VK_DOWN:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_DOWN;
+            }
+            return TRUE;
+        case VK_PRIOR:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+            }
+            return TRUE;
+        case VK_OEM_MINUS:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+            }
+            return TRUE;
+        case VK_NEXT:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+            }
+            return TRUE;
+        case VK_OEM_PLUS:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+            }
+            return TRUE;
+        case VK_TAB:
+            if (pKeyState)
+            {
+                if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_UP;
+                }
+                else
+                {
+                    pKeyState->Category = CATEGORY_COMPOSING;
+                    pKeyState->Function = FUNCTION_MOVE_PAGE_DOWN;
+                }
+            }
+            return TRUE;
+        case VK_HOME:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_PAGE_TOP;
+            }
+            return TRUE;
+        case VK_END:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_MOVE_PAGE_BOTTOM;
+            }
+            return TRUE;
+        case VK_RETURN:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_FINALIZE_CANDIDATELIST;
+            }
+            return TRUE;
+        case VK_SPACE:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_CONVERT;
+            }
+            return TRUE;
+        case VK_BACK:
+        case VK_DELETE:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_CANCEL;
+            }
+            return TRUE;
+
+        case VK_ESCAPE:
+            if (pKeyState)
+            {
+                pKeyState->Category = CATEGORY_CANDIDATE;
+                pKeyState->Function = FUNCTION_CANCEL;
+            }
+            return TRUE;
+        }
+    }
+
+    //
+    // Check whether the keystroke is number(for selecting candidate) and is in the range
+    //
+    if (IsKeystrokeRange(uCode, pKeyState, candidateMode))
+    {
+        return TRUE;
+    }
+    else if (pKeyState && pKeyState->Category != CATEGORY_NONE)
+    {
+        return FALSE;
     }
 
     if (*pwch && !IsVirtualKeyKeystrokeComposition(uCode, pKeyState, FUNCTION_NONE))
