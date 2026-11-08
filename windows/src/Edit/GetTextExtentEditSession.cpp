@@ -1,6 +1,7 @@
 #include "Private.h"
 #include "EditSession.h"
 #include "GetTextExtentEditSession.h"
+#include "MetasequoiaIME.h"
 #include "TfTextLayoutSink.h"
 #include "Ipc.h"
 #include "FanyDefines.h"
@@ -23,18 +24,18 @@ CGetTextExtentEditSession::CGetTextExtentEditSession(_In_ CMetasequoiaIME *pText
     _pContextView = pContextView;
     _pRangeComposition = pRangeComposition;
     _pTfTextLayoutSink = pTfTextLayoutSink;
-    // GetTextExt may re-enter the host and end the composition/presenter even
-    // during a synchronous edit session. Keep every borrowed input alive.
+    _compositionEpoch = pTextService->_CaptureCompositionEpoch();
+    // GetTextExt can re-enter and end the composition. Retain the COM inputs;
+    // the presenter is explicitly deleted by its owner, so AddRef cannot keep
+    // it alive. Validate its identity/epoch before dereferencing it instead.
     _pContextView->AddRef();
     _pRangeComposition->AddRef();
-    _pTfTextLayoutSink->AddRef();
 }
 
 CGetTextExtentEditSession::~CGetTextExtentEditSession()
 {
     _pContextView->Release();
     _pRangeComposition->Release();
-    _pTfTextLayoutSink->Release();
 }
 
 //+---------------------------------------------------------------------------
@@ -49,14 +50,16 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
     BOOL isClipped = TRUE;
     HRESULT hr = S_OK;
 
-    if (!_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+    if (!_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+        !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
     {
         return S_OK;
     }
     hr = _pContextView->GetTextExt(ec, _pRangeComposition, &rc, &isClipped);
     // A successful extent from a composition the host just terminated must
     // not move or revive a newer candidate session.
-    if (!_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+    if (!_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+        !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
     {
         return S_OK;
     }
@@ -72,7 +75,8 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
         }
 
         const POINT anchor = GetPhysicalTextAnchor(_pContextView, rc);
-        if (!_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
+        if (!_pTextService->_IsCandidateLayoutCurrent(_pTfTextLayoutSink, _compositionEpoch) ||
+            !_pTfTextLayoutSink->_IsLayoutCurrent(_pContext, _pRangeComposition))
         {
             return S_OK;
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EditSession.h"
+#include <cstdint>
 
 class CMetasequoiaIME;
 class CTfTextLayoutSink;
@@ -35,4 +36,5 @@ class CGetTextExtentEditSession : public CEditSessionBase
     ITfContextView *_pContextView;
     ITfRange *_pRangeComposition;
     CTfTextLayoutSink *_pTfTextLayoutSink;
+    uint64_t _compositionEpoch;
 };

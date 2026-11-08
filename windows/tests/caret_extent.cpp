@@ -151,12 +151,24 @@ struct CTfTextLayoutSink
 
 struct CMetasequoiaIME
 {
+    uint64_t epoch = 1;
+    CTfTextLayoutSink *_pCandidateListUIPresenter = nullptr;
+    uint64_t _CaptureCompositionEpoch() const
+    {
+        return epoch;
+    }
+    bool _IsCompositionEpochCurrent(uint64_t captured) const
+    {
+        return captured != 0 && captured == epoch;
+    }
+    bool _IsCandidateLayoutCurrent(const CTfTextLayoutSink *layout, uint64_t compositionEpoch) const;
 };
 
 struct CEditSessionBase
 {
     ITfContext *_pContext;
-    CEditSessionBase(CMetasequoiaIME *, ITfContext *context) : _pContext(context)
+    CMetasequoiaIME *_pTextService;
+    CEditSessionBase(CMetasequoiaIME *service, ITfContext *context) : _pContext(context), _pTextService(service)
     {
     }
 };
@@ -168,6 +180,7 @@ struct CGetTextExtentEditSession : CEditSessionBase
     ITfContextView *_pContextView;
     CTfTextLayoutSink *_pTfTextLayoutSink;
     ITfRange *_pRangeComposition = nullptr;
+    uint64_t _compositionEpoch;
 
     HRESULT DoEditSession(TfEditCookie ec);
 };
@@ -219,7 +232,9 @@ int main()
         ITfRange range;
         CTfTextLayoutSink editLayout{&context};
         editLayout._pRangeComposition = &range;
-        CGetTextExtentEditSession edit{nullptr, &context, &view, &range, &editLayout};
+        CMetasequoiaIME service;
+        service._pCandidateListUIPresenter = &editLayout;
+        CGetTextExtentEditSession edit{&service, &context, &view, &range, &editLayout};
         Global::Point[0] = Global::Point[1] = 0;
         failures +=
             Check(edit.DoEditSession(0) == S_OK && Global::Point[0] == expected.x && Global::Point[1] == expected.y &&
@@ -238,7 +253,9 @@ int main()
                       "transient TS_E_NOLAYOUT", "layout handler must keep the previous anchor");
     ITfRange range;
     layout._pRangeComposition = &range;
-    CGetTextExtentEditSession edit{nullptr, &context, &view, &range, &layout};
+    CMetasequoiaIME service;
+    service._pCandidateListUIPresenter = &layout;
+    CGetTextExtentEditSession edit{&service, &context, &view, &range, &layout};
     Global::Point[0] = 10;
     Global::Point[1] = 40;
     failures += Check(edit.DoEditSession(0) == S_OK && Global::Point[0] == 10 && Global::Point[1] == 40 &&
@@ -251,19 +268,23 @@ int main()
     ITfContext oldContext{&reentrantView};
     CTfTextLayoutSink oldLayout{&oldContext};
     oldLayout._pRangeComposition = &oldRange;
+    CMetasequoiaIME oldService;
+    oldService._pCandidateListUIPresenter = &oldLayout;
     bool keptAlive = false;
     reentrantView.duringGetTextExt = [&] {
+        oldService._pCandidateListUIPresenter = nullptr;
+        ++oldService.epoch;
         oldLayout._pContextDocument = nullptr;
         oldLayout._pRangeComposition = nullptr;
         oldLayout.Release();
         oldRange.Release();
         reentrantView.Release();
-        keptAlive = oldLayout.references.references == 1 && oldRange.references == 1 && reentrantView.references == 1;
+        keptAlive = oldLayout.references.references == 0 && oldRange.references == 1 && reentrantView.references == 1;
     };
     Global::Point[0] = 10;
     Global::Point[1] = 40;
     {
-        CGetTextExtentEditSession obsolete{nullptr, &oldContext, &reentrantView, &oldRange, &oldLayout};
+        CGetTextExtentEditSession obsolete{&oldService, &oldContext, &reentrantView, &oldRange, &oldLayout};
         failures += Check(obsolete.DoEditSession(0) == S_OK && keptAlive && Global::Point[0] == 10 &&
                               Global::Point[1] == 40 && oldLayout.notifications == 0,
                           "reentrant termination", "keep inputs alive and ignore obsolete extent");
@@ -273,5 +294,22 @@ int main()
     }
     failures += Check(oldRange.references == 0 && oldLayout.references.references == 0 && reentrantView.references == 0,
                       "session destruction", "release every retained input exactly once");
+    // An asynchronously retired presenter may retain its context/range until
+    // cleanup runs. Epoch validation must still suppress that old callback.
+    ITfRange delayedRange;
+    ITfContextView delayedView{{100, 200, 100, 220}, false};
+    ITfContext delayedContext{&delayedView};
+    CTfTextLayoutSink delayedLayout{&delayedContext};
+    delayedLayout._pRangeComposition = &delayedRange;
+    CMetasequoiaIME delayedService;
+    delayedService._pCandidateListUIPresenter = &delayedLayout;
+    {
+        CGetTextExtentEditSession delayed{&delayedService, &delayedContext, &delayedView, &delayedRange,
+                                          &delayedLayout};
+        delayedView.duringGetTextExt = [&] { ++delayedService.epoch; };
+        failures += Check(delayed.DoEditSession(0) == S_OK && delayedLayout.notifications == 0 &&
+                              Global::Point[0] == 10 && Global::Point[1] == 40,
+                          "delayed presenter cleanup", "composition epoch, not just range identity");
+    }
     return failures == 0 ? 0 : 1;
 }
