@@ -57,3 +57,9 @@ cmake --build build --config Release --target <imetest | eval_quanpin_autocorrec
 `octagram:<模型 id>`，用 `+` 组合），句子集用 `data/quanpin_sentence_eval_300.tsv`，上文重排用
 `data/quanpin_context_rerank_cases.tsv`（第 4 列是上文）。一个进程只跑一个模式，内存峰值才是该模式的独占值。
 2026-11 的实测结果与推荐配置在 `data/quanpin_sentence_eval_300.results.md`。
+
+同音易错句集 `data/quanpin_sentence_homophone_cases.tsv`（改到/该到、在/再、的/得/地、做/作，23 条）用同一个工具跑：
+`eval_quanpin_sentence data\quanpin_sentence_homophone_cases.tsv --mode unigram+trigram+neural_desktop --sc-lm <sc.lm> --detail`。
+注意第 4 列会被当成神经重排的上文，备注放第 5 列。`--phrase-bonus=<log10>` / `--phrase-min-weight=<n>` 临时覆盖词格的多音节整词边加成。
+`--mode` 的组合要自己写全（用户配置是 `unigram+trigram+neural_desktop`，出厂配置是 `trigram+neural_keyboard`），
+神经模型取数据目录里的 `sentence-model.safetensors`（速度档）与 `models/neural-desktop/`（效果档），`--sc-lm` 指向 sc.lm。
