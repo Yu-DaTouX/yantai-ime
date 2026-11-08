@@ -935,21 +935,8 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         return;
     }
 
-    if (FanyImeIpc::IsTranslationCommitKey(Global::Keycode, Global::ModifiersDown))
-    {
-        HandleTranslationCommitKey(client_id, activation_epoch, request_id, -1);
-        return;
-    }
-    // Ctrl+数字：上屏指定序号候选的译文（Ctrl+Enter 上屏当前高亮那条），两条 chord 落到同一个
-    // 处理 branch。译文总开关（general.candidate_translations）关掉时 TSF 直接不吃它们，这里仍进
-    // 同一个 branch 回 NavigationIgnored——不要改成先判总开关再放行，那样会落到下面的普通选词分支，
-    // Ctrl+1 直接上屏第一个候选。
-    if (FanyImeIpc::IsTranslationDigitKey(Global::Keycode, Global::ModifiersDown))
-    {
-        const uint32_t digit_position = FanyImeIpc::TranslationDigitPosition(Global::Keycode, Global::ModifiersDown);
-        HandleTranslationCommitKey(client_id, activation_epoch, request_id, static_cast<int>(digit_position) - 1);
-        return;
-    }
+    // 英文行的两个键位要排在译文上屏之前：IsTranslationCommitKey 不看译文开关，
+    // 排在后面时 Ctrl+Enter 永远先被它截走（回 NavigationIgnored），英文行上屏不会触发。
     // 候选词英文上屏：[keybindings] commit_english 上屏候选条下面的英文行，english_senses 展开全部词义。
     // 老的「候选词翻译」在用 Ctrl+Enter 上屏译文，两者同时开时把 Ctrl+Enter 留给它（TSF 侧同样不抢）。
     if (!GetConfiguredCandidateTranslationsEnabled() &&
@@ -978,6 +965,21 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         }
         Global::MsgTypeToTsf = Global::DataFromServerMsgType::NavigationIgnored;
         SendCurrentDataToClient(client_id, activation_epoch, request_id);
+        return;
+    }
+    if (FanyImeIpc::IsTranslationCommitKey(Global::Keycode, Global::ModifiersDown))
+    {
+        HandleTranslationCommitKey(client_id, activation_epoch, request_id, -1);
+        return;
+    }
+    // Ctrl+数字：上屏指定序号候选的译文（Ctrl+Enter 上屏当前高亮那条），两条 chord 落到同一个
+    // 处理 branch。译文总开关（general.candidate_translations）关掉时 TSF 直接不吃它们，这里仍进
+    // 同一个 branch 回 NavigationIgnored——不要改成先判总开关再放行，那样会落到下面的普通选词分支，
+    // Ctrl+1 直接上屏第一个候选。
+    if (FanyImeIpc::IsTranslationDigitKey(Global::Keycode, Global::ModifiersDown))
+    {
+        const uint32_t digit_position = FanyImeIpc::TranslationDigitPosition(Global::Keycode, Global::ModifiersDown);
+        HandleTranslationCommitKey(client_id, activation_epoch, request_id, static_cast<int>(digit_position) - 1);
         return;
     }
     // 英文词义清单页只认自己的那几个键，其余按键先退回原中文候选再照常处理。
