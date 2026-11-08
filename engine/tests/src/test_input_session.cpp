@@ -382,7 +382,7 @@ void run_umlaut_alias_session_tests(const std::filesystem::path &data_directory)
         (void)session.select_candidate(find_candidate_index(session, "虐"));
         require(!session.has_composition(), "Selecting the only candidate must finish the composition.");
         Database database(directory / "msime.db");
-        require(database.query_integer("SELECT weight FROM tbl_1_n WHERE key='nve' AND value='虐'") == 101,
+        require(database.query_integer("SELECT weight FROM tbl_1_n WHERE key='nve' AND value='虐'") > 100,
                 "Selecting 虐 from 'nue' must update the canonical 'nve' row.");
         require(database.query_integer("SELECT COUNT(*) FROM tbl_1_n WHERE key='nue'") == 0,
                 "No user data may accumulate under the alias key 'nue'.");
@@ -2251,6 +2251,20 @@ int run_test()
             metasequoia::InputSession writer(SchemeType::Quanpin);
             require(writer.store_user_phrase_from_canonical_pinyin(key, word) == 0,
                     "Canonical phrase creation could not write the public format.");
+            if (count > 7)
+            {
+                std::string quoted_key;
+                for (const char c : key)
+                    quoted_key += c == '\'' ? "''" : std::string(1, c);
+                // 自动造词超过 7 音节不再落库（衰减学习的上限）：调用成功但什么也没写。
+                require(database.query_integer(
+                            ("SELECT COUNT(*) FROM tbl_others_n WHERE key='" + quoted_key + "'").c_str()) == 0,
+                        "Automatic phrase creation stored a phrase longer than the learning limit.");
+                // 超长的词仍能由用户手动加（设置页直接写表），查询与回放要照样认这张表。
+                database.execute(("INSERT INTO tbl_others_n VALUES('" + quoted_key + "','" + std::string(count, 'n') +
+                                  "','" + word + "',10000)")
+                                     .c_str());
+            }
             type(writer, key);
             (void)candidate_index(writer, word);
             require(user_dictionary::record_user_insert(journal_path, user_dictionary::DictionaryKind::Pinyin, key,
@@ -2543,11 +2557,15 @@ int run_test()
         const auto digit = session.handle_candidate_key('2');
         require(digit.handled && digit.commit == "拟好", "The 2 key did not commit the second candidate.");
 
-        metasequoia::InputSession learning_source_session;
-        type(learning_source_session, "nihao");
-        const auto learned_selection = learning_source_session.select_candidate(1);
-        require(learned_selection.handled && learned_selection.commit == "拟好",
-                "The learning source candidate was not selected.");
+        // 衰减打分学习：每次上屏都记，要超过此前已被学过的 你好 需要累积几次。
+        for (int round = 0; round < 5; ++round)
+        {
+            metasequoia::InputSession learning_source_session;
+            type(learning_source_session, "nihao");
+            const auto learned_selection = learning_source_session.select_candidate(std::string("拟好"));
+            require(learned_selection.handled && learned_selection.commit == "拟好",
+                    "The learning source candidate was not selected.");
+        }
         metasequoia::InputSession learned_session;
         type(learned_session, "nihao");
         require(!learned_session.candidates().empty() && learned_session.candidates().front().word == "拟好",
@@ -2681,9 +2699,11 @@ int run_test()
     const std::array frequency_cases{
         FrequencyCase{metasequoia::FrequencyAdjustmentMode::Disabled, "disabled", 5, 1},
         FrequencyCase{metasequoia::FrequencyAdjustmentMode::Pin, "pin", 0, 1},
-        FrequencyCase{metasequoia::FrequencyAdjustmentMode::Halve, "halve", 2, 1},
-        FrequencyCase{metasequoia::FrequencyAdjustmentMode::Linear, "linear", 3, 2},
-        FrequencyCase{metasequoia::FrequencyAdjustmentMode::Promote, "promote", 4, 1},
+        // 衰减打分学习后，除 disabled 外的模式不再按排位挪位置：上屏一次权重就抬到出厂词频的数倍，
+        // 排位只取决于学习分数（见 user_dictionary/learning_dynamics.h），所以各模式结果一致。
+        FrequencyCase{metasequoia::FrequencyAdjustmentMode::Halve, "halve", 0, 1},
+        FrequencyCase{metasequoia::FrequencyAdjustmentMode::Linear, "linear", 0, 2},
+        FrequencyCase{metasequoia::FrequencyAdjustmentMode::Promote, "promote", 0, 1},
     };
     for (const FrequencyCase &frequency_case : frequency_cases)
     {
@@ -2724,8 +2744,8 @@ int run_test()
 
         metasequoia::InputSession observed(SchemeType::Quanpin);
         type(observed, "ni");
-        require(candidate_index(observed, "己") == (selection == 0 ? 5U : 0U),
-                "Frequency trigger_count did not defer exactly the configured number of selections.");
+        // 衰减打分学习每次上屏都记，trigger_count 不再延后中文学习：第一次上屏就生效。
+        require(candidate_index(observed, "己") == 0U, "Decay learning must apply from the first selection.");
     }
 
     user_dictionary::close_default_user_database();
@@ -2736,9 +2756,14 @@ int run_test()
     require(first_candidate_session.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),
             "A valid first-candidate learning configuration was rejected.");
     type(first_candidate_session, "ni");
-    require(first_candidate_session.select_candidate(static_cast<std::size_t>(0)).commit == "甲" &&
-                !std::filesystem::exists(first_candidate_directory / "msime_user.db"),
-            "Selecting the already-leading candidate created frequency state.");
+    require(first_candidate_session.select_candidate(static_cast<std::size_t>(0)).commit == "甲",
+            "Selecting the already-leading candidate failed.");
+    // 直接上屏首选也记一次（强化它不被遗忘）。
+    {
+        Database user_database(first_candidate_directory / "msime_user.db");
+        require(user_database.query_integer("SELECT commits FROM user_dictionary_operations WHERE value='甲'") == 1,
+                "Selecting the already-leading candidate was not counted by the decay learning.");
+    }
 
     user_dictionary::close_default_user_database();
     const std::filesystem::path failure_directory = data_directory / "frequency-write-failure";

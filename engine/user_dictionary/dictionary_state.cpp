@@ -245,10 +245,10 @@ RuntimePaths stage_dictionary_state(const std::filesystem::path &resources, cons
             // 全局上屏计数：条目的 tick 都不会超过它，取最大值作为下限，之后的上屏接着往上数。
             if (max_tick > 0)
             {
-                auto tick = prepare(db.get(), "INSERT INTO dictionary_state(name,value) VALUES('learn_tick',?1)"
-                                              " ON CONFLICT(name) DO UPDATE SET value=excluded.value");
-                bind(tick.get(), 1, std::to_string(max_tick));
-                require(sqlite3_step(tick.get()) == SQLITE_DONE);
+                const std::string statement = "INSERT INTO dictionary_state(name,value) VALUES('learn_tick','" +
+                                              std::to_string(max_tick) +
+                                              "') ON CONFLICT(name) DO UPDATE SET value=excluded.value";
+                execute(db.get(), statement.c_str());
             }
             execute(db.get(), "COMMIT");
         }
