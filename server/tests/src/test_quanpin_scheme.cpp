@@ -1469,11 +1469,50 @@ TEST_CASE(QuanpinDictionaryUmlautAliasNormalisesQueryAndMarksNonStandardSpelling
         REQUIRE_EQ(NveRowWeight(db_path), 100);
         (void)dictionary.query("nue");
         REQUIRE_EQ(dictionary.update_weight_by_word("虐"), QuanpinDictionary::OK);
-        REQUIRE_EQ(NveRowWeight(db_path), 101);
+        // 衰减打分学习：一次上屏把标准键行的权重抬到出厂词频的数倍，再上屏一次继续升。
+        const std::int64_t after_first = NveRowWeight(db_path);
+        REQUIRE(after_first > 100);
 
         REQUIRE_EQ(dictionary.update_weight_by_pinyin_and_word("nue", "虐"), QuanpinDictionary::OK);
-        REQUIRE_EQ(NveRowWeight(db_path), 102);
+        REQUIRE(NveRowWeight(db_path) > after_first);
     }
+    std::filesystem::remove(db_path);
+}
+
+// 整句/分段造词超过 7 个音节的不再落库；7 个以内的照常落库并记成学习条目。
+TEST_CASE(QuanpinDictionaryDoesNotStoreSentencesLongerThanTheLearningLimit)
+{
+    const auto db_path = CreateUmlautAliasDatabase();
+    {
+        sqlite3 *db = nullptr;
+        REQUIRE_EQ(sqlite3_open(test::Utf8(db_path).c_str(), &db), SQLITE_OK);
+        const int status = sqlite3_exec(db,
+                                        "CREATE TABLE tbl_7_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                                        "CREATE TABLE tbl_others_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);",
+                                        nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+        REQUIRE_EQ(status, SQLITE_OK);
+    }
+    {
+        QuanpinDictionary dictionary(test::Utf8(db_path));
+        REQUIRE_EQ(dictionary.create_word_from_canonical_pinyin("nu'nu'nu'nu'nu'nu'nu'nu", "怒怒怒怒怒怒怒怒"),
+                   QuanpinDictionary::OK);
+        REQUIRE_EQ(dictionary.create_word_from_canonical_pinyin("nu'nu'nu'nu'nu'nu'nu", "怒怒怒怒怒怒怒"),
+                   QuanpinDictionary::OK);
+    }
+    sqlite3 *db = nullptr;
+    REQUIRE_EQ(sqlite3_open(test::Utf8(db_path).c_str(), &db), SQLITE_OK);
+    const auto count = [&](const char *sql) {
+        sqlite3_stmt *stmt = nullptr;
+        REQUIRE_EQ(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr), SQLITE_OK);
+        REQUIRE_EQ(sqlite3_step(stmt), SQLITE_ROW);
+        const int value = sqlite3_column_int(stmt, 0);
+        sqlite3_finalize(stmt);
+        return value;
+    };
+    REQUIRE_EQ(count("SELECT COUNT(*) FROM tbl_others_n"), 0);
+    REQUIRE_EQ(count("SELECT COUNT(*) FROM tbl_7_n"), 1);
+    sqlite3_close(db);
     std::filesystem::remove(db_path);
 }
 

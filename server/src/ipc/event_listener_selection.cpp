@@ -224,13 +224,15 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         const auto ranking_keys = RankingKeysForCandidate(curWordItem);
         const std::string ranking_context_key = ranking_keys.first;
         const std::string ranking_entry_key = ranking_keys.second;
-        // First-page first slot is already the default commit; space/mouse/digit
-        // should only learn when the user picked something else.
+        // First-page first slot is already the default commit; for English candidates (rank-based
+        // adjustment) only a pick of something else is learned.
         const bool is_first_page_first = Global::candidate_ui.page_index == 0 && index == 0;
         // 字母词（T恤）也不调频：拼音分表里没有它的行，调频改不到，只会白记选择计数（#1340）。
         // 长词前缀补全（#1343）的键比首选长，和同页候选不是一个读音，不按排位挪位置，选中时只在它自己的
         // 键下加权（见下面 EnqueueBumpPinyinWeightTask）。
-        isNeedUpdateWeight = !curWordItem.latin_word && !curWordItem.prefix_completion && !is_first_page_first;
+        // 中文候选按衰减打分学习：直接上屏首选也记一次。英文候选仍按排位调频，首选不动。
+        isNeedUpdateWeight = !curWordItem.latin_word && !curWordItem.prefix_completion &&
+                             !(is_first_page_first && curWordItem.source == CandidateSource::EnglishDictionary);
         if (curWordItem.prefix_completion && !curWordItem.canonical_pinyin.empty())
         {
             EnqueueBumpPinyinWeightTask(curWordItem.canonical_pinyin, curWordItem.word, client_id, activation_epoch);

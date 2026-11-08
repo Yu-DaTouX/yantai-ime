@@ -45,12 +45,24 @@ ctest --test-dir build --output-on-failure --timeout 20
 
 ## 用户词库权重
 
-`user_dictionary/user_dictionary_journal.cpp` 的 `adjust_candidate_ranking` 改起来比看上去危险，几条已经踩过的坑：
+`user_dictionary/user_dictionary_journal.cpp` 的 `adjust_candidate_ranking`（现在只剩置顶这一支按排位写权重，自动学习见下一小节）改起来比看上去危险，几条已经踩过的坑：
 
 - 权重要留在出货词典的量级内（`kManagedWeightCeiling`）。曾经有过一次局部 rebalance 写出 10^12 级数值，以及拿权重为 1 的生僻词当阶梯基准写出负权重到邻近 key 上
 - 一个上下文里可能混着多个 `entry_key`（单字母简拼 `y` 会同时出现 `yi` 的「一」和 `you` 的「有」）。按 `entry_key` 过滤候选列表会让选中项 rank 恒为 0，早退分支直接返回，一个权重都不写
 - 但写入必须按各候选自己的 key 走，否则会把权重写到别的 key 的行上
 - 日志存的是绝对权重，只在同一份出厂词库上有意义。安装时的 `replay` 用数据目录里 `dictionary-manifest.json` 记的 `msime.db` SHA-256 认词库，回放到哪份记在日志的 `dictionary_state` 表：同一份词库原样写回；换了词库，自动调频的行只在高过新出厂权重时写回，否则保留新权重并把日志改记成新权重。用户手动加的词（`user_inserted`）和设置页亲手改的权重（`weight_edited`，由 `record_weight_edit` 写）不受影响。设置页改权重要走 `record_weight_edit`，不要用 `record_upsert`，否则换词库时会被当成自动调频让位
+
+### 自动学习：衰减打分（librime 式）
+
+自动学习不再按排位挪位置，也不再数选择次数（`trigger_count` 对中文学习不再起作用，英文、快捷短语、日期仍用）。算法在 `user_dictionary/learning_dynamics.h`，写入在 `learn_pinyin_commit`（`adjust_candidate_ranking` 非置顶时转到它，`update_weight_by_pinyin_and_word`、前缀补全的 `bump_pinyin_weight` 也是）：
+
+- 日志 `user_dictionary_operations` 每行多 `commits / dee / tick / base_weight`（`commits > 0` 的行归衰减管），全局上屏计数在 `dictionary_state` 的 `learn_tick`。每次上屏（含直接上屏首选）：`tick + 1`，`dee = 1 + dee·exp((旧tick − tick)/200)`（librime 的 `formula_d`，约 139 次上屏减半），`commits + 1`。
+- 权重 = 出厂词频 `base_weight` × 倍率，倍率由 librime 的 `formula_p` 换算：`(dee/0.05)^0.8`（dee < 20 段），一次上屏约 ×11；衰减到 dee < 0.05（只上屏一次约 600 次后）视为遗忘，倍率回到 1 再遗忘：出厂词回到出厂词频，学来的整句从词库删掉。
+- 结算不在按键/上屏路径上：Server 里 `learn_pinyin_commit` 只从 `DictionaryWriter`（低优先级后台线程）调用；引擎自带的同步 `commit()`（`QuanpinDictionary::update_weight_by_pinyin_and_word`）传 `sweep=false`，需要遗忘的宿主自己在后台线程调 `sweep_learned_entries`。5000 条学习条目的结算耗时见 `UserDictionarySweepOfFiveThousandLearnedEntriesIsMeasured`。
+- 衰减不在每次查询时算，而是每 8 次上屏对全部学习条目结算一次（`sweep_learned_rows`，同一个事务回写词库权重与日志），所以「遗忘」最多滞后 8 次上屏。
+- 不归衰减管：出厂词没学过的、`user_inserted` 且 `commits = 0` 的手动加的词、`weight_edited` 的设置页权重、置顶写下的权重（`commits = -1`，学习跳过它）。整句/分段造词走 `record_learned_phrase`（`commits = 1`，`user_inserted = 1`），超过 7 音节不落库（`create_word*` 里拦，`kMaxLearnedPhraseSyllables`）。
+- 升级回放（`replay`）同一份出厂词库上用日志里的 `base_weight` 重算权重（不能拿词库里已写入的权重当出厂词频，否则重复回放会越乘越大），换了词库才用新词库里的行；过期的不写回。旧日志迁移：旧调频抬高的权重（`commits = 0`、高于出厂词频）换算成初始 dee（上限 100）；旧版整句造词的长条目（`user_inserted`、10000、超过 7 音节）从 dee = 1 起随衰减淘汰；10000 的短条目与设置页手动加的（缺省权重也是 10000）分不开，按手动词保留；不高于出厂词频的旧权重（给提升让位的邻居）丢弃。新字段随 `dictionary_state` 导出导入往返（全局计数取各条目 `tick` 的最大值）。
+- 改参数同时改 `learning_dynamics.h` 里的常量和上面几条；测试在 `server/tests/src/test_user_dictionary_journal.cpp`，设环境变量 `MSIME_LEARN_REPLAY_SRC` 指向真实用户日志的只读副本目录（`msime_user.db`、出厂 `msime.db`、`english.db`、`dictionary-manifest.json`）可额外跑真实库回放。
 
 改这里之前先读懂现有的护栏注释，它们每一条都对应一个修过的缺陷。
 

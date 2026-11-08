@@ -75,7 +75,7 @@ void run(bool capacity)
     }
     std::vector<DictionaryStateRecord> records{
         DictionaryStateEntry{PersonalDictionaryKind::Pinyin, "ni'hao", "你好", 0, "", true, true},
-        DictionaryStateEntry{PersonalDictionaryKind::Pinyin, "ni'hao", "拟好", 200, "", false, false},
+        DictionaryStateEntry{PersonalDictionaryKind::Pinyin, "ni'hao", "拟好", 200, "", false, false, 3, 2.5, 40, 80},
         DictionaryStateEntry{PersonalDictionaryKind::Pinyin, "ni'hao", "拟蒿", 150, "", false, true},
         DictionaryStateEntry{PersonalDictionaryKind::QuickPhrase, "fixture", "合成短语", 100, "", false, true},
         DictionaryStateEntry{PersonalDictionaryKind::English, "cloudfixture", "Cloudfixture", 100, "Cloudfixture",
@@ -125,6 +125,12 @@ void run(bool capacity)
             deleted_ownership = p->deleted && p->user_inserted;
     }
     check(selection && ownership && deleted_ownership, "counter or ownership lost");
+    // 衰减打分学习的状态随导出导入往返。
+    bool learning = false;
+    for (const auto &record : roundtrip)
+        if (auto p = std::get_if<DictionaryStateEntry>(&record); p && p->value == "拟好")
+            learning = p->commits == 3 && p->dee == 2.5 && p->tick == 40 && p->base_weight == 80;
+    check(learning, "learning state lost in the round trip");
     SessionOptions options;
     options.paths = second;
     options.learning = false;
