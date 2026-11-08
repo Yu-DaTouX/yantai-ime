@@ -37,14 +37,14 @@ TEST_CASE(translation_worker_replaces_pending_requests_and_cancels_running_gener
                 wake.notify_all();
             });
         const auto deadline = Clock::now() + 5s;
-        worker.Submit({1, "first", deadline, {}});
+        worker.Submit({1, "first", deadline});
         bool started;
         {
             std::unique_lock lock(mutex);
             started = wake.wait_for(lock, 2s, [&] { return first_started; });
         }
-        worker.Submit({2, "never runs", deadline, {}});
-        worker.Submit({3, "newest", deadline, {}});
+        worker.Submit({2, "never runs", deadline});
+        worker.Submit({3, "newest", deadline});
         {
             std::lock_guard lock(mutex);
             release_first = true;
@@ -83,7 +83,7 @@ TEST_CASE(translation_worker_expired_job_never_calls_inference)
                 done = true;
                 wake.notify_all();
             });
-        worker.Submit({42, "中文", Clock::now() - 1ms, {}});
+        worker.Submit({42, "中文", Clock::now() - 1ms});
         std::unique_lock lock(mutex);
         received = wake.wait_for(lock, 2s, [&] { return done; });
     }
@@ -107,7 +107,7 @@ TEST_CASE(translation_worker_shutdown_cancels_and_joins_before_callback_owner_di
                 return Result{request.generation, Status::Ready, "discarded"};
             },
             [&](Result) { ++completed; });
-        worker.Submit({1, "中文", Clock::now() + 5s, {}});
+        worker.Submit({1, "中文", Clock::now() + 5s});
         const auto bound = Clock::now() + 2s;
         while (!started && Clock::now() < bound)
             std::this_thread::sleep_for(1ms);

@@ -5,7 +5,7 @@
 //
 // 数据形状：zh_en_glosses.english_gloss 一行一条，词义用 ASCII ';' 连接，每条开头可以带词性标签
 // （"n. silver medal" / "proper n. Wanshan District" / "adj. spreading"），标签是固定的小写缩写，
-// 见候选词翻译那边同一份 PartOfSpeechLabelLength。custom_translations.txt 覆盖写进来的值也是同一形状。
+// 见下面的 PartOfSpeechLabelLength。custom_translations.txt 覆盖写进来的值也是同一形状。
 
 #include <algorithm>
 #include <cstddef>
@@ -14,10 +14,33 @@
 #include <utility>
 #include <vector>
 
-#include "ipc/candidate_translation_policy.h"
-
 namespace FanyImeIpc
 {
+// 机翻中译英释义每条开头会带词性标签："n. silver medal"、"proper n. Wanshan District"、
+// "adj. spreading; n. sound of laughter"。标签在候选窗里单独显示，但不能进上屏文字。
+// 返回 `sense` 开头标签的长度（不含后面的空格，"n." -> 2），没有标签时为 0。
+inline size_t PartOfSpeechLabelLength(std::string_view sense)
+{
+    static constexpr std::string_view kLabels[] = {"proper n. ", "interj. ", "idiom. ", "pron. ", "prep. ",
+                                                   "conj. ",     "adj. ",    "adv. ",   "num. ",  "det. ",
+                                                   "aux. ",      "n. ",      "v. "};
+    for (const auto label : kLabels)
+    {
+        if (sense.size() > label.size() && sense.substr(0, label.size()) == label)
+            return label.size() - 1;
+    }
+    return 0;
+}
+
+inline std::string_view StripPartOfSpeechLabel(std::string_view sense)
+{
+    const size_t label = PartOfSpeechLabelLength(sense);
+    if (label == 0)
+        return sense;
+    const size_t rest = sense.find_first_not_of(' ', label);
+    return rest == std::string_view::npos ? sense : sense.substr(rest);
+}
+
 // 英文清单最多列 9 条词义：数字键 1-9 直接选。
 inline constexpr size_t kMaxEnglishSenses = 9;
 

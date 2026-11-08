@@ -25,6 +25,8 @@ class EnglishDictionary
     std::vector<WordItem> query_mixed_prefix(const std::string &prefix, size_t limit = kMixedCandidateLimit);
     std::string query_chinese_gloss(const std::string &english);
     std::string query_english_gloss(const std::string &chinese);
+    // 只查用户的 custom_translations.txt（中→英），不碰 english.db。
+    std::string query_custom_english_gloss(const std::string &chinese) const;
     bool ready();
     static bool ensure_schema(const std::string &db_path);
     static bool upsert_gloss(const std::string &db_path, bool chinese_to_english, const std::string &key,

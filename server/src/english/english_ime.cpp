@@ -30,6 +30,7 @@ size_t g_mixed_min_prefix = kDefaultMixedMinPrefix;
 std::string g_db_path;
 EnglishIme::ApplyCallback g_apply_callback;
 EnglishIme::TranslationCallback g_translation_callback;
+EnglishIme::GlossResolver g_gloss_resolver;
 
 std::string NormalizeInput(const std::string &input)
 {
@@ -91,10 +92,17 @@ void WorkerLoop()
             {
                 if (!g_running || g_translation_generation.load() != observed_translation_generation)
                     break;
-                std::string gloss = query.direction == EnglishIme::TranslationDirection::EnglishToChinese
-                                        ? dictionary.query_chinese_gloss(query.key)
-                                        : dictionary.query_english_gloss(query.key);
-                results.push_back({query.key, query.direction, std::move(gloss)});
+                const auto from_user = [&] { return dictionary.query_custom_english_gloss(query.key); };
+                const auto from_dictionary = [&] { return dictionary.query_english_gloss(query.key); };
+                if (g_gloss_resolver)
+                {
+                    auto answer = g_gloss_resolver(query.key, from_user, from_dictionary);
+                    results.push_back({query.key, std::move(answer.text), answer.hidden});
+                }
+                else
+                {
+                    results.push_back({query.key, from_dictionary(), false});
+                }
             }
             if (g_running && g_translation_generation.load() == observed_translation_generation &&
                 g_translation_callback)
@@ -198,6 +206,21 @@ void RequestTranslations(std::vector<TranslationQuery> queries)
     {
         std::lock_guard lock(g_mutex);
         g_latest_translation_queries = std::move(queries);
+        g_translation_generation.fetch_add(1);
+    }
+    g_cv.notify_one();
+}
+
+void SetGlossResolver(GlossResolver resolver)
+{
+    std::lock_guard lock(g_mutex);
+    g_gloss_resolver = std::move(resolver);
+}
+
+void RefreshTranslations()
+{
+    {
+        std::lock_guard lock(g_mutex);
         g_translation_generation.fetch_add(1);
     }
     g_cv.notify_one();

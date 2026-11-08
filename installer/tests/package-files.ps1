@@ -55,6 +55,7 @@ try {
     Write-Fixture 'skins/demo-skin/assets/background.png' 'png'
     Write-Fixture 'skins/unverified/skin.toml' "schema_version = 1`nid = `"unverified`"`n[license]`nassets = `"UNVERIFIED-DEMO-ONLY`"`n"
     Write-Fixture 'server/assets/tables/pinyin.txt' 'xing'
+    Write-Fixture 'server/assets/dictionary/zh_en_gloss.tsv' "chinese`tgloss`n的`t-`n"
     Write-Fixture 'MetasequoiaImeDict/out/dictionary-manifest.json' '{"manifest_version":1}'
     # 词库以文本源进包，导出脚本要读真正的 SQLite 文件，所以这几个夹具得是真的。
     Copy-Item (Join-Path $PSScriptRoot '../../scripts/pack-dictionary-source.py') (New-Item -ItemType Directory -Force -Path (Join-Path $fixture 'scripts'))
@@ -72,7 +73,7 @@ with sqlite3.connect(out / "others.db") as db:
 '@ (Join-Path $fixture 'MetasequoiaImeDict/out')
     if ($LASTEXITCODE -ne 0) { throw 'Failed to create packaging fixture' }
     & (Join-Path $installer 'Prepare-PackageFiles.ps1') -RepoRoot $fixture -TargetVersion '2026.9.1' -IncludeSymbols
-    foreach ($file in @('app_data/assets/settings/arrow.svg', 'app_data/assets/settings/sidebar/about.svg',
+    foreach ($file in @('app_data/assets/dictionary/zh_en_gloss.tsv', 'app_data/assets/settings/arrow.svg', 'app_data/assets/settings/sidebar/about.svg',
                          'app_data/dictionary-manifest.json',
                          'app_data/rime-frost-NOTICE.md', 'app_data/rime-frost-LICENSE.txt',
                          'app_data/dict_pinyin.dat',

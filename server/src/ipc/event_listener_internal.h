@@ -51,29 +51,24 @@ extern bool g_y_mode_triggered;
 // thread only, like g_inputSession; a task that recreates the session from
 // config drops it, since a scheme or profile change makes it stale.
 extern bool g_english_input_mode;
-// Glosses are a cache keyed by TranslationIdentity, not the current page's
-// results: the next keystroke's page mostly repeats the same words, and
-// rebuilding it without their glosses first shrank every row, then grew it back
-// once the lookup answered. Bounded like the cloud cache, and dropped whenever
-// the provider set changes (the target language is already in the identity).
-constexpr size_t kMaxCandidateTranslationGlosses = 2048;
-struct CandidateTranslationGloss
+// English-line glosses are a cache keyed by the candidate's Chinese text, not the current page's
+// results: the next keystroke's page mostly repeats the same words, and rebuilding it without
+// their glosses first made the line flicker once the lookup answered. Bounded.
+constexpr size_t kMaxEnglishGlossCache = 2048;
+struct EnglishGlossEntry
 {
     std::string text;
-    // english.db glosses use ", " between synonyms of one sense; a cloud gloss is
-    // a sentence whose commas are punctuation, so only dictionary glosses may be
-    // trimmed at them.
-    bool from_dictionary = false;
+    // 随包覆盖表标了「-」：这个词不显示英文行。
+    bool hidden = false;
 };
-extern std::unordered_map<std::string, CandidateTranslationGloss> g_candidate_translation_glosses;
-extern std::string g_candidate_translation_signature;
-extern bool g_translation_candidates_active;
-// 日期页：选中混输里的「📅日期」入口后，候选框换成整组日期时间格式。和译文页一样不动输入串，
-// 两者互斥，共用下面这份保存的候选与页码，退出时原样放回。
+extern std::unordered_map<std::string, EnglishGlossEntry> g_english_gloss_cache;
+extern std::string g_english_gloss_signature;
+// 日期页：选中混输里的「📅日期」入口后，候选框换成整组日期时间格式。不动输入串，
+// 和下面的英文词义清单页互斥，共用 g_translation_saved_* 保存的候选与页码，退出时原样放回。
 extern bool g_date_time_page_active;
 extern std::string g_date_time_page_keyword;
 // 英文词义清单页（Ctrl+Shift+Enter）：选中一个候选后把候选框换成它在这个词下的全部英文词义。
-// 和译文页、日期页一样不动输入串，三者互斥；退出时把进入前那一屏的候选、页码与高亮原样放回。
+// 和日期页一样不动输入串，两者互斥；退出时把进入前那一屏的候选、页码与高亮原样放回。
 // 清单页不占 ui.items（那一屏还要留着选词时判断是哪条中文字），只把 senses 画成 page_views。
 extern bool g_english_senses_page_active;
 extern std::string g_english_senses_page_word;
@@ -85,11 +80,10 @@ extern bool g_translation_saved_selection_started;
 extern bool g_dedicated_english_answer_pending;
 extern int g_authoritative_cn_mode;
 
-std::string TranslationIdentity(const EnglishIme::TranslationQuery &query);
 // 候选词英文上屏（英文行 + 词义清单）是否在用：英文行开着，或两条键位里至少一条绑定了键。
-// 关掉时候选页不必去查释义，译文缓存也照旧清掉。
+// 关掉时候选页不必去查释义，释义缓存也照旧清掉。
 bool EnglishGlossFeatureEnabled();
-// 译文页或日期页正占着候选框：items 不是这次输入的候选，异步结果不能往里合并，也不能按会话扩展。
+// 日期页或英文词义清单页正占着候选框：items 不是这次输入的候选，异步结果不能往里合并，也不能按会话扩展。
 bool IsCandidateSubPageActive();
 // 把界面线程记下的鼠标操作落到 candidate_ui.selection_started。工作线程每取一个任务先调一次，
 // 这样排在鼠标操作之前入队的异步结果也看得到它。

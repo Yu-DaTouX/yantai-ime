@@ -36,7 +36,6 @@
 #include "conversion/traditional_spelling_index.h"
 #include "log/candidate_diag_log.h"
 #include "ipc/event_listener_internal.h"
-#include "translation/translation_mode.h"
 
 using namespace event_listener_detail;
 
@@ -69,13 +68,11 @@ std::atomic<std::uint64_t> g_candidate_ui_interaction_generation{0};
 
 namespace event_listener_detail
 {
-std::unordered_map<std::string, CandidateTranslationGloss> g_candidate_translation_glosses;
-std::string g_candidate_translation_signature;
+std::unordered_map<std::string, EnglishGlossEntry> g_english_gloss_cache;
+std::string g_english_gloss_signature;
 
-// 副候选框：Ctrl+Enter 在高亮候选有多条译义时，把候选框整个换成那几条译义，让空格/
-// 数字键像选普通候选一样选一条上屏。输入串一个字都没动，所以退出这个子模式时把原来的
+// 子页（日期页、英文词义清单页）：输入串一个字都没动，所以退出子页时把原来的
 // items / 页码 / 高亮位原样放回去就行，不需要重新查词。
-bool g_translation_candidates_active = false;
 bool g_date_time_page_active = false;
 std::string g_date_time_page_keyword;
 bool g_english_senses_page_active = false;
@@ -86,14 +83,9 @@ int g_translation_saved_page_index = 0;
 int g_translation_saved_selected_index = 0;
 bool g_translation_saved_selection_started = false;
 
-std::string TranslationIdentity(const EnglishIme::TranslationQuery &query)
-{
-    return std::string(query.direction == EnglishIme::TranslationDirection::EnglishToChinese ? "e:" : "z:") + query.key;
-}
-
 bool IsCandidateSubPageActive()
 {
-    return g_translation_candidates_active || g_date_time_page_active || g_english_senses_page_active;
+    return g_date_time_page_active || g_english_senses_page_active;
 }
 
 void LatchCandidateUiInteraction()
@@ -138,8 +130,8 @@ void ApplyUiLessFromPacket(const FanyImeNamedpipeData &pipe_data)
 
     if (!wasUiLess && IsUiLessMode())
     {
-        g_candidate_translation_signature.clear();
-        g_candidate_translation_glosses.clear();
+        g_english_gloss_signature.clear();
+        g_english_gloss_cache.clear();
         EnglishIme::ClearTranslations();
         // A prior non-UILess session may have left the candidate HWND visible;
         // hide it immediately when the host takes over drawing.
@@ -548,7 +540,6 @@ bool IsRadicalCandidateListActive()
 {
     return g_inputSession &&
            FanyImeIpc::IsRadicalCandidateList(/*radical_mode_triggered=*/g_radical_mode_triggered,
-                                              /*translation_page_active=*/g_translation_candidates_active,
                                               /*raw=*/g_inputSession->get_pinyin_sequence_with_cases());
 }
 
@@ -686,8 +677,7 @@ bool SendCurrentDataToClient(uint64_t client_id, uint64_t activation_epoch, uint
     }
     if (sent &&
         (msg_type == Global::DataFromServerMsgType::Normal ||
-         msg_type == Global::DataFromServerMsgType::CommitExactText ||
-         msg_type == FanyImeReplyType::TranslationCommitEnd) &&
+         msg_type == Global::DataFromServerMsgType::CommitExactText) &&
         IsPipeActivationCurrent(client_id, activation_epoch))
     {
         ClearState();
@@ -741,8 +731,6 @@ void PushUiLessCandidatesToOwner()
 
 void ClearState()
 {
-    if (!translation_mode::PreservingCommit())
-        translation_mode::Reset();
     // 清单页的开关要先告诉候选属主，下面的 ClearCandidateUiOwner 之后就没有对象可发了。
     if (g_english_senses_page_active)
     {
@@ -754,8 +742,7 @@ void ClearState()
     g_dedicated_english_answer_pending = false;
     // The gloss cache survives the composition: the next one starts from the
     // same common words, and its first frame should already carry them.
-    g_candidate_translation_signature.clear();
-    g_translation_candidates_active = false;
+    g_english_gloss_signature.clear();
     g_date_time_page_active = false;
     g_date_time_page_keyword.clear();
     g_english_senses_page_active = false;

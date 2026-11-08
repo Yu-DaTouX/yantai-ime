@@ -1,20 +1,49 @@
 #pragma once
 
-#include "translation/translation_state.h"
-
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
 
 namespace translation
 {
+using Clock = std::chrono::steady_clock;
+using Time = Clock::time_point;
+
+enum class Status
+{
+    Empty,
+    Debouncing,
+    Translating,
+    Ready,
+    Missing,
+    Timeout,
+    Error
+};
+
+struct Request
+{
+    uint64_t generation = 0;
+    std::string chinese;
+    Time deadline{};
+};
+
+struct Result
+{
+    uint64_t generation = 0;
+    Status status = Status::Error;
+    std::string english;
+};
+
 // One running job plus one replaceable pending job. Submit/Cancel are cheap; no DLL/model
 // loading or joining occurs on the key path. Completion runs on this worker: marshal it to the
-// Server owner thread before calling State::Apply, and validate the focus owner there.
+// Server owner thread before touching any Server state.
 class Worker
 {
   public:

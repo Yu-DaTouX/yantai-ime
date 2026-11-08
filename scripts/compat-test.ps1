@@ -109,8 +109,6 @@ $cases = @(
     @{ n = 'nihao+Esc'; k = { TypeKeys 'nihao' }; f = { Tap $VK.Esc }; c = { param($t) $t -eq '' }; cand = $true },
     @{ n = 'yi截图(键帽emoji)+Esc'; k = { TypeKeys 'yi' }; f = { Tap $VK.Esc }; c = { param($t) $t -eq '' }; cand = $true },
     @{ n = 'meiguo截图(国旗)+Esc'; k = { TypeKeys 'meiguo' }; f = { Tap $VK.Esc }; c = { param($t) $t -eq '' }; cand = $true },
-    @{ n = '翻译:Ctrl+T草稿+Enter(英文)'; k = { TypeKeys 'jintiandehuiyi'; Snap 'py1'; Chord @($VK.Ctrl) 0x54; Start-Sleep -Milliseconds 400; Snap 'ctrlT'; TypeKeys 'gaidaoxiawusandian'; Snap 'py2'; Tap $VK.Space; Start-Sleep -Milliseconds 1500; Snap 'space' }; f = { Tap $VK.Enter; Start-Sleep -Milliseconds 500; Snap 'enter'; Chord @($VK.Ctrl) 0x54; Start-Sleep -Milliseconds 300; Snap 'exit' }; c = { param($t) $t -match 'meeting' -and $t -notmatch '[\u4e00-\u9fff]' }; cand = $true },
-    @{ n = '翻译:Shift+Enter(中文)'; k = { TypeKeys 'nihao'; Chord @($VK.Ctrl) 0x54; Start-Sleep -Milliseconds 800 }; f = { Chord @($VK.Shift) $VK.Enter; Start-Sleep -Milliseconds 300; Chord @($VK.Ctrl) 0x54 }; c = { param($t) $t -eq '你好' }; cand = $true },
     @{ n = 'Shift切英文abc'; k = { Tap $VK.Shift; Start-Sleep -Milliseconds 200; TypeKeys 'abc'; Tap $VK.Shift }; f = { }; c = { param($t) $t -eq 'abc' }; cand = $false }
 )
 

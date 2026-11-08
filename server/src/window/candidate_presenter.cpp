@@ -4,9 +4,7 @@
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "global/globals.h"
-#include "ipc/candidate_translation_policy.h"
 #include "ipc/event_listener.h"
-#include "translation/translation_mode.h"
 #include "settings/settings_launcher.h"
 #include "ipc/ipc.h"
 #include "log/candidate_diag_log.h"
@@ -357,15 +355,10 @@ void CandidatePresenter::ApplySkin()
 std::uint64_t CandidatePresenter::FillItemsFromUi()
 {
     const Global::CandidatePageSnapshotPtr page = Global::LoadCandidatePageSnapshot();
-    const auto translation = translation_mode::Snapshot();
-    impl_->scene.TranslationDraft()->SetContent(translation->active, translation->draft, translation->latest, L"");
-    impl_->scene.TranslationEnglish()->SetContent(translation->active, translation->english, L"", translation->hint);
-    impl_->scene.TranslationEnglish()->SetOnClick([] { OpenSettingsTranslationApplication(); });
-    const bool translationsEnabled = GetConfiguredCandidateTranslationsEnabled();
     // 英文行：内容与显隐都来自 Server（“本页有没有释义”是它的判断）。
     if (impl_->englishLine)
     {
-        impl_->englishLine->SetLineVisible(page->english_line_visible && !translation->active);
+        impl_->englishLine->SetLineVisible(page->english_line_visible);
         impl_->englishLine->SetContent(page->english_line_word, page->english_line_pos, page->english_line_hint);
     }
     if (impl_->header)
@@ -398,23 +391,6 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         {
             // 清单页：右边那条小字是词性，靠右、比词义小一号，不上屏。
             item.translation = string_to_wstring(view.english_pos);
-        }
-        else if (translationsEnabled)
-        {
-            // 逐段转成 UTF-16 再拼起来，区间按拼出来的串计。
-            for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(view.translation))
-            {
-                const std::wstring text = string_to_wstring(segment.text);
-                if (segment.kind != FanyImeIpc::TranslationSegmentKind::Text)
-                {
-                    item.translationRuns.push_back({static_cast<UINT32>(item.translation.size()),
-                                                    static_cast<UINT32>(text.size()),
-                                                    segment.kind == FanyImeIpc::TranslationSegmentKind::Separator
-                                                        ? msimeui::CandidateList::TextRunRole::Delimiter
-                                                        : msimeui::CandidateList::TextRunRole::Secondary});
-                }
-                item.translation += text;
-            }
         }
         items.push_back(std::move(item));
     }

@@ -334,13 +334,14 @@ constexpr std::uint32_t ProtocolMismatch = 13;
 constexpr std::uint32_t CompositionRestored = 14;
 // Retired language-cycle reply. Keep its published opcode reserved.
 constexpr std::uint32_t Reserved15 = 15;
+// Retired Ctrl+T draft-translation replies (long commit fragments and composition restore).
+// Published opcodes stay reserved; never reuse them.
+constexpr std::uint32_t Reserved16 = 16;
+constexpr std::uint32_t Reserved17 = 17;
+constexpr std::uint32_t Reserved18 = 18;
 // Highest opcode a live Server may send. Local-only sentinels are larger and
 // must never be accepted as a Server frame.
-constexpr std::uint32_t TranslationCommitPart = 16;
-constexpr std::uint32_t TranslationCommitEnd = 17;
-// Negotiated TranslationModeState: active \t revision \t composition-restore payload.
-constexpr std::uint32_t TranslationComposition = 18;
-constexpr std::uint32_t MaxKnown = TranslationComposition;
+constexpr std::uint32_t MaxKnown = Reserved15;
 // Local-only result. It is never sent over the pipe and must never be
 // interpreted as candidate text to commit.
 constexpr std::uint32_t TransportUnavailable = static_cast<std::uint32_t>(-1);
@@ -452,11 +453,10 @@ constexpr std::uint32_t Reserved41 = 41;
 // 英文词义清单页是否打开。Payload "1"/"0"。打开时 TSF 把 Esc / Backspace 当作服务端候选键
 // 发给 Server（只退回中文候选，不取消组合、不删字符）；关闭后恢复本来的本地行为。
 constexpr std::uint32_t EnglishSensesPageChanged = 42;
-// TranslationModeState peers: active \t revision. Activation may send the old "0" marker.
-constexpr std::uint32_t TranslationModeChanged = 43;
-// active \t revision \t composition restore after toolbar/mouse selection.
-constexpr std::uint32_t TranslationCompositionChanged = 44;
-constexpr std::uint32_t MaxKnown = TranslationCompositionChanged;
+// Retired Ctrl+T draft-translation worker replies. Published opcodes stay reserved; never reuse them.
+constexpr std::uint32_t Reserved43 = 43;
+constexpr std::uint32_t Reserved44 = 44;
+constexpr std::uint32_t MaxKnown = EnglishSensesPageChanged;
 // Source compatibility for the Server's historical spellings.
 constexpr std::uint32_t SwitchToEn = SwitchToEnglish;
 constexpr std::uint32_t SwitchToCn = SwitchToChinese;

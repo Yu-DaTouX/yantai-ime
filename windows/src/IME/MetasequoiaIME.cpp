@@ -966,8 +966,6 @@ STDAPI CMetasequoiaIME::Deactivate()
     _ClearDeferredKeyDowns();
     // 英文词义清单页属于这一会话，失活后不会再收到它的关闭帧，先复位。
     Global::EnglishSensesPageActive.store(false, std::memory_order_relaxed);
-    Global::TranslationModeActive.store(false);
-    Global::TranslationModeSupported.store(false);
     MarkNamedpipeFocusLost();
     FlushNamedpipeImeDeactivation(deactivatedFocusToken);
     _ClearPendingIpcRequests();

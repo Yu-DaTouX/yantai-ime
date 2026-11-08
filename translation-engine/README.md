@@ -1,8 +1,8 @@
 # 本地翻译组件
 
-Server、TSF、候选窗、工具栏和设置入口已完成接线；操作说明与真机回归清单见
-[docs/translation-mode.md](../docs/translation-mode.md)。已通过构建/自动测试及真实后台模型推理冒烟，
-未部署到已安装输入法，尚未进行真实宿主人工验收。
+组件下载/导入/删除与设置页入口、Server 后台推理已接线。Ctrl+T 草稿翻译模式已删除；目前这个组件只给
+候选词英文行当兜底（见 `server/src/translation/gloss_resolver.h`），整句「选中文字 + 点工具栏『译』」另行实现。
+已通过构建/自动测试及真实后台模型推理冒烟，未部署到已安装输入法，尚未进行真实宿主人工验收。
 
 ## 已验证
 
@@ -20,11 +20,9 @@ Server、TSF、候选窗、工具栏和设置入口已完成接线；操作说�
 - 独立 smoke 使用给定的 OPUS-MT int8 权重，输出
   `Today's meeting has been rescheduled to 3 p.m.`。非 ASCII 模型目录实测：加载 275 ms，
   翻译 55 ms，峰值工作集 118,599,680 字节。这是一次冷启动冒烟，不是延迟分位数基准。
-- `State`：词级草稿/标点、退格、Esc 两阶段、三种 Enter、100 ms 去抖、1 s 超时、代际隔离；
-  控制器从 english.db 取得词级释义。翻译中按 Enter 会异步等待当前请求，超时/失败才上屏中文并提示。
-  不包含任何调频、词库写入或用户文本日志。
 - `Worker`：单运行请求 + 单覆盖待处理请求，代际取消、迟到结果丢弃、超时与析构 join。
-  完成回调只写单槽结果，Server 任务线程每约 20 ms 在模式中轮询，经 client/epoch 校验后发布不可变界面快照。
+- `ModelGlossCache`（`gloss_resolver.*`）：英文行兜底；自己的后台线程按词排队、缓存，按键路径从不等推理，
+  模型没装（Missing）时冷却 15 s 不再叩门，失败按词做 30 s 负缓存。
 - 已用实际 ZIP 跑设置组件 SHA256→导入→解包→删除测试；所有测试只使用隔离临时 DataDir。
 
 ## 构建与发布资产
@@ -57,16 +55,9 @@ SentencePiece 的 Windows port 强制静态库，脚本保留其 protobuf-lite/A
 
 ## 输入链路与兼容性
 
-- `server/src/translation/translation_mode.cpp` 是控制器；所有按键和鼠标选词在调频/造词前进草稿，
-  Enter 经现有 TSF 非阻塞提交轮询返回，失焦/重置取消请求。右键词库变更在模式中禁用。
-- 新增可选协议能力 `TranslationMode`（bit 9），旧客户端不会进入此模式；旧字段和帧大小不变。
-  模式/鼠标组合恢复通知追加在 Worker opcode 43/44；长译文按回复 opcode 16/17 分片，
-  TSF 完整拼接后只做一次 edit session 提交，不受候选窗两行省略或 199 UTF-16 码元单帧限制。
-- 空闲 Ctrl+T 交宿主，工具栏「译」进入/退出；键位和按钮可在设置页改动。
-- 独立附加行放在 `candidate_translation_panel.h`，未更改通用 ui/ 或皮肤清单；主线的
-  `contentPadRight = contentPadLeft + textPadLeft` 及 emoji 字体/候选对齐回归均保持通过。
-- `translation_worker_smoke` 用真实组件验证后台加载、中文路径、INT8 输出、deadline 和 shutdown。
-  `test_translation_mode.cpp` 使用真实引擎/词典/控制器，仅替换 IPC/窗口边界，不启动 Server。
+- 释义优先级：随包覆盖表 → english.db → 本地模型（后台、按词缓存）；组件缺失时英文行只是不显示模型补查的词。
+- 旧的 Ctrl+T 草稿翻译已删除：协议能力 bit 9/10、回复 opcode 16–18、Worker opcode 43/44 仅作保留位，不得复用。
+- 测试：`test_gloss_resolver.cpp`（覆盖表优先级/隐藏、模型兜底缓存与冷却）、`test_translation_worker.cpp`。
 
 真机 TSF/浏览器冲突、不同 DPI 实际绘制和宿主接受 edit session 的行为仍须由维护者部署后验收；
 本次没有部署、没有向前台发键、没有触碰运行中输入法进程或用户数据目录。

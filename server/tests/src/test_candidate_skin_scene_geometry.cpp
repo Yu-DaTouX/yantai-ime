@@ -126,40 +126,84 @@ TEST_CASE(candidate_skin_scene_fluent_vertical_highlight_is_centred)
     RequireHighlightFillsContent(geometry);
 }
 
-TEST_CASE(candidate_skin_scene_translation_rows_keep_minimum_width_and_selected_padding)
+// 候选条下面的英文行：任何皮肤、深浅、横竖排、缩放下都不能把卡片撑宽，高亮右侧留白保持 contentPadLeft + textPadLeft。
+TEST_CASE(candidate_skin_scene_english_line_keeps_selected_padding_and_does_not_widen_the_card)
 {
     for (const std::string skin : {"fluent", "mac", "acrylic"})
     {
-        for (const bool horizontal : {false, true})
+        for (const bool light : {false, true})
         {
-            for (const float scale : {1.0f, 1.25f, 1.5f, 2.0f})
+            for (const bool horizontal : {false, true})
             {
-                CandidateSkinScene scene;
-                CandidateSkinScene::Settings settings;
-                settings.skinsRoot = std::filesystem::u8path(MSIME_SKINS_PATH);
-                settings.skinId = skin;
-                settings.horizontal = horizontal;
-                settings.fontSize = 16 * scale;
-                settings.preeditHidden = true;
-                settings.framePadding = {};
-                scene.Apply(settings);
-                scene.Preedit()->SetHeight(0);
-                scene.List()->SetItems({{L"1", L"你好", L"", L"", {}}});
-                scene.TranslationDraft()->SetContent(true, std::wstring(1000, L'中'), L"中文", L"");
-                scene.TranslationEnglish()->SetContent(true, std::wstring(3000, L'x'), L"", L"Enter 上屏");
-                const auto english = scene.TranslationEnglish()->Measure({600, 1000});
-                REQUIRE(english.width >= 360.0f);
-                const auto size = scene.Root()->MeasureInLayout({1200, 1200});
-                scene.Root()->ArrangeInLayout({0, 0, size.width, size.height});
-                REQUIRE(scene.CardVisual()->GetBounds().width >= 360.0f);
-                const auto &appearance = scene.List()->GetAppearance();
-                if (appearance.fitContent)
-                    REQUIRE(std::fabs(appearance.contentPadRight -
-                                      (appearance.contentPadLeft + appearance.textPadLeft)) < 0.02f);
-                // Two-line English height must not grow with a 3000-character sentence.
-                scene.TranslationEnglish()->SetContent(true, L"Hello.", L"", L"Enter 上屏");
-                REQUIRE_EQ(scene.TranslationEnglish()->Measure({600, 1000}).height, english.height);
+                for (const float scale : {1.0f, 1.25f, 1.5f, 2.0f})
+                {
+                    CandidateSkinScene scene;
+                    CandidateSkinScene::Settings settings;
+                    settings.skinsRoot = std::filesystem::u8path(MSIME_SKINS_PATH);
+                    settings.skinId = skin;
+                    settings.light = light;
+                    settings.horizontal = horizontal;
+                    settings.fontSize = 16 * scale;
+                    settings.preeditHidden = true;
+                    settings.framePadding = {};
+                    scene.Apply(settings);
+                    scene.Preedit()->SetHeight(0);
+                    scene.List()->SetItems({{L"1", L"你好", L"", L"", {}}});
+                    scene.EnglishLine()->SetLineVisible(false);
+                    const auto hiddenSize = scene.Root()->MeasureInLayout({1200, 1200});
+
+                    // 英文行高度固定：内容是空白（隐藏词、没释义、模型还在算）与有内容时一样高。
+                    scene.EnglishLine()->SetLineVisible(true);
+                    scene.EnglishLine()->SetContent(L"", L"", L"");
+                    const auto blankSize = scene.Root()->MeasureInLayout({1200, 1200});
+                    scene.EnglishLine()->SetContent(L"Hi", L"n.", L"Ctrl+\u21B5 \u4E0A\u5C4F");
+                    const auto shortSize = scene.Root()->MeasureInLayout({1200, 1200});
+                    REQUIRE(std::fabs(blankSize.height - shortSize.height) < 0.02f);
+                    REQUIRE(std::fabs(blankSize.width - shortSize.width) < 0.02f);
+                    REQUIRE(blankSize.height > hiddenSize.height);
+                    scene.EnglishLine()->SetContent(std::wstring(3000, L'x'), L"n.", L"Ctrl+\u21B5 \u4E0A\u5C4F");
+                    const auto size = scene.Root()->MeasureInLayout({1200, 1200});
+                    scene.Root()->ArrangeInLayout({0, 0, size.width, size.height});
+                    // 3000 个字符的英文只在行内省略，不撑宽卡片，只多出一行的高度。
+                    REQUIRE(std::fabs(size.width - hiddenSize.width) < 0.02f);
+                    REQUIRE(size.height > hiddenSize.height);
+                    const auto &appearance = scene.List()->GetAppearance();
+                    if (appearance.fitContent)
+                        REQUIRE(std::fabs(appearance.contentPadRight -
+                                          (appearance.contentPadLeft + appearance.textPadLeft)) < 0.02f);
+                }
             }
+        }
+    }
+}
+
+bool SameRgb(const D2D1_COLOR_F &left, const D2D1_COLOR_F &right)
+{
+    return std::fabs(left.r - right.r) < 0.005f && std::fabs(left.g - right.g) < 0.005f &&
+           std::fabs(left.b - right.b) < 0.005f;
+}
+
+// 英文行用皮肤的次要文字色（序号色），不用强调色，也不用内置 fluent 的紫色翻译色；mac 深浅两套的词性小字也不再是紫色。
+TEST_CASE(candidate_skin_scene_english_line_uses_the_secondary_text_color_not_purple)
+{
+    for (const std::string skin : {"fluent", "mac", "acrylic"})
+    {
+        for (const bool light : {false, true})
+        {
+            CandidateSkinScene scene;
+            CandidateSkinScene::Settings settings;
+            settings.skinsRoot = std::filesystem::u8path(MSIME_SKINS_PATH);
+            settings.skinId = skin;
+            settings.light = light;
+            settings.horizontal = true;
+            const CandidateSkinScene::Result result = scene.Apply(settings);
+            const auto &line = scene.EnglishLine()->GetAppearance();
+            REQUIRE(SameRgb(line.wordColor, result.tokens.number));
+            REQUIRE(SameRgb(line.posColor, result.tokens.number));
+            REQUIRE(SameRgb(line.hintColor, result.tokens.number));
+            REQUIRE(!SameRgb(line.wordColor, result.tokens.accent));
+            if (skin == "mac")
+                REQUIRE(SameRgb(result.tokens.translation, result.tokens.number));
         }
     }
 }

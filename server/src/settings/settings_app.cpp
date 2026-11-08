@@ -332,9 +332,6 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"floating_toolbar_auto_hide_delay", GetConfiguredFloatingToolbarAutoHideDelay()},
             {"floating_toolbar_shadow", GetConfiguredFloatingToolbarShadow()},
             {"cn_en_mixed_input", GetConfiguredEnglishCandidatesEnabled()},
-            {"candidate_translations", GetConfiguredCandidateTranslationsEnabled()},
-            {"candidate_translation_show_pos", GetConfiguredCandidateTranslationShowPos()},
-            {"candidate_translation_single_sense", GetConfiguredCandidateTranslationSingleSense()},
             {"english_line", GetConfiguredEnglishLineEnabled()},
             {"cn_en_mixed_input_min_chars", GetConfiguredEnglishMixedInputMinChars()},
             {"cn_en_mixed_input_first_page_count", GetConfiguredEnglishMixedInputFirstPageCount()},
@@ -404,8 +401,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
                  return catalog;
              }()}}},
           {"keybindings",
-           {{"translate_mode", GetConfiguredTranslateModeBinding()},
-            {"switch_language_shift", GetConfiguredSwitchLanguageShiftEnabled()},
+           {{"switch_language_shift", GetConfiguredSwitchLanguageShiftEnabled()},
             {"switch_language_ctrl", GetConfiguredSwitchLanguageCtrlEnabled()},
             {"switch_language_ctrl_alt_space", GetConfiguredSwitchLanguageCtrlAltSpaceEnabled()},
             {"toggle_character_set_ctrl_shift_f", GetConfiguredCharacterSetShortcutEnabled()},
@@ -647,12 +643,6 @@ bool ApplyConfigUpdate(const json::object &data)
                                                        json::value_to<bool>(data.at("value")));
     if (path == "general.cn_en_mixed_input")
         return SetConfiguredEnglishCandidatesEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "general.candidate_translations")
-        return SetConfiguredCandidateTranslationsEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "general.candidate_translation_show_pos")
-        return SetConfiguredCandidateTranslationShowPos(json::value_to<bool>(data.at("value")));
-    if (path == "general.candidate_translation_single_sense")
-        return SetConfiguredCandidateTranslationSingleSense(json::value_to<bool>(data.at("value")));
     if (path == "general.english_line")
         return SetConfiguredEnglishLineEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.cn_en_mixed_input_min_chars")
@@ -737,8 +727,6 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredCandidateArrowNavigationEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.candidate_horizontal_arrow_navigation")
         return SetConfiguredCandidateHorizontalArrowNavigationEnabled(json::value_to<bool>(data.at("value")));
-    if (path == "keybindings.translate_mode")
-        return SetConfiguredTranslateModeBinding(json::value_to<std::string>(data.at("value")));
     if (path == "keybindings.switch_language_shift")
         return SetConfiguredSwitchLanguageShiftEnabled(json::value_to<bool>(data.at("value")));
     if (path == "keybindings.switch_language_ctrl")

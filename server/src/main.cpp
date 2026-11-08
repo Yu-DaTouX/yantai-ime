@@ -14,6 +14,7 @@
 #include <fmt/xchar.h>
 #include <spdlog/spdlog.h>
 #include "english/english_ime.h"
+#include "translation/gloss_service.h"
 #include "mixed/mixed_candidates.h"
 #include "engine/neural/rescore_worker.h"
 #include "engine/contracts/assets/assets.h"
@@ -182,6 +183,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE /*hPrevInstance*/,
     // 神经整句重排：打分在引擎自己的后台线程上跑，算完通过这个回调回到任务队列，由队列去重查候选。
     // 不 Start 什么线程——没开这个开关的用户不会平白多一条。
     neural::RescoreWorker::instance().set_ready_callback([] { FanyNamedPipe::EnqueueRescoredCandidates(); });
+    translation::InstallEnglishGlossResolver();
     EnglishIme::Start(
         CommonUtils::get_ime_data_path() + "\\english.db",
         [](std::vector<WordItem> candidates, const std::string &input, uint64_t generation) {

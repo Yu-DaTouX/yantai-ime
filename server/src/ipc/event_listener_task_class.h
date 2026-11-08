@@ -45,7 +45,6 @@ enum class TaskType
     ToolbarLanguageToggle,
     ApplyRescoredOrder,
     RefreshWithEnrichment,
-    ToolbarTranslationToggle,
 };
 
 // The worker keeps FIFO order within each class.

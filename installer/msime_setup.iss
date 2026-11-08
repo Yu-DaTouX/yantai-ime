@@ -163,6 +163,10 @@ Source: "{#MySourceRoot}\app_data\assets\settings\*"; \
 Source: "{#MySourceRoot}\app_data\assets\fonts\*"; \
     DestDir: "{code:GetDataDir}\assets\fonts"; \
     Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+; 候选词英文行的随包释义覆盖表。
+Source: "{#MySourceRoot}\app_data\assets\dictionary\*"; \
+    DestDir: "{code:GetDataDir}\assets\dictionary"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 #else
 ; 包内故意不带 config.toml。通配复制再排除一次，防止以后又把用户配置打进包内。
 Source: "{#MySourceRoot}\app_data\*"; DestDir: "{code:GetDataDir}"; \
@@ -1128,7 +1132,10 @@ begin
     { 只删空目录。}
   end
   else if CompareText(FileName, 'assets') = 0 then
-    TryDeleteTree(AddBackslash(ItemPath) + 'settings')
+  begin
+    TryDeleteTree(AddBackslash(ItemPath) + 'settings');
+    TryDeleteTree(AddBackslash(ItemPath) + 'dictionary');
+  end
   else if CompareText(FileName, 'html') = 0 then
     { 旧版的 WebView2 页面，见 IsRetiredAppDataItem。}
     TryDeleteTree(AddBackslash(ItemPath) + 'webview2')

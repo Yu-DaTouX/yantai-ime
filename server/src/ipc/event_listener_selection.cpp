@@ -1,6 +1,5 @@
 // 选词上屏：解析页内候选、等待候选窗渲染同步，以及 ProcessSelectionKey 的造词与调频学习。
 #include "ipc/event_listener_internal.h"
-#include "translation/translation_mode.h"
 #include <Windows.h>
 #include <string>
 #include <algorithm>
@@ -182,32 +181,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
     static bool isNeedUpdateWeight = false;
     isNeedUpdateWeight = false;
 
-    if (g_translation_candidates_active)
-    {
-        // 译文页：选中的就是要上屏的完整文本，既不调频也不造词，更不能把译文当候选词学进库。
-        if (forced_index_in_page < 0 && (keycode == VK_SPACE || (keycode >= '1' && keycode <= '9')))
-        {
-            WaitForCandidateRenderSync(keycode);
-        }
-        EnsureCandidatePageReady();
-        auto &ui = Global::candidate_ui;
-        const int index = forced_index_in_page >= 0
-                              ? forced_index_in_page
-                              : (keycode == VK_SPACE ? ui.selected_index_in_page : static_cast<int>(keycode - '1'));
-        if (index < 0 || static_cast<size_t>(index) >= ui.page_words.size())
-        {
-            // 这一页没有这个序号：什么都不上屏，译文页原样留着。走 SELECT_BY_NUMBER 的
-            // TSF 路径只认 Normal / OutofRange 两种回复，这里必须是后者。
-            Global::MsgTypeToTsf = Global::DataFromServerMsgType::OutofRange;
-            return;
-        }
-        // 同理，上屏必须回 Normal：_HandleCandidateFinalize 只在 Normal 时写入文本，
-        // 而且它写的就是 candidate_string 本身，不会再补标点。
-        Global::MsgTypeToTsf = Global::DataFromServerMsgType::Normal;
-        ui.selected_text = ui.page_words[index];
-        return;
-    }
-
     // Keyboard selection must match the painted page. Mouse clicks carry an explicit index
     // (forced_index_in_page >= 0) and keep the old behavior: waiting cannot restore the intent of a
     // click that targeted a candidate of a page that is no longer on screen.
@@ -241,9 +214,6 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         Global::MsgTypeToTsf = Global::DataFromServerMsgType::OutofRange;
         return;
     }
-
-    if (is_valid_selection && translation_mode::Select(curWordItem, client_id, activation_epoch))
-        return;
 
     if (is_valid_selection)
     {

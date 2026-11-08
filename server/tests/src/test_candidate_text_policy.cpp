@@ -98,7 +98,6 @@ TEST_CASE(candidate_text_policy_rebuilds_only_lists_that_follow_the_character_se
 namespace
 {
 constexpr bool kRadicalModeTriggered = true;
-constexpr bool kTranslationPageActive = true;
 
 const std::string kGan = "\xE5\xB9\xB2";                    // 干
 const std::string kZao = "\xE7\x87\xA5";                    // 燥
@@ -137,20 +136,19 @@ std::string FakeToTraditional(const std::string &text)
 
 TEST_CASE(candidate_text_policy_recognizes_radical_candidate_list)
 {
-    REQUIRE(FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, !kTranslationPageActive, "Ukou"));
+    REQUIRE(FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, "Ukou"));
 }
 
 TEST_CASE(candidate_text_policy_radical_candidate_list_needs_every_condition)
 {
-    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(!kRadicalModeTriggered, !kTranslationPageActive, "Ukou"));
-    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, kTranslationPageActive, "Ukou"));
-    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, !kTranslationPageActive, "Kkou"));
+    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(!kRadicalModeTriggered, "Ukou"));
+    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, "Kkou"));
 }
 
 TEST_CASE(candidate_text_policy_radical_candidate_list_rejects_lowercase_and_empty_input)
 {
-    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, !kTranslationPageActive, "ukou"));
-    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, !kTranslationPageActive, ""));
+    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, "ukou"));
+    REQUIRE(!FanyImeIpc::IsRadicalCandidateList(kRadicalModeTriggered, ""));
 }
 
 TEST_CASE(candidate_text_policy_radical_composition_needs_u_at_the_start)

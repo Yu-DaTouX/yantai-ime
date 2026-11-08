@@ -3,7 +3,6 @@
 #include "skin/candidate_skin_catalog.h"
 #include "window/candidate_skin_palette.h"
 #include "window/candidate_skin_tokens.h"
-#include "window/candidate_translation_panel.h"
 
 #include "msimeui/Controls.h"
 #include "msimeui/DeviceResources.h"
@@ -42,6 +41,10 @@ class CandidateEnglishLine : public msimeui::Panel
     void SetAppearance(const Appearance &appearance);
     void SetContent(std::wstring word, std::wstring pos, std::wstring hint);
     void SetLineVisible(bool visible);
+    const Appearance &GetAppearance() const
+    {
+        return appearance_;
+    }
     bool IsLineVisible() const
     {
         return visible_;
@@ -263,14 +266,6 @@ class CandidateSkinScene
         return header_;
     }
     // 候选条下面的英文行。
-    std::shared_ptr<CandidateTranslationPanel> TranslationDraft() const
-    {
-        return translationDraft_;
-    }
-    std::shared_ptr<CandidateTranslationPanel> TranslationEnglish() const
-    {
-        return translationEnglish_;
-    }
     const std::shared_ptr<CandidateEnglishLine> &EnglishLine() const
     {
         return englishLine_;
@@ -336,7 +331,6 @@ class CandidateSkinScene
     std::shared_ptr<msimeui::TextBlock> preedit_;
     std::shared_ptr<msimeui::TextBlock> header_;
     std::shared_ptr<CandidateEnglishLine> englishLine_;
-    std::shared_ptr<CandidateTranslationPanel> translationDraft_, translationEnglish_;
     std::shared_ptr<msimeui::CandidateList> list_;
     std::shared_ptr<msimeui::PagerArrows> pager_;
     std::shared_ptr<CandidateExpandToggle> expandToggle_;

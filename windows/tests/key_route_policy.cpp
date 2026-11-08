@@ -1,6 +1,6 @@
 // Who owns a chord before the local classifier: the Server's candidate list or the application.
-// Covers the shared Ctrl+Enter space (translations vs. the English line) that the Server's branch
-// order has to agree with (server/src/ipc/candidate_key_route_policy.h, 51d7ee1d).
+// Covers the English-line chords, which the Server's branch has to agree with
+// (server/src/ipc/candidate_key_route_policy.h).
 
 #include "Key/KeyRoutingPolicy.h"
 
@@ -34,36 +34,10 @@ void CheckDisposition(const char *what, ModifiedKeyDisposition actual, ModifiedK
 
 int main()
 {
-    // Ctrl+Enter commits the translation only while the translations are on and no Windows key is
-    // held. With translations off the same chord must be free for the English line.
-    {
-        const bool chord = IsTranslationCommitChord(true, kVirtualKeyReturn, kControl, false);
-        Check("ctrl+enter with translations on", chord, true);
-    }
-    Check("ctrl+enter with translations off", IsTranslationCommitChord(false, kVirtualKeyReturn, kControl, false),
-          false);
-    Check("ctrl+shift+enter is not the translation chord",
-          IsTranslationCommitChord(true, kVirtualKeyReturn, kControl | kShift, false), false);
-    Check("ctrl+alt+enter is not the translation chord",
-          IsTranslationCommitChord(true, kVirtualKeyReturn, kControl | kAlt, false), false);
-    Check("plain enter is not the translation chord", IsTranslationCommitChord(true, kVirtualKeyReturn, 0, false),
-          false);
-    Check("win+ctrl+enter is the shell's", IsTranslationCommitChord(true, kVirtualKeyReturn, kControl, true), false);
-
-    // Ctrl+1..9 commits the translation of that page position; the numpad digits count too.
-    Check("ctrl+1 with translations on", IsTranslationDigitChord(true, '1', kControl, false), true);
-    Check("ctrl+9 with translations on", IsTranslationDigitChord(true, '9', kControl, false), true);
-    Check("ctrl+numpad1 with translations on", IsTranslationDigitChord(true, 0x61, kControl, false), true);
-    Check("ctrl+1 with translations off", IsTranslationDigitChord(false, '1', kControl, false), false);
-    Check("bare 1 is ordinary selection", IsTranslationDigitChord(true, '1', 0, false), false);
-    Check("ctrl+0 is not a position", IsTranslationDigitChord(true, '0', kControl, false), false);
-    Check("ctrl+shift+1 is the host's", IsTranslationDigitChord(true, '1', kControl | kShift, false), false);
-
-    // The English-line chords only yield Ctrl+Enter while the translations are on.
-    Check("commit_english with translations off", IsEnglishCommitChord(false, true, false), true);
-    Check("commit_english with translations on", IsEnglishCommitChord(true, true, false), false);
-    Check("commit_english not bound", IsEnglishCommitChord(false, false, false), false);
-    Check("commit_english with win held", IsEnglishCommitChord(false, true, true), false);
+    // The English-line chords follow their configured binding unless a Windows key is held.
+    Check("commit_english bound", IsEnglishCommitChord(true, false), true);
+    Check("commit_english not bound", IsEnglishCommitChord(false, false), false);
+    Check("commit_english with win held", IsEnglishCommitChord(true, true), false);
     Check("english_senses bound", IsEnglishSensesChord(true, false), true);
     Check("english_senses not bound", IsEnglishSensesChord(false, false), false);
     Check("english_senses with win held", IsEnglishSensesChord(true, true), false);
@@ -73,9 +47,6 @@ int main()
     {
         ServerCandidateShortcut shortcut;
         shortcut.candidatesActive = true;
-        shortcut.translationCommitChord = true;
-        Check("ctrl+enter with candidates goes to the server", ShouldClaimForServerCandidate(shortcut), true);
-        shortcut.translationCommitChord = false;
         shortcut.englishCommitChord = true;
         Check("commit_english with candidates goes to the server", ShouldClaimForServerCandidate(shortcut), true);
         shortcut.englishCommitChord = false;
@@ -86,8 +57,8 @@ int main()
     }
     {
         ServerCandidateShortcut shortcut;
-        shortcut.translationCommitChord = true;
-        Check("ctrl+enter without candidates stays local", ShouldClaimForServerCandidate(shortcut), false);
+        shortcut.englishCommitChord = true;
+        Check("commit_english without candidates stays local", ShouldClaimForServerCandidate(shortcut), false);
         shortcut.freshCompositionState = true;
         shortcut.candidatesActive = true;
         shortcut.englishSensesChord = true;

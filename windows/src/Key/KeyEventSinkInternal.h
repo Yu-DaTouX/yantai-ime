@@ -17,11 +17,8 @@ KEYSTROKE_FUNCTION SegmentEditFunction(UINT code, UINT modifiers);
 UINT CaptureIpcModifiers();
 bool IsEnglishInputModeToggle(UINT code, UINT modifiers);
 // Ctrl+Enter / Ctrl+1..9 on a candidate: the chords plus the gloss switch they hang off.
-bool IsTranslationCommitShortcut(UINT code, UINT modifiers);
-bool IsTranslationDigitShortcut(UINT code, UINT modifiers);
 // 候选词英文上屏（[keybindings] commit_english / english_senses）：上屏英文行、展开全部词义。
 bool IsEnglishCommitShortcut(UINT code, UINT modifiers);
-bool IsTranslationModeKey(UINT code, UINT modifiers, bool composing);
 bool IsEnglishSensesShortcut(UINT code, UINT modifiers);
 bool IsPinyinCommitShortcut(UINT code, UINT modifiers);
 bool IsCharacterSetInputModeToggle(UINT code, UINT modifiers);

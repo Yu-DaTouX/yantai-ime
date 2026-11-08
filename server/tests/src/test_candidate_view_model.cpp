@@ -1,16 +1,14 @@
 #include "window/candidate_view_model.h"
 #include "tests/includes/test_framework.h"
 
-TEST_CASE(candidate_view_escapes_text_and_translation_without_turning_them_into_markup)
+TEST_CASE(candidate_view_escapes_text_without_turning_it_into_markup)
 {
     CandidateViewItem item;
     item.text = "<&,\"";
     item.annotation = " AB";
     item.badge = " cloud";
-    item.translation = "<gloss>,";
     item.fixed_position = true;
-    REQUIRE_EQ(CandidateViewHtml(item), std::string("<span style=\"color:#379AD3\">&lt;&amp;,&quot; AB cloud</span>"
-                                                    "<span class=\"cand-translation\">&lt;gloss&gt;,</span>"));
+    REQUIRE_EQ(CandidateViewHtml(item), std::string("<span style=\"color:#379AD3\">&lt;&amp;,&quot; AB cloud</span>"));
     REQUIRE_EQ(item.text, std::string("<&,\""));
 }
 
@@ -18,45 +16,7 @@ TEST_CASE(candidate_view_keeps_commas_and_private_use_characters)
 {
     CandidateViewItem item;
     item.text = "a,\xEF\x80\x80";
-    item.translation = "b,\xEF\x80\x80";
-    REQUIRE_EQ(CandidateViewHtml(item),
-               std::string("a,\xEF\x80\x80<span class=\"cand-translation\">b,\xEF\x80\x80</span>"));
-}
-
-// 词性与分隔符各包一层 span，皮肤靠 .cand-pos / .cand-sep 给它们单独配色；分段里的文本同样要转义。
-TEST_CASE(candidate_view_wraps_part_of_speech_and_separators_in_translation)
-{
-    CandidateViewItem item;
-    item.text = "笑";
-    item.translation = "adj. <spreading>; n. laugh";
-    REQUIRE_EQ(CandidateViewHtml(item), std::string("笑<span class=\"cand-translation\">"
-                                                    "<span class=\"cand-pos\">adj.</span> &lt;spreading&gt;"
-                                                    "<span class=\"cand-sep\">;</span> "
-                                                    "<span class=\"cand-pos\">n.</span> laugh</span>"));
-}
-
-TEST_CASE(candidate_view_pos_toggle_updates_display_and_refresh_signature)
-{
-    const std::string raw = "adj. <spreading>; n. laugh";
-    CandidateViewItem item;
-    item.text = "笑";
-    item.translation = FanyImeIpc::FormatTranslationGlossForDisplay(raw, true);
-    const auto shown_html = CandidateViewHtml(item);
-    const auto shown_signature = CandidatePageSignature({item});
-    const CandidateFramePageState page{2, 1, true, true};
-    const auto shown_frame = CandidateFrameSignature(L"xiao", {item}, 10, 20, page);
-
-    item.translation = FanyImeIpc::FormatTranslationGlossForDisplay(raw, false);
-    REQUIRE_EQ(item.translation, std::string("<spreading>; laugh"));
-    REQUIRE_EQ(CandidateViewHtml(item), std::string("笑<span class=\"cand-translation\">&lt;spreading&gt;"
-                                                    "<span class=\"cand-sep\">;</span> laugh</span>"));
-    REQUIRE(shown_signature != CandidatePageSignature({item}));
-    REQUIRE(shown_frame != CandidateFrameSignature(L"xiao", {item}, 10, 20, page));
-
-    item.translation = FanyImeIpc::FormatTranslationGlossForDisplay(raw, true);
-    REQUIRE_EQ(CandidateViewHtml(item), shown_html);
-    REQUIRE_EQ(CandidatePageSignature({item}), shown_signature);
-    REQUIRE_EQ(CandidateFrameSignature(L"xiao", {item}, 10, 20, page), shown_frame);
+    REQUIRE_EQ(CandidateViewHtml(item), std::string("a,\xEF\x80\x80"));
 }
 
 TEST_CASE(candidate_page_signature_distinguishes_comma_split_between_items)

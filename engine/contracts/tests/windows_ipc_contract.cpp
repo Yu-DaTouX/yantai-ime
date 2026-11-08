@@ -34,7 +34,7 @@ int main()
     CHECK(FanyImeProtocol::ReservedCapability8 == (1u << 8));
     CHECK(FanyImeWorkerReplyType::Reserved36 == 36);
     CHECK(FanyImeWorkerReplyType::UpdateInstallerReady == 40);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::TranslationCompositionChanged);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::EnglishSensesPageChanged);
     CHECK(FanyImePipeEventType::HideCaretState == 16);
     CHECK(FanyImePipeEventType::HideCaretState != FanyImePipeEventType::HideCandidateWnd);
     CHECK(!FanyImePipeEventType::IsRouteDeactivation(FanyImePipeEventType::HideCaretState));
@@ -111,21 +111,14 @@ int main()
           0); // old client/new server
     CHECK(FanyImeReplyType::CompositionRestored == 14);
     CHECK(FanyImeReplyType::Reserved15 == 15);
-    CHECK(FanyImeReplyType::TranslationCommitPart == 16);
-    CHECK(FanyImeReplyType::TranslationCommitEnd == 17);
-    CHECK(FanyImeReplyType::TranslationComposition == 18);
-    CHECK(FanyImeReplyType::MaxKnown == FanyImeReplyType::TranslationComposition);
-    constexpr auto translationCaps =
-        FanyImeProtocol::Capabilities | FanyImeProtocol::TranslationMode | FanyImeProtocol::TranslationModeState;
-    CHECK(!FanyImeProtocol::SupportsTranslationMode(FanyImeProtocol::TranslationMode));
-    CHECK(!FanyImeProtocol::SupportsTranslationMode(FanyImeProtocol::TranslationModeState));
-    CHECK(FanyImeProtocol::SupportsTranslationMode(translationCaps));
-    const auto translationHello = FanyImeProtocol::Hello(7, 22, translationCaps);
-    CHECK(FanyImeProtocol::SupportsTranslationMode(
-        FanyImeProtocol::Negotiate(translationHello, translationCaps).capabilities));
-    CHECK(!FanyImeProtocol::SupportsTranslationMode(
-        FanyImeProtocol::Negotiate(translationHello, translationCaps & ~FanyImeProtocol::TranslationModeState)
-            .capabilities));
+    CHECK(FanyImeReplyType::Reserved16 == 16);
+    CHECK(FanyImeReplyType::Reserved17 == 17);
+    CHECK(FanyImeReplyType::Reserved18 == 18);
+    CHECK(FanyImeReplyType::MaxKnown == FanyImeReplyType::Reserved15);
+    CHECK(FanyImeProtocol::ReservedCapability9 == (1u << 9));
+    CHECK(FanyImeProtocol::ReservedCapability10 == (1u << 10));
+    CHECK(FanyImeWorkerReplyType::Reserved43 == 43);
+    CHECK(FanyImeWorkerReplyType::Reserved44 == 44);
     CHECK(FanyImeReplyType::TransportUnavailable > FanyImeReplyType::MaxKnown);
 
     hello.wch += 1;
@@ -171,7 +164,7 @@ int main()
     CHECK(FanyImeWorkerReplyType::HorizontalArrowSelectionChanged == 39);
     CHECK(FanyImeWorkerReplyType::UpdateInstallerReady == 40);
     CHECK(FanyImeWorkerReplyType::Reserved41 == 41);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::TranslationCompositionChanged);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::EnglishSensesPageChanged);
     // EnumerationCommaKeysChanged 的载荷：\ 和 / 各一位，两个都没勾按只有 \ 发。
     CHECK(FanyImeEnumerationComma::PayloadFor(true, false) == L'1' &&
           FanyImeEnumerationComma::PayloadFor(false, true) == L'2' &&

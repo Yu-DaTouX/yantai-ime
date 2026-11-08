@@ -1,6 +1,5 @@
 // 任务队列与任务线程：Task 定义、WorkerThread 的分发循环，以及各个 Enqueue* 入口。
 #include "ipc/event_listener_internal.h"
-#include "translation/translation_mode.h"
 #include <Windows.h>
 #include <array>
 #include <string>
@@ -272,16 +271,8 @@ void WorkerThread()
     // 条件变量上醒来，把效果档放回来并排一次重查。别的线程只通过 TypingInProgress
     // 的原子量看见「正在打字」。放成循环外的局部量，闸门状态就不需要任何同步。
     InputCadence cadence;
-    struct TranslationShutdown
-    {
-        ~TranslationShutdown()
-        {
-            translation_mode::Shutdown();
-        }
-    } shutdown;
     while (pipe_running)
     {
-        translation_mode::Poll();
         Task task;
         // 闸门只服务效果档：效果档没开时连节奏状态都不维护，按键路径退回原来的
         // 无限等待，一次超时唤醒都不多，单开速度档与两档全关的行为逐字节不变。
@@ -301,19 +292,11 @@ void WorkerThread()
             if (gate_deadline == InputCadence::Clock::time_point{})
             {
                 // 闸门关着（或不在打字）：保持原来的无限等待。
-                if (translation_mode::Active())
-                    pipe_queueCv.wait_for(lock, std::chrono::milliseconds(20), has_work);
-                else
-                    pipe_queueCv.wait(lock, has_work);
+                pipe_queueCv.wait(lock, has_work);
             }
             else
             {
-                pipe_queueCv.wait_until(
-                    lock,
-                    translation_mode::Active()
-                        ? (std::min)(gate_deadline, InputCadence::Clock::now() + std::chrono::milliseconds(20))
-                        : gate_deadline,
-                    has_work);
+                pipe_queueCv.wait_until(lock, gate_deadline, has_work);
             }
             if (!pipe_running)
                 break;
@@ -594,9 +577,6 @@ void WorkerThread()
                 g_deferred_client_activation.store(true, std::memory_order_release);
             }
             ClearState();
-            if (ClientNegotiatedTranslationMode(task.client_id))
-                SendToTsfWorkerThreadClientViaNamedpipe(task.client_id, task.activation_epoch,
-                                                        FanyImeWorkerReplyType::TranslationModeChanged, L"0");
 
             // Show the incoming client's own mode now rather than the outgoing
             // client's, which would otherwise stay up for the whole handoff and
@@ -733,13 +713,6 @@ void WorkerThread()
             break;
         }
 
-        case TaskType::ToolbarTranslationToggle: {
-            const auto client = GetActivePipeClient();
-            if (client.client_id && IsPipeActivationCurrent(client.client_id, client.epoch))
-                translation_mode::Toggle(client.client_id, client.epoch, true);
-            break;
-        }
-
         case TaskType::ToolbarLanguageToggle: {
             HandleToolbarLanguageToggle(task.toolbar_from_ime_enabled);
             break;
@@ -789,14 +762,6 @@ void WorkerThread()
                 }
             }
             ProcessSelectionKey(0, task.client_id, task.activation_epoch, index_in_page);
-            if (translation_mode::Active())
-            {
-                // Restore raw spelling only; the accumulated Chinese never enters the document.
-                SendToTsfWorkerThreadClientViaNamedpipe(task.client_id, task.activation_epoch,
-                                                        FanyImeWorkerReplyType::TranslationCompositionChanged,
-                                                        Global::candidate_ui.selected_text);
-                break;
-            }
             if (Global::MsgTypeToTsf == Global::DataFromServerMsgType::Normal)
             {
                 // The worker packet is the complete edit-session-owned commit
@@ -826,8 +791,6 @@ void WorkerThread()
         case TaskType::UiDeleteCandidate:
         case TaskType::UiFixCandidatePosition:
         case TaskType::UiClearCandidatePosition: {
-            if (translation_mode::Active())
-                break; // Translation drafts never mutate dictionary/ranking.
             WordItem item;
             if (!ResolveCandidateItem(task.candidate_one_based_index, item))
             {
@@ -1637,11 +1600,6 @@ void EnqueueExitEnglishInputModeTask()
         PushTaskLocked(std::move(task));
     }
     pipe_queueCv.notify_one();
-}
-
-void EnqueueToolbarTranslationToggleTask()
-{
-    EnqueueTask(TaskType::ToolbarTranslationToggle, {}, 0);
 }
 
 void EnqueueToolbarLanguageToggleTask(bool from_ime_enabled)
