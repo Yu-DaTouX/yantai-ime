@@ -47,7 +47,10 @@ def table_digests(path: Path) -> dict[str, str]:
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"))
         for table in tables:
             digest = hashlib.sha256()
-            for row in sorted(repr(row) for row in connection.execute(f'SELECT * FROM "{table}"')):
+            # 不用 repr：它按 Python 自带的 Unicode 库判断哪些字符「不可打印」，新版 emoji 在旧版 Python
+            # 上会被转义成 \x，两台机器的摘要就对不上。json 的 ASCII 转义与 Unicode 库版本无关。
+            for row in sorted(json.dumps(list(row), ensure_ascii=True, default=bytes.hex)
+                              for row in connection.execute(f'SELECT * FROM "{table}"')):
                 digest.update(row.encode() + b"\n")
             result[table] = digest.hexdigest()
     finally:
