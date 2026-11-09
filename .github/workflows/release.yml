@@ -78,7 +78,7 @@ jobs:
       - name: Validate workflow syntax
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          actionlint -color .github/workflows/release.yml .github/workflows/ci.yml .github/workflows/dev-build.yml .github/workflows/branch-guard.yml .github/workflows/quality.yml
+          actionlint -color .github/workflows/release.yml .github/workflows/ci.yml .github/workflows/dev-build.yml .github/workflows/quality.yml
       - name: Test release metadata and draft safety
         run: python3 scripts/ci/test-manual-release.py
 
