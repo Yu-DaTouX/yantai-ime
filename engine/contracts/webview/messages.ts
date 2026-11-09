@@ -34,7 +34,7 @@ export type ClientMessage =
   | { "type": "windowControl"; "protocolVersion"?: 1; "data": "minimize" | "maximize" | "restore" | "close" }
   | { "type": "maximizeButtonRect"; "protocolVersion"?: 1; "data": { "x": number; "y": number; "width": number; "height": number; "dpr": number } }
   | { "type": "configUpdate"; "protocolVersion"?: 1; "data": { "path": string; "value": string | number | boolean } }
-  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
+  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "scope"?: "user"; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
   | { "type": "candidate"; "protocolVersion"?: 1; "data": number }
@@ -105,7 +105,7 @@ export type SettingsMessage =
   | { "type": "windowControl"; "protocolVersion"?: 1; "data": "minimize" | "maximize" | "restore" | "close" }
   | { "type": "maximizeButtonRect"; "protocolVersion"?: 1; "data": { "x": number; "y": number; "width": number; "height": number; "dpr": number } }
   | { "type": "configUpdate"; "protocolVersion"?: 1; "data": { "path": string; "value": string | number | boolean } }
-  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
+  | { "type": "dictionaryRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "dictionary": "quanpin" | "english" | "quick" | "latin"; "action": "query" | "create" | "update" | "delete" | "import" | "importHans" | "export"; "word"?: string; "code"?: string; "scope"?: "user"; "content"?: string; "weight"?: number; "oldWord"?: string; "oldCode"?: string; "display"?: string; "oldDisplay"?: string; "offset"?: number; "limit"?: number } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } };
 declare global {
