@@ -71,15 +71,6 @@ VisualPtr DetailsRow(PageContext &context, const std::wstring &title, const std:
     return row;
 }
 
-std::shared_ptr<Label> MakeDisabledHint()
-{
-    TextStyle style;
-    style.size = kFontCaption;
-    auto hint = std::make_shared<Label>(L"开启总开关后生效", style, TextRole::Muted);
-    hint->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-    return hint;
-}
-
 // A toggle-section: expander + master switch, details that open below it. The sub
 // switches keep showing their state but are greyed out while the master is off.
 struct ToggleSection
@@ -89,7 +80,7 @@ struct ToggleSection
 };
 
 ToggleSection MakeToggleSection(PageContext &context, const std::wstring &title, const std::string &masterPath,
-                                std::function<void(bool disabled)> applyDisabled, std::shared_ptr<Hideable> &hintOut)
+                                std::function<void(bool disabled)> applyDisabled)
 {
     ToggleSection section;
     section.body = std::make_shared<Column>(0.0f);
@@ -103,15 +94,10 @@ ToggleSection MakeToggleSection(PageContext &context, const std::wstring &title,
     auto details = std::make_shared<Hideable>(section.details, false);
     section.body->Add(details);
     BindExpander(expander, details);
-    hintOut = std::make_shared<Hideable>(MakeDisabledHint(), false);
-    std::weak_ptr<Hideable> hint = hintOut;
     SettingsModel *model = &context.model;
-    context.OnConfig([model, masterPath, applyDisabled, hint]() {
-        const bool disabled = !model->GetBool(masterPath);
+    context.OnConfig([model, masterPath, applyDisabled]() {
         if (applyDisabled)
-            applyDisabled(disabled);
-        if (auto locked = hint.lock())
-            locked->SetVisible(disabled);
+            applyDisabled(!model->GetBool(masterPath));
     });
     return section;
 }
@@ -130,10 +116,8 @@ VisualPtr BuildToolsPage(PageContext &context)
     PageBuilder page(L"实用功能");
 
     // 剪贴板管理
-    page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"剪贴板管理", L"开启后，复制过的文本会进入剪贴板历史。关闭后立即清空已保存的记录，"
-                                       L"且只记录文本类型。"),
-        BindToggle(context, "utility.clipboard_history"), 2.0f));
+    page.AddSection(std::make_shared<TopAlignedRow>(QuickTitleBlock(L"剪贴板管理", L"记录复制过的文本；关闭后立即清空"),
+                                                    BindToggle(context, "utility.clipboard_history"), 2.0f));
 
     // 候选混输
     {
@@ -141,109 +125,36 @@ VisualPtr BuildToolsPage(PageContext &context)
         auto emoji = BindToggle(context, "general.emoji_mixed_input");
         auto kaomoji = BindToggle(context, "general.kaomoji_mixed_input");
         auto symbol = BindToggle(context, "general.symbol_mixed_input");
-        auto quickCandidates = BindToggle(context, "utility.quick_phrase_candidates");
-        auto quickFrequency = BindToggle(context, "utility.quick_phrase_frequency");
         auto dateTime = BindToggle(context, "utility.date_time_candidates");
         auto dateMenu = BindToggle(context, "utility.date_time_menu");
-        Dropdown::Options frequency;
-        frequency.minWidth = 110.0f;
-        auto trigger = BindDropdown(context, "general.cn_en_mixed_input_min_chars", NumberOptions(1, 8), frequency,
-                                    ValueKind::Integer);
-        std::vector<std::shared_ptr<ToggleSwitch>> subs = {zhEn,           emoji,    kaomoji, symbol, quickCandidates,
-                                                           quickFrequency, dateTime, dateMenu};
-        std::shared_ptr<Hideable> hint;
-        ToggleSection section = MakeToggleSection(
-            context, L"候选混输", "utility.mixed_candidates",
-            [subs, trigger](bool disabled) {
+        std::vector<std::shared_ptr<ToggleSwitch>> subs = {zhEn, emoji, kaomoji, symbol, dateTime, dateMenu};
+        ToggleSection section =
+            MakeToggleSection(context, L"候选混输", "utility.mixed_candidates", [subs](bool disabled) {
                 for (const auto &toggle : subs)
                     toggle->SetDisabled(disabled);
-                trigger->SetDisabled(disabled);
-            },
-            hint);
+            });
         auto &details = *section.details;
-        details.Add(DetailsDescription(L"全拼输入中文时，把下面这些内容直接混进候选，不用切换到对应的快捷模式。"));
-        details.Add(DetailsRow(context, L"中英混输", L"在候选项中补充英文单词", zhEn));
-        auto triggerRow = MakeRow(L"英文触发字符数", L"预编辑字母达到该长度后才出现英文候选项", trigger, true);
-        triggerRow->SetMargin({0.0f, 2.0f, 0.0f, 2.0f});
-        auto triggerBlock = std::make_shared<Dimmable>(triggerRow);
-        // .frequency-option-content { margin-top: 8px }
-        triggerBlock->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-        std::weak_ptr<Dimmable> weakBlock = triggerBlock;
-        SettingsModel *model = &context.model;
-        context.OnConfig([weakBlock, model]() {
-            if (auto block = weakBlock.lock())
-                block->SetDisabled(!model->GetBool("general.cn_en_mixed_input"));
-        });
-        details.Add(triggerBlock);
-        details.Add(DetailsRow(
-            context, L"emoji 混输",
-            L"输入恰好等于某个 emoji 关键词时加入 emoji（排在候选项列表最后，不挤占正常汉字候选的位置）", emoji));
-        details.Add(
-            DetailsRow(context, L"颜文字混输", L"在候选项中加入匹配的颜文字（排在列表末尾的 emoji 之后）", kaomoji));
-        details.Add(
-            DetailsRow(context, L"符号混输",
-                       L"输入恰好等于某个符号编码时加入符号，首个占首页最后一个普通候选的位置，"
-                       L"例如 alpha → α、infinity → ∞、szq → ①、yi → ① ⑴ ⒈、dian → · 、、shuminghao → 《》 〈〉",
-                       symbol));
-        details.Add(
-            DetailsRow(context, L"快捷短语混入候选",
-                       L"输入的编码与快捷短语的编码完全一致时，快捷短语直接出现在候选首位（固定位置的候选之后），"
-                       L"不用按 Shift+K",
-                       quickCandidates));
-        details.Add(
-            DetailsRow(context, L"快捷短语参与调频",
-                       L"常越过快捷短语选别的候选时，快捷短语会往后退，最多退到首页最后一位；选中快捷短语会让它往"
-                       L"前挪。关闭后快捷短语始终在首位",
-                       quickFrequency));
-        details.Add(DetailsRow(context, L"日期时间混入候选",
-                               L"输入 rq / riqi / date、sj / shijian / time、xq / xingqi / week "
-                               L"时，当前日期、时间或星期直接出现在首个候选之后，不用按 Shift+T",
-                               dateTime));
-        details.Add(
-            DetailsRow(context, L"日期格式入口",
-                       L"日期时间混入候选时，在第三位放一个「📅日期」，选中后候选框换成全部日期格式，和 Shift+T "
-                       L"模式相同",
-                       dateMenu));
-        details.Add(hint);
+        details.Add(DetailsDescription(L"全拼下把这些内容直接混进候选"));
+        details.Add(DetailsRow(context, L"中英混输", L"补充英文单词候选", zhEn));
+        details.Add(DetailsRow(context, L"emoji 混输", L"输入关键词时加入 emoji", emoji));
+        details.Add(DetailsRow(context, L"颜文字混输", L"输入关键词时加入颜文字", kaomoji));
+        details.Add(DetailsRow(context, L"符号混输", L"输入符号编码时加入符号", symbol));
+        details.Add(DetailsRow(context, L"日期时间混入候选", L"输入 rq / sj / xq 时直接给出", dateTime));
+        details.Add(DetailsRow(context, L"日期格式入口", L"在第三位放「📅日期」入口", dateMenu));
         page.AddSection(section.body);
     }
 
-    // 语言栏
-    {
-        auto imeMode = BindToggle(context, "language_bar.show_ime_mode");
-        auto doubleSingle = BindToggle(context, "language_bar.show_double_single_byte");
-        auto punctuation = BindToggle(context, "language_bar.show_punctuation");
-        std::vector<std::shared_ptr<ToggleSwitch>> subs = {imeMode, doubleSingle, punctuation};
-        std::shared_ptr<Hideable> hint;
-        ToggleSection section = MakeToggleSection(
-            context, L"语言栏", "language_bar.enabled",
-            [subs](bool disabled) {
-                for (const auto &toggle : subs)
-                    toggle->SetDisabled(disabled);
-            },
-            hint);
-        auto &details = *section.details;
-        details.Add(
-            DetailsDescription(L"在任务栏语言栏（输入法指示器旁）分别控制中/英模式、全/半角、中文标点三个按钮的显"
-                               L"示。修改后需重启生效。"));
-        details.Add(DetailsRow(context, L"中/英模式按钮", L"显示中/英文输入模式切换按钮", imeMode));
-        details.Add(
-            DetailsRow(context, L"全/半角按钮", L"显示全角/半角切换按钮（只在使用桌面语言栏时才显示）", doubleSingle));
-        details.Add(DetailsRow(context, L"中文标点按钮", L"显示中文/英文标点切换按钮（只在使用桌面语言栏时才显示）",
-                               punctuation));
-        details.Add(hint);
-        page.AddSection(section.body);
-    }
+    // 语言栏：三个按钮的子开关已并入总开关，配置键仍读取。
+    page.AddSection(
+        MakeRow(L"语言栏", L"在任务栏语言栏显示输入法按钮，重启生效", BindToggle(context, "language_bar.enabled")));
 
     // 快捷短语(K 模式): .dict-card.quick-phrase-card
     auto panel = std::make_shared<DictionaryPanel>(context, DictionaryPanel::Kind::Quick);
     {
         auto body = std::make_shared<Column>(0.0f);
-        auto heading = std::make_shared<TopAlignedRow>(
-            QuickTitleBlock(L"快捷短语(K 模式)",
-                            L"中文模式下按 Shift+K，再输入编码即可调用快捷短语。要让快捷短语直接混进"
-                            L"候选，见上方「候选混输」"),
-            BindToggle(context, "utility.quick_phrase"), 2.0f);
+        auto heading =
+            std::make_shared<TopAlignedRow>(QuickTitleBlock(L"快捷短语(K 模式)", L"中文模式下按 Shift+K，输入编码调用"),
+                                            BindToggle(context, "utility.quick_phrase"), 2.0f);
         // .quick-phrase-heading { padding: 20px 24px 4px }
         heading->SetMargin({24.0f, 20.0f, 24.0f, 4.0f});
         body->Add(heading);
@@ -257,46 +168,26 @@ VisualPtr BuildToolsPage(PageContext &context)
                                    PageCard::Style::Section, Thickness{24.0f, 4.0f, 24.0f, 4.0f}),
         18.0f);
 
-    page.AddSection(MakeRow(L"日期与时间快捷输入(T 模式)",
-                            L"中文模式下按 Shift+T，再输入 rq / riqi / date 可输入当前日期；输入 sj / shijian / time "
-                            L"可输入当前时间；输入 xq / xingqi / week 可输入当前星期。全拼支持。",
-                            BindToggle(context, "utility.date_time_mode")));
-    page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"U 模式（部件拆字）",
-                        L"中文模式下按 Shift+U，输入一个字各组成部分的拼音连写即可候选出该字，候"
-                        L"选上会反显它的读音。例如「晶」= 日+日+日，输入 ririri。空格上屏；数字选"
-                        L"词。"),
-        BindToggle(context, "utility.radical_mode"), 2.0f));
-    page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"Emoji 快捷输入(E 模式)", L"中文模式下按 Shift+E，再输入全拼 / 简拼 / 英文关键词即可输入 "
-                                                   L"emoji。例如 xiaolian、xl、xiaolian、laugh。空格上屏；数字选词"
-                                                   L"。"),
-        BindToggle(context, "utility.emoji_mode"), 2.0f));
-    page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"颜文字快捷输入(M 模式)", L"中文模式下按 Shift+M，再输入全拼 / 简拼 / 英文关键词即可输入颜"
-                                                   L"文字。例如 haixiu、hx、zai xiang、zx、kiss。空格上屏；数字选词。"),
-        BindToggle(context, "utility.kaomoji_mode"), 2.0f));
-    page.AddSection(std::make_shared<TopAlignedRow>(
-        QuickTitleBlock(L"符号快捷输入(S 模式)",
-                        L"中文模式下按 Shift+S，再输入分组码或符号名即可输入符号。例如 xl 希腊字母、sx "
-                        L"数学符号、szq 带圈数字、lmd 罗马数字、jt 箭头、yi 数字 1 的各种写法、alpha、infinity。"
-                        L"空格上屏；数字选词。"),
-        BindToggle(context, "utility.symbol_mode"), 2.0f));
-
-    const auto centered = [&context](const std::wstring &title, const std::wstring &description,
-                                     const std::string &path) {
-        return std::make_shared<SettingRow>(QuickTitleBlock(title, description), BindToggle(context, path));
-    };
-    page.AddSection(
-        centered(L"临时英文(Y 模式)",
-                 L"中文模式下按 Shift+Y，之后输入的字母按英文处理，不会当作拼音。空格上屏当前输入；数字可选英"
-                 L"文词库中的单词。上屏后自动回到中文输入。",
-                 "utility.y_mode"));
-    page.AddSection(centered(L"数字与计算(V 模式)",
-                             L"中文模式下输入 V 再接数字或算式：V123 → 一百二十三 / 壹佰贰拾叁；V123.45 → "
-                             L"壹佰贰拾叁元肆角伍分；V1+2*3 → 7（支持 + - * / 和括号）。全拼大小写 v "
-                             L"都可以。空格上屏；数字键用来输入，Shift+数字选词。",
-                             "utility.v_mode"));
+    // 快捷输入模式：T / U / E / M / S / Y / V 固定开启，只留说明，不再各给一个开关（配置键仍读取）。
+    {
+        auto column = std::make_shared<Column>(0.0f);
+        column->Add(MakeTitleBlock(L"快捷输入模式", L"中文模式下按 Shift+字母进入，V 直接输入"));
+        const std::pair<const wchar_t *, const wchar_t *> modes[] = {
+            {L"日期与时间(T)", L"rq / sj / xq 输入日期、时间、星期"},
+            {L"部件拆字(U)", L"输入各部件拼音，如 ririri → 晶"},
+            {L"Emoji(E)", L"输入关键词，如 xiaolian"},
+            {L"颜文字(M)", L"输入关键词，如 haixiu"},
+            {L"符号(S)", L"输入分组码或符号名，如 szq"},
+            {L"临时英文(Y)", L"之后的字母按英文处理"},
+            {L"数字与计算(V)", L"v 接数字或算式，如 v123、v1+2"},
+        };
+        for (const auto &[title, description] : modes)
+        {
+            column->Add(std::make_shared<Divider>());
+            column->Add(MakeRow(title, description, nullptr, true));
+        }
+        page.AddSection(column);
+    }
 
     struct Holder : msimeui::Container
     {

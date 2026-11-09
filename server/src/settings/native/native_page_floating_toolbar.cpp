@@ -134,25 +134,18 @@ VisualPtr BuildFloatingToolbarPage(PageContext &context)
         std::make_shared<SettingRow>(MakeTitleBlock(L"在桌面显示悬浮工具栏", L"快速访问输入法状态与常用功能"),
                                      BindToggle(context, "general.floating_toolbar"))));
 
-    auto autoHide = SettingBand(std::make_shared<SettingRow>(
-        OptionTitle(L"自动隐藏工具栏",
-                    L"工具栏显示一段时间无交互后淡出隐藏；鼠标悬停不隐藏，切换中英等状态变化时重新显示"),
-        BindToggle(context, "general.floating_toolbar_auto_hide")));
+    auto autoHide =
+        SettingBand(std::make_shared<SettingRow>(OptionTitle(L"自动隐藏工具栏", L"一段时间无操作后淡出"),
+                                                 BindToggle(context, "general.floating_toolbar_auto_hide")));
     autoHide->SetTopRule(DividerColor);
     toolbarCard->Add(autoHide);
 
     // `.ftb-auto-hide-delay-row`: indented 48px, `is-disabled` while auto hide is off.
     auto delay = std::make_shared<Band>(
-        std::make_shared<SettingRow>(OptionTitle(L"自动隐藏延时", L"工具栏显示多久后开始淡出（秒）"),
+        std::make_shared<SettingRow>(OptionTitle(L"自动隐藏延时", L"多少秒后淡出"),
                                      BindStepper(context, "general.floating_toolbar_auto_hide_delay", 1, 60)),
         Thickness{48.0f, 20.0f, 24.0f, 20.0f});
     toolbarCard->Add(delay);
-
-    auto shadowRow =
-        SettingBand(std::make_shared<SettingRow>(OptionTitle(L"工具栏阴影", L"在工具栏周围显示与候选窗一致的柔和阴影"),
-                                                 BindToggle(context, "general.floating_toolbar_shadow")));
-    shadowRow->SetTopRule(DividerColor);
-    toolbarCard->Add(shadowRow);
 
     auto toolbar = std::make_shared<skinpreview::ToolbarPreview>();
     auto host = std::make_shared<Band>(toolbar, Thickness{0.0f, 14.0f, 0.0f, 22.0f});
@@ -171,22 +164,21 @@ VisualPtr BuildFloatingToolbarPage(PageContext &context)
 
     // ---- Caret state indicator card -------------------------------------------------
     auto caretCard = std::make_shared<FlushCard>();
-    auto heading = SettingBand(std::make_shared<SettingRow>(
-        MakeTitleBlock(L"光标状态提示", L"在文字光标附近短暂显示输入法状态，可与悬浮工具栏同时开启"), nullptr));
+    auto heading = SettingBand(
+        std::make_shared<SettingRow>(MakeTitleBlock(L"光标状态提示", L"在光标附近短暂显示输入法状态"), nullptr));
     heading->SetBottomRule(DividerColor);
     caretCard->Add(heading);
-    caretCard->Add(SettingBand(
-        std::make_shared<SettingRow>(OptionTitle(L"切换输入法状态时提示", L"切换输入模式、全半角或中英文标点时显示"),
-                                     BindToggle(context, "general.caret_state_indicator"))));
-    caretCard->Add(SettingBand(std::make_shared<SettingRow>(
-        OptionTitle(L"切换输入框时提示",
-                    L"焦点移到另一个输入框时（包括同一窗口内和其他窗口中的），也提示当前中英文状态"),
-        BindToggle(context, "general.caret_state_indicator_on_focus"))));
+    caretCard->Add(
+        SettingBand(std::make_shared<SettingRow>(OptionTitle(L"切换输入法状态时提示", L"切换中英文、全半角、标点时"),
+                                                 BindToggle(context, "general.caret_state_indicator"))));
+    caretCard->Add(
+        SettingBand(std::make_shared<SettingRow>(OptionTitle(L"切换输入框时提示", L"焦点换到另一个输入框时"),
+                                                 BindToggle(context, "general.caret_state_indicator_on_focus"))));
 
     Dropdown::Options compact;
     compact.compact = true;
     caretCard->Add(
-        SettingBand(std::make_shared<SettingRow>(OptionTitle(L"提示位置", L"选择光标状态提示显示在光标的哪个方向"),
+        SettingBand(std::make_shared<SettingRow>(OptionTitle(L"提示位置", L"提示显示在光标的哪个方向"),
                                                  BindDropdown(context, "general.caret_state_indicator_position",
                                                               Options({{"top-left", L"左上方"},
                                                                        {"top", L"正上方"},
@@ -209,25 +201,15 @@ VisualPtr BuildFloatingToolbarPage(PageContext &context)
     // ---- Scale and icon size ------------------------------------------------------
     std::vector<VisualPtr> appearanceRows;
     appearanceRows.push_back(
-        AppearanceRow(L"工具栏缩放", L"相对系统 DPI 的额外缩放，不改变系统显示缩放",
+        AppearanceRow(L"工具栏缩放", L"相对系统 DPI 的额外缩放",
                       BindDropdown(context, "general.floating_toolbar_scale",
                                    Options({{"0.75", L"75%"}, {"1", L"100%"}, {"1.25", L"125%"}, {"1.5", L"150%"}}),
                                    compact, ValueKind::Number)));
-    appearanceRows.push_back(AppearanceRow(L"图标尺寸", L"图标基准大小（像素），再乘以上方缩放",
-                                           BindDropdown(context, "general.floating_toolbar_font_size",
-                                                        Options({{"16", L"16"},
-                                                                 {"18", L"18"},
-                                                                 {"20", L"20"},
-                                                                 {"22", L"22"},
-                                                                 {"24", L"24"},
-                                                                 {"26", L"26"},
-                                                                 {"28", L"28"}}),
-                                                        compact, ValueKind::Integer)));
     page.AddSection(MakeRows(appearanceRows));
 
     // ---- Components ---------------------------------------------------------------
     auto components = std::make_shared<Column>(0.0f);
-    components->Add(MakeRow(L"工具栏组件", L"勾选要显示在悬浮工具栏中的功能", nullptr));
+    components->Add(MakeRow(L"工具栏组件", L"勾选要显示的功能", nullptr));
     auto list = std::make_shared<Column>(0.0f);
     list->Add(std::make_shared<RequiredOption>());
     list->Add(BindCheck(context, L"整句翻译「译」", "general.floating_toolbar_translate"));
@@ -253,7 +235,7 @@ VisualPtr BuildFloatingToolbarPage(PageContext &context)
         options.iconSize = iconSize > 0.0 ? static_cast<float>(iconSize) : 22.0f;
         options.shadow = model->GetBool("general.floating_toolbar_shadow", true);
         options.centered = true;
-        for (int i = 0; i < 6; ++i)
+        for (int i = 0; i < 4; ++i)
             options.items[i] =
                 model->GetBool(std::string("general.floating_toolbar_") + kToolbarItems[i], options.items[i]);
         toolbar->Set(skinpreview::ResolveToolbarLook(*model, skin,

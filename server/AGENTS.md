@@ -79,6 +79,19 @@ Boost 是静态链接但没有写进 `vcpkg.json`，所以只能用 classic 模�
   哪个 partial / module，那些文件只在 git 历史里（`ui-html/webview2/settings/ime-settings/src/`）。
   本地调试时可设 `METASEQUOIA_IME_SETTINGS_INSTANCE=<任意名>` 让开发版与已安装的设置窗口并存，
   并用 `METASEQUOIA_IME_CONFIG_DIR` 隔离配置。旧快捷方式传来的 `--d2d` / `--webview2` 参数会被忽略。
+- 设置页不是配置键的全集：普通用户不会改、改了会出错、只为调试或兼容存在的项不给开关，说明文字每项一行、约 20 字。
+  去掉开关不等于去掉读取：`ime_config*.cpp` 照旧读这些键，老 `config.toml` 里的值继续生效，出厂默认值不变。
+  设置页不再提供的有：调频方式里的 `halve` / `linear`（页面只剩 `promote` / `pin` / `disabled`）、`trigger_count`、`linear_step`、
+  `candidate_window_follow_cursor`、`candidate_fixed_badge(_style)`、`floating_toolbar_shadow`、
+  `floating_toolbar_font_size`、`quanpin.autocorrect_marker`、`input.enter_learns_english_word`、
+  `input.enumeration_comma_*`、`association.sentence_google` / `prefix_completion`、`language_bar.show_*`、
+  `utility.quick_phrase_candidates` / `quick_phrase_frequency`、`general.cn_en_mixed_input_min_chars`、
+  `utility.*_mode`（T/U/E/M/S/Y/V）、`appearance.settings_window_linger` / `settings_launch_animation`。
+  实验和排错项（上文词库重排、去重补次选、整句来源标签、诊断日志、补充字体、预编辑字号）收在页内折叠的「高级」里。
+  逐项清单见 `research/settings-inventory.md`。
+- 离屏截设置页：用 `METASEQUOIA_IME_DATA_DIR` / `METASEQUOIA_IME_CONFIG_DIR` / `LOCALAPPDATA` 指到临时目录、
+  `METASEQUOIA_IME_SETTINGS_INSTANCE` 取独立实例名，启动 `MetasequoiaImeSettings.exe`，再用 `PrintWindow`
+  截窗口、向窗口 `PostMessage` 鼠标消息切页（不用 SendInput，不碰前台和用户数据目录）。
 
 ### 尺寸、坐标与 DPI
 
