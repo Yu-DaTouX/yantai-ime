@@ -1,0 +1,29 @@
+# 草稿：同音易错整句评测（改到/该到、在/再、的/得/地、做/作 等）。
+# 列：输入<Tab>期望首选<Tab>类别<Tab>上文(可空，eval_quanpin_sentence 会把第 4 列当 rescoring 上文！)<Tab>备注
+# 注意：eval_quanpin_sentence 读第 4 列作神经重排的上文，备注一律放第 5 列，否则会改变结果（调查时踩过一次）。
+# 用法：eval_quanpin_sentence <本文件> --mode unigram+trigram+neural_desktop --sc-lm <sc.lm> --rounds 1 --detail
+gaidaoxiawusandian	改到下午三点	homophone		改/该：问题清单第 2 条
+huiyigaidaomingtian	会议改到明天	homophone		改/该
+jintiandehuiyigaidaoxiawusandian	今天的会议改到下午三点	homophone		改/该，长句
+shijiangaidaoxiayizhou	时间改到下一周	homophone		改/该
+wogaidaozhoumojiaban	我改到周末加班	homophone		改/该
+zhegedingdangaidaoshangwujiudian	这个订单改到上午九点	homophone		改/该
+nizhendegaidaozheli	你真的该到这里	homophone		该=应该到，反例：不要为了修上面的句子把 该到 全压下去
+nimenmingtiangaidaoxuexiaole	你们明天该到学校了	homophone		该到，反例
+wozaijiali	我在家里	homophone		在/再
+mingtianzaijian	明天再见	homophone		在/再
+nizaishuoyibian	你再说一遍	homophone		在/再
+tazaitushuguankanshu	他在图书馆看书	homophone		在/再
+womenxiacizailiao	我们下次再聊	homophone		在/再
+woxianzaizhengzaichifan	我现在正在吃饭	homophone		在/再
+zheshiwodeshu	这是我的书	homophone		的/得
+tapaodehenkuai	他跑得很快	homophone		的/得
+nizuodehenhao	你做得很好	homophone		的/得，做/作
+tachangdehenpiaoliang	他长得很漂亮	homophone		的/得
+tagaogaoxingxingdezoule	他高高兴兴地走了	homophone		的/地
+tamenrenzhendezuozuoye	他们认真地做作业	homophone		的/地，做/作
+zhegezuopinhenhao	这个作品很好	homophone		做/作
+wozuowanlegongzuo	我做完了工作	homophone		做/作
+nizenmezuoshiqing	你怎么做事情	homophone		做/作
+zhongyuwoshenmeyezuobuwan	终于我什么也做不完	homophone		做/作
+tadexingzhiyuanyuanbuzhiyuci	他的兴致远远不止于此	homophone		的/致，对照

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>候选窗皮肤设计稿 · macOS 亚克力</title>
+<style>
+:root{
+  --font: -apple-system, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --page:#eef0f3; --ink:#1d1d1f; --muted:#6e6e73; --line:#d9dce1;
+  /* 浅色候选窗 */
+  --l-surface: rgba(246,246,248,.72); --l-border: rgba(0,0,0,.10); --l-text:#1d1d1f; --l-num:#8e8e93;
+  --l-accent:#007aff; --l-sel-text:#ffffff; --l-sel-num:rgba(255,255,255,.78); --l-hover: rgba(0,0,0,.05);
+  /* 深色候选窗 */
+  --d-surface: rgba(40,40,44,.70); --d-border: rgba(255,255,255,.12); --d-text:#f2f2f7; --d-num:#98989f;
+  --d-accent:#0a84ff; --d-sel-text:#ffffff; --d-sel-num:rgba(255,255,255,.80); --d-hover: rgba(255,255,255,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--page);-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:40px 28px 56px}
+h1{font-size:28px;line-height:1.35;margin:0 0 8px;font-weight:650;letter-spacing:0}
+.lead{color:var(--muted);font-size:15px;line-height:1.6;margin:0 0 28px;max-width:760px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+.seg{display:inline-flex;background:#e2e4e8;border-radius:9px;padding:3px}
+.seg button{font:inherit;font-size:13px;border:0;background:transparent;padding:6px 14px;border-radius:7px;color:#3a3a3c;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#fff;color:#1d1d1f;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:focus-visible{outline:2px solid #007aff;outline-offset:1px}
+
+/* 模拟桌面：亚克力需要背后有内容才看得出模糊 */
+.desk{position:relative;border-radius:14px;overflow:hidden;min-height:520px;padding:34px 30px;
+  background:
+    radial-gradient(120% 90% at 8% 10%, #7cc4ff 0%, transparent 55%),
+    radial-gradient(90% 80% at 92% 20%, #ffb36b 0%, transparent 55%),
+    radial-gradient(100% 90% at 70% 100%, #b98cff 0%, transparent 60%),
+    #e9eef5;}
+.desk.dark{background:
+    radial-gradient(120% 90% at 8% 10%, #1f4e8c 0%, transparent 55%),
+    radial-gradient(90% 80% at 92% 20%, #7a3d12 0%, transparent 55%),
+    radial-gradient(100% 90% at 70% 100%, #4b2a86 0%, transparent 60%),
+    #15171c;}
+.doc{position:absolute;inset:auto 26px 26px auto;width:44%;min-width:260px;height:62%;border-radius:12px;
+  background:rgba(255,255,255,.55);padding:18px 20px;color:#3a3a3c;font-size:13px;line-height:1.8;overflow:hidden}
+.desk.dark .doc{background:rgba(30,30,34,.55);color:#c7c7cc}
+.doc b{display:block;font-size:15px;margin-bottom:6px;color:inherit}
+.rows{position:relative;display:flex;flex-direction:column;gap:22px;align-items:flex-start;z-index:1;width:100%;min-width:0}
+
+.sample{display:flex;flex-direction:column;gap:5px;max-width:100%;min-width:0}
+.pre{font-size:15px;line-height:1.3;color:#1d1d1f;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;padding-left:2px}
+.desk.dark .pre{color:#f2f2f7}
+
+/* 候选窗本体 */
+.cand{display:inline-flex;align-items:stretch;padding:4px;gap:2px;border-radius:9px;
+  background:var(--l-surface);border:1px solid var(--l-border);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);backdrop-filter: blur(30px) saturate(170%);
+  box-shadow:0 10px 28px rgba(0,0,0,.16),0 1px 3px rgba(0,0,0,.10);
+  font-size:16px;line-height:1;max-width:100%;flex-wrap:nowrap;overflow:hidden}
+.item{display:flex;align-items:baseline;gap:5px;padding:7px 10px 7px 8px;border-radius:6px;color:var(--l-text);white-space:nowrap;cursor:default}
+.item .n{font-size:11.5px;color:var(--l-num);font-variant-numeric:tabular-nums;min-width:7px}
+.item:hover{background:var(--l-hover)}
+.item.sel{background:var(--l-accent);color:var(--l-sel-text)}
+.item.sel .n{color:var(--l-sel-num)}
+.item .e{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:17px}
+.desk.dark .cand{background:var(--d-surface);border-color:var(--d-border);box-shadow:0 12px 30px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.5)}
+.desk.dark .item{color:var(--d-text)} .desk.dark .item .n{color:var(--d-num)}
+.desk.dark .item:hover{background:var(--d-hover)}
+.desk.dark .item.sel{background:var(--d-accent);color:var(--d-sel-text)}
+.desk.dark .item.sel .n{color:var(--d-sel-num)}
+.tag{font-size:11px;color:#3a3a3c;background:rgba(255,255,255,.7);border-radius:6px;padding:2px 7px;align-self:flex-start}
+.desk.dark .tag{background:rgba(0,0,0,.45);color:#e5e5ea}
+
+/* 竖排 */
+.cand.v{flex-direction:column;min-width:170px}
+.cand.v .item{padding:7px 12px 7px 9px}
+
+/* 说明区 */
+.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:22px;margin-top:30px}
+.panel{background:#fff;border-radius:12px;padding:20px 22px;border:1px solid var(--line)}
+.panel h2{font-size:17px;margin:0 0 12px;line-height:1.4}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+.grid>*{min-width:0}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #eceef1;vertical-align:top;line-height:1.5}
+th{color:var(--muted);font-weight:500}
+td code,li code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#f2f3f5;padding:1px 5px;border-radius:4px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.12)}
+pre{margin:0;background:#1c1c1e;color:#e5e5ea;border-radius:10px;padding:14px 16px;font:12.5px/1.6 ui-monospace,Consolas,monospace;overflow:auto;max-height:420px}
+ul{margin:0;padding-left:18px;font-size:14px;line-height:1.7}
+.foot{color:var(--muted);font-size:12.5px;margin-top:22px;line-height:1.6}
+@media (max-width:820px){.grid{grid-template-columns:1fr}.doc{display:none}.desk{padding:24px 16px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>候选窗皮肤设计稿：macOS 亚克力</h1>
+  <p class="lead">参照 macOS 简体拼音的横排候选条：首选整块填充系统蓝、白字；其余候选不加底色，序号用小号灰字；卡片是半透明亚克力，背后的窗口被模糊。下面的桌面是模拟背景，用来看出透光效果。所有尺寸和颜色都对应现有 <code>skin.toml</code> 能写的键，不需要改渲染代码。</p>
+
+  <div class="controls" role="group" aria-label="预览选项">
+    <div class="seg" role="group" aria-label="主题">
+      <button type="button" data-theme="light" aria-pressed="true">浅色</button>
+      <button type="button" data-theme="dark" aria-pressed="false">深色</button>
+    </div>
+    <div class="seg" role="group" aria-label="布局">
+      <button type="button" data-layout="h" aria-pressed="true">横排</button>
+      <button type="button" data-layout="v" aria-pressed="false">竖排</button>
+    </div>
+  </div>
+
+  <section class="desk" id="desk" aria-label="候选窗预览">
+    <div class="doc" aria-hidden="true"><b>周末计划</b>上午去菜市场买菜，顺便带一束花回来。下午整理书架，把去年没看完的几本找出来。晚上约了朋友吃火锅，七点在老地方见。记得带上充电宝，还有上次借的伞。</div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>设计参数</h2>
+      <div class="tw"><table>
+        <thead><tr><th>项目</th><th>浅色</th><th>深色</th><th>skin.toml 键</th></tr></thead>
+        <tbody>
+          <tr><td>卡片底色</td><td><span class="sw" style="background:#f6f6f8"></span>#f6f6f8，透明度 72%</td><td><span class="sw" style="background:#28282c"></span>#28282c，透明度 70%</td><td><code>surface</code> <code>backdrop_opacity</code></td></tr>
+          <tr><td>卡片描边</td><td>黑 10%</td><td>白 12%</td><td><code>border</code></td></tr>
+          <tr><td>首选高亮</td><td><span class="sw" style="background:#007aff"></span>#007aff</td><td><span class="sw" style="background:#0a84ff"></span>#0a84ff</td><td><code>selected</code> <code>accent</code></td></tr>
+          <tr><td>首选文字 / 序号</td><td>白 / 白 78%</td><td>白 / 白 80%</td><td><code>selected_text</code> <code>selected_number</code></td></tr>
+          <tr><td>候选文字</td><td>#1d1d1f</td><td>#f2f2f7</td><td><code>text</code></td></tr>
+          <tr><td>序号</td><td>#8e8e93</td><td>#98989f</td><td><code>number</code></td></tr>
+          <tr><td>圆角</td><td colspan="2">卡片 9，高亮 6</td><td><code>corner_radius_dip</code> <code>item_corner_radius_dip</code></td></tr>
+          <tr><td>间距</td><td colspan="2">卡片内边距 4，项间距 2，序号与字 5，序号字号 0.72</td><td><code>padding</code> <code>item_gap</code> <code>number_gap</code> <code>number_scale</code></td></tr>
+          <tr><td>选中竖条</td><td colspan="2">不显示（用整块填充代替）</td><td><code>show_selected_bar = false</code></td></tr>
+          <tr><td>阴影</td><td colspan="2">柔和</td><td><code>shadow = "soft"</code></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h2>对应的皮肤清单（草案）</h2>
+<pre>schema_version = 1
+id = "mac"
+name = "Mac 亚克力"
+version = "0.1.0"
+base = "fluent"
+
+[supports]
+layouts = ["horizontal", "vertical"]
+themes = ["dark", "light"]
+
+[candidate_window]
+corner_radius_dip = 9
+item_corner_radius_dip = 6
+border_width_dip = 1
+shadow = "soft"
+backdrop = "acrylic"
+padding = 4
+item_gap = 2
+number_gap = 5
+number_scale = 0.72
+fit_content = true
+
+[candidate.light]
+surface = "#f6f6f8"
+backdrop_opacity = 0.72
+backdrop_luminosity = 0.85
+border = "rgba(0, 0, 0, 0.10)"
+accent = "#007aff"
+selected = "#007aff"
+selected_text = "#ffffff"
+selected_number = "rgba(255, 255, 255, 0.78)"
+text = "#1d1d1f"
+number = "#8e8e93"
+show_selected_bar = false
+
+[candidate.dark]
+surface = "#28282c"
+backdrop_opacity = 0.70
+backdrop_luminosity = 0.96
+border = "rgba(255, 255, 255, 0.12)"
+accent = "#0a84ff"
+selected = "#0a84ff"
+selected_text = "#ffffff"
+selected_number = "rgba(255, 255, 255, 0.80)"
+text = "#f2f2f7"
+number = "#98989f"
+show_selected_bar = false</pre>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:22px">
+    <h2>表情输入在候选里的样子</h2>
+    <ul>
+      <li>打 <code>meiguo</code>、<code>zan</code>、<code>xiaoku</code> 这类词时，本机 emoji 词表命中的表情插在第 2 位（预览里「美国 🇺🇸 🗽」那一行），不再排在最后。</li>
+      <li>词表已随包提供，约 2.1 万条拼音到表情的对应，不联网。</li>
+      <li>emoji 用系统彩色字体（Segoe UI Emoji）绘制，字号比汉字大 1 号，和预览一致。</li>
+    </ul>
+  </div>
+
+  <p class="foot">说明：这是设计稿，候选内容是示例。浏览器里的模糊效果用 CSS backdrop-filter 模拟，实际由 Windows 系统亚克力材质绘制，透光程度会随系统「透明效果」设置和背后窗口变化。颜色值参照 macOS 系统蓝（#007aff / #0a84ff）。</p>
+</main>
+<script>
+const data = [
+  {pre:"mei guo", items:["美国",{e:"🇺🇸"},{e:"🗽"},"没过","每过","梅果","玫果"], tag:"emoji 插在第 2 位"},
+  {pre:"ni hao", items:["你好","拟好","你号","泥号","妮好","倪浩","尼好"]},
+  {pre:"zan", items:["赞",{e:"👍"},"咱","攒","暂","簪","昝"]},
+  {pre:"xiao ku", items:["笑哭",{e:"🤣"},{e:"😂"},"小苦","校库","小酷","晓酷"]},
+  {pre:"shi jian", items:["时间","实践","事件","世界","视剑","试件","时鉴"]},
+  {pre:"rq", items:["2026-11-08","2026年11月08日","11-08","2026/11/08","日期","热情","人群"], tag:"日期模式"},
+];
+const rows = document.getElementById('rows');
+const desk = document.getElementById('desk');
+let layout = 'h';
+function render(){
+  rows.innerHTML = '';
+  data.forEach((d, i) => {
+    if (layout === 'v' && i > 2) return;
+    const s = document.createElement('div'); s.className = 'sample';
+    const p = document.createElement('div'); p.className = 'pre'; p.textContent = d.pre; s.appendChild(p);
+    const c = document.createElement('div'); c.className = 'cand' + (layout === 'v' ? ' v' : '');
+    c.setAttribute('role','listbox'); c.setAttribute('aria-label', d.pre + ' 的候选');
+    d.items.slice(0, layout === 'v' ? 5 : 7).forEach((it, k) => {
+      const el = document.createElement('div'); el.className = 'item' + (k === 0 ? ' sel' : '');
+      el.setAttribute('role','option'); el.setAttribute('aria-selected', k === 0 ? 'true' : 'false');
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = k + 1;
+      const t = document.createElement('span');
+      if (typeof it === 'object') { t.className = 'e'; t.textContent = it.e; } else { t.textContent = it; }
+      el.append(n, t); c.appendChild(el);
+    });
+    s.appendChild(c);
+    if (d.tag) { const g = document.createElement('span'); g.className = 'tag'; g.textContent = d.tag; s.appendChild(g); }
+    rows.appendChild(s);
+  });
+}
+document.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-theme]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  desk.classList.toggle('dark', b.dataset.theme === 'dark');
+}));
+document.querySelectorAll('[data-layout]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-layout]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  layout = b.dataset.layout; render();
+}));
+render();
+</script>
+</body>
+</html>

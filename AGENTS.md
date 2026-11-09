@@ -2,7 +2,9 @@
 
 组织级边界与跨平台规则见 [组织 AGENTS.md](https://github.com/metasequoiaime/.github/blob/main/AGENTS.md)。本文件规定本仓的目录职责、组件之间的边界，以及产品级的构建与发布约定。
 
-本仓默认分支是 `develop`，日常改动从 `develop` 切分支并合回 `develop`；`main` 是发布分支，只在发版时由维护者从 `develop` 合入，`release.yml` 也只监听 `main`。特性分支直接提到 `main` 会被 `Branch guard` 拦下。规则见[组织 AGENTS.md 的分支模型](https://github.com/metasequoiaime/.github/blob/main/AGENTS.md#分支模型)。
+**本仓是上游 `metasequoiaime/msime-windows` 的 fork（`Yu-DaTouX/yantai-ime`），只有一条主线 `yudatou/main`**：日常改动直接提交或从它切分支再合回，不再走上游的 `develop` → `main` 提升模型。远程 `origin` / `upstream` 指向上游（只读），`fork` 是我们自己的仓库。同步上游时 `git fetch origin develop`，合并前先看 `git merge-tree --write-tree HEAD origin/develop` 的冲突；本 fork 已去掉五笔、AI 助手、统计、双拼文案等上游功能，合并时保留我们这一侧，不要把它们带回来。
+
+本 fork 的 `.github/workflows/` 只保留 `ci.yml`、`dev-build.yml`、`release.yml` 和被 `ci.yml` 调用的 `quality.yml`；上游的 `nightly`、`codeql`、`branch-guard`，以及 `ISSUE_TEMPLATE`、`CODEOWNERS`、`dependabot.yml` 都已删除，文档里残留的相关描述只适用于上游。
 
 Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，不是运行时结构**：DLL 与 Server 仍是两个进程、隔着版本化的命名管道；`ui/` 仍是不依赖输入法业务的通用 GUI 库。不要因为它们现在在同一棵树里，就在组件之间直接互相 include 或共享全局状态。
 
@@ -47,6 +49,15 @@ cmake -S windows -B windows/build -A x64 ...      # TSF DLL
 cmake -S server  -B server/build-release -A x64 ... # Server
 cmake -S ui      -B ui/build -A x64                # GUI 框架
 ```
+
+**本机（Windows）构建要点：**
+
+- 仓库放在不含中文的路径（当前 `E:\ime`）。OpenCC 词典生成工具不能打开带中文的路径，路径里有中文时 `Dictionaries` 目标会报 `HKVariantsRev.txt not found`。
+- `server/` 用 Visual Studio 自带的 cmake（`...\VC\..\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`），不要混用 pip 装的 cmake：两者模块版本不同，重新配置时会报 `No preprocessor test for "PellesC"`。
+- 配置：`cmake -S E:/ime/server -B E:/ime/server/build -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE=E:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DBUILD_TESTING=ON`；编译 `cmake --build server/build --config Release --target MetasequoiaImeServer MetasequoiaImeSettings -- -m`。Git Bash 下传 MSBuild 开关要设 `MSYS2_ARG_CONV_EXCL='*'`，否则 `-m` 会被当成路径。
+- 搬仓库或换盘符后，构建目录缓存里的旧路径会让重新配置失败：删掉 `server/build/CMakeCache.txt` 和 `CMakeFiles` 再配置，`vcpkg_installed` 可以保留。
+- 测试可执行文件在 `server/build/bin/Release/`：`MetasequoiaImeServerTests.exe`、`MetasequoiaImeSettingsUiTests.exe`。
+- 安装目录 `C:\Program Files\MetasequoiaIme\server` 需要管理员权限写入；替换前先用 `Stop-Process` 结束对应进程（`taskkill` 会 `Access is denied`），Watchdog 会把 Server 拉起来。
 
 没有顶层聚合的 `CMakeLists.txt`，这是有意的：Windows tip 用静态 CRT、Server 用动态 CRT，两者的 vcpkg manifest 和编译选项互不兼容，合成一个 build tree 会互相污染。`server/` 通过 `add_subdirectory` 把 `../ui` 的 `msimeui` 和 `../engine` 拉进自己的构建，这是仅有的跨组件构建引用。
 

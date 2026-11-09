@@ -1,0 +1,56 @@
+diff --git a/engine/quanpin/word_lattice.cpp b/engine/quanpin/word_lattice.cpp
+index a3c8df75..9aa0d7d8 100644
+--- a/engine/quanpin/word_lattice.cpp
++++ b/engine/quanpin/word_lattice.cpp
+@@ -1,4 +1,6 @@
+ #include "word_lattice.h"
++#include <cstdio>
++#include <cstdlib>
+ #include "latin_words.h"
+ 
+ #include <algorithm>
+@@ -461,6 +463,14 @@ void merge_lattice_candidates(std::vector<WordItem> &candidates, const Segments
+         options.precomputed_paths.empty() ? decode_word_lattice(syllables, lookup, options) : options.precomputed_paths;
+     if (paths.empty())
+         return;
++    if (std::getenv("EVAL_DUMP"))
++        for (const auto &pp : paths)
++        {
++            std::string ws;
++            for (const auto &w : pp.words)
++                ws += w + "/";
++            std::fprintf(stderr, "  NBEST %.4f %s %s\n", pp.log_prob, pp.sentence.c_str(), ws.c_str());
++        }
+     // 神经模型的字表里没有拉丁字母，含字母词的句子在它看来是一串 <unk>：碰上 AA制 和「啊啊制」
+     // 这种比分它几乎一定挑纯汉字那句。词格自己的首选就含字母词时不请它重排，按词格的顺序。
+     static const std::vector<SourcedLatticeReranker> kNoRerankers;
+@@ -482,6 +492,13 @@ void merge_lattice_candidates(std::vector<WordItem> &candidates, const Segments
+         std::vector<LatticePath> reranked_paths = paths;
+         if (!entry.rerank || !entry.rerank(reranked_paths))
+             continue;
++        if (std::getenv("EVAL_DUMP"))
++        {
++            std::fprintf(stderr, "  RERANK src=%d ->", static_cast<int>(entry.source));
++            for (const auto &pp : reranked_paths)
++                std::fprintf(stderr, " %s", pp.sentence.c_str());
++            std::fprintf(stderr, "\n");
++        }
+ 
+         if (entry.source == CandidateSource::NeuralDesktop)
+             desktop_paths = std::move(reranked_paths);
+diff --git a/engine/tests/src/eval_quanpin_sentence.cpp b/engine/tests/src/eval_quanpin_sentence.cpp
+index 2f8b536c..27818142 100644
+--- a/engine/tests/src/eval_quanpin_sentence.cpp
++++ b/engine/tests/src/eval_quanpin_sentence.cpp
+@@ -633,6 +633,11 @@ int main(int argc, char **argv)
+                     std::printf("%s  %-24s %-8s 1:%s  s:%s  rows:%zu  [%s]\n", pass1 ? "PASS" : "FAIL",
+                                 item.input.c_str(), item.category.c_str(), head.c_str(), sentence.c_str(),
+                                 candidates.size(), session.get_pinyin_segmentation_with_cases().c_str());
++                if (detail && std::getenv("EVAL_DUMP"))
++                    for (size_t i = 0; i < candidates.size() && i < 10; ++i)
++                        std::printf("      #%zu %s src=%d w=%lld sent=%d\n", i, candidates[i].word.c_str(),
++                                    static_cast<int>(candidates[i].source), static_cast<long long>(candidates[i].weight),
++                                    candidates[i].sentence_association ? 1 : 0);
+             }
+         }
+         session.reset_state();
