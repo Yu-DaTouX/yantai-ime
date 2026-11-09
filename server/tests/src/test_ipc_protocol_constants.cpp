@@ -72,7 +72,8 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady, 40u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41, 41u);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged, 42u);
-    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 42u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::SelectionTranslateCommand, 45u);
+    REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown, 45u);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::FocusSessionReady >
             Global::DataFromServerMsgTypeToTsfWorkerThread::PagingCommaPeriodChanged);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::PipeReady >
@@ -137,8 +138,10 @@ TEST_CASE(ipc_pipe_ready_is_a_distinct_server_reply)
             Global::DataFromServerMsgTypeToTsfWorkerThread::UpdateInstallerReady);
     REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged >
             Global::DataFromServerMsgTypeToTsfWorkerThread::Reserved41);
+    REQUIRE(Global::DataFromServerMsgTypeToTsfWorkerThread::SelectionTranslateCommand >
+            Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged);
     REQUIRE_EQ(Global::DataFromServerMsgTypeToTsfWorkerThread::MaxKnown,
-               Global::DataFromServerMsgTypeToTsfWorkerThread::EnglishSensesPageChanged);
+               Global::DataFromServerMsgTypeToTsfWorkerThread::SelectionTranslateCommand);
 }
 
 TEST_CASE(ipc_retired_translation_mode_capabilities_stay_reserved)
