@@ -127,5 +127,5 @@ ReplayUserDictionary。此次增加的真实升级路径测试也覆盖未checkp
 符号模式因此查不到任何符号。构建时 `scripts/dictionary_build/symbol_patch.py` 在拷贝 support 文件之后，
 用 `symbols.lock.json` 固定的 msime-dictionary 提交（符号源数据按大小和 SHA-256 校验）加上本仓的
 `symbol-names-extra.tsv`，重建 `symbol_catalog` 与 `symbol_code`；emoji、颜文字表不动。
-`verify` 按 `symbols.lock.json` 的 `others_sha256`（补丁后的哈希，构建可复现）核对 `others.db`。
-要增删符号名称，改 `symbol-names-extra.tsv`，重新构建后把新的 `others_sha256` 写回锁文件。
+`verify` 按 `symbols.lock.json` 的 `others_content_sha256`（逐表排序后的内容摘要，不受各机器 SQLite 版本造成的页布局差异影响）核对 `others.db`。
+要增删符号名称，改 `symbol-names-extra.tsv`，重新构建后把新的 `others_content_sha256` 写回锁文件。

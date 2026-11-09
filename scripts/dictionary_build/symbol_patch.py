@@ -8,6 +8,7 @@ SPDX-License-Identifier: GPL-3.0-only
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sqlite3
@@ -31,6 +32,27 @@ PYPINYIN = "pypinyin==0.55.0"
 def ensure_pypinyin() -> None:
     if importlib.util.find_spec("pypinyin") is None:
         subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", PYPINYIN], check=True)
+
+
+def content_digest(path: Path) -> str:
+    """others.db 的内容摘要：逐表按行排序后哈希，与 SQLite 版本导致的页布局差异无关。
+
+    整文件的 SHA-256 在不同机器上不稳：同样的行，Python 自带的 SQLite 版本不同，VACUUM 出来的
+    字节就可能不同。所以这里只认表里的内容。
+    """
+    digest = hashlib.sha256()
+    connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        tables = sorted(row[0] for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"))
+        for table in tables:
+            digest.update(f"\0table:{table}\0".encode())
+            rows = sorted(repr(row) for row in connection.execute(f'SELECT * FROM "{table}"'))
+            for row in rows:
+                digest.update(row.encode() + b"\n")
+    finally:
+        connection.close()
+    return digest.hexdigest()
 
 
 def lock() -> dict:
@@ -68,7 +90,7 @@ def patch(others_path: Path, cache: Path) -> None:
     codex = symbols_db.parse_codex(textutil.read(root / symbols_db.CODEX))
     excluded = symbols_db.parse_unrenderable(textutil.read(root / symbols_db.UNRENDERABLE))
     names = textutil.read(root / symbols_db.READINGS)
-    extra = textutil.read(EXTRA)
+    extra = textutil.read(EXTRA).replace("\r\n", "\n")  # 检出时可能被转成 CRLF
     readings = symbols_db.parse_readings(names.rstrip("\n") + "\n" + extra)
     catalog = symbols_db.catalog_rows(pinyin, groups, codex, excluded)
     codes = symbols_db.code_rows(groups, readings, codex, excluded)

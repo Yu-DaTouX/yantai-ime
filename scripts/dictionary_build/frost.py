@@ -245,9 +245,11 @@ def verify(directory: Path, config: dict | None = None) -> dict:
     if manifest.get("pinyin_content_sha256") != config.get("expected_content_sha256"):
         raise ValueError("Manifest canonical identity differs from reviewed content")
     for name, digest in config["support"]["files"].items():
-        # others.db 在 support 原件之上补了符号表（symbol_patch），改按补丁后的哈希核对。
+        # others.db 在 support 原件之上补了符号表（symbol_patch），改按补丁后的内容摘要核对。
         if name == "others.db":
-            digest = symbol_patch.lock()["others_sha256"]
+            if symbol_patch.content_digest(directory / name) != symbol_patch.lock()["others_content_sha256"]:
+                raise ValueError(f"Supporting dictionary changed: {name}")
+            continue
         if sha256(directory / name) != digest:
             raise ValueError(f"Supporting dictionary changed: {name}")
     with closing(sqlite3.connect((directory / "msime.db").resolve().as_uri() + "?mode=ro", uri=True)) as connection:
