@@ -111,7 +111,10 @@ def verify_assets(directory: Path, data: dict) -> None:
     if data["dictionary"].get("mode") == "frost-source":
         from dictionary_build import frost
         frost.verify(directory)
-        shared.verify_digests(directory, data["dictionary"]["assets"])
+        # others.db 在固定原件上补了符号表（见 dictionary_build/symbol_patch.py），整文件哈希已不是锁里
+        # 的原件哈希，由 frost.verify 按内容摘要核对；其余文件仍按锁里的 SHA-256 逐个核对。
+        shared.verify_digests(directory, {name: digest for name, digest in data["dictionary"]["assets"].items()
+                                          if name != "others.db"})
         return
     shared.verify_digests(directory, data["dictionary"]["assets"])
 
