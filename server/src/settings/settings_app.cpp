@@ -482,9 +482,44 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
     return string_to_wstring(serialized);
 }
 
+// 模型下载、导入完成，或被删除之后，Server 手里的模型要换一份：每次配置快照里对比各模型状态，
+// 有变化就自动重启 Server，不用用户再手动点「重启」。第一次快照只记录基线，不触发。
+// 只在 worker 线程调用（BuildConfigMessage 同一线程），状态表因此不需要加锁。
+void RestartServerWhenModelChanged()
+{
+    static std::map<std::string, std::string> last;
+    std::map<std::string, std::string> current;
+    current["lattice"] = lattice_model::GetModelStatus().state;
+    current["lattice_delete_pending"] = lattice_model::GetModelStatus().delete_pending ? "1" : "0";
+    current["neural"] = neural_model::GetModelStatus().state;
+    current["translation"] = translation_model::GetModelStatus().state;
+    for (const auto &[model_id, status] : collocation::GetModelStatuses())
+        current["collocation:" + model_id] = status.state;
+
+    bool changed = false;
+    if (!last.empty())
+    {
+        for (const auto &[key, state] : current)
+        {
+            const auto previous = last.find(key);
+            if (previous == last.end() || previous->second == state)
+                continue;
+            const bool arrived =
+                (previous->second == "downloading" || previous->second == "importing") && state == "ready";
+            const bool removed = previous->second == "ready" && state == "absent";
+            const bool delete_pending = key == "lattice_delete_pending" && state == "1";
+            changed = changed || arrived || removed || delete_pending;
+        }
+    }
+    last = std::move(current);
+    if (changed)
+        NotifyImeServerRestart();
+}
+
 SerialTaskQueue::Completion ConfigCompletion(bool refresh_skin_catalog = false, bool force_snapshot = false)
 {
     TraceStartup(refresh_skin_catalog ? "worker: BuildConfigMessage(skins) begin" : "worker: BuildConfigMessage begin");
+    RestartServerWhenModelChanged();
     auto message = BuildConfigMessage(refresh_skin_catalog);
     TraceStartup("worker: BuildConfigMessage end");
     const bool light = ResolveConfiguredTheme(GetConfiguredThemeSettings()) == "light";
@@ -963,9 +998,9 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
                 const std::string path = json::value_to<std::string>(data.at("path"));
                 // 切换 Trigram / 神经网络整句后，已运行的 Server 里候选框不再出现，要重启才恢复：
                 // 保存成功后直接让 Watchdog 重启 Server，不再要用户手动点「重启」。
-                if (saved && (path == "association.sentence_wordlattice" ||
-                              path == "association.sentence_neural_desktop" ||
-                              path == "association.sentence_neural_keyboard"))
+                if (saved &&
+                    (path == "association.sentence_wordlattice" || path == "association.sentence_neural_desktop" ||
+                     path == "association.sentence_neural_keyboard"))
                     NotifyImeServerRestart();
                 // The shortcut editor waits for persisted state even for a failed/no-op write.
                 const bool force_snapshot = IsInputStateShortcutPath(path);
