@@ -120,3 +120,12 @@ Write-Host "替换与回放成功；完整停机备份：$backup。现在可以�
 自动安装/升级仍使用已有安装器：先保留用户日志及其sidecar，再重建出厂库，然后立即
 ReplayUserDictionary。此次增加的真实升级路径测试也覆盖未checkpoint的WAL、自造词、手动改权重、
 自动权重重基/保留、删除墓碑、快捷短语/英文及固定/选择状态；没有在用户真机执行这些操作。
+
+## others.db 的符号表补丁
+
+`support` 里固定的 `others.db`（MSIME-Engine `dict-v1.0.0`）没有 `symbol_code` 表，符号混输与 `Shift+S`
+符号模式因此查不到任何符号。构建时 `scripts/dictionary_build/symbol_patch.py` 在拷贝 support 文件之后，
+用 `symbols.lock.json` 固定的 msime-dictionary 提交（符号源数据按大小和 SHA-256 校验）加上本仓的
+`symbol-names-extra.tsv`，重建 `symbol_catalog` 与 `symbol_code`；emoji、颜文字表不动。
+`verify` 按 `symbols.lock.json` 的 `others_sha256`（补丁后的哈希，构建可复现）核对 `others.db`。
+要增删符号名称，改 `symbol-names-extra.tsv`，重新构建后把新的 `others_sha256` 写回锁文件。

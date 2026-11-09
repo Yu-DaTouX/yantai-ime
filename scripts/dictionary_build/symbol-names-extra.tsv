@@ -1,3 +1,5 @@
+# 本仓补充的符号名称，格式同 msime-dictionary 的 sources/symbols/symbol-names.tsv（名称<TAB>拼音<TAB>符号[ 符号...]）。
+# 构建时追加在固定提交的 symbol-names.tsv 之后，见 symbol_patch.py。
 大等于	da'deng'yu	≥
 小等于	xiao'deng'yu	≤
 不等	bu'deng	≠

@@ -20,6 +20,7 @@ import tempfile
 import unicodedata
 
 from product_lock_shared import download_with_retries, sha256
+from . import symbol_patch
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = Path(__file__).with_name("frost.lock.json")
@@ -61,7 +62,8 @@ def builder_digest() -> str:
     digest = hashlib.sha256()
     paths = [Path(__file__), LOCK, ROOT / "scripts/build-dictionary.py",
              ROOT / "engine/contracts/dictionary/format.py", ROOT / "engine/contracts/dictionary/format.json",
-             ROOT / "docs/dictionary-frost-sources.md"]
+             ROOT / "docs/dictionary-frost-sources.md", symbol_patch.LOCK, symbol_patch.EXTRA,
+             Path(symbol_patch.__file__)]
     for path in paths:
         digest.update(path.name.encode() + b"\0" + path.read_bytes().replace(b"\r\n", b"\n") + b"\0")
     return digest.hexdigest()
@@ -243,6 +245,9 @@ def verify(directory: Path, config: dict | None = None) -> dict:
     if manifest.get("pinyin_content_sha256") != config.get("expected_content_sha256"):
         raise ValueError("Manifest canonical identity differs from reviewed content")
     for name, digest in config["support"]["files"].items():
+        # others.db 在 support 原件之上补了符号表（symbol_patch），改按补丁后的哈希核对。
+        if name == "others.db":
+            digest = symbol_patch.lock()["others_sha256"]
         if sha256(directory / name) != digest:
             raise ValueError(f"Supporting dictionary changed: {name}")
     with closing(sqlite3.connect((directory / "msime.db").resolve().as_uri() + "?mode=ro", uri=True)) as connection:
@@ -284,6 +289,7 @@ def build(output: Path = OUT, cache: Path = CACHE, *, if_stale: bool = False) ->
         write_json(incoming / "frost-build-report.json", result)
         for name in config["support"]["files"]:
             shutil.copyfile(cache / "support" / name, incoming / name)
+        symbol_patch.patch(incoming / "others.db", cache)
         shutil.copyfile(source / "LICENSE", incoming / "rime-frost-LICENSE.txt")
         shutil.copyfile(ROOT / "docs/dictionary-frost-sources.md", incoming / "rime-frost-NOTICE.md")
         manifest = {"manifest_version": 1, "profile": "desktop", "format_version": 1,

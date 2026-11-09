@@ -1,0 +1,20 @@
+{
+  "dictionary": {
+    "repository": "metasequoiaime/msime-dictionary",
+    "commit": "3f490621c6fc20ae852877267da14b9a33b6601a",
+    "files": {
+      "sources/symbols/wanxiang_symbols.yaml": {"size": 98894, "sha256": "8cd64dd226ccdddc0771085ad4d072c19713529ec02c9f4c00d97e6fd6e4c8df"},
+      "sources/symbols/codex_sym.txt": {"size": 19431, "sha256": "859ea5a9f63f24d336d4fd7cd73d621584aa549ea724ce65dbbc494e0d331f4c"},
+      "sources/symbols/wanxiang-unrenderable.txt": {"size": 3170, "sha256": "ea68c100a465162df946f5314d405b17871b5715872c914d5024b1b3dd964a7c"},
+      "sources/symbols/symbol-names.tsv": {"size": 13516, "sha256": "122ed4989d9bc5302d055f693dc85104bc7797501ac454f890f434491bc58530"}
+    }
+  },
+  "pinyin_overrides": {
+    "repository": "metasequoiaime/msime",
+    "commit": "e12279943acca455583326030a214af02c323625",
+    "path": "resources/dictionary-sources/pinyin-overrides.txt",
+    "size": 1582,
+    "sha256": "e2770db162955de16cf82f82368c469e5a0060dcb4ff9911424998bb4d9a0a8d"
+  },
+  "others_sha256": "fceb60c6fa9552d0ea71e4eb27e8ce2ab10bf6499f5870682044b53a1ad09e7d"
+}
