@@ -8,8 +8,10 @@ SPDX-License-Identifier: GPL-3.0-only
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
@@ -19,6 +21,16 @@ from dictionary_build import others_db, symbols_db, textutil
 
 LOCK = Path(__file__).with_name("symbols.lock.json")
 EXTRA = Path(__file__).with_name("symbol-names-extra.tsv")
+
+
+# others_db 的单字读音取自 pypinyin 的字表，符号表的 pinyin 列因此跟它的版本走；锁文件里的
+# others_sha256 是用这一版算出来的。CI 的干净环境里没有它，缺了就按固定版本装上。
+PYPINYIN = "pypinyin==0.55.0"
+
+
+def ensure_pypinyin() -> None:
+    if importlib.util.find_spec("pypinyin") is None:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", PYPINYIN], check=True)
 
 
 def lock() -> dict:
@@ -38,6 +50,7 @@ def _ensure(path: Path, url: str, size: int, digest: str) -> Path:
 
 
 def patch(others_path: Path, cache: Path) -> None:
+    ensure_pypinyin()
     config = lock()
     source = config["dictionary"]
     root = cache / "symbols" / source["commit"]
