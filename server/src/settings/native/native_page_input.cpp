@@ -1,5 +1,7 @@
 #include "settings/native/native_settings_pages.h"
 
+#include "settings/native/native_settings_choices.h"
+
 #include "msimeui/DeviceResources.h"
 #include "msimeui/Fonts.h"
 #include "msimeui/Window.h"
@@ -747,10 +749,6 @@ struct InputPage
 {
     PageContext *context = nullptr;
 
-    // Input mode
-    std::vector<std::shared_ptr<Hideable>> chineseSections;
-    std::shared_ptr<RadioGroup> schemeGroup = std::make_shared<RadioGroup>();
-
     // Word to character
     std::shared_ptr<RadioGroup> wordKeys = std::make_shared<RadioGroup>();
     std::shared_ptr<RadioOption> wordKeysBrackets;
@@ -759,9 +757,7 @@ struct InputPage
 
     // Fuzzy / smart punctuation
     std::vector<std::shared_ptr<Dimmable>> fuzzyRules;
-    std::shared_ptr<Hideable> fuzzyHint;
     std::vector<std::shared_ptr<ToggleSwitch>> smartOptions;
-    std::shared_ptr<Hideable> smartHint;
 
     // Models
     ModelRow translation;
@@ -788,16 +784,6 @@ struct InputPage
     UINT_PTR collocationPoll = 0;
 };
 
-// Section card that can be hidden (`hidden` attribute) without leaving its margin behind.
-std::shared_ptr<Hideable> AddHideableSection(PageBuilder &page, VisualPtr content, bool visible = true)
-{
-    auto section = std::make_shared<Section>(std::move(content));
-    section->SetMargin({0.0f, 0.0f, 0.0f, 18.0f});
-    auto box = std::make_shared<Hideable>(section, visible);
-    page.AddRaw(box, 0.0f);
-    return box;
-}
-
 // `.content-page-option`: column, margin-top 8px, items separated by .input-option-divider.
 std::shared_ptr<Column> OptionList(const std::vector<VisualPtr> &items, float marginTop = 8.0f)
 {
@@ -818,15 +804,6 @@ std::shared_ptr<RadioOption> PaddedRadio(std::shared_ptr<RadioOption> radio)
     return radio;
 }
 
-std::shared_ptr<Label> DisabledHint()
-{
-    TextStyle style;
-    style.size = kFontCaption;
-    auto label = std::make_shared<Label>(L"开启总开关后生效", style, TextRole::Muted);
-    label->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-    return label;
-}
-
 // `.toggle-section-details .section-header { padding: 2px 0 }`
 VisualPtr DetailsRow(std::wstring title, std::wstring description, VisualPtr control)
 {
@@ -839,14 +816,6 @@ VisualPtr DetailsRow(std::wstring title, std::wstring description, VisualPtr con
 VisualPtr FrequencyRow(VisualPtr left, VisualPtr control)
 {
     return Padded(std::make_shared<SettingRow>(std::move(left), std::move(control)), {0.0f, 10.0f, 0.0f, 10.0f});
-}
-
-// `.translation-language-row { padding: 14px 0; gap: 16px }`
-VisualPtr LanguageRow(std::wstring title, std::wstring description, VisualPtr control)
-{
-    auto left = SubBlock(std::move(title), std::move(description));
-    left->SetMargin({0.0f, 0.0f, 6.0f, 0.0f});
-    return Padded(std::make_shared<SettingRow>(left, std::move(control)), {0.0f, 14.0f, 0.0f, 14.0f});
 }
 
 // The expandable header (`.toggle-section-header`) with its master switch, and the details.
@@ -907,34 +876,15 @@ VisualPtr BuildInputPage(PageContext &context)
     HostServices *host = &context.host;
     PageBuilder page(L"输入");
 
-    // ---- 输入模式 ----
-
-    // ---- 输入方案 ----
-    {
-        auto quanpin = s->schemeGroup->Add(L"全拼", "quanpin");
-        s->schemeGroup->SetValue("quanpin");
-        s->schemeGroup->SetOnChanged([model](const std::string &value) { model->Update("input.schema", value); });
-        // .input-option-content: margin-top 12px, gap 8px
-        auto options = Col({quanpin}, 8.0f);
-        options->SetMargin({0.0f, 12.0f, 0.0f, 0.0f});
-        s->chineseSections.push_back(AddHideableSection(page, Col({MakeTitle(L"输入方案"), options})));
-    }
-
     // ---- 输入纠错 ----
-    page.AddSection(
-        Col({MakeTitleBlock(
-                 L"输入纠错",
-                 L"全拼输错时按误键类型给出纠正候选，默认关闭；开启后预编辑始终显示原始输入，纠正结果仅出现在候选中"),
-             ItemSetting(L"乱序纠错", L"相邻字母顺序打错时纠正，如 sahng → shang（上）；默认关闭",
-                         Toggle(context, "quanpin.autocorrect_transposition"), true, false),
-             ItemSetting(L"邻键纠错", L"误触相邻按键时纠正，如 shabg → shang（上）；默认关闭",
-                         Toggle(context, "quanpin.autocorrect_neighbor"), false, false),
-             ItemSetting(L"漏字纠错", L"漏敲一个字母时纠正，如 shng → shang（上）；默认关闭",
-                         Toggle(context, "quanpin.autocorrect_deletion"), false, false),
-             ItemSetting(L"多字纠错", L"多敲一个相邻按键时纠正，如 sjhang → shang（上）；默认关闭",
-                         Toggle(context, "quanpin.autocorrect_insertion"), false, false),
-             ItemSetting(L"显示纠错标记", L"纠错得到的候选末尾显示 * 号，便于和正常候选区分；不影响上屏文字",
-                         Toggle(context, "quanpin.autocorrect_marker"), false, true)}));
+    page.AddSection(Col(
+        {MakeTitleBlock(L"输入纠错", L"全拼输错时给出纠正候选，默认关闭"),
+         ItemSetting(L"乱序纠错", L"如 sahng → shang", Toggle(context, "quanpin.autocorrect_transposition"), true,
+                     false),
+         ItemSetting(L"邻键纠错", L"如 shabg → shang", Toggle(context, "quanpin.autocorrect_neighbor"), false, false),
+         ItemSetting(L"漏字纠错", L"如 shng → shang", Toggle(context, "quanpin.autocorrect_deletion"), false, false),
+         ItemSetting(L"多字纠错", L"如 sjhang → shang", Toggle(context, "quanpin.autocorrect_insertion"), false,
+                     true)}));
 
     // ---- 模糊音 ----
     {
@@ -956,19 +906,15 @@ VisualPtr BuildInputPage(PageContext &context)
         auto initialList = OptionList(initials);
         auto finalList = OptionList(finals);
         s->fuzzyRules = {std::make_shared<Dimmable>(initialList), std::make_shared<Dimmable>(finalList)};
-        s->fuzzyHint = std::make_shared<Hideable>(DisabledHint(), false);
-        auto details = Col({Description(L"开启后两个读音互相匹配，如输入 zhang 也可命中 zang 开头的词", 0.0f),
+        auto details = Col({Description(L"两个读音互相匹配，如 zhang 也能命中 zang", 0.0f),
                             Padded(MakeSubTitle(L"声母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[0],
-                            Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1], s->fuzzyHint});
+                            Padded(MakeSubTitle(L"韵母"), {0.0f, 2.0f, 0.0f, 2.0f}), s->fuzzyRules[1]});
         auto section = MakeToggleSection(L"模糊音", details);
         page.AddSection(Col({std::make_shared<SettingRow>(section.expander, master), section.details}));
     }
 
     // ---- 候选词英文行 ----
-    page.AddSection(MakeRow(L"候选词英文行",
-                            L"在候选条下面固定一行，显示当前高亮候选的第一个英文词义；Ctrl+Enter 直接上屏，"
-                            L"Ctrl+Shift+Enter 查看全部词义",
-                            Toggle(context, "general.english_line")));
+    page.AddSection(MakeRow(L"候选词英文行", L"候选条下显示英文词义", Toggle(context, "general.english_line")));
 
     // ---- 以词定字 ----
     {
@@ -981,17 +927,13 @@ VisualPtr BuildInputPage(PageContext &context)
         auto keys = std::make_shared<TopRuled>(
             Col({MakeSubTitle(L"以词定字快捷键"), OptionList({s->wordKeysBrackets, s->wordKeysMinusEqual})}), 16.0f);
         keys->SetMargin({0.0f, 18.0f, 0.0f, 0.0f});
-        page.AddSection(Col({MakeRow(L"以词定字", L"开启后，按所选键组的左键上屏高亮候选的首个汉字，右键上屏末个汉字",
-                                     Toggle(context, "input.word_to_character")),
-                             keys}));
+        page.AddSection(
+            Col({MakeRow(L"以词定字", L"左键上屏候选首字，右键上屏末字", Toggle(context, "input.word_to_character")),
+                 keys}));
     }
 
-    page.AddSection(MakeRow(L"Esc 保留已选词",
-                            L"造词时按 Esc 只清除还没选的拼音、保留已选的词，再按一次 Esc 整体取消（小狼毫风格）",
+    page.AddSection(MakeRow(L"Esc 保留已选词", L"造词时 Esc 只清除未选的拼音",
                             Toggle(context, "input.escape_keeps_selected_word")));
-    page.AddSection(MakeRow(L"回车上屏英文时入库",
-                            L"按回车上屏输入的英文时，把这个单词写入英文词库，之后可作为候选出现",
-                            Toggle(context, "input.enter_learns_english_word")));
 
     // ---- 固定标点 ----
     {
@@ -1001,19 +943,7 @@ VisualPtr BuildInputPage(PageContext &context)
         s->punctuationLock->SetValue("follow");
         s->punctuationLock->SetOnChanged(
             [model](const std::string &value) { model->Update("input.punctuation_lock", value); });
-        page.AddSection(Col({MakeTitle(L"固定标点"), Description(L"切换中英文时的标点形态，三者互斥"),
-                             OptionList({follow, chinese, english})}));
-    }
-
-    // ---- 顿号自定义 ----
-    {
-        std::vector<VisualPtr> keys;
-        for (auto &check : AtLeastOneChecks(context, {{L"\\ 反斜杠", "input.enumeration_comma_backslash"},
-                                                      {L"/ 斜杠", "input.enumeration_comma_slash"}}))
-            keys.push_back(check);
-        page.AddSection(Col({MakeTitle(L"顿号自定义"),
-                             Description(L"中文标点状态下用哪些键输出顿号「、」，至少保留一个；未勾选的键按原样输出"),
-                             OptionList(keys)}));
+        page.AddSection(Col({MakeTitle(L"固定标点"), OptionList({follow, chinese, english})}));
     }
 
     // ---- 智能标点 ----
@@ -1024,24 +954,21 @@ VisualPtr BuildInputPage(PageContext &context)
             s->smartOptions.push_back(toggle);
             return toggle;
         };
-        s->smartHint = std::make_shared<Hideable>(DisabledHint(), false);
-        auto details = Col({Description(L"中文标点模式下的标点自动转换", 0.0f),
-                            DetailsRow(L"中文标点后按空格转换",
-                                       L"。，！？；：、 以及单独出现的 “ ” 【 】 《 》 （ ） 转为对应英文标点",
+        auto details = Col({Description(L"中文标点模式下自动转换标点", 0.0f),
+                            DetailsRow(L"空格转英文标点", L"中文标点后按空格转为英文标点",
                                        option("input.smart_punctuation_space_convert")),
-                            DetailsRow(L"同键转回中文", L"转换或直出的英文标点，2 秒内再按同一标点键转回中文",
+                            DetailsRow(L"同键转回中文", L"2 秒内再按同一键转回中文",
                                        option("input.smart_punctuation_repeat_to_chinese")),
-                            DetailsRow(L"数字后直出", L"数字后输入 , . : 直接输出英文标点（如 3.14）",
+                            DetailsRow(L"数字后直出", L"数字后的 , . : 直接输出英文标点",
                                        option("input.smart_punctuation_direct_digit")),
-                            DetailsRow(L"字母后直出", L"字母后输入 , . : 直接输出英文标点",
-                                       option("input.smart_punctuation_direct_letter")),
-                            s->smartHint});
+                            DetailsRow(L"字母后直出", L"字母后的 , . : 直接输出英文标点",
+                                       option("input.smart_punctuation_direct_letter"))});
         auto section = MakeToggleSection(L"智能标点", details);
         page.AddSection(Col({std::make_shared<SettingRow>(section.expander, master), section.details}));
     }
 
-    page.AddSection(MakeRow(L"成对标点自动补全", L"输入左侧符号时自动补全右侧符号，并将光标置于中间",
-                            Toggle(context, "input.paired_punctuation")));
+    page.AddSection(
+        MakeRow(L"成对标点自动补全", L"输入左符号时补全右符号", Toggle(context, "input.paired_punctuation")));
     page.AddSection(MakeRow(
         L"默认中英文", L"",
         BindDropdown(context, "input.default_ime_mode", Options({{"chinese", L"中文"}, {"english", L"英文"}}))));
@@ -1071,117 +998,72 @@ VisualPtr BuildInputPage(PageContext &context)
 
         s->lattice = MakeModelRow(context, "", L"词格语言模型 sc.lm", L"约 35 MB · LGPL-2.1", "", false,
                                   "latticeModelDownload", "latticeModelImport", "latticeModelDelete");
-        auto latticeSection = downloadSection(
-            L"Trigram 模型下载",
-            L"三元语言模型不随安装包分发，下载后才能开启上面的 Trigram 整句开关，可随时删除；神经网络整句也会用它"
-            L"给备选句打分。应用内下载较慢时，可点「浏览器下载」用浏览器下好，再点「导入」选中该 sc.lm 文件；"
-            L"也可以在「帮助」页设置网络代理",
-            s->lattice);
+        auto latticeSection = downloadSection(L"Trigram 模型下载", L"下载后才能开启 Trigram 整句", s->lattice);
         s->latticeToggle = BindToggle(context, "association.sentence_wordlattice");
 
         s->neural = MakeModelRow(context, "", L"chinese-ime-lm 效果优先模型", L"约 25 MB · Apache-2.0", "", false,
                                  "neuralModelDownload", "neuralModelImport", "neuralModelDelete");
-        auto neuralSection =
-            downloadSection(L"神经网络模型（效果优先）下载",
-                            L"效果优先模型不随安装包分发，下载后才能开启上面的整句开关，可随时删除。"
-                            L"应用内下载较慢时，可点「浏览器下载」用浏览器下好，再点「导入」选中该 .safetensors 文件；"
-                            L"也可以在「帮助」页设置网络代理",
-                            s->neural);
+        auto neuralSection = downloadSection(L"神经网络模型（效果优先）下载", L"下载后才能开启效果优先整句", s->neural);
         s->neuralToggle = BindToggle(context, "association.sentence_neural_desktop");
 
         s->collocationList = std::make_shared<Column>(10.0f);
         s->collocationList->SetMargin({0.0f, 6.0f, 0.0f, 0.0f});
-        auto collocationBlock =
-            Col({MakeSubTitle(L"octagram 语法模型（八股文，需先下载）"),
-                 MakeDescription(
-                     L"内置目录里的模型包各自下载、状态独立，激活其中一个用于整句加成；默认未选择任何模型"
-                     L"（整句加成保持关闭），下载后单选激活，可随时切换或删除。应用内下载较慢时，可点「浏览器下载」"
-                     L"用浏览器下好，再点「导入」选中该 .gram 文件；也可以在「帮助」页设置网络代理"),
-                 s->collocationList});
+        auto collocationBlock = Col({MakeSubTitle(L"octagram 语法模型（需先下载）"),
+                                     MakeDescription(L"下载后单选激活，可随时切换或删除"), s->collocationList});
         collocationBlock->SetMargin({0.0f, 0.0f, 10.0f, 0.0f});
         s->collocationToggle = BindToggle(context, "association.sentence_collocation_enabled");
 
+        // 高级：实验或排错用的整句选项，默认折叠。
+        auto advancedExpander = MakeExpander(L"高级");
+        auto advancedBody = Col({DetailsRow(L"上文词库重排（实验）", L"按上文调整单字、词组顺序",
+                                            Toggle(context, "association.context_candidate_rerank")),
+                                 DetailsRow(L"去重后补充次选", L"首选重复时补充下一条结果",
+                                            Toggle(context, "association.sentence_show_next_on_duplicate")),
+                                 DetailsRow(L"显示整句来源标签", L"整句候选后显示来源标签",
+                                            Toggle(context, "association.sentence_source_badge"))});
+        advancedBody->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
+        auto advancedDetails = std::make_shared<Hideable>(advancedBody, false);
+        BindExpander(advancedExpander, advancedDetails);
+
         auto content = Col({
-            FrequencyRow(SubBlock(L"Trigram 模型整句", L"本地生成，下载模型后可用：使用三元语言模型生成整句候选"),
-                         s->latticeToggle),
+            FrequencyRow(SubBlock(L"Trigram 模型整句", L"需先下载模型"), s->latticeToggle),
             latticeSection,
-            FrequencyRow(SubBlock(L"Unigram 模型整句", L"本地生成，使用一元语言模型生成整句候选"),
-                         Toggle(context, "association.sentence_google")),
-            FrequencyRow(
-                SubBlock(
-                    L"神经网络模型整句（效果优先）",
-                    L"本地生成，下载模型后可用：结合已上屏的前文，从内部生成的最多 12 个备选句中选择，处理时间较长"),
-                s->neuralToggle),
+            FrequencyRow(SubBlock(L"神经网络模型整句（效果优先）", L"需先下载模型，处理较慢"), s->neuralToggle),
             neuralSection,
-            FrequencyRow(SubBlock(L"神经网络模型整句（速度优先）",
-                                  L"本地生成，使用轻量模型从最多 12 个备选句中选择；两种模式可同时独立给出结果"),
+            FrequencyRow(SubBlock(L"神经网络模型整句（速度优先）", L"轻量模型，速度快"),
                          Toggle(context, "association.sentence_neural_keyboard")),
-            FrequencyRow(
-                SubBlock(
-                    L"上文词库重排（实验）",
-                    L"使用轻量神经模型，根据本次输入的上文调整单字和词组顺序，例如“冬天会下大”后输入 xue 优先选“雪”"),
-                Toggle(context, "association.context_candidate_rerank")),
-            FrequencyRow(SubBlock(L"长词前缀补全",
-                                  L"本地处理，首选已有 4 个字以上时，把词库里以它开头的最可能的长词放在第二位，例如"
-                                  L"“中华人民”补出“中华人民共和国”；下载万象或 Trigram 模型后排得更准"),
-                         Toggle(context, "association.prefix_completion")),
-            FrequencyRow(SubBlock(L"去重后补充次选",
-                                  L"本地处理，某个模型的首选与已有候选重复时，显示该模型排名最高的下一条不同结果"),
-                         Toggle(context, "association.sentence_show_next_on_duplicate")),
-            FrequencyRow(SubBlock(L"显示整句来源标签",
-                                  L"本地处理，在整句候选后显示〔Trigram〕〔Unigram〕〔神经D〕〔神经K〕〔万象〕"
-                                  L"〔八股〕〔墨奇〕等来源标签"),
-                         Toggle(context, "association.sentence_source_badge")),
             Padded(collocationBlock, {0.0f, 10.0f, 0.0f, 10.0f}),
-            FrequencyRow(
-                SubBlock(L"octagram 语法整句",
-                         L"本地生成，下载模型后可用：一并接入该模型的全部能力——解码时按字级搭配分选出更准的首选，"
-                         L"并把搭配紧密的整句提到前面，以所选模型自己的来源行显示（万象〔万象〕、八股文〔"
-                         L"八股〕、白霜〔墨奇〕）"),
-                s->collocationToggle),
+            FrequencyRow(SubBlock(L"octagram 语法整句", L"需先下载并激活模型"), s->collocationToggle),
+            Padded(advancedExpander, {0.0f, 10.0f, 0.0f, 0.0f}),
+            advancedDetails,
         });
         content->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-        page.AddSection(
-            Col({MakeTitleBlock(L"整句候选", L"输入多个拼音音节时，额外提供本机模型给出的整句候选"), content}));
+        page.AddSection(Col({MakeTitleBlock(L"整句候选", L"拼音较长时，额外给出本机模型的整句候选"), content}));
         s->translation = MakeModelRow(context, "", L"整句翻译模型", L"约 81 MB · CC-BY-4.0 / MIT", "", false,
                                       "translationModelDownload", "translationModelImport", "translationModelDelete");
-        page.AddSection(downloadSection(
-            L"整句翻译模型",
-            L"Opus-MT zh-en int8 与本地 CPU 引擎一并按需下载，不随安装包分发；模型约 83 MB，"
-            L"引擎约 39 MB。模型作者 University of Helsinki NLP；oneDNN 与 SentencePiece 为 Apache-2.0。"
-            L"可用浏览器下载 ZIP 后导入，下载与导入均校验 SHA256；已加载的引擎删除后需重启释放。",
-            s->translation));
+        page.AddSection(downloadSection(L"整句翻译模型", L"按需下载，不随安装包分发", s->translation));
     }
 
-    // ---- 拼音方案调频 ----
+    // ---- 调频 ----
+    // 衰减打分学习后，中文只区分开启和关闭（引擎仍接受 halve / linear / trigger_count，英文等照旧用）。
     {
         Dropdown::Options frequency;
         frequency.minWidth = 110.0f;
         frequency.menuMinWidth = 110.0f;
-        auto content = Col({FrequencyRow(MakeSubTitle(L"调频方式"), BindDropdown(context, "frequency_adjustment.mode",
-                                                                                 Options({{"disabled", L"关闭"},
-                                                                                          {"pin", L"一次置顶"},
-                                                                                          {"halve", L"折半调频"},
-                                                                                          {"linear", L"线性调频"},
-                                                                                          {"promote", L"一次置前"}}),
-                                                                                 frequency)),
-                            std::make_shared<Divider>(Divider::Kind::Option),
-                            FrequencyRow(MakeSubTitle(L"触发频次(第几次上屏触发)"),
-                                         BindDropdown(context, "frequency_adjustment.trigger_count",
-                                                      NumberOptions(1, 6), frequency, ValueKind::Integer)),
-                            std::make_shared<Divider>(Divider::Kind::Option),
-                            FrequencyRow(MakeSubTitle(L"线性调频步长"),
-                                         BindDropdown(context, "frequency_adjustment.linear_step", NumberOptions(1, 6),
-                                                      frequency, ValueKind::Integer))});
-        content->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
-        page.AddSection(Col({MakeTitle(L"拼音方案调频"), content}));
+        auto mode =
+            BindDropdown(context, "frequency_adjustment.mode",
+                         Options({{"promote", L"开启"}, {"pin", L"一次置顶"}, {"disabled", L"关闭"}}), frequency);
+        // halve / linear 等老值显示成「开启」，配置里的值不动。
+        context.OnConfig([weak = std::weak_ptr<Dropdown>(mode), model]() {
+            if (auto control = weak.lock())
+                control->SetValue(FrequencyModeChoice(model->GetString("frequency_adjustment.mode", "promote")));
+        });
+        page.AddSection(MakeRow(L"自动调频", L"按上屏习惯调整候选顺序", mode));
     }
 
     // ---- Snapshot -> page (config-sync.ts) ----
     context.OnConfig([s, state, model, host, &context]() {
         (void)state;
-        s->schemeGroup->SetValue("quanpin");
-
         // 以词定字: a key pair that pages candidates cannot also pick characters.
         if (const Json *paging = model->Find("general.paging_brackets"); paging && paging->is_boolean())
             s->wordKeysBrackets->SetDisabled(paging->get<bool>());
@@ -1197,13 +1079,11 @@ VisualPtr BuildInputPage(PageContext &context)
         {
             for (auto &toggle : s->smartOptions)
                 toggle->SetDisabled(!smart->get<bool>());
-            s->smartHint->SetVisible(!smart->get<bool>());
         }
         if (const Json *fuzzy = model->Find("input.fuzzy_pinyin"); fuzzy && fuzzy->is_boolean())
         {
             for (auto &rules : s->fuzzyRules)
                 rules->SetDisabled(!fuzzy->get<bool>());
-            s->fuzzyHint->SetVisible(!fuzzy->get<bool>());
         }
 
         // Lattice language model row. Server 映射着 sc.lm 时删除只留标记（deletePending），

@@ -8,8 +8,7 @@ namespace native_settings
 {
 namespace
 {
-constexpr wchar_t kProxyHint[] =
-    L"仅支持 HTTP 代理，格式为「主机:端口」，如 127.0.0.1:7890；Clash、v2rayN 等客户端的 HTTP/混合端口均可";
+constexpr wchar_t kProxyHint[] = L"仅支持 HTTP 代理，格式「主机:端口」，如 127.0.0.1:7890";
 
 bool IsValidProxyServer(const std::wstring &value)
 {
@@ -205,9 +204,7 @@ VisualPtr BuildHelpPage(PageContext &context)
     {
         auto left = std::make_shared<Column>(0.0f);
         left->Add(MakeTitle(L"默认输入法"));
-        left->Add(
-            Description(L"设为默认后，水杉输入法会排在系统设置「语言和区域 → "
-                        L"中文（简体）」键盘列表的第一位，切到中文时直接使用水杉输入法。不会改动语言顺序和界面语言"));
+        left->Add(Description(L"设为默认后，切到中文时直接使用水杉输入法"));
         state->defaultStatus = Description(L"正在检查…");
         state->defaultStatus->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         left->Add(state->defaultStatus);
@@ -270,9 +267,7 @@ VisualPtr BuildHelpPage(PageContext &context)
     {
         auto column = std::make_shared<Column>(0.0f);
         column->Add(MakeTitle(L"游戏兼容（伪装名称 实验性）"));
-        column->Add(Description(L"部分游戏（CS2、Dota 2）使用白名单，只允许固定几个输入法使用；不在名单里无法使用"));
-        column->Add(Description(L"功能不稳定：已知问题包括，上屏后的第一下退格会被游戏吞掉（游戏那边的行为）。"
-                                L"建议保持默认「拼音输入法」，或者改成任意大厂输入法的名称。"));
+        column->Add(Description(L"部分游戏只允许白名单输入法；实验性，上屏后首个退格可能被游戏吞掉"));
         state->compatEnabled = std::make_shared<CheckOption>(L"启用游戏兼容名称");
         state->compatEnabled->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         state->compatEnabled->SetHorizontalAlignment(msimeui::HorizontalAlignment::Leading);
@@ -375,7 +370,7 @@ VisualPtr BuildHelpPage(PageContext &context)
     {
         auto column = std::make_shared<Column>(0.0f);
         column->Add(MakeTitle(L"网络代理"));
-        column->Add(Description(L"语法模型下载等联网功能共用这里的设置，修改后立即生效"));
+        column->Add(Description(L"模型下载等联网功能共用，立即生效"));
         auto options = std::make_shared<Column>(0.0f);
         options->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         const std::pair<const char *, const wchar_t *> modes[] = {

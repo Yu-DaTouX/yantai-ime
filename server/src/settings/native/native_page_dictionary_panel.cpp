@@ -697,11 +697,8 @@ DictionaryPanel::DictionaryPanel(PageContext &context, Kind kind)
     TextStyle hint;
     hint.size = 13.0f;
     hint.wrap = true;
-    hint_ = std::make_shared<Label>(
-        kind_ == Kind::Quick ? L"编码只能包含英文字母；触发键 K "
-                               L"不属于编码内容。批量导入格式为：编码<Tab>短语<Tab>权重（兼容无权重的两列文件）"
-                             : L"",
-        hint, TextRole::Muted);
+    hint_ = std::make_shared<Label>(kind_ == Kind::Quick ? L"编码只含英文字母；批量导入：编码<Tab>短语<Tab>权重" : L"",
+                                    hint, TextRole::Muted);
     // .dict-hint { padding: 0 22px 16px }
     hint_->SetMargin({22.0f, 0.0f, 22.0f, 16.0f});
     header_ = std::make_shared<DictTableHeader>(columns);
@@ -827,15 +824,10 @@ void DictionaryPanel::SetDictionary(const std::string &dictionary)
                             : quanpin ? L"输入完整全拼，例如 nihao"
                             : latin   ? L"输入要敲的字母前缀，例如 txu"
                                       : L"输入编码前缀");
-    hint_->SetText(
-        english ? L"按英文前缀查询；批量导入格式为：单词<Tab>显示内容<Tab>权重（兼容无权重的两列文件）"
-        : quanpin ? L"全拼新增会校验拼音合法性、汉字数量和重复词条；批量导入格式为：词语<Tab>全拼[<Tab>权重]（兼容 "
-                    L"Rime userdb.txt / dict.yaml，全拼可用空格或 ' 分音节；含英文字母的词自动按字母词导入）"
-        : latin ? L"字母词由英文字母和汉字组成（T恤、卡拉OK），字母照原样敲、汉字敲全拼；内置字母词只能查询。"
-                  L"读音写成 t'xu 或 T xu，留空则自动注音；批量导入格式为：词语[<Tab>读音[<Tab>权重]]"
-                : L"管理快捷短语编码与内容；批量导入格式为：编码<Tab>内容<Tab>权重，"
-                  L"短语里的换行写成 \\n、Tab 写成 \\t。换行能否生效取决于目标输入框，"
-                  L"单行输入框会忽略换行");
+    hint_->SetText(english   ? L"按英文前缀查询；批量导入：单词<Tab>显示内容<Tab>权重"
+                   : quanpin ? L"批量导入：词语<Tab>全拼[<Tab>权重]，兼容 Rime userdb.txt / dict.yaml"
+                   : latin ? L"字母词如 T恤、卡拉OK；批量导入：词语[<Tab>读音[<Tab>权重]]，读音留空自动注音"
+                           : L"批量导入：编码<Tab>内容<Tab>权重；换行写成 \\n，Tab 写成 \\t");
     header_->SetLabels(HeaderLabels());
     rows_.clear();
     body_->SetEmpty(L"输入查询条件后查看词条");

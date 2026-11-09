@@ -1,5 +1,6 @@
 #include "tests/includes/test_framework.h"
 
+#include "settings/native/native_settings_choices.h"
 #include "settings/native/native_settings_controls.h"
 #include "settings/native/native_page_help_widgets.h"
 
@@ -260,4 +261,17 @@ TEST_CASE(SettingsSearchRevealLeavesSettingDrivenGroupsHidden)
 
     REQUIRE(!RevealInAncestors(*row));
     REQUIRE(!hideable->IsVisible());
+}
+
+// 衰减打分学习后，设置页的调频方式只剩开启 / 一次置顶 / 关闭；老配置里的 halve / linear 与未知值显示成「开启」，
+// 页面只改显示，不改写配置里的值。
+TEST_CASE(frequency_mode_choice_folds_retired_modes_onto_enabled)
+{
+    REQUIRE_EQ(native_settings::FrequencyModeChoice("promote"), std::string("promote"));
+    REQUIRE_EQ(native_settings::FrequencyModeChoice("pin"), std::string("pin"));
+    REQUIRE_EQ(native_settings::FrequencyModeChoice("disabled"), std::string("disabled"));
+    REQUIRE_EQ(native_settings::FrequencyModeChoice("halve"), std::string("promote"));
+    REQUIRE_EQ(native_settings::FrequencyModeChoice("linear"), std::string("promote"));
+    REQUIRE_EQ(native_settings::FrequencyModeChoice(""), std::string("promote"));
+    REQUIRE_EQ(native_settings::FrequencyModeChoice("nonsense"), std::string("promote"));
 }

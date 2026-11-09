@@ -488,7 +488,7 @@ VisualPtr SkinPage::Build(PageContext &)
     // `.external-skin-heading`.
     auto titles = std::make_shared<Column>(0.0f);
     titles->Add(MakeTitle(L"外部皮肤"));
-    titles->Add(MakeDescription(L"把包含 skin.toml 的皮肤文件夹复制到下面的目录，然后刷新。"));
+    titles->Add(MakeDescription(L"把含 skin.toml 的皮肤文件夹放进下面的目录后刷新"));
     directory_ = std::make_shared<CodeChip>();
     directory_->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
     auto chipRow = std::make_shared<Row>(0.0f);

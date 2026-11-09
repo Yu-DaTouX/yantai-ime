@@ -666,8 +666,7 @@ VisualPtr BuildAboutPage(PageContext &context)
     {
         auto left = std::make_shared<Column>(0.0f);
         left->Add(MakeLabel(L"自动下载更新", DocStyle(13.0f, DWRITE_FONT_WEIGHT_MEDIUM), TextRole::Primary));
-        auto detail =
-            MakeLabel(L"发现新版本时由输入法后台下载并校验，下载完成后询问是否安装", DocStyle(12.0f), TextRole::Muted);
+        auto detail = MakeLabel(L"后台下载并校验，完成后询问是否安装", DocStyle(12.0f), TextRole::Muted);
         detail->SetMargin({0.0f, 5.0f, 0.0f, 0.0f});
         left->Add(detail);
         // 后台进度：Server 每收到一块数据就更新一次 progress.txt，这里定时读。
@@ -764,9 +763,6 @@ VisualPtr BuildAboutPage(PageContext &context)
 
     // 输入法进程与设置窗口
     {
-        Dropdown::Options linger;
-        linger.minWidth = 150.0f;
-        linger.matchToggleWidth = true;
         auto restart = std::make_shared<Button>(L"重启", ButtonKind::Secondary);
         std::weak_ptr<Button> weakRestart = restart;
         restart->SetOnClick([model, weakRestart]() {
@@ -787,44 +783,29 @@ VisualPtr BuildAboutPage(PageContext &context)
             }
         });
         page.AddSection(MakeRows({
-            MakeRow(L"重启输入法进程", L"立即重启输入法后台进程，使需要重启的设置生效。", restart),
-            MakeRow(L"设置窗口后台驻留",
-                    L"关闭设置窗口后在后台保留一段时间，期间重新打开无需等待加载；驻留越久占用内存越久。",
-                    BindDropdown(context, "appearance.settings_window_linger",
-                                 Options({{"off", L"关闭后立即退出"},
-                                          {"1m", L"1 分钟"},
-                                          {"5m", L"5 分钟"},
-                                          {"10m", L"10 分钟"},
-                                          {"30m", L"30 分钟"},
-                                          {"60m", L"1 小时"},
-                                          {"forever", L"一直驻留"}}),
-                                 linger)),
+            MakeRow(L"重启输入法进程", L"使需要重启的设置生效", restart),
         }));
     }
 
-    page.AddSection(MakeRow(L"启动动画",
-                            L"打开设置窗口时先在窗口中央显示齿轮图标，再淡入主界面。关闭后只短暂显示纯色背景。",
-                            BindToggle(context, "appearance.settings_launch_animation")));
-    page.AddSection(
-        MakeRow(L"Server 端日志",
-                L"排查 Server "
-                L"通信和输入延迟时开启。记录慢请求阶段、候选窗、悬浮工具栏、菜单、焦点会话和通信状态，不记录按键、输入"
-                L"内容或候选文本。日志写到数据目录的 logs 文件夹，文件名带生成时间，例如 "
-                L"水杉IME诊断日志-server-20261029-153012.log。",
-                BindToggle(context, "general.diagnostic_log")));
-    page.AddSection(MakeRow(L"TSF 端日志",
-                            L"排查应用内预编辑和输入延迟时开启。TSF "
-                            L"日志会在内存中限量缓冲，并通过独立管道批量汇总到同一个 logs 文件夹，文件名以 tsf "
-                            L"标识，与 Server 日志分开保存；不记录按键、输入内容或候选文本。",
-                            BindToggle(context, "general.tsf_diagnostic_log")));
+    // 诊断日志只为排错存在，收进默认折叠的「高级」。
     {
+        auto expander = MakeExpander(L"高级");
+        auto details = std::make_shared<Column>(0.0f);
+        details->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
+        details->Add(MakeRow(L"Server 端日志", L"记录慢请求与通信状态，不含输入内容",
+                             BindToggle(context, "general.diagnostic_log"), true));
+        details->Add(MakeRow(L"TSF 端日志", L"记录应用内预编辑与延迟，不含输入内容",
+                             BindToggle(context, "general.tsf_diagnostic_log"), true));
         auto openLogs = std::make_shared<Button>(L"打开日志目录", ButtonKind::Secondary);
         openLogs->SetOnClick([model]() { model->Post("openLogDirectory"); });
-        page.AddSection(MakeRow(
-            L"日志文件", L"复现一次后打开日志文件夹，发送最近生成的那份文件。最多保留最近 10 个文件，旧的自动删除。",
-            openLogs));
+        details->Add(MakeRow(L"日志文件", L"最多保留最近 10 个", openLogs, true));
+        auto hideable = std::make_shared<Hideable>(details, false);
+        BindExpander(expander, hideable);
+        auto column = std::make_shared<Column>(0.0f);
+        column->Add(std::make_shared<SettingRow>(expander, nullptr));
+        column->Add(hideable);
+        page.AddSection(column);
     }
-    // 用户数据备份：导出不停 Server，导入先完整校验再停机应用。
     {
         auto backup = std::make_shared<AboutBackupState>();
         state->backup = backup;
@@ -876,13 +857,9 @@ VisualPtr BuildAboutPage(PageContext &context)
             host->ShowToast(Widen(text), ok);
         });
         page.AddSection(MakeRows({
-            MakeRow(L"导出用户数据", L"把配置、统计、用户皮肤、用户词条和模型打包成 ZIP。导出时输入法继续运行。",
-                    export_button),
-            MakeRow(L"包含已下载模型",
-                    L"勾选时把数据目录 models/ 下的模型一起打包；导入按 ZIP 内容恢复，没有模型条目的 ZIP "
-                    L"不会删除本地已有模型。",
-                    include_models),
-            MakeRow(L"导入用户数据", L"先完整校验 ZIP，通过后才停止输入法并覆盖文件；词库只合并条目。", import_button),
+            MakeRow(L"导出用户数据", L"把配置、皮肤、词条等打包成 ZIP", export_button),
+            MakeRow(L"包含已下载模型", L"一并打包 models/ 下的模型", include_models),
+            MakeRow(L"导入用户数据", L"先校验 ZIP，通过后才覆盖；词库只合并", import_button),
         }));
     }
     // The button's handler only holds the state weakly (the state holds the button), so

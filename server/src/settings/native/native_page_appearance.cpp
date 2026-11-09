@@ -525,17 +525,9 @@ VisualPtr BuildAppearancePage(PageContext &context)
                 rows->Add(std::make_shared<Divider>());
             rows->Add(std::move(row));
         };
-        addRow(MakeRow(L"候选窗口按文字收紧宽度",
-                       L"窗口宽度严格按候选文字所需渲染，不保留最小宽度；皮肤自身开启时始终收紧",
+        addRow(MakeRow(L"候选窗口按文字收紧宽度", L"不保留最小宽度",
                        BindToggle(context, "appearance.candidate_window_fit_content")),
                false);
-        addRow(MakeRow(L"候选窗口跟随光标", L"关闭后保持首次位置，直到候选窗口消失",
-                       BindToggle(context, "appearance.candidate_window_follow_cursor")));
-        addRow(MakeRow(L"固定候选徽标", L"为手动固定的候选词显示角标，便于辨认",
-                       BindToggle(context, "appearance.candidate_fixed_badge")));
-        addRow(MakeRow(L"固定候选徽标样式", L"",
-                       BindDropdown(context, "appearance.candidate_fixed_badge_style",
-                                    Options({{"paperclip", L"回形针"}, {"pushpin", L"图钉"}, {"dot", L"圆点"}}))));
 
         // 候选窗主字体: searchable system font list, each row in its own font.
         Dropdown::Options fontOptions;
@@ -546,16 +538,9 @@ VisualPtr BuildAppearancePage(PageContext &context)
         auto fontDropdown = BindDropdown(context, "appearance.english_font", {}, fontOptions);
         addRow(MakeRow(L"候选窗主字体", L"", fontDropdown));
 
-        addRow(MakeRow(L"候选窗补充字体", L"主字体缺字时按以下顺序回落，最后使用系统字体。", nullptr));
-        auto fallback = std::make_shared<FallbackFontEditor>(context.model, context.host);
-        rows->Add(fallback->Panel());
-
         addRow(MakeRow(L"候选窗字号", L"",
                        BindDropdown(context, "appearance.font_size", NumberOptions(12, 32), Dropdown::Options{true},
                                     ValueKind::Integer)));
-        addRow(MakeRow(L"候选窗预编辑字号", L"",
-                       BindDropdown(context, "appearance.candidate_window_preedit_font_size", NumberOptions(12, 32),
-                                    Dropdown::Options{true}, ValueKind::Integer)));
 
         // 候选文字颜色
         auto swatch = std::make_shared<ColorSwatch>();
@@ -588,6 +573,27 @@ VisualPtr BuildAppearancePage(PageContext &context)
         addRow(MakeRow(L"每页候选项数量", L"",
                        BindDropdown(context, "appearance.page_size", NumberOptions(3, 9), Dropdown::Options{true},
                                     ValueKind::Integer)));
+
+        // 高级：补充字体与预编辑字号，默认折叠。
+        auto advancedExpander = MakeExpander(L"高级");
+        rows->Add(std::make_shared<Divider>());
+        rows->Add(std::make_shared<SettingRow>(advancedExpander, nullptr));
+        auto advanced = std::make_shared<Column>(0.0f);
+        advanced->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
+        auto advancedRow = [&advanced](const std::shared_ptr<SettingRow> &row) {
+            row->SetMinHeight(38.0f);
+            advanced->Add(row);
+        };
+        advancedRow(MakeRow(L"预编辑字号", L"",
+                            BindDropdown(context, "appearance.candidate_window_preedit_font_size",
+                                         NumberOptions(12, 32), Dropdown::Options{true}, ValueKind::Integer),
+                            true));
+        advancedRow(MakeRow(L"补充字体", L"主字体缺字时按顺序回落", nullptr, true));
+        auto fallback = std::make_shared<FallbackFontEditor>(context.model, context.host);
+        advanced->Add(fallback->Panel());
+        auto advancedDetails = std::make_shared<Hideable>(advanced, false);
+        BindExpander(advancedExpander, advancedDetails);
+        rows->Add(advancedDetails);
         page.AddSection(rows);
 
         std::weak_ptr<Dropdown> weakFont = fontDropdown;
@@ -658,7 +664,7 @@ VisualPtr BuildAppearancePage(PageContext &context)
         MakeRow(L"候选项排列方式", L"",
                 BindDropdown(context, "appearance.candidate_window_layout",
                              Options({{"horizontal", L"横向"}, {"vertical", L"纵向"}}))),
-        MakeRow(L"横向候选强制单行", L"仅横向排列时生效：候选窗口最宽可到当前屏幕宽度，超出屏幕才换行",
+        MakeRow(L"横向候选强制单行", L"仅横向排列时生效，最宽到屏幕宽度",
                 BindToggle(context, "appearance.candidate_window_single_line")),
     }));
 
