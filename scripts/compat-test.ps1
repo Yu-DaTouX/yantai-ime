@@ -59,7 +59,7 @@ function Down([byte]$vk) { [U]::keybd_event($vk, [byte][U]::MapVirtualKey($vk, 0
 function Up([byte]$vk) { [U]::keybd_event($vk, [byte][U]::MapVirtualKey($vk, 0), 2, [UIntPtr]::Zero) }
 function Tap([byte]$vk) { Guard; Down $vk; Start-Sleep -Milliseconds 35; Up $vk; Start-Sleep -Milliseconds 70 }
 function Chord([byte[]]$mods, [byte]$vk) { Guard; try { foreach ($m in $mods) { Down $m }; Down $vk; Start-Sleep -Milliseconds 35; Up $vk } finally { foreach ($m in $mods) { Up $m } }; Start-Sleep -Milliseconds 120 }
-function TypeKeys([string]$s) { foreach ($c in $s.ToCharArray()) { Tap ([byte][char]([string]$c).ToUpper()) } }
+function TypeKeys([string]$s) { foreach ($c in $s.ToCharArray()) { Tap ([byte][char]([string]$c).ToUpper()); Snap "key-$c" } }
 
 function Cand {
     $srv = Get-Process MetasequoiaImeServer -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -117,7 +117,7 @@ function Run-Suite($app, [bool]$canRead) {
         if ($Only -and $case.n -notlike "*$Only*") { continue }
         $row = [ordered]@{ app = $app; case = $case.n; text = ''; pass = $null; cand = ''; note = '' }
         try {
-            if ($canRead) { Clear-Field }
+            if ($canRead) { Clear-Field; Snap 'cleared' }
             & $case.k
             Start-Sleep -Milliseconds 350
             if ($case.cand) { $c = Cand; $row.cand = $c.why; if ($c.rect -and $c.ok) { [void](Shot "$app-$($case.n)" $c.rect) } }
@@ -152,10 +152,15 @@ function Launch([scriptblock]$start, [string]$procRegex, [int]$timeoutSec = 25) 
     return [IntPtr]::Zero
 }
 function Focus($h) {
+    $usedAlt = $false
     for ($i = 0; $i -lt 10; $i++) {
         $fg = [U]::GetAncestor([U]::GetForegroundWindow(), 3)
-        if ($fg -eq $h -or [U]::Pid($fg) -eq [U]::Pid($h)) { return $true }
-        Down $VK.Alt; [void][U]::SetForegroundWindow($h); Up $VK.Alt; Start-Sleep -Milliseconds 400
+        if ($fg -eq $h -or [U]::Pid($fg) -eq [U]::Pid($h)) {
+            # 单按 Alt 会让新版记事本、Office 进入菜单快捷字母模式，接下来的第一个字母会被菜单吃掉。
+            if ($usedAlt) { Down $VK.Esc; Start-Sleep -Milliseconds 35; Up $VK.Esc; Start-Sleep -Milliseconds 150 }
+            return $true
+        }
+        Down $VK.Alt; [void][U]::SetForegroundWindow($h); Up $VK.Alt; $usedAlt = $true; Start-Sleep -Milliseconds 400
     }
     return $false
 }
@@ -187,7 +192,7 @@ try {
         switch ($app) {
             'notepad' {
                 if (Get-Process Notepad -ErrorAction SilentlyContinue) { $skip = '测试前记事本已在运行，跳过以免碰到你的文档' }
-                else { $h = Launch { & "$env:windir\System32\notepad.exe" } '^Notepad$' }
+                else { $h = Launch { & "$env:windir\System32\notepad.exe" } '^Notepad$'; $post = { Start-Sleep 1 } }
             }
             'chrome' {
                 $prof = Join-Path $Scratch 'chrome-profile'; $kill = $prof
