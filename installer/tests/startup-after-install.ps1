@@ -27,6 +27,12 @@ if ($step.IndexOf('StartImeForUser') -lt $step.IndexOf('CreateWatchdogLogonTask'
 if ($start -notmatch '/Run /TN "\{#MyWatchdogTaskName\}"') { $failures += 'must start the watchdog with schtasks /Run first' }
 if ($start -notmatch 'ShellExecAsOriginalUser') { $failures += 'must fall back to ShellExecAsOriginalUser' }
 if ($start -notmatch "WaitForProcess\('\{#MyAppExeName\}'") { $failures += 'must wait for the server process' }
+$probe = Get-Body 'function IsProcessRunning'
+if ($probe -match '\|\s*find' -or $probe -notmatch 'LoadStringFromFile' -or $probe -notmatch '/FO CSV') {
+    $failures += 'IsProcessRunning must read tasklist CSV output from a file, not pipe through find'
+}
+# Launch mutex: only the TSF DLL honours it (windows/src/IME/MetasequoiaIME.cpp); Watchdog and Server
+# never open it, and Inno Setup CreateMutex has no release API, so StartImeForUser needs no handle release.
 if ($start -match 'MsgBox') { $failures += 'must not show a message box' }
 if ($iss -match 'LaunchInstalledComponents\s*;') { $failures += 'launching from the finish page is back (silent installs skip it)' }
 

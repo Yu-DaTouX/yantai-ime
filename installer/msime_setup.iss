@@ -1717,21 +1717,28 @@ begin
     Log('keyboard list registration exit code: ' + IntToStr(ErrorCode));
 end;
 
-{ 进程是否在运行；用 tasklist 而不是枚举 API，Pascal Script 里没有后者。}
+{ 进程是否在运行：tasklist 的 CSV 输出写到临时文件再读回来判断，不依赖管道和退出码
+  （tasklist 找不到进程时退出码也是 0，只会输出一行“信息”）。}
 function IsProcessRunning(const ImageName: String): Boolean;
 var
   ResultCode: Integer;
+  OutPath: String;
+  Output: AnsiString;
 begin
-  Result :=
-    Exec(
-      ExpandConstant('{cmd}'),
-      '/S /C "tasklist /FI "IMAGENAME eq ' + ImageName + '" /NH | find /I "' +
-        ImageName + '" >nul"',
-      '',
-      SW_HIDE,
-      ewWaitUntilTerminated,
-      ResultCode
-    ) and (ResultCode = 0);
+  Result := False;
+  OutPath := ExpandConstant('{tmp}\msime_tasklist.txt');
+  DeleteFile(OutPath);
+  if Exec(
+    ExpandConstant('{cmd}'),
+    '/S /C ""' + ExpandConstant('{sys}\tasklist.exe') + '" /FI "IMAGENAME eq ' +
+      ImageName + '" /NH /FO CSV > "' + OutPath + '""',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) and LoadStringFromFile(OutPath, Output) then
+    Result := Pos('"' + Lowercase(ImageName) + '"', Lowercase(String(Output))) > 0;
+  DeleteFile(OutPath);
 end;
 
 function WaitForProcess(const ImageName: String; const TimeoutMs: Integer): Boolean;
