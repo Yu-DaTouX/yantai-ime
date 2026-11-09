@@ -17,17 +17,17 @@
 
 ## 三条通道的签名差异
 
-三条通道的证书由 [`installer/README.md`](../installer/README.md#三个通道怎么选) 维护，签名策略见 [`code-signing-policy.md`](code-signing-policy.md)。
+通道的证书由 [`installer/README.md`](../installer/README.md#通道怎么选) 维护，签名策略见 [`code-signing-policy.md`](code-signing-policy.md)。
 
-| | 正式发布 | Nightly | Dev build |
-|---|---|---|---|
-| 版本串 | `0.7.1` | `0.7.1-nightly.<日期>.<commit>` | `0.7.1-dev.<日期>.<commit>` |
-| 签名证书 | 真实代码签名证书或 SignPath Foundation 证书 | 固定自签名证书 | 每次运行现场生成的自签名证书 |
-| 证书 Subject | 随发布渠道变化，以实际文件签名为准 | `CN=Metasequoia IME Windows Nightly Build Code Signing` | `CN=Metasequoia IME Dev Build Code Signing` |
-| 证书有效期 | 由证书决定 | 3 年，到期换发 | 90 天，每次构建换新 |
-| 用户要不要导入信任 | 不要 | 导入一次 `nightly-signing.cer`，之后所有 nightly 通用 | 每个新构建都要导入随包的 `.cer` |
-| 未导入信任时的签名状态 | `Valid` | `NotTrusted` / `UnknownError` | `NotTrusted` / `UnknownError` |
-| 更新检查 | 提示升级 | 不提示 | 不提示 |
+| | 正式发布 | Dev build |
+|---|---|---|
+| 版本串 | `0.7.1` | `0.7.1-dev.<日期>.<commit>` |
+| 签名证书 | 真实代码签名证书或 SignPath Foundation 证书 | 每次运行现场生成的自签名证书 |
+| 证书 Subject | 随发布渠道变化，以实际文件签名为准 | `CN=Metasequoia IME Dev Build Code Signing` |
+| 证书有效期 | 由证书决定 | 90 天，每次构建换新 |
+| 用户要不要导入信任 | 不要 | 每个新构建都要导入随包的 `.cer` |
+| 未导入信任时的签名状态 | `Valid` | `NotTrusted` / `UnknownError` |
+| 更新检查 | 提示升级 | 不提示 |
 
 两个推论：
 
