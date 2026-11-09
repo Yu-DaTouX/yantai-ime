@@ -24,7 +24,7 @@
 `SentenceAssociationOptions::context_candidate_rerank` 对应
 `[association] context_candidate_rerank = false`，默认关闭。
 Server 配置读写、出厂模板、开发模板、设置进程 snapshot/update 与原生开关均有映射。
-设置入口在输入页「整句候选」区域的「上文词库重排（实验）」。
+设置入口在输入页「整句候选 → 高级」里的「上文词库重排（实验）」。
 此开关独立使用轻量模型，不依赖神经整句或 Trigram 显示开关。
 
 ## 验证
