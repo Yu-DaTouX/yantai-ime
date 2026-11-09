@@ -31,6 +31,7 @@
 #include "session/session_factory.h"
 #include "log/candidate_diag_log.h"
 #include "log/ftb_diag_log.h"
+#include "translation/selection_translate_service.h"
 
 using namespace event_listener_detail;
 
@@ -559,6 +560,8 @@ void WorkerThread()
             CAND_DIAG_LOGF(L"client activated client={} epoch={} hwnd_present={}", task.client_id,
                            task.activation_epoch, ::global_hwnd != nullptr);
             PostHideCaretState();
+            // 选中翻译进行中或可还原时，换了窗口就不再属于当前选区。
+            translation::selection_service::OnRouteChanged();
             // Activation replaces all composition/candidate state from the
             // previous focus session. A terminal TIP activation also makes
             // the configured floating toolbar visible. Re-activation after a
@@ -597,6 +600,8 @@ void WorkerThread()
         case TaskType::ClientDeactivated: {
             CAND_DIAG_LOGF(L"client deactivated client={} epoch={}", task.client_id, task.activation_epoch);
             PostHideCaretState();
+            // 选中翻译进行中或可还原时，换了窗口就不再属于当前选区。
+            translation::selection_service::OnRouteChanged();
             // Unlike a route-only suspension, terminal TIP deactivation means
             // the user switched to another input method. Forget the previous
             // global authority so switching back starts from default_ime_mode
@@ -620,6 +625,8 @@ void WorkerThread()
         case TaskType::ClientSuspended: {
             CAND_DIAG_LOGF(L"client suspended client={} epoch={}", task.client_id, task.activation_epoch);
             PostHideCaretState();
+            // 选中翻译进行中或可还原时，换了窗口就不再属于当前选区。
+            translation::selection_service::OnRouteChanged();
             // A suspension rotates the IPC focus session while the TIP may
             // still own thread focus. It clears candidates just like terminal
             // deactivation, but never changes floating-toolbar visibility.

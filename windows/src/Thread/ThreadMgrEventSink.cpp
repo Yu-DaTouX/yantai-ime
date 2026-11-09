@@ -96,6 +96,8 @@ STDAPI CMetasequoiaIME::OnSetFocus(_In_ ITfDocumentMgr *pDocMgrFocus, _In_ ITfDo
         // editors share an HWND (or expose none). This hides only the badge;
         // candidate and input state follow their own focus rules below.
         SendHideCaretStateEventToUIProcessViaNamedPipe();
+        // The translation can only be restored in the document it was written to.
+        _SelectionTranslateForget();
     }
 
     const bool windowsTextInputHostTransition =

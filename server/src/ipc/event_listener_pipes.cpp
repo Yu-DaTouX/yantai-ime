@@ -16,6 +16,7 @@
 #include "global/globals.h"
 #include "config/ime_config.h"
 #include "settings/update_check.h"
+#include "translation/selection_translate_service.h"
 #include "window/window_hook.h"
 #include "watchdog/watchdog_protocol.h"
 #include "log/candidate_diag_log.h"
@@ -178,6 +179,7 @@ bool IsKnownMainPipeEvent(UINT event_type)
     case FanyImePipeEventType::ClientSuspended:
     case FanyImePipeEventType::FocusRestored:
     case FanyImePipeEventType::HideCaretState:
+    case FanyImePipeEventType::SelectionTranslateReport:
         return true;
     default:
         return false;
@@ -536,6 +538,12 @@ void MainPipeClientThread(HANDLE clientPipe, uint64_t handlerId)
 
         case FanyImePipeEventType::HideCaretState: {
             EnqueueTask(TaskType::HideCaretState, pipeData, activation.epoch);
+            break;
+        }
+
+        case FanyImePipeEventType::SelectionTranslateReport: {
+            // 选中翻译的答复只在 Server 发过命令之后才有意义，状态机自己核对任务号和客户端。
+            translation::selection_service::OnTsfReport(clientId, activation.epoch, pipeData);
             break;
         }
 

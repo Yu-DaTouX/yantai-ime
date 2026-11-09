@@ -121,6 +121,9 @@ constexpr std::uint32_t PuncSwitch = 8;
 constexpr std::uint32_t DoubleSingleByteSwitch = 9;
 // Main, negotiated InputStateShortcuts: keycode is the stable input-state Action ID.
 constexpr std::uint32_t InputStateAction = 17;
+// TSF -> Server answer to a SelectionTranslateCommand (selection_translate.h ReportKind). It only ever follows a
+// command the Server sent, so it needs no capability bit; the Server drops it unless it comes from the active client.
+constexpr std::uint32_t SelectionTranslateReport = 18;
 constexpr bool IsRouteDeactivation(std::uint32_t event_type)
 {
     return event_type == ClientDeactivated || event_type == ClientSuspended;
@@ -456,7 +459,11 @@ constexpr std::uint32_t EnglishSensesPageChanged = 42;
 // Retired Ctrl+T draft-translation worker replies. Published opcodes stay reserved; never reuse them.
 constexpr std::uint32_t Reserved43 = 43;
 constexpr std::uint32_t Reserved44 = 44;
-constexpr std::uint32_t MaxKnown = EnglishSensesPageChanged;
+// Selection translation ("译" button): the Server asks the TSF client to read, replace or restore the host
+// selection. Payload and chunking are defined in selection_translate.h. A DLL without this opcode filters the frame
+// as above MaxKnown and never answers, which the Server reports as an unsupported host.
+constexpr std::uint32_t SelectionTranslateCommand = 45;
+constexpr std::uint32_t MaxKnown = SelectionTranslateCommand;
 // Source compatibility for the Server's historical spellings.
 constexpr std::uint32_t SwitchToEn = SwitchToEnglish;
 constexpr std::uint32_t SwitchToCn = SwitchToChinese;

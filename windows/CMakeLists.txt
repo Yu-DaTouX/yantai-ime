@@ -116,6 +116,7 @@ add_library(${PROJECT_NAME} SHARED
     "./src/Edit/EditSession.h"
     "./src/Edit/GetTextExtentEditSession.cpp"
     "./src/Edit/GetTextExtentEditSession.h"
+    "./src/Edit/SelectionTranslate.cpp"
     "./src/Edit/TextEditSink.cpp"
     # Global
     "./src/Global/FanyDefines.h"

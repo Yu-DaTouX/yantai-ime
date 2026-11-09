@@ -134,6 +134,7 @@ STDAPI CMetasequoiaIME::OnEndEdit(__RPC__in_opt ITfContext *pContext, TfEditCook
     }
     if (SUCCEEDED(pEditRecord->GetSelectionStatus(&isSelectionChanged)) && isSelectionChanged)
     {
+        _SelectionTranslateOnSelectionChanged(pContext, ecReadOnly);
         // If the selection is moved to out side of the current composition,
         // we terminate the composition. This TextService supports only one
         // composition in one context object.

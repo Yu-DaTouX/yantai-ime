@@ -117,6 +117,11 @@ KeyEventSendResult SendKeyEventToUIProcessViaNamedPipe(_Out_opt_ uint64_t *reque
                                                        unsigned inputStateAction = 0);
 int SendHideCandidateWndEventToUIProcessViaNamedPipe();
 int SendHideCaretStateEventToUIProcessViaNamedPipe();
+// Answers a Server SelectionTranslateCommand (selection_translate.h). kind is a ReportKind, failure a Failure; text is
+// one read chunk (at most kUpChunkChars). Preserves whatever candidate packet is staged for the next send.
+bool SendSelectionTranslateReportViaNamedPipe(std::uint32_t kind, std::uint32_t job, std::uint32_t failure,
+                                              std::uint32_t seq, std::uint32_t total, const wchar_t *text,
+                                              std::size_t length);
 int SendShowCandidateWndEventToUIProcessViaNamedPipe();
 int SendMoveCandidateWndEventToUIProcessViaNamedPipe();
 int SendLangbarRightClickEventToUIProcessViaNamedPipe(const RECT *prcArea);

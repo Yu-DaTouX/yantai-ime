@@ -4,6 +4,7 @@
 #include "MetasequoiaIMEBaseStructure.h"
 #include "Ipc.h"
 #include "DeferredKeyFailurePolicy.h"
+#include "../../../engine/contracts/selection_translate.h"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -52,6 +53,8 @@ const DWORD WM_CommitCandidateAndContinue = WM_USER + 28;
 const DWORD WM_SyncCapsLockPunctuation = WM_USER + 30;
 const DWORD WM_ApplyUiLessCandidates = WM_USER + 31;
 const DWORD WM_ApplyCapsLockEdge = WM_USER + 32;
+// Server -> TSF selection translation command (selection_translate.h), delivered like a candidate commit.
+const DWORD WM_SelectionTranslate = WM_USER + 33;
 constexpr ULONG_PTR SMART_PUNCTUATION_SENDINPUT_EXTRA_INFO = 0x4D535050u;
 constexpr ULONG_PTR PAIRED_PUNCTUATION_SENDINPUT_EXTRA_INFO = 0x4D535051u;
 // Synthetic input that this tip generates carries a marker meaning "this tip
@@ -489,6 +492,28 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     bool _TakePendingServerCandidate(_Out_ UINT *pMsgType, _Out_ std::wstring *pCandidateString);
     void _ScheduleCandidatePresenterCleanup(_In_ CCandidateListUIPresenter *pPresenter);
     void _DrainPendingCandidatePresenterCleanup();
+
+    // Selection translation ("译" button): the owner thread reads, replaces and restores the host selection on the
+    // Server's command and reports back. State is only touched from the owner thread.
+    struct SelectionTranslateState
+    {
+        FanyImeSelectionTranslate::ChunkAssembler assembler;
+        uint32_t readJob = 0;
+        std::wstring readOriginal;
+        // What "还原" needs: the original text, the translation as the host holds it, and the document it is in.
+        uint32_t restoreJob = 0;
+        std::wstring original;
+        std::wstring translated;
+        ITfContext *restoreContext = nullptr; // identity only, never dereferenced
+    };
+    SelectionTranslateState _selectionTranslate;
+    void _HandleSelectionTranslate(_In_ ITfContext *context, const FanyImeSelectionTranslate::DownFrame &frame);
+    void _SelectionTranslateOnSelectionChanged(_In_ ITfContext *context, TfEditCookie ec);
+    void _SelectionTranslateForget();
+    void _ReportSelectionTranslate(
+        FanyImeSelectionTranslate::ReportKind kind, uint32_t job,
+        FanyImeSelectionTranslate::Failure failure = FanyImeSelectionTranslate::Failure::None, uint32_t seq = 0,
+        uint32_t total = 1, const std::wstring *chunk = nullptr);
 
   private:
     // functions for the composition object.

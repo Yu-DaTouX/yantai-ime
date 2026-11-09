@@ -34,7 +34,7 @@ int main()
     CHECK(FanyImeProtocol::ReservedCapability8 == (1u << 8));
     CHECK(FanyImeWorkerReplyType::Reserved36 == 36);
     CHECK(FanyImeWorkerReplyType::UpdateInstallerReady == 40);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::EnglishSensesPageChanged);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::SelectionTranslateCommand);
     CHECK(FanyImePipeEventType::HideCaretState == 16);
     CHECK(FanyImePipeEventType::HideCaretState != FanyImePipeEventType::HideCandidateWnd);
     CHECK(!FanyImePipeEventType::IsRouteDeactivation(FanyImePipeEventType::HideCaretState));
@@ -119,6 +119,8 @@ int main()
     CHECK(FanyImeProtocol::ReservedCapability10 == (1u << 10));
     CHECK(FanyImeWorkerReplyType::Reserved43 == 43);
     CHECK(FanyImeWorkerReplyType::Reserved44 == 44);
+    CHECK(FanyImeWorkerReplyType::SelectionTranslateCommand == 45);
+    CHECK(FanyImePipeEventType::SelectionTranslateReport == 18);
     CHECK(FanyImeReplyType::TransportUnavailable > FanyImeReplyType::MaxKnown);
 
     hello.wch += 1;
@@ -164,7 +166,7 @@ int main()
     CHECK(FanyImeWorkerReplyType::HorizontalArrowSelectionChanged == 39);
     CHECK(FanyImeWorkerReplyType::UpdateInstallerReady == 40);
     CHECK(FanyImeWorkerReplyType::Reserved41 == 41);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::EnglishSensesPageChanged);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::SelectionTranslateCommand);
     // EnumerationCommaKeysChanged 的载荷：\ 和 / 各一位，两个都没勾按只有 \ 发。
     CHECK(FanyImeEnumerationComma::PayloadFor(true, false) == L'1' &&
           FanyImeEnumerationComma::PayloadFor(false, true) == L'2' &&

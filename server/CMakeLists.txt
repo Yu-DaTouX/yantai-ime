@@ -226,6 +226,9 @@ endif()
 
 set(SRC_FILES
     "./src/translation/translation_worker.cpp"
+    "./src/translation/sentence_split.cpp"
+    "./src/translation/selection_translate_state.cpp"
+    "./src/translation/selection_translate_service.cpp"
     "./src/translation/gloss_resolver.cpp"
     "./src/translation/gloss_service.cpp"
     "./src/translation/local_engine.cpp"
@@ -340,6 +343,7 @@ set(SRC_FILES
     "./src/window/tray_menu_presenter.cpp"
     "./src/window/tray_menu_presenter.h"
     "./src/window/floating_toolbar_presenter.cpp"
+    "./src/window/selection_translate_tip.cpp"
     "./src/window/floating_toolbar_presenter.h"
     "./src/window/floating_toolbar_image_layout.cpp"
     "./src/window/floating_toolbar_image_layout.h"

@@ -264,7 +264,8 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         bool validFrame = true;
         if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitCurCandidate ||
             buf.msg_type == Global::DataToTsfWorkerThreadMsgType::CommitCandidateAndContinue ||
-            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged)
+            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged ||
+            buf.msg_type == Global::DataToTsfWorkerThreadMsgType::SelectionTranslateCommand)
         {
             bool hasTerminator = false;
             for (const wchar_t ch : buf.data)
@@ -422,6 +423,7 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::FocusSessionReady ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::EnglishSensesPageChanged ||
+                buf.msg_type == Global::DataToTsfWorkerThreadMsgType::SelectionTranslateCommand ||
                 buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UpdateInstallerReady)
             {
                 continue;
@@ -472,6 +474,11 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         {
             // 英文词义清单页打开时，Esc / Backspace 要交给 Server 退回原中文候选（见 _IsKeyEaten）。
             Global::EnglishSensesPageActive.store(buf.data[0] == L'1', std::memory_order_relaxed);
+        }
+        else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::SelectionTranslateCommand)
+        {
+            // Needs the owner thread (edit sessions); the delivery checks the focus session like a commit does.
+            pIME->_PostServerTextDelivery(WM_SelectionTranslate, buf.data);
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::UiLessCandidatesChanged)
         {

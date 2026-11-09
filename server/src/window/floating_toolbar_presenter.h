@@ -15,6 +15,8 @@ class FloatingToolbarPresenter
     void SetOpacity(float opacity);
     void ApplyTheme();
     void ApplyAppearance();
+    // 选中翻译的按钮标签变了（译 / 译中 / 还原）：按当前状态重建按钮。
+    void RefreshTranslateButton();
     // suggestedRect: WM_DPICHANGED's recommended placement (lParam).
     void RelayoutHost(FLOAT scaleOverride = 0.0f, const RECT *suggestedRect = nullptr);
     void SyncUi(int cnEn, int doubleSingleByte, int punctuation, int englishInputMode, int capsLock);
