@@ -34,24 +34,31 @@ def ensure_pypinyin() -> None:
         subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", PYPINYIN], check=True)
 
 
-def content_digest(path: Path) -> str:
-    """others.db 的内容摘要：逐表按行排序后哈希，与 SQLite 版本导致的页布局差异无关。
+def table_digests(path: Path) -> dict[str, str]:
+    """others.db 每张表的内容摘要（行排序后哈希），与 SQLite 版本导致的页布局差异无关。
 
     整文件的 SHA-256 在不同机器上不稳：同样的行，Python 自带的 SQLite 版本不同，VACUUM 出来的
-    字节就可能不同。所以这里只认表里的内容。
+    字节就可能不同。所以这里只认表里的内容；分表给出，不一致时能直接看出是哪张表。
     """
-    digest = hashlib.sha256()
+    result = {}
     connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
     try:
         tables = sorted(row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"))
         for table in tables:
-            digest.update(f"\0table:{table}\0".encode())
-            rows = sorted(repr(row) for row in connection.execute(f'SELECT * FROM "{table}"'))
-            for row in rows:
+            digest = hashlib.sha256()
+            for row in sorted(repr(row) for row in connection.execute(f'SELECT * FROM "{table}"')):
                 digest.update(row.encode() + b"\n")
+            result[table] = digest.hexdigest()
     finally:
         connection.close()
+    return result
+
+
+def content_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    for table, value in table_digests(path).items():
+        digest.update(f"{table}:{value}\n".encode())
     return digest.hexdigest()
 
 

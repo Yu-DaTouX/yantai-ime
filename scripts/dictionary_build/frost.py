@@ -248,7 +248,8 @@ def verify(directory: Path, config: dict | None = None) -> dict:
         # others.db 在 support 原件之上补了符号表（symbol_patch），改按补丁后的内容摘要核对。
         if name == "others.db":
             if symbol_patch.content_digest(directory / name) != symbol_patch.lock()["others_content_sha256"]:
-                raise ValueError(f"Supporting dictionary changed: {name}")
+                raise ValueError(f"Supporting dictionary changed: {name} "
+                                     f"{symbol_patch.table_digests(directory / name)}")
             continue
         if sha256(directory / name) != digest:
             raise ValueError(f"Supporting dictionary changed: {name}")
