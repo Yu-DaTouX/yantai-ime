@@ -365,8 +365,46 @@ bool EnsureEnglishSchema()
     return true;
 }
 
+// 查询框留空时列出用户自己的词条（用户日志 msime_user.db 里手动新增、导入或改过权重的），
+// 按最近更新倒序。自动学习调频的出厂词不算「自己的词」。journal_kind：pinyin / english / latin。
+json::object QueryUserAdded(const std::string &journal_kind, const json::object &request)
+{
+    json::object empty = Result(true, "没有找到词条");
+    empty["rows"] = json::array{};
+    empty["hasMore"] = false;
+    empty["offset"] = 0;
+    const std::string path = user_dictionary::default_user_db_path();
+    if (!std::filesystem::exists(path) || !user_dictionary::ensure_user_database(path))
+        return empty;
+    sqlite3 *raw = nullptr;
+    if (sqlite3_open_v2(path.c_str(), &raw, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK)
+    {
+        const std::string reason = raw ? sqlite3_errmsg(raw) : "无法打开用户词库";
+        if (raw)
+            sqlite3_close(raw);
+        return Result(false, "打开用户词库失败：" + reason);
+    }
+    Db db(raw);
+    sqlite3_busy_timeout(db.get(), 3000);
+    std::string error;
+    const bool latin = journal_kind == "latin";
+    const bool english = journal_kind == "english";
+    const std::string sql =
+        latin ? "SELECT key,value,weight FROM user_latin_words ORDER BY updated_at DESC,key,value"
+              : std::string("SELECT key,") +
+                    (english ? "CASE WHEN display='' THEN value ELSE display END" : "value") +
+                    ",weight FROM user_dictionary_operations WHERE dictionary=?1 AND operation='upsert' "
+                    "AND (user_inserted=1 OR weight_edited=1) ORDER BY updated_at DESC,key,value";
+    Stmt stmt = Prepare(db.get(), sql + Paging::Sql(request), error);
+    if (!stmt || (!latin && !BindText(stmt.get(), 1, journal_kind)))
+        return Result(false, "查询失败：" + error);
+    return Paging::Read(stmt.get(), request, english);
+}
+
 json::object QueryChinese(const std::string &mode, const std::string &search, const json::object &request)
 {
+    if (search.empty())
+        return QueryUserAdded("pinyin", request);
     std::string error;
     Db db = OpenDatabase("msime.db", error);
     if (!db)
@@ -630,7 +668,7 @@ json::object QueryLatin(const json::object &request)
         code.push_back(static_cast<char>(std::tolower(ch)));
     }
     if (code.empty())
-        return Result(false, "请输入字母词的编码，只能是英文字母（例如 txu）");
+        return QueryUserAdded("latin", request);
 
     std::string error;
     Db db = OpenDatabase("msime.db", error);
@@ -1133,6 +1171,8 @@ json::object HandleEnglish(const json::object &request)
         return Result(false, "打开英文词库失败：" + error);
     if (action == "query")
     {
+        if (word.empty())
+            return QueryUserAdded("english", request);
         if (!IsAsciiWord(word))
             return Result(false, "请输入英文单词前缀");
         std::string upper = word;

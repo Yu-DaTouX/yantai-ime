@@ -961,6 +961,12 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
             g_worker->Submit([data] {
                 const bool saved = ApplyConfigUpdate(data);
                 const std::string path = json::value_to<std::string>(data.at("path"));
+                // 切换 Trigram / 神经网络整句后，已运行的 Server 里候选框不再出现，要重启才恢复：
+                // 保存成功后直接让 Watchdog 重启 Server，不再要用户手动点「重启」。
+                if (saved && (path == "association.sentence_wordlattice" ||
+                              path == "association.sentence_neural_desktop" ||
+                              path == "association.sentence_neural_keyboard"))
+                    NotifyImeServerRestart();
                 // The shortcut editor waits for persisted state even for a failed/no-op write.
                 const bool force_snapshot = IsInputStateShortcutPath(path);
                 auto completion = ConfigCompletion(false, force_snapshot);

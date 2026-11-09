@@ -824,13 +824,13 @@ void DictionaryPanel::SetDictionary(const std::string &dictionary)
                             : quanpin ? L"输入完整全拼，例如 nihao"
                             : latin   ? L"输入要敲的字母前缀，例如 txu"
                                       : L"输入编码前缀");
-    hint_->SetText(english   ? L"按英文前缀查询；批量导入：单词<Tab>显示内容<Tab>权重"
-                   : quanpin ? L"批量导入：词语<Tab>全拼[<Tab>权重]，兼容 Rime userdb.txt / dict.yaml"
-                   : latin ? L"字母词如 T恤、卡拉OK；批量导入：词语[<Tab>读音[<Tab>权重]]，读音留空自动注音"
+    hint_->SetText(english   ? L"留空查询显示你自己添加的词条；按英文前缀查询；批量导入：单词<Tab>显示内容<Tab>权重"
+                   : quanpin ? L"留空查询显示你自己添加的词条；批量导入：词语<Tab>全拼[<Tab>权重]，兼容 Rime userdb.txt / dict.yaml"
+                   : latin ? L"留空查询显示你自己添加的字母词；字母词如 T恤、卡拉OK；批量导入：词语[<Tab>读音[<Tab>权重]]，读音留空自动注音"
                            : L"批量导入：编码<Tab>内容<Tab>权重；换行写成 \\n，Tab 写成 \\t");
     header_->SetLabels(HeaderLabels());
     rows_.clear();
-    body_->SetEmpty(L"输入查询条件后查看词条");
+    body_->SetEmpty(L"点击「查询」查看你自己添加的词条，或输入编码、前缀后查询");
     if (onModeChanged_)
     {
         // A handler may tear down the panel that owns onModeChanged_ while it runs.
@@ -868,11 +868,7 @@ void DictionaryPanel::Query(size_t offset, bool fromInput)
 {
     if (fromInput || offset == 0)
         lastQuery_ = Trim(search_->GetText());
-    if (kind_ == Kind::Dictionary && lastQuery_.empty())
-    {
-        context_.host.ShowToast(L"请输入查询内容", false);
-        return;
-    }
+    // 留空查询 = 列出用户自己添加或改过权重的词条（服务端按词库分别处理）。
     PostQuery(offset);
 }
 
@@ -893,8 +889,8 @@ void DictionaryPanel::RefreshQuery()
         PostQuery(offset_);
         return;
     }
-    if (!lastQuery_.empty())
-        PostQuery(offset_);
+    // 留空时同样刷新：此时列的是用户自己的词条，增删改之后要立刻反映出来。
+    PostQuery(offset_);
 }
 
 void DictionaryPanel::SyncPager()
