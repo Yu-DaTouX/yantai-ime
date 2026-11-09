@@ -40,6 +40,8 @@ inline const UINT WM_COMMIT_CANDIDATE_AT = WM_USER + 126;
 inline const UINT WM_EXPAND_CANDIDATES = WM_USER + 127;
 // 候选窗自己投递给自己：切换卷轴展开面板。放到消息队列里做，免得在鼠标分发途中改场景。
 inline const UINT WM_TOGGLE_CANDIDATE_EXPAND = WM_USER + 128;
+// 选中翻译状态变了（按钮标签、提示）。投递给悬浮工具栏窗口，wParam 是 translation::selection::Tip（0 为无提示）。
+inline const UINT WM_SELECTION_TRANSLATE_UI = WM_USER + 129;
 
 // wParam of WM_PAGE_CANDIDATE / WM_PAGE_CANDIDATE_ARROW; lParam carries how many pages to move.
 inline constexpr WPARAM CANDIDATE_PAGE_PREVIOUS = 0;

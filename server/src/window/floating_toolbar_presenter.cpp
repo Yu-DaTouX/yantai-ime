@@ -9,6 +9,7 @@
 #include "log/ftb_diag_log.h"
 #include "settings/settings_launcher.h"
 #include "skin/candidate_skin_catalog.h"
+#include "translation/selection_translate_service.h"
 #include "utils/common_utils.h"
 #include "utils/window_utils.h"
 #include "window/small_windows.h"
@@ -204,8 +205,19 @@ class ToolbarIconButton : public msimeui::Visual
         const bool useGlyph = glyph_ != 0 && !glyphFamily_.empty();
         const std::wstring family = useGlyph ? glyphFamily_ : std::wstring(msimeui::UiFontFamily());
         // 带下划线的 "En" 比图标字形小一号，比例跟着图标字号走。
-        const float fontSize =
+        float fontSize =
             underline_ ? glyphSize_ * (kToolbarUnderlinedTextFontSizeFactor / kToolbarGlyphFontSizeFactor) : glyphSize_;
+        if (!useGlyph && !underline_ && text_.size() > 1)
+        {
+            // 「还原」「译中」「2/5」这类多字标签要塞进一个按钮：汉字按一个字号宽、拉丁字符约 0.55
+            // 个字号宽估算，超出就缩小。
+            float em = 0.0f;
+            for (const wchar_t ch : text_)
+                em += ch < 0x80 ? 0.55f : 1.0f;
+            const float maxWidth = bounds_.width * 0.92f;
+            if (em * fontSize > maxWidth)
+                fontSize = maxWidth / em;
+        }
         IDWriteTextFormat *format =
             deviceResources.GetTextFormat(family, fontSize, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER,
                                           DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
@@ -645,8 +657,15 @@ void FloatingToolbarPresenter::RebuildScene()
                                   }));
     }
     if (items.translate)
-        // TODO(选中翻译): 点击后读取宿主选区、本地模型翻译并替换选区；这一步先保留按钮，点击暂不做事。
-        specs.push_back(TextSpec("translate", "off", L"译", false, []() {}));
+    {
+        // 选中文字后点「译」：读取宿主选区、本地模型翻成英文并替换；替换后约 10 秒内变「还原」。
+        // 状态由 selection_service 持有，这里只按当前状态选标签；翻译中点击会被状态机忽略。
+        const translation::selection_service::ButtonState state = translation::selection_service::CurrentButton();
+        specs.push_back(TextSpec("translate",
+                                 state.view == translation::selection::ButtonView::Translate ? "off" : "on",
+                                 translation::selection_service::ButtonLabel(state), false,
+                                 []() { translation::selection_service::OnToolbarClick(); }));
+    }
     if (items.settings)
     {
         specs.push_back(GlyphSpec("settings", "", kIconSettings, []() { OpenSettingsApplication(); }));
@@ -827,6 +846,12 @@ void FloatingToolbarPresenter::ApplyTheme()
     impl_->iconRadius = skin.iconRadius;
     impl_->light = light;
     ApplyAppearance();
+}
+
+void FloatingToolbarPresenter::RefreshTranslateButton()
+{
+    if (bound_)
+        ApplyAppearance();
 }
 
 void FloatingToolbarPresenter::ApplyAppearance()

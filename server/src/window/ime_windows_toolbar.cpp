@@ -6,6 +6,8 @@
 #include "ipc/ipc.h"
 #include "ime_windows.h"
 #include "window/floating_toolbar_presenter.h"
+#include "window/selection_translate_tip.h"
+#include "translation/selection_translate_state.h"
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include <algorithm>
@@ -766,6 +768,14 @@ LRESULT CALLBACK WndProcFtbWindow(HWND hwnd, UINT message, WPARAM wParam, LPARAM
         UpdateFtbCnEnAndDoubleSingleAndPuncState(cnEnState, doubleSingleByteState, puncState, capsLockState);
         break;
     }
+
+    case WM_SELECTION_TRANSLATE_UI:
+        // 选中翻译：按钮标签（译 / 译中 / 还原）跟着状态机走，提示另起一行贴在工具栏旁。
+        FloatingToolbarPresenter::Instance().RefreshTranslateButton();
+        if (wParam != 0)
+            SelectionTranslateTip::Show(
+                hwnd, translation::selection::TipText(static_cast<translation::selection::Tip>(wParam)));
+        return 0;
 
     case UPDATE_FTB_ENGLISH_INPUT_MODE:
         UpdateFtbEnglishInputModeState(wParam != 0 ? 1 : 0);
