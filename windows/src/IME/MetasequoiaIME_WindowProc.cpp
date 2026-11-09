@@ -623,6 +623,31 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
         }
         break;
     }
+    case WM_SelectionTranslate: {
+        CMetasequoiaIME::WorkerCandidateCommit request;
+        if (!pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request))
+        {
+            break;
+        }
+        FanyImeSelectionTranslate::DownFrame frame;
+        if (!pIME->_IsFocusSessionCurrent(request.focusToken) ||
+            !FanyImeSelectionTranslate::DecodeDown(request.text, frame))
+        {
+            break;
+        }
+        ITfDocumentMgr *pDocMgrFocus = nullptr;
+        ITfContext *pContext = nullptr;
+        if (SUCCEEDED(pIME->_GetThreadMgr()->GetFocus(&pDocMgrFocus)) && pDocMgrFocus)
+        {
+            if (SUCCEEDED(pDocMgrFocus->GetTop(&pContext)) && pContext)
+            {
+                pIME->_HandleSelectionTranslate(pContext, frame);
+                pContext->Release();
+            }
+            pDocMgrFocus->Release();
+        }
+        break;
+    }
     case WM_ApplyUiLessCandidates: {
         CMetasequoiaIME::WorkerCandidateCommit request;
         if (!pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request))

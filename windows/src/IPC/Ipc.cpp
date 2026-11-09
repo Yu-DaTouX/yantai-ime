@@ -1879,6 +1879,28 @@ int SendHideCaretStateEventToUIProcessViaNamedPipe()
     return 0;
 }
 
+bool SendSelectionTranslateReportViaNamedPipe(std::uint32_t kind, std::uint32_t job, std::uint32_t failure,
+                                              std::uint32_t seq, std::uint32_t total, const wchar_t *text,
+                                              std::size_t length)
+{
+    const FanyImeNamedpipeData staged = namedpipeData;
+    namedpipeData = {};
+    namedpipeData.event_type = FanyImePipeEventType::SelectionTranslateReport;
+    namedpipeData.keycode = kind;
+    namedpipeData.wch = static_cast<FanyImeWireChar>(failure);
+    namedpipeData.point[0] = static_cast<int>(job);
+    namedpipeData.point[1] = static_cast<int>((seq << 16) | (total & 0xFFFFu));
+    if (text && length > 0)
+    {
+        length = (std::min)(length, std::size(namedpipeData.pinyin_string) - 1);
+        wmemcpy(namedpipeData.pinyin_string, text, length);
+        namedpipeData.pinyin_length = static_cast<int>(length);
+    }
+    const bool sent = SendToNamedpipe();
+    namedpipeData = staged;
+    return sent;
+}
+
 int SendShowCandidateWndEventToUIProcessViaNamedPipe()
 {
     // CandidateListUIPresenter stages the text/caret payload immediately
