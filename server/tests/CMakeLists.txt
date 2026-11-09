@@ -92,6 +92,7 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_translation_worker.cpp"
     "${CMAKE_SOURCE_DIR}/src/translation/translation_worker.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_selection_translate.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_selection_client_policy.cpp"
     "${CMAKE_SOURCE_DIR}/src/translation/sentence_split.cpp"
     "${CMAKE_SOURCE_DIR}/src/translation/selection_translate_state.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_gloss_resolver.cpp"

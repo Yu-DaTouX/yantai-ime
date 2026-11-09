@@ -15,6 +15,8 @@ Tip TipForFailure(FanyImeSelectionTranslate::Failure failure)
         return Tip::TooLong;
     case Failure::Composing:
         return Tip::Composing;
+    case Failure::NoClient:
+        return Tip::NeedFocus;
     case Failure::HostRejected:
         return Tip::HostRejected;
     case Failure::SelectionChanged:
@@ -43,6 +45,8 @@ const wchar_t *TipText(Tip tip)
         return L"先选中要翻译的文字";
     case Tip::Unsupported:
         return L"这个程序不支持读取选中的文字";
+    case Tip::NeedFocus:
+        return L"请先点一下要翻译的窗口再试";
     case Tip::NotInstalled:
         return L"翻译组件未安装，请到设置里下载";
     case Tip::NotChinese:

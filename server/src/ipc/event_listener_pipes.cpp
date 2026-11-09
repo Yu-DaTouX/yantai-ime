@@ -508,6 +508,13 @@ void MainPipeClientThread(HANDLE clientPipe, uint64_t handlerId)
         const bool isActiveClient =
             activation.client_id == clientId && activation.epoch != 0 && IsActivePipeClient(clientId, activation.epoch);
         LogClientRouting(clientId, pipeData.event_type, isActiveClient);
+        if (!isActiveClient && pipeData.event_type == FanyImePipeEventType::SelectionTranslateReport)
+        {
+            // The command went to the foreground client while no client was active (Server just restarted); the
+            // service only accepts it from the client it asked.
+            translation::selection_service::OnTsfReport(clientId, 0, pipeData);
+            continue;
+        }
         if (!isActiveClient)
         {
             FANY_IPC_LOGF(L"[msime]: [ipc] ignored inactive main-pipe event: client_id={}, type={}", clientId,

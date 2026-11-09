@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "engine/contracts/windows_ipc.h"
+#include "ipc/selection_client_policy.h"
 
 namespace FanyImeIpc
 {
@@ -156,6 +157,9 @@ uint64_t ResolvePipeClientTerminalDeactivationEpoch(uint64_t client_id, uint64_t
 // because it comes from the user's foreground thread. See the call site.
 uint64_t DeactivatePipeRouteForForegroundClient(uint64_t client_id, uint64_t main_registration_id);
 PipeClientActivation GetActivePipeClient();
+// The TSF client a selection-translate command should go to: the active client, or, when none is active (after a
+// Server restart, before the focus first changes), the connected client of the foreground process.
+FanyImeIpc::SelectionClientChoice FindSelectionTranslateClient();
 bool IsActivePipeClient(uint64_t client_id, uint64_t activation_epoch = 0);
 bool IsPipeActivationCurrent(uint64_t client_id, uint64_t activation_epoch);
 // Whether the focused window's input thread belongs to a TSF client that is still

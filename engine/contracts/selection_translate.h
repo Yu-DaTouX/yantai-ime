@@ -64,6 +64,8 @@ enum class Failure : std::uint32_t
     Composing = 4,
     HostRejected = 5,
     SelectionChanged = 6,
+    // Server side only: no TSF client could be found for the foreground window.
+    NoClient = 7,
 };
 
 inline std::wstring EncodeDown(const DownFrame &frame)
