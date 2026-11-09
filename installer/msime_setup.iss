@@ -295,7 +295,7 @@ procedure OpenDownloadPage(const Url: String);
 var
   ErrorCode: Integer;
 begin
-  { 安装器是提权进程，用它拉起的浏览器会以管理员身份运行；和 LaunchInstalledComponents
+  { 安装器是提权进程，用它拉起的浏览器会以管理员身份运行；和 StartImeForUser
     一样交还给原用户。}
   ShellExecAsOriginalUser(
     'open', Url, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
@@ -611,32 +611,6 @@ end;
 #include "cloud_choice.iss"
 
 
-procedure LaunchInstalledComponents;
-var
-  ErrorCode: Integer;
-begin
-  { uiAccess=true 的程序不能用 CreateProcess 拉起（会报 740）。
-    完成页点击 Finish 后，以原用户身份执行 ShellExecute（等同双击）。}
-  ShellExecAsOriginalUser(
-    '',
-    ExpandConstant('{commonpf64}\metasequoiaime\server\{#MyAppExeName}'),
-    '',
-    '',
-    SW_SHOWNORMAL,
-    ewNoWait,
-    ErrorCode
-  );
-  ShellExecAsOriginalUser(
-    '',
-    ExpandConstant('{commonpf64}\metasequoiaime\server\{#MyWatchdogName}'),
-    '',
-    '',
-    SW_SHOWNORMAL,
-    ewNoWait,
-    ErrorCode
-  );
-end;
-
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   Chosen: String;
@@ -684,8 +658,6 @@ begin
     exit;
   end;
 
-  if (CurPageID = wpFinished) and (not WizardSilent) then
-    LaunchInstalledComponents;
 end;
 
 function UpdateReadyMemo(
@@ -1666,7 +1638,7 @@ begin
   { 占住 TSF DLL 拉起 Server 用的那把锁，直到安装程序退出：[Files] 一注册 DLL，输入法就可能在某个
     宿主里被激活并拉起 Server，而那时词库还没生成——引擎打开 msime.db 会先建一个空库并一直占着，
     BuildDictionaries 就替换不了它（拒绝访问，新机器首次安装必现）。DLL 拿不到这把锁时不启动 Server；
-    完成页的 LaunchInstalledComponents 直接启动，不经过这把锁。}
+    安装末尾的 StartImeForUser 直接启动 Watchdog，不经过这把锁。}
   CreateMutex('{#MyServerLaunchMutex}');
   StopImeProcesses;
   { 进程停了才能动数据文件：msime_user.db 会被 Server 打开着。}
@@ -1745,6 +1717,103 @@ begin
     Log('keyboard list registration exit code: ' + IntToStr(ErrorCode));
 end;
 
+{ 进程是否在运行：tasklist 的 CSV 输出写到临时文件再读回来判断，不依赖管道和退出码
+  （tasklist 找不到进程时退出码也是 0，只会输出一行“信息”）。}
+function IsProcessRunning(const ImageName: String): Boolean;
+var
+  ResultCode: Integer;
+  OutPath: String;
+  Output: AnsiString;
+begin
+  Result := False;
+  OutPath := ExpandConstant('{tmp}\msime_tasklist.txt');
+  DeleteFile(OutPath);
+  if Exec(
+    ExpandConstant('{cmd}'),
+    '/S /C ""' + ExpandConstant('{sys}\tasklist.exe') + '" /FI "IMAGENAME eq ' +
+      ImageName + '" /NH /FO CSV > "' + OutPath + '""',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) and LoadStringFromFile(OutPath, Output) then
+    Result := Pos('"' + Lowercase(ImageName) + '"', Lowercase(String(Output))) > 0;
+  DeleteFile(OutPath);
+end;
+
+function WaitForProcess(const ImageName: String; const TimeoutMs: Integer): Boolean;
+var
+  WaitedMs: Integer;
+begin
+  WaitedMs := 0;
+  Result := IsProcessRunning(ImageName);
+  while (not Result) and (WaitedMs < TimeoutMs) do
+  begin
+    Sleep(500);
+    WaitedMs := WaitedMs + 500;
+    Result := IsProcessRunning(ImageName);
+  end;
+end;
+
+{ 静默安装不会走完成页，所以不能靠完成页启动；安装器还会在 PrepareToInstall 里停掉旧 Server，
+  不在末尾拉起就没人拉起（TSF DLL 受 MyServerLaunchMutex 约束，安装器退出前不会启动它）。
+  交互与静默安装统一在 ssPostInstall 末尾调用：先让计划任务以登录用户身份运行 Watchdog，
+  再确认 Server 起来；不行就以原用户身份直接启动 Watchdog，最后才是 Server。
+  uiAccess=true 的程序不能用 CreateProcess 拉起（740），所以回退也走 ShellExecAsOriginalUser。
+  所有失败只写日志，不弹框，也不让安装失败。}
+procedure StartImeForUser;
+var
+  ResultCode: Integer;
+  ErrorCode: Integer;
+  ServerPath: String;
+  WatchdogPath: String;
+begin
+  ServerPath := ExpandConstant('{commonpf64}\metasequoiaime\server\{#MyAppExeName}');
+  WatchdogPath := ExpandConstant('{commonpf64}\metasequoiaime\server\{#MyWatchdogName}');
+  if not FileExists(WatchdogPath) then
+  begin
+    Log('watchdog missing, not starting the input method');
+    Exit;
+  end;
+
+  ResultCode := -1;
+  if Exec(
+    ExpandConstant('{sys}\schtasks.exe'),
+    '/Run /TN "{#MyWatchdogTaskName}"',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) and (ResultCode = 0) then
+    Log('started watchdog through the scheduled task')
+  else
+    Log('schtasks /Run failed, exit code ' + IntToStr(ResultCode));
+
+  if WaitForProcess('{#MyAppExeName}', 8000) then
+  begin
+    Log('server is running after install (scheduled task)');
+    Exit;
+  end;
+
+  Log('server not running after the scheduled task, starting watchdog as the original user');
+  ErrorCode := 0;
+  if not ShellExecAsOriginalUser('', WatchdogPath, '', '', SW_HIDE, ewNoWait, ErrorCode) then
+    Log('could not start watchdog as the original user: ' + IntToStr(ErrorCode));
+  if WaitForProcess('{#MyAppExeName}', 8000) then
+  begin
+    Log('server is running after install (watchdog fallback)');
+    Exit;
+  end;
+
+  Log('server still not running, starting it directly as the original user');
+  if not ShellExecAsOriginalUser('', ServerPath, '', '', SW_HIDE, ewNoWait, ErrorCode) then
+    Log('could not start server as the original user: ' + IntToStr(ErrorCode));
+  if WaitForProcess('{#MyAppExeName}', 8000) then
+    Log('server is running after install (direct start)')
+  else
+    Log('WARNING: server is not running after install; run the "{#MyWatchdogTaskName}" task manually');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);begin
   if CurStep = ssPostInstall then
   begin
@@ -1768,6 +1837,8 @@ procedure CurStepChanged(CurStep: TSetupStep);begin
     { TSF 的语言配置要以原用户身份装进键盘列表：提权进程的 HKCU 指向管理员账户，写进去当前用户
       看不到（见 server/src/settings/input_method_install.h）。放在最后，失败也不影响装好的文件。}
     RegisterProfileForUser;
+    { 最后启动：此时文件、词库、登录任务和键盘列表都已就绪。}
+    StartImeForUser;
   end;
 end;
 
