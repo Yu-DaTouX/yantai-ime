@@ -45,9 +45,11 @@ void PostUi(Tip tip)
 
 bool SendCommand(const DownFrame &frame)
 {
-    return SendToTsfWorkerThreadClientViaNamedpipe(
-        g_client, g_epoch, Global::DataFromServerMsgTypeToTsfWorkerThread::SelectionTranslateCommand,
-        EncodeDown(frame));
+    const UINT type = Global::DataFromServerMsgTypeToTsfWorkerThread::SelectionTranslateCommand;
+    // Epoch 0: the client was found by foreground match and is not the active one, so there is no epoch to require.
+    if (g_epoch == 0)
+        return SendToTsfWorkerThreadClientViaNamedpipe(g_client, type, EncodeDown(frame));
+    return SendToTsfWorkerThreadClientViaNamedpipe(g_client, g_epoch, type, EncodeDown(frame));
 }
 
 Worker &EnsureWorker()
@@ -68,12 +70,17 @@ void Handle(Step step)
         switch (step.action)
         {
         case Action::SendRead: {
-            const PipeClientActivation active = GetActivePipeClient();
-            g_client = active.client_id;
-            g_epoch = active.epoch;
+            // After a Server restart nothing is active until the focus first changes; the foreground process's
+            // client is used then, without an epoch to pin to.
+            const FanyImeIpc::SelectionClientChoice target = FindSelectionTranslateClient();
+            g_client = target.client_id;
+            g_epoch = target.epoch;
             g_read.Reset();
-            if (g_client == 0 || !SendCommand({Command::Read, g_machine.job(), 0, 1, {}}))
-                next = g_machine.OnHostFailure(g_machine.job(), Failure::Unsupported);
+            if (g_client == 0)
+                next = g_machine.OnHostFailure(g_machine.job(), Failure::NoClient);
+            else if (!SendCommand({Command::Read, g_machine.job(), 0, 1, {}}))
+                next = g_machine.OnHostFailure(g_machine.job(),
+                                               target.via_foreground ? Failure::NoClient : Failure::Unsupported);
             break;
         }
         case Action::TranslateNext: {
@@ -187,7 +194,7 @@ void OnTsfReport(uint64_t client_id, uint64_t activation_epoch, const FanyImeNam
 {
     const uint32_t job = static_cast<uint32_t>(report.point[0]);
     std::lock_guard lock(g_mutex);
-    if (g_machine.phase() == Phase::Idle || client_id != g_client || activation_epoch != g_epoch ||
+    if (g_machine.phase() == Phase::Idle || client_id != g_client || (g_epoch != 0 && activation_epoch != g_epoch) ||
         job != g_machine.job())
         return;
     const Time now = Clock::now();

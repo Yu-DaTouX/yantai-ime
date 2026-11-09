@@ -387,3 +387,13 @@ TEST_CASE(selection_wire_chunks_reassemble_and_reject_damaged_streams)
     REQUIRE(assembler.Add(6, 1, 2, L"67890", 8) == ChunkAssembler::Result::Invalid);
     REQUIRE(SplitChunks(L"", 10).size() == 1);
 }
+
+TEST_CASE(selection_machine_asks_for_a_click_when_no_client_is_found)
+{
+    Machine machine;
+    machine.Click(kStart, true);
+    const Step step = machine.OnHostFailure(machine.job(), Failure::NoClient);
+    REQUIRE(step.tip == Tip::NeedFocus);
+    REQUIRE(machine.phase() == Phase::Idle);
+    REQUIRE_EQ(std::wstring(TipText(Tip::NeedFocus)), std::wstring(L"请先点一下要翻译的窗口再试"));
+}

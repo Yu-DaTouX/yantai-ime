@@ -1279,6 +1279,29 @@ bool ClientOwnsForegroundInput(HWND foreground, uint64_t client_id)
 }
 } // namespace
 
+FanyImeIpc::SelectionClientChoice FindSelectionTranslateClient()
+{
+    const PipeClientActivation active = GetActivePipeClient();
+    std::vector<uint64_t> clients;
+    {
+        std::lock_guard lock(g_pipe_clients_mutex);
+        clients.reserve(g_pipe_clients.size());
+        for (const auto &entry : g_pipe_clients)
+            clients.push_back(entry.first);
+    }
+    DWORD process_id = 0;
+    std::vector<uint32_t> threads;
+    if (const HWND foreground = GetForegroundWindow())
+    {
+        const DWORD thread_id = GetWindowThreadProcessId(foreground, &process_id);
+        threads.push_back(thread_id);
+        GUITHREADINFO info{sizeof(info)};
+        if (thread_id != 0 && GetGUIThreadInfo(thread_id, &info) && info.hwndFocus)
+            threads.push_back(GetWindowThreadProcessId(info.hwndFocus, nullptr));
+    }
+    return FanyImeIpc::ChooseSelectionClient(active.client_id, active.epoch, clients, process_id, threads);
+}
+
 bool IsForegroundInputThreadConnectedPipeClient()
 {
     const HWND foreground = GetForegroundWindow();

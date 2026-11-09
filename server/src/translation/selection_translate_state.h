@@ -44,6 +44,7 @@ enum class Tip
     None,
     SelectFirst,
     Unsupported,
+    NeedFocus,
     NotInstalled,
     NotChinese,
     TooLong,
