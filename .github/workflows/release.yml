@@ -311,7 +311,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/ci/test-server.ps1 -ServerRoot server -StagingRoot "$env:RUNNER_TEMP/product-data" -BuildDir build-release
 
+      # uiAccess=true makes Windows refuse to start the Server at all unless its signature chains to a
+      # root the user's machine trusts. A self-signed certificate does not, so embedding it by default
+      # ships an installer whose Server never starts unless the machine trusts it. The installer imports the
+      # signing certificate into Root/TrustedPublisher (export-signing-cert.ps1), so opting in with the
+      # repository variable SERVER_UIACCESS=true is safe once that step has run for the release.
       - name: Embed the Server uiAccess manifest
+        if: ${{ vars.SERVER_UIACCESS == 'true' }}
         shell: pwsh
         run: ./scripts/ci/embed-server-manifest.ps1 -BuildDir server/build-release/bin/Release
 
@@ -430,6 +436,14 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
           TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
         run: ../scripts/ci/sign-binaries.ps1 -Recurse -Path 'server_exe', 'tsf_dll'
+
+      - name: Export the signing certificate for the installer to trust
+        shell: pwsh
+        working-directory: installer
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: ../scripts/ci/export-signing-cert.ps1
 
       - name: Install the Chinese language file for Inno Setup
         shell: pwsh

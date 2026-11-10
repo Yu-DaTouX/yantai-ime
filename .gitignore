@@ -48,3 +48,6 @@ __pycache__/
 /slim-notes.txt
 /ui.sh
 /*.patch
+
+# CI 在打包前从签名证书导出的公钥，不入库
+installer/signing/

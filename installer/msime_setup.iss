@@ -154,6 +154,14 @@ Source: "{#MySourceRoot}\bundled_skins\*"; \
     Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 Source: "{#MySourceRoot}\bundled_skins.manifest"; Flags: dontcopy
 
+#if FileExists(AddBackslash(SourcePath) + "signing\ime-signing.cer")
+; 自签名发布证书的公钥，由 CI 从签名用的 PFX 导出（scripts/ci/export-signing-cert.ps1）。
+; Server 带 uiAccess=true，签名链不受信任时 Windows 会直接拒绝启动它，所以安装时把它导入受信任根。
+; 没有这个文件（本地编译、公开 CA 签名）就整段跳过。
+#define HasTrustCert
+Source: "{#MySourceRoot}\signing\ime-signing.cer"; Flags: dontcopy
+#endif
+
 #ifdef LightPackage
 ; 轻量包只覆盖设置窗口的图片资源与区域旗帜字体，不带词库/出厂配置。
 Source: "{#MySourceRoot}\app_data\assets\settings\*"; \
@@ -1814,7 +1822,51 @@ begin
     Log('WARNING: server is not running after install; run the "{#MyWatchdogTaskName}" task manually');
 end;
 
+#ifdef HasTrustCert
+const
+  TrustCertSubject = 'YuDaTou IME Code Signing';
+
+procedure CertutilStore(const Args: String);
+var
+  ResultCode: Integer;
+begin
+  if not Exec(ExpandConstant('{sys}\certutil.exe'), Args, '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then
+    Log('certutil could not run: ' + Args)
+  else if ResultCode <> 0 then
+    Log('certutil ' + Args + ' returned ' + IntToStr(ResultCode));
+end;
+
+{ 安装器本身是提权的，certutil 默认写本机证书库。失败只写日志、不中断安装：
+  最坏的结果是 Server 因签名不受信任起不来，Watchdog 会记下原因。}
+procedure TrustSigningCertificate;
+var
+  CertFile: String;
+begin
+  try
+    ExtractTemporaryFile('ime-signing.cer');
+    CertFile := ExpandConstant('{tmp}\ime-signing.cer');
+    CertutilStore('-f -addstore Root "' + CertFile + '"');
+    CertutilStore('-f -addstore TrustedPublisher "' + CertFile + '"');
+    Log('signing certificate imported into Root and TrustedPublisher');
+  except
+    Log('could not import the signing certificate: ' + GetExceptionMessage);
+  end;
+end;
+
+procedure UntrustSigningCertificate;
+begin
+  CertutilStore('-delstore Root "' + TrustCertSubject + '"');
+  CertutilStore('-delstore TrustedPublisher "' + TrustCertSubject + '"');
+end;
+#endif
+
 procedure CurStepChanged(CurStep: TSetupStep);begin
+#ifdef HasTrustCert
+  { 必须早于任何 Server 启动：它带 uiAccess=true，签名不受信任就起不来。}
+  if CurStep = ssInstall then
+    TrustSigningCertificate;
+#endif
   if CurStep = ssPostInstall then
   begin
     { 先打标记，再调整权限：之后的覆盖安装和卸载靠它判断这个目录是不是我们建的。}
@@ -1871,6 +1923,9 @@ begin
       'MetasequoiaImeWatchdog'
     );
     StopImeProcesses;
+#ifdef HasTrustCert
+    UntrustSigningCertificate;
+#endif
   end
   else if CurUninstallStep = usPostUninstall then
   begin
