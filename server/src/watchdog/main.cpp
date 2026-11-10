@@ -19,6 +19,13 @@ constexpr DWORD kHealthyRunMilliseconds = 30'000;
 constexpr DWORD kMaximumRestartDelayMilliseconds = 30'000;
 constexpr DWORD kProfileReadyTimeoutMilliseconds = 30'000;
 constexpr DWORD kProfileReadyRetryIntervalMilliseconds = 1'000;
+// A healthy Server spawns its worker threads within seconds of starting. A process that is
+// still a single thread by now is a stuck shell (e.g. a suspended uiAccess launch that Windows
+// refused to finish), not a slow start, and waiting on it forever would leave the user without
+// a Server. Counting this process's own threads, rather than probing a machine-global pipe,
+// keeps another Server (other session, or one revived by TSF) from vouching for a dead shell.
+constexpr DWORD kServerReadyTimeoutMilliseconds = 60'000;
+constexpr DWORD kServerReadyPollMilliseconds = 500;
 
 // Keep these identifiers in sync with MetasequoiaImeTsf/src/Global/Globals.cpp.
 constexpr CLSID kMetasequoiaImeClsid = {0xe3062e9a, 0xd834, 0x4637, {0x89, 0x58, 0xed, 0x8c, 0xfa, 0x42, 0x7d, 0x01}};
@@ -89,6 +96,62 @@ std::wstring GetExecutableDirectory()
     }
 }
 
+void LogWatchdog(const wchar_t *message)
+{
+    OutputDebugStringW((std::wstring(L"MetasequoiaImeWatchdog: ") + message + L"\n").c_str());
+}
+
+bool HasStartedWorkerThreads(HANDLE process)
+{
+    const DWORD pid = GetProcessId(process);
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return true; // cannot tell: do not kill a Server on a failed probe
+    PROCESSENTRY32W entry{sizeof(entry)};
+    bool started = true;
+    if (Process32FirstW(snapshot, &entry))
+    {
+        do
+        {
+            if (entry.th32ProcessID == pid)
+            {
+                started = entry.cntThreads > 1;
+                break;
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return started;
+}
+
+// Returns true when the process exited by itself; false when it never became ready and
+// has been terminated (or could not be).
+bool WaitForServerExit(HANDLE server)
+{
+    const ULONGLONG deadline = GetTickCount64() + kServerReadyTimeoutMilliseconds;
+    bool ready = false;
+    for (;;)
+    {
+        const DWORD wait = WaitForSingleObject(server, ready ? INFINITE : kServerReadyPollMilliseconds);
+        if (wait != WAIT_TIMEOUT)
+            return true;
+        if (HasStartedWorkerThreads(server))
+        {
+            ready = true;
+            continue;
+        }
+        if (GetTickCount64() >= deadline)
+        {
+            LogWatchdog(L"Server never started worker threads in time; terminating it.");
+            if (!TerminateProcess(server, 1))
+                LogWatchdog(L"Could not terminate the stuck Server process.");
+            else
+                WaitForSingleObject(server, 5'000);
+            return false;
+        }
+    }
+}
+
 HANDLE FindRunningServer(const std::wstring &expected_path)
 {
     DWORD current_session_id = 0;
@@ -116,7 +179,8 @@ HANDLE FindRunningServer(const std::wstring &expected_path)
                 process_session_id != current_session_id)
                 continue;
 
-            HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+            HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                         entry.th32ProcessID);
             if (!process)
                 continue;
 
@@ -148,7 +212,10 @@ HANDLE StartServer(const std::wstring &server_path, const std::wstring &working_
     execute_info.lpDirectory = working_directory.c_str();
     execute_info.nShow = SW_SHOWNOACTIVATE;
     if (!ShellExecuteExW(&execute_info) || !execute_info.hProcess)
+    {
+        LogWatchdog(L"ShellExecuteEx failed to start the Server (unsigned or untrusted uiAccess binary?).");
         return nullptr;
+    }
     return execute_info.hProcess;
 }
 } // namespace
@@ -182,10 +249,19 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         }
 
         const ULONGLONG started_at = GetTickCount64();
-        WaitForSingleObject(server, INFINITE);
+        const bool exited = WaitForServerExit(server);
         DWORD exit_code = 0;
-        GetExitCodeProcess(server, &exit_code);
+        if (exited)
+            GetExitCodeProcess(server, &exit_code);
         CloseHandle(server);
+        if (!exited)
+        {
+            // Never became ready: treat as a failed start so the back-off grows instead of
+            // relaunching at full speed.
+            restart_delay = (std::min)((std::max)(restart_delay * 2, DWORD{2000}), kMaximumRestartDelayMilliseconds);
+            Sleep(restart_delay);
+            continue;
+        }
 
         if (exit_code == WatchdogProtocol::kStopExitCode)
             return 0;

@@ -88,6 +88,8 @@ bool g_theme_refresh_pending = false;
 bool g_settings_light = false;
 // restartServer 之后主动刷新的剩余次数；Server 落位 .gram.new 后提前结束。
 int g_restart_refresh_remaining = 0;
+// 定时器触发的磁盘检查是否还在 worker 上跑。
+bool g_restart_check_pending = false;
 // A DPI rebuild recreates the About page, so page-local button state cannot be
 // the only guard against a second import queueing behind the first one.
 std::atomic<bool> g_user_data_backup_busy{false};
@@ -1418,14 +1420,34 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             if (g_restart_refresh_remaining > 0)
                 --g_restart_refresh_remaining;
-            bool pending = false;
-            for (const auto &entry : collocation::GetModelStatuses())
-                pending = pending || entry.second.update_pending;
-            // 待更新已经被新 Server 落位，或兜底次数用完，就停；仍刷新一次让页面恢复。
-            if (!pending || g_restart_refresh_remaining <= 0)
+            if (!g_worker || g_closing)
+            {
                 KillTimer(hwnd, kRestartRefreshTimer);
-            if (g_worker && !g_closing)
-                PostConfig(false);
+                return 0;
+            }
+            // GetModelStatuses 会访问磁盘（甚至删除待清理的模型目录），慢盘或杀软扫描时能卡住
+            // 5 秒以上，所以放到 worker 线程；上一次还没返回就跳过这一拍。
+            if (g_restart_check_pending)
+                return 0;
+            g_restart_check_pending = true;
+            g_worker->Submit([hwnd] {
+                bool pending = false;
+                try
+                {
+                    for (const auto &entry : collocation::GetModelStatuses())
+                        pending = pending || entry.second.update_pending;
+                }
+                catch (...)
+                { /* 下一拍再试 */
+                }
+                return [hwnd, pending] {
+                    g_restart_check_pending = false;
+                    // 待更新已经被新 Server 落位，或兜底次数用完，就停；仍刷新一次让页面恢复。
+                    if (!pending || g_restart_refresh_remaining <= 0)
+                        KillTimer(hwnd, kRestartRefreshTimer);
+                    PostConfig(false);
+                };
+            });
             return 0;
         }
         if (w_param == kConfigReloadTimer && g_worker && !g_closing && !g_reload_pending)
