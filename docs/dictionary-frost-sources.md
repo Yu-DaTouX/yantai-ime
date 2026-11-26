@@ -25,16 +25,34 @@ history、place、geography、name2、literature、music、computer、composite�
 ## 修改记录（2026-11）
 
 - 使用共享 engine/contracts/dictionary/format.json 分表规则，拼音空格改单引号，ü 改 v，去调；
-  校验文字与音节个数、纯汉字编码，拒收样本列在 frost-build-report.json。
+  音节规范化与引擎 `canonical_umlaut_spelling()` 完全对齐（`lue→lve`、`nue→nve`、`j/q/x/y+v→u`），
+  词条经 Unicode NFC 归一（消除 CJK 兼容表意文字如 `U+F979 凉→凉`）；校验音节属于合法普通话全拼集合，
+  自动剔除 `GB18030-2022` 的 15,764 条虚拟音节 `ziang` 与 `sei/lvan/yai` 等非法音节。
+- 按节裁剪 `cn_dicts/others.dict.yaml`：跳过 Rime `corrector.lua` 专用的 `### 错音`、`### 错字`
+  以及 Rime OpenCC 专用的 `##### 叠字`（3,875 行），仅保留 `##### 容错词`。
+- 启用多字词逐字读音核验（对照单字表 + `frost_overlay.json` 方言/地名白名单），清理字音不匹配错注；
+  对受繁体污染的细胞分包剔除含严格非 GB2312 繁体字的多字词，对 `medication`/`sport`/`inputmethod`
+  跳过长度 >10 且原权为 0 的器械注册全称与五笔口诀。
 - 同一 (拼音,词) 取上游最高频次，不重复累加。权重为 max(1,min(100000000,原频次×5))；
   该尺度经过同引擎离线评测，不声称是最优参数。
-- 仅过滤审计确认的极低频碎片：(de'ba,的吧)、(de'le,的了)、(wo'wo,我我)、(ni'ni,你你)、
-  (yu'de,鱼的)、(shi'jian'he,时间和)、(ba'a,吧啊)。每条原频次须 ≤1 才删除；上游将来若
-  提高频次不会盲删。无「删所有低频词」或「删包含某字的词」的宽泛规则。只作用于出厂词库，
-  用户自造词/调频/删除日志独立保留并回放，不被清洗。这些词不在固定268项覆盖探针中；
-  完整覆盖、320句、延迟对照见 docs/dictionary-frost-results.md。
+- 叠加两份锁哈希的开源补充词表（仅补缺或抬升原 0 权条目，不覆盖白霜核心非零权重）：
+  1. [mizorewww/rime-qwen-freq](https://github.com/mizorewww/rime-qwen-freq) `v0.4.0` 的
+     `cs_ai.dict.yaml.gz`（MIT 许可，Qwen3-14B-Base 蒸馏校准的计算机/AI 术语，过滤碎片与个别误读后按平方根封顶映射至白霜尺度）。
+  2. [amzxyz/rime_wanxiang](https://github.com/amzxyz/rime_wanxiang) 固定提交
+     `4ead0b84d5ef0cd1e47c6a09e74fb8b1fee16022` 的 `dicts/duoyin.dict.yaml`（CC-BY-4.0 许可，人工维护多音词表，过滤叠字拆字与繁体后按 `//4` 封顶映射至白霜尺度）。
+- 叠加第一方显式修订层 `scripts/dictionary_build/frost_overlay.json`（纳入 `builder_digest` 校验）：
+  修复丢失/错注词（如 `均订`、`拉群 la'qun`、`多周目 duo'zhou'mu`、`重创 chong'chuang`、`清十郎` 等）、
+  清理审计确认的错别字/多音错注/低频语法碎片、补充现代科技与日常新词，并微调单字 `yi`（「一」>「以」）与部分细胞包反客为主的权重。
+  所有清洗只作用于出厂词库，用户自造词/调频/删除日志独立保留并回放，不被清洗。
 - 不再从旧混合中文词表导入词条；不生成已退役的 wubi86 / japanese_lexicon 表或日语模型。
   快捷短语和字母词表保留空结构，用户数据由日志恢复。
+
+## 补充词表许可与署名
+
+- **rime-qwen-freq (`cs_ai.dict.yaml.gz`)**：Copyright (c) mizorewww，MIT License。来源：
+  `https://github.com/mizorewww/rime-qwen-freq/releases/download/v0.4.0/cs_ai.dict.yaml.gz`（SHA-256 锁定于 `frost.lock.json`）。
+- **rime_wanxiang (`dicts/duoyin.dict.yaml`)**：© amzxyz / rime-wanxiang 项目，CC BY 4.0（Creative Commons Attribution 4.0 International）。来源：
+  `https://raw.githubusercontent.com/amzxyz/rime_wanxiang/4ead0b84d5ef0cd1e47c6a09e74fb8b1fee16022/dicts/duoyin.dict.yaml`（已做去调规范化、过滤非标准/拆字/繁体行与权重尺度映射）。
 
 ## 原始数据来源与授权边界
 

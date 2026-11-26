@@ -5,7 +5,9 @@
   "profile": "full",
   "format_version": 1,
   "weight_scale": 5,
-  "expected_content_sha256": "2e4c5cc77cab601800d214559bc508d6283d75246c51bba6fd3dabeab6ad9344",
+  "validate_char_readings": true,
+  "use_overlay": true,
+  "expected_content_sha256": "07b297c7a2660aa12bb45465b3fff5f04078b66db285e1cd05acc3db8280361b",
   "sources": [
     {
       "path": "cn_dicts/8105.dict.yaml",
@@ -41,13 +43,20 @@
       "path": "cn_dicts/others.dict.yaml",
       "sha256": "3ddbb36c6e0863f23226accebb38c81df7e7606110a1a19c79731a44de1dafbb",
       "size": 90037,
-      "role": "dictionary"
+      "role": "dictionary",
+      "skip_sections": [
+        "### 错音",
+        "### 错字",
+        "##### 叠字"
+      ]
     },
     {
       "path": "cn_dicts_cell/medication.dict.yaml",
       "sha256": "f58f41c6167aac2c34fe73f6eeacc00693d27d5adb16b8d977acfd33fa76172f",
       "size": 5522609,
-      "role": "dictionary"
+      "role": "dictionary",
+      "max_zero_weight_length": 10,
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/industry_product.dict.yaml",
@@ -71,7 +80,8 @@
       "path": "cn_dicts_cell/chess2.dict.yaml",
       "sha256": "94c37cc0ace9c67caed6f30866eb06f765aa5a6df31bff8d4f1599ce5b33073f",
       "size": 97902,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/animal.dict.yaml",
@@ -83,7 +93,8 @@
       "path": "cn_dicts_cell/game.dict.yaml",
       "sha256": "4deffd47bebe8a41066c53cec4a8e7142680203c990080c6705edb94e7ef82dd",
       "size": 5328482,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/idiom.dict.yaml",
@@ -95,7 +106,8 @@
       "path": "cn_dicts_cell/sport.dict.yaml",
       "sha256": "4e48defd9ab1cd99e1a439af7a8e75b95a05a148411f5b8dd2120eaddfed19e4",
       "size": 436265,
-      "role": "dictionary"
+      "role": "dictionary",
+      "max_zero_weight_length": 10
     },
     {
       "path": "cn_dicts_cell/media.dict.yaml",
@@ -107,19 +119,22 @@
       "path": "cn_dicts_cell/shulihua.dict.yaml",
       "sha256": "87fd06c33065443f68a16ab2faa3f12ec0c42b4cd582a1b18001bc5b599d008e",
       "size": 1328820,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/food.dict.yaml",
       "sha256": "1423b4aa5a421145454dff855c0c3a4b2a8540ec3e45dea95ace3870f2996cd7",
       "size": 4573505,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/inputmethod.dict.yaml",
       "sha256": "20008c6997112c269061d45572d353df5b9bd83c47bbd1c5bc35ccf64c7855f6",
       "size": 4067,
-      "role": "dictionary"
+      "role": "dictionary",
+      "max_zero_weight_length": 10
     },
     {
       "path": "cn_dicts_cell/history.dict.yaml",
@@ -131,7 +146,8 @@
       "path": "cn_dicts_cell/place.dict.yaml",
       "sha256": "38dd1c72c4119f47a607fc542c528b54ead9c819cfbd5f7f508f8b4be1aae88b",
       "size": 162265,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/geography.dict.yaml",
@@ -143,7 +159,8 @@
       "path": "cn_dicts_cell/name2.dict.yaml",
       "sha256": "556cf9fa06032a6b41fb0727eed1e93dd739a6fde6c48a4d90b00a9a9272e5b4",
       "size": 588787,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/literature.dict.yaml",
@@ -173,7 +190,8 @@
       "path": "cn_dicts_cell/luna.dict.yaml",
       "sha256": "23a6706dfae9cc6cd850735ef5fbc36a6c3fb20221f47384ca889c5e17a28744",
       "size": 2248452,
-      "role": "dictionary"
+      "role": "dictionary",
+      "drop_traditional_multi_char": true
     },
     {
       "path": "cn_dicts_cell/name.dict.yaml",
@@ -194,10 +212,51 @@
       "role": "notice"
     }
   ],
+  "supplements": [
+    {
+      "name": "rime-qwen-freq-cs-ai",
+      "repository": "mizorewww/rime-qwen-freq",
+      "release_tag": "v0.4.0",
+      "license": "MIT",
+      "filename": "cs_ai.dict.yaml.gz",
+      "url": "https://github.com/mizorewww/rime-qwen-freq/releases/download/v0.4.0/cs_ai.dict.yaml.gz",
+      "size": 26851,
+      "sha256": "e507241d396c1f8e0f9bdb81ec5524385ed12a191a45f59684bb31e9f2b35dc5",
+      "insert_mode": "missing_or_zero",
+      "weight_mode": "sqrt_cap",
+      "weight_min": 10,
+      "weight_max": 250,
+      "skip_prefixes": ["将", "对", "的"],
+      "skip_suffixes": ["的"],
+      "skip_entries": [
+        {"key": "dai'ma'zhong'yong", "value": "代码重用"},
+        {"key": "xing'he'lie", "value": "行和列"},
+        {"key": "yu'diao'wei'tiao", "value": "预调微调"}
+      ]
+    },
+    {
+      "name": "rime-wanxiang-duoyin",
+      "repository": "amzxyz/rime_wanxiang",
+      "commit": "4ead0b84d5ef0cd1e47c6a09e74fb8b1fee16022",
+      "license": "CC-BY-4.0",
+      "filename": "duoyin.dict.yaml",
+      "url": "https://raw.githubusercontent.com/amzxyz/rime_wanxiang/4ead0b84d5ef0cd1e47c6a09e74fb8b1fee16022/dicts/duoyin.dict.yaml",
+      "size": 137623,
+      "sha256": "fcc475969416c3889243a0877c67bc922d42944640f216fdcd089dc34c06f158",
+      "insert_mode": "missing_or_zero",
+      "weight_mode": "div_cap",
+      "weight_divisor": 4,
+      "weight_min": 5,
+      "weight_max": 150,
+      "skip_regex": "^[两三四]个.",
+      "drop_traditional_multi_char": true
+    }
+  ],
   "excluded": [
     "cn_dicts/tencent.dict.yaml (commented out in pinned default, not in measured 152 MiB profile)",
     "cn_dicts/corrections.dict.yaml (deliberately incorrect reading aliases)",
-    "Rime Lua/configuration, Latin/mixed entries"
+    "cn_dicts/others.dict.yaml sections: ### 错音, ### 错字, ##### 叠字",
+    "Rime Lua/configuration, Latin/mixed entries, virtual ziang readings"
   ],
   "filters": [
     {

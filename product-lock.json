@@ -7,7 +7,7 @@
     "tag": "dict-frost-full-af267b6",
     "source_commit": "af267b67162ca4098c7f8d48b77bbfc8222a10e5",
     "source_lock": "scripts/dictionary_build/frost.lock.json",
-    "recipe_sha256": "7a5cc4a6f9dad65dd2773ec25d12220e78d1873433c59ad5434de9d2de204d5f",
+    "recipe_sha256": "1ff4a9f8bc4bf7381bdb0e59b682d5b36d2e60ccbe1ad9e85784f3258b86b119",
     "assets": {
       "english.db": "e43df2418699fa2eac2d7a0cb49d500eb37e4873752e96946518cc1b03517727",
       "others.db": "501bdd6619963bdce79374cd6b7c9ccafe1bf539c59a32cc5311b1fd93c5c8fb"

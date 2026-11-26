@@ -27,6 +27,9 @@ class FrostDictionaryTests(unittest.TestCase):
         config = copy.deepcopy(frost.recipe())
         config["sources"] = [{"path": path.name, "role": "dictionary", "sha256": frost.sha256(path),
                               "size": path.stat().st_size}]
+        config["supplements"] = []
+        config["validate_char_readings"] = False
+        config["use_overlay"] = False
         return source, config
 
     def test_default_recipe_matches_the_measured_full_profile(self):
@@ -39,13 +42,26 @@ class FrostDictionaryTests(unittest.TestCase):
         self.assertIn("cn_dicts/GB18030-2022.dict.yaml", packages)
         self.assertEqual(len(config["expected_content_sha256"]), 64)
         self.assertEqual(set(config["support"]["files"]), {"english.db", "others.db"})
+        self.assertTrue(config.get("validate_char_readings"))
+        self.assertTrue(config.get("use_overlay"))
+        supp_names = [s["name"] for s in config.get("supplements", [])]
+        self.assertIn("rime-qwen-freq-cs-ai", supp_names)
+        self.assertIn("rime-wanxiang-duoyin", supp_names)
+        others = next(e for e in config["sources"] if e["path"] == "cn_dicts/others.dict.yaml")
+        self.assertEqual(set(others.get("skip_sections", [])), {"### 错音", "### 错字", "##### 叠字"})
 
     def test_unicode_tones_and_contract(self):
         self.assertEqual(frost.normalize("lǜ lüè nǚ"), ["lv", "lve", "nv"])
+        self.assertEqual(frost.normalize("ce lue nue ren jve"), ["ce", "lve", "nve", "ren", "jue"])
         self.assertEqual(frost.normalize("chong2'qing4"), ["chong", "qing"])
         self.assertTrue(frost.han("〇𳎜𲰹"))
         self.assertFalse(frost.han("你好A"))
         self.assertEqual(frost.FORMAT.pinyin_table("'".join(["hao"] * 8)), "tbl_others_h")
+        self.assertNotIn("ziang", frost.VALID_SYLLABLES)
+        self.assertNotIn("sei", frost.VALID_SYLLABLES)
+        self.assertIn("tei", frost.VALID_SYLLABLES)
+        self.assertIn("eng", frost.VALID_SYLLABLES)
+        self.assertIn("rua", frost.VALID_SYLLABLES)
 
     def test_deduplication_filters_and_all_tables(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -151,14 +167,16 @@ class FrostDictionaryTests(unittest.TestCase):
                         "files": {name: {"sha256": frost.sha256(out / name), "size": (out / name).stat().st_size}
                                   for name in ("msime.db", "english.db", "others.db")}}
             frost.write_json(out / frost.PRODUCT.MANIFEST_NAME, manifest)
-            frost.verify(out, config)
-            with closing(sqlite3.connect(out / "msime.db")) as db:
-                db.execute("UPDATE tbl_2_n SET weight=999999 WHERE value='你好'")
-                db.commit()
-            manifest["files"]["msime.db"]["sha256"] = frost.sha256(out / "msime.db")
-            frost.write_json(out / frost.PRODUCT.MANIFEST_NAME, manifest)
-            with self.assertRaisesRegex(ValueError, "canonical content"):
+            with mock.patch.object(frost.symbol_patch, "content_digest",
+                                   return_value=frost.symbol_patch.lock()["others_content_sha256"]):
                 frost.verify(out, config)
+                with closing(sqlite3.connect(out / "msime.db")) as db:
+                    db.execute("UPDATE tbl_2_n SET weight=999999 WHERE value='你好'")
+                    db.commit()
+                manifest["files"]["msime.db"]["sha256"] = frost.sha256(out / "msime.db")
+                frost.write_json(out / frost.PRODUCT.MANIFEST_NAME, manifest)
+                with self.assertRaisesRegex(ValueError, "canonical content"):
+                    frost.verify(out, config)
 
     def test_filter_does_not_reach_high_frequency_or_other_words(self):
         rows = {("de'ba", "的吧"): 1, ("de'le", "的了"): 2, ("ni'hao", "你好"): 0}
@@ -166,6 +184,65 @@ class FrostDictionaryTests(unittest.TestCase):
         self.assertNotIn(("de'ba", "的吧"), rows)
         self.assertIn(("de'le", "的了"), rows)
         self.assertIn(("ni'hao", "你好"), rows)
+
+    def test_cleaning_sections_syllables_char_readings_supplements_and_overlay(self):
+        import gzip
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            supps = root / "supplements"
+            source.mkdir()
+            supps.mkdir()
+            chars = source / "chars.dict.yaml"
+            chars.write_text("---\nname: chars\n...\n拉\tla\t10\n群\tqun\t10\n解\tjie\t10\n州\tzhou\t10\n"
+                             "虐\tnue\t10\n人\tren\t10\n㐇\tziang\t0\n", encoding="utf-8")
+            words = source / "words.dict.yaml"
+            words.write_text("---\nname: words\n...\n"
+                             "##### 容错词\n解州\thai zhou\t30\n"
+                             "### 错音\n角色\tjiao se\t30000\n"
+                             "##### 叠字\n两个火\tliang ge huo\t0\n"
+                             "##### 正文\n拉群\tla qu\t149\n虐人\tnue ren\t78\n玫瑰\uf979糕\tmei gui liang gao\t5\n"
+                             "大學\tda xue\t50\n一二三四五六七八九十一\tyi er san si wu liu qi ba jiu shi yi\t0\n",
+                             encoding="utf-8")
+            supp_gz = supps / "extra.dict.yaml.gz"
+            with gzip.open(supp_gz, "wt", encoding="utf-8") as stream:
+                stream.write("---\nname: extra\n...\n大模型\tda mo xing\t900\n模型的\tmo xing de\t500\n虐人\tnve ren\t9999\n")
+            config = copy.deepcopy(frost.recipe())
+            config["sources"] = [
+                {"path": chars.name, "role": "dictionary", "sha256": frost.sha256(chars), "size": chars.stat().st_size},
+                {"path": words.name, "role": "dictionary", "sha256": frost.sha256(words), "size": words.stat().st_size,
+                 "skip_sections": ["### 错音", "##### 叠字"], "max_zero_weight_length": 10,
+                 "drop_traditional_multi_char": True},
+            ]
+            config["supplements"] = [{
+                "name": "extra", "filename": supp_gz.name, "url": "https://example.invalid/extra.dict.yaml.gz",
+                "sha256": frost.sha256(supp_gz), "size": supp_gz.stat().st_size,
+                "insert_mode": "missing_or_zero", "weight_mode": "sqrt_cap", "weight_min": 10, "weight_max": 200,
+                "skip_suffixes": ["的"],
+            }]
+            config["validate_char_readings"] = True
+            overlay = {
+                "schema_version": 1,
+                "dialect_reading_allowlist": [{"key": "hai'zhou", "value": "解州"}],
+                "removals": [],
+                "additions": [{"key": "la'qun", "value": "拉群", "raw_weight": 149}],
+                "weight_adjustments": [{"key": "nve'ren", "value": "虐人", "raw_weight": 60}],
+            }
+            out = root / "msime.db"
+            report = frost.build_pinyin(source, out, config, supplements_dir=supps, overlay=overlay)
+            self.assertEqual(report["char_reading_mismatches_removed"], 1)
+            with closing(sqlite3.connect(out)) as db:
+                self.assertIsNone(db.execute("SELECT 1 FROM tbl_1_z WHERE key='ziang'").fetchone())
+                self.assertIsNone(db.execute("SELECT 1 FROM tbl_2_j WHERE key=\"jiao'se\" AND value='角色'").fetchone())
+                self.assertIsNone(db.execute("SELECT 1 FROM tbl_3_l WHERE value='两个火'").fetchone())
+                self.assertIsNone(db.execute("SELECT 1 FROM tbl_2_l WHERE key=\"la'qu\" AND value='拉群'").fetchone())
+                self.assertIsNone(db.execute("SELECT 1 FROM tbl_2_d WHERE value='大學'").fetchone())
+                self.assertIsNone(db.execute("SELECT 1 FROM tbl_3_m WHERE value='模型的'").fetchone())
+                self.assertEqual(db.execute("SELECT weight FROM tbl_2_h WHERE key=\"hai'zhou\" AND value='解州'").fetchone(), (150,))
+                self.assertEqual(db.execute("SELECT weight FROM tbl_2_l WHERE key=\"la'qun\" AND value='拉群'").fetchone(), (745,))
+                self.assertEqual(db.execute("SELECT key, weight FROM tbl_2_n WHERE value='虐人'").fetchone(), ("nve'ren", 300))
+                self.assertEqual(db.execute("SELECT value FROM tbl_4_m WHERE key=\"mei'gui'liang'gao\"").fetchone(), ("玫瑰凉糕",))
+                self.assertEqual(db.execute("SELECT weight FROM tbl_3_d WHERE value='大模型'").fetchone(), (150,))
 
 
 if __name__ == "__main__":

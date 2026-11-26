@@ -139,8 +139,15 @@ def verify_published(data: dict) -> None:
                "dictionary": {"repository": dictionary["repository"], "commit": dictionary["source_commit"]}}
     if dictionary.get("mode") == "frost-source":
         from dictionary_build import frost
-        support = frost.recipe()["support"]
+        recipe = frost.recipe()
+        support = recipe["support"]
         entries["dictionary-support"] = {"repository": support["repository"], "commit": support["source_commit"]}
+        for supp in recipe.get("supplements", []):
+            if "commit" in supp and "repository" in supp:
+                entries[f"dictionary-supplement:{supp['name']}"] = {
+                    "repository": supp["repository"],
+                    "commit": supp["commit"],
+                }
     for name, entry in entries.items():
         repository, commit = entry["repository"], entry["commit"]
         try:
