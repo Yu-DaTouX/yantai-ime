@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include <ShObjIdl.h>
 #include <winhttp.h>
+#include <zlib.h>
 
 #include <algorithm>
 #include <atomic>
@@ -41,6 +42,9 @@ const std::vector<CatalogEntry> &Catalog()
          ""},
         {"zh-moqi", "白霜（实验）", "墨奇", L"raw.githubusercontent.com", L"/gaboolic/rime-frost/master/zh-moqi.gram",
          "约 7 MB", "GPL-3.0", "随 GPL-3.0 仓库（gaboolic/rime-frost）分发，构建链未声明许可，实验性收录"},
+        {"qwen14b-zh-hans", "Qwen-14B 搭配（轻量）", "千问", L"github.com",
+         L"/mizorewww/rime-qwen-freq/releases/download/v0.4.0/qwen14b-zh-hans.gram.gz", "约 11 MB", "MIT",
+         "© mizorewww / rime-qwen-freq（基于 Qwen-14B 词频蒸馏）"},
     };
     return kCatalog;
 }
@@ -193,6 +197,113 @@ bool ValidateFormat(const std::filesystem::path &file, std::string &error)
     }
     error = db.error();
     return false;
+}
+
+// 兼容上游按 .gram.gz 发布的轻量模型（如 qwen14b-zh-hans.gram.gz）：检测到 gzip 魔数时原地流式解压，
+// 再走统一的 GramDb::open 格式校验与原子落位。普通未压缩 .gram 直接放行。
+bool DecompressGzipIfNeeded(const std::filesystem::path &part, std::string &error)
+{
+    std::ifstream input(part, std::ios::binary);
+    if (!input)
+    {
+        error = "无法读取已下载的模型文件";
+        return false;
+    }
+    unsigned char magic[2] = {};
+    input.read(reinterpret_cast<char *>(magic), 2);
+    if (input.gcount() < 2 || magic[0] != 0x1F || magic[1] != 0x8B)
+    {
+        return true;
+    }
+    input.seekg(0, std::ios::beg);
+
+    const std::filesystem::path out_path = part.wstring() + L".gunzip";
+    std::ofstream output(out_path, std::ios::binary | std::ios::trunc);
+    if (!output)
+    {
+        error = "无法创建临时解压文件";
+        return false;
+    }
+
+    z_stream zs{};
+    if (inflateInit2(&zs, 16 + MAX_WBITS) != Z_OK)
+    {
+        output.close();
+        std::error_code ec;
+        std::filesystem::remove(out_path, ec);
+        error = "无法初始化 gzip 解压器";
+        return false;
+    }
+
+    constexpr std::size_t kChunk = 64 * 1024;
+    constexpr std::uint64_t kMaxOutputBytes = 512ULL * 1024 * 1024;
+    std::vector<unsigned char> in_buf(kChunk);
+    std::vector<unsigned char> out_buf(kChunk);
+    std::uint64_t total_out = 0;
+    int status = Z_OK;
+    bool ok = true;
+
+    while (ok && status != Z_STREAM_END)
+    {
+        if (zs.avail_in == 0)
+        {
+            input.read(reinterpret_cast<char *>(in_buf.data()), static_cast<std::streamsize>(in_buf.size()));
+            const std::streamsize got = input.gcount();
+            if (got <= 0)
+            {
+                ok = false;
+                error = "gzip 压缩流不完整";
+                break;
+            }
+            zs.next_in = in_buf.data();
+            zs.avail_in = static_cast<uInt>(got);
+        }
+        zs.next_out = out_buf.data();
+        zs.avail_out = static_cast<uInt>(out_buf.size());
+        status = inflate(&zs, Z_NO_FLUSH);
+        if (status != Z_OK && status != Z_STREAM_END)
+        {
+            ok = false;
+            error = "gzip 解压失败";
+            break;
+        }
+        const std::size_t produced = out_buf.size() - zs.avail_out;
+        if (produced > 0)
+        {
+            total_out += produced;
+            if (total_out > kMaxOutputBytes)
+            {
+                ok = false;
+                error = "解压后体积超出安全上限";
+                break;
+            }
+            output.write(reinterpret_cast<const char *>(out_buf.data()), static_cast<std::streamsize>(produced));
+            if (!output)
+            {
+                ok = false;
+                error = "写入解压文件失败";
+                break;
+            }
+        }
+    }
+
+    inflateEnd(&zs);
+    input.close();
+    output.close();
+    if (!ok)
+    {
+        std::error_code ec;
+        std::filesystem::remove(out_path, ec);
+        return false;
+    }
+    if (!MoveFileExW(out_path.c_str(), part.c_str(), MOVEFILE_REPLACE_EXISTING))
+    {
+        std::error_code ec;
+        std::filesystem::remove(out_path, ec);
+        error = "替换解压后的模型文件失败";
+        return false;
+    }
+    return true;
 }
 
 // 读最终响应的字符串头。WinHTTP 对自定义头要求先问长度再取缓冲区；缺失时返回空串。
@@ -633,6 +744,15 @@ void WriteNotice(const CatalogEntry &entry, bool imported)
 void InstallPart(const CatalogEntry &entry, bool imported, const RemoteIdentity &identity, bool replacing)
 {
     const std::string model_id = entry.id;
+
+    std::string decompress_error;
+    if (!DecompressGzipIfNeeded(PartFile(model_id), decompress_error))
+    {
+        SetState(model_id, DownloadState::Error, 0, "模型解压失败：" + decompress_error);
+        std::error_code cleanup;
+        std::filesystem::remove(PartFile(model_id), cleanup);
+        return;
+    }
 
     // 格式锁：唯一真正拦下坏模型的检查，也是「已下载」的定义——能被引擎读取端
     // 打开（魔数与双数组边界合法）就放行落位，打开不了的一律按损坏拒绝。

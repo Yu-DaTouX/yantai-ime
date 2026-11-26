@@ -8,6 +8,7 @@
 #include "src/settings/collocation_model.h"
 
 #include <Windows.h>
+#include <zlib.h>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -140,15 +141,16 @@ void WriteMinimalGramFile(const std::filesystem::path &file)
 }
 } // namespace
 
-TEST_CASE(collocation_catalog_lists_four_builtin_models)
+TEST_CASE(collocation_catalog_lists_builtin_models)
 {
     const auto &catalog = collocation::Catalog();
-    REQUIRE_EQ(catalog.size(), static_cast<std::size_t>(4));
+    REQUIRE_EQ(catalog.size(), static_cast<std::size_t>(5));
     // 次序即设置页展示次序；首条目是推荐包（仅展示身份，不承载默认语义）。
     REQUIRE_EQ(std::string(catalog[0].id), std::string(collocation::kRecommendedModelId));
     REQUIRE_EQ(std::string(catalog[1].id), std::string("zh-hans-t-essay-bgw"));
     REQUIRE_EQ(std::string(catalog[2].id), std::string("zh-hans-t-essay-bgw-compact"));
     REQUIRE_EQ(std::string(catalog[3].id), std::string("zh-moqi"));
+    REQUIRE_EQ(std::string(catalog[4].id), std::string("qwen14b-zh-hans"));
     // 每个条目都要带齐下载直链与展示字段；zh-moqi 的许可状态必须如实标注
     // （构建链未声明许可），NOTICE 与设置页都从这里取词。
     for (const auto &entry : catalog)
@@ -796,4 +798,39 @@ TEST_CASE(collocation_import_does_not_fabricate_remote_identity)
     REQUIRE_EQ(state, std::string("ready"));
     // 导入没有响应头：落位后删掉旧记录，下一次探测按「旧安装」口径用长度补记录或提示更新。
     REQUIRE(!std::filesystem::exists(directory / L".remote"));
+}
+
+TEST_CASE(collocation_import_decompresses_gzip_gram)
+{
+    ScopedCollocationEnvironment env;
+    std::string raw(44, '\0');
+    const std::string magic = "Rime::Grammar/";
+    raw.replace(0, magic.size(), magic);
+
+    z_stream zs{};
+    REQUIRE_EQ(deflateInit2(&zs, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY), Z_OK);
+    std::string gz(256, '\0');
+    zs.next_in = reinterpret_cast<Bytef *>(raw.data());
+    zs.avail_in = static_cast<uInt>(raw.size());
+    zs.next_out = reinterpret_cast<Bytef *>(gz.data());
+    zs.avail_out = static_cast<uInt>(gz.size());
+    REQUIRE_EQ(deflate(&zs, Z_FINISH), Z_STREAM_END);
+    gz.resize(zs.total_out);
+    deflateEnd(&zs);
+
+    const std::filesystem::path source = env.models_dir().parent_path() / L"qwen14b-zh-hans.gram.gz";
+    WriteTextFile(source, gz);
+    REQUIRE(collocation::ImportModel("qwen14b-zh-hans", source));
+    std::string state;
+    for (int attempt = 0; attempt < 200; ++attempt)
+    {
+        state = collocation::GetModelStatuses()["qwen14b-zh-hans"].state;
+        if (state != "importing")
+            break;
+        Sleep(25);
+    }
+    REQUIRE_EQ(state, std::string("ready"));
+    const std::filesystem::path target = env.models_dir() / L"qwen14b-zh-hans" / L"qwen14b-zh-hans.gram";
+    REQUIRE_EQ(std::filesystem::file_size(target), static_cast<std::uintmax_t>(44));
+    REQUIRE_EQ(std::string(collocation::BadgeForModel("qwen14b-zh-hans")), std::string("千问"));
 }
