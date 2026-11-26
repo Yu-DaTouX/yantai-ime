@@ -1058,6 +1058,7 @@ std::vector<WordItem> QuanpinDictionary::query_series(const std::string &raw_inp
         lattice_options.phrase_bonus = sentence_association_.phrase_bonus;
         lattice_options.phrase_bonus_min_weight = sentence_association_.phrase_bonus_min_weight;
         lattice_options.allow_latin_segments = latin_segments;
+        lattice_options.context_text = rescoring_context_;
         // 万象语法模型的搭配项：逐边叠加字级搭配分，与三元模型在同一 Viterbi 里竞争。
         // query() 是自然对数域，乘 kLnToLog10 换到词格的 log10 域；六参数来自配置。
         if (has_collocation)
@@ -2472,6 +2473,19 @@ void QuanpinDictionary::reset_cache()
     lattice_span_cache_.clear();
     prefix_completion_cache_.clear();
     latin_words_stale_ = true;
+    user_pinyin_entries_stale_ = true;
+}
+
+std::shared_ptr<const std::unordered_set<std::string>> QuanpinDictionary::user_pinyin_entries()
+{
+    if (!user_pinyin_entries_ || user_pinyin_entries_stale_)
+    {
+        user_pinyin_entries_ =
+            std::make_shared<std::unordered_set<std::string>>(user_dictionary::active_user_pinyin_entries(
+                metasequoia::path_to_utf8(paths_.user(metasequoia::assets::user_journal))));
+        user_pinyin_entries_stale_ = false;
+    }
+    return user_pinyin_entries_;
 }
 
 quanpin::WordLatticeLookup QuanpinDictionary::lattice_lookup(int limit, bool with_fuzzy)
@@ -2484,8 +2498,24 @@ quanpin::WordLatticeLookup QuanpinDictionary::lattice_lookup(int limit, bool wit
     auto db_lookup = quanpin::make_lattice_db_lookup(db_, statement_cache_, limit, fuzzy, char_reading_totals_);
     // 字母词按跨度里拼起来的字母匹配：ka'lao'k 一样认出 ka'la'o'k 的卡拉OK。表在这里（查询线程上）载好，
     // 按值捕获：这次查询里缓存若被清掉、表被重读，这个查询函数仍用它拿到的那一份。
-    auto lookup = [this, latin = latin_words(), db_lookup = std::move(db_lookup)](const quanpin::Segments &span) {
+    auto lookup = [this, latin = latin_words(), user_entries = user_pinyin_entries(),
+                   db_lookup = std::move(db_lookup)](const quanpin::Segments &span) {
         auto rows = db_lookup(span);
+        if (span.size() >= 2 && user_entries && !user_entries->empty())
+        {
+            for (auto &row : rows)
+            {
+                std::string probe;
+                probe.reserve(row.key.size() + 1 + row.value.size());
+                probe.append(row.key);
+                probe.push_back('\t');
+                probe.append(row.value);
+                if (user_entries->find(probe) != user_entries->end())
+                {
+                    row.user_word = true;
+                }
+            }
+        }
         quanpin::prepend_latin_lexemes(*latin, span, language_model_, rows);
         return rows;
     };
@@ -2577,14 +2607,15 @@ void QuanpinDictionary::set_rescoring_context(const std::string &context)
     }
     rescoring_context_ = context;
     // 上文变了，缓存里的顺序是按旧上文重排出来的，同 set_sentence_association。
-    // 上文只经神经重排进入候选；没有生效的神经模型时缓存与上文无关，不清。
-    // 每次上屏都会换上文，无条件清会让下一个词的前几键都变成冷查询。之后
-    // 打开神经重排会经 set_sentence_association 清缓存，不会沿用旧结果。
-    const bool rescoring_active =
+    // 上文经词格（sc.lm 初始状态 / octagram 搭配尾窗）与神经重排进入候选；这些整句/重排来源
+    // 均未生效时缓存与上文无关，不清，避免每次上屏把下一个词的前几键变成冷查询。
+    const bool context_active =
+        sentence_association_.word_lattice ||
+        (sentence_association_.collocation_rerank && collocation_db_ != nullptr && collocation_db_->valid()) ||
         ((sentence_association_.neural_keyboard || sentence_association_.context_candidate_rerank) &&
          neural_keyboard_model_.get() != nullptr) ||
         (sentence_association_.neural_desktop && neural_desktop_model_.get() != nullptr);
-    if (rescoring_active)
+    if (context_active)
     {
         reset_sentence_cache();
     }

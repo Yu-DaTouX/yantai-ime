@@ -22,7 +22,14 @@ LatticeReranker make_neural_reranker(const neural::SentenceModel *model, const s
     // 在这里就把前文裁到模型真正会看的那几十个字：后台重排的结果表以「前文 + 候选句」为键，
     // 拿没裁过的整段历史当键的话，每上屏一个字键就变了，缓存永远打不中。
     const std::string trimmed = neural::last_characters(context, options.context_chars);
-    return [model, context = trimmed, options](std::vector<LatticePath> &paths) -> bool {
+    neural::RerankOptions effective = options;
+    // 有明确上文时，字级 Transformer 能看到至多 64 字的语境，比三元词格更擅长跨句同音消歧；
+    // 仅在调用方沿用默认 λ (= 0.5) 时提高到 0.68，无上文时保持原值不变。
+    if (!trimmed.empty() && effective.lambda == neural::RerankOptions{}.lambda)
+    {
+        effective.lambda = 0.68;
+    }
+    return [model, context = trimmed, options = effective](std::vector<LatticePath> &paths) -> bool {
         if (paths.size() < 2)
         {
             return false;
@@ -65,8 +72,9 @@ void rerank_dictionary_candidates(std::vector<WordItem> &candidates, const std::
 
     neural::RerankOptions options;
     options.max_paths = 32;
-    // Dictionary frequency is already the initial order; context needs room to overturn common homophones.
-    options.lambda = 0.8;
+    // Dictionary frequency spans 6+ decades on single chars (e.g. 学 vs 雪, 和 vs 河);
+    // give context enough weight to overturn raw unigram frequency when the preceding clause is strong.
+    options.lambda = 0.88;
     std::vector<std::size_t> slots;
     std::vector<std::string> texts;
     std::vector<double> priors;

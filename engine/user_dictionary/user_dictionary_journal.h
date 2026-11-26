@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include <functional>
 #include <optional>
@@ -72,6 +73,9 @@ bool is_user_inserted(const std::string &user_db_path, DictionaryKind kind, cons
 // 该键下是否有用户留下的权重（调频或造词的 upsert，不看具体词）。删除记录不算：
 // 它表达的是「不要这个词」，不是对这组读音的偏好。
 bool has_user_upsert_for_key(const std::string &user_db_path, DictionaryKind kind, const std::string &key);
+// 读取日志里所有未删除的用户拼音词（"key\tvalue"），只读打开、库不存在时不建库。
+// 用于词格解码在语言模型未登录（OOV）时给个人多字词合理补偿。
+std::unordered_set<std::string> active_user_pinyin_entries(const std::string &user_db_path);
 bool ensure_user_database(const std::string &user_db_path);
 // Switch a shipped dictionary database (msime.db, english.db) to WAL so the key
 // path's queries never wait for a learning write's commit. The user journal does

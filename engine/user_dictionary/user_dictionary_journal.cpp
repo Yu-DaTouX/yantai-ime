@@ -741,6 +741,35 @@ bool has_user_upsert_for_key(const std::string &user_db_path, DictionaryKind kin
            sqlite3_step(stmt.get()) == SQLITE_ROW;
 }
 
+std::unordered_set<std::string> active_user_pinyin_entries(const std::string &user_db_path)
+{
+    std::unordered_set<std::string> entries;
+    if (user_db_path.empty())
+        return entries;
+    auto db = open_database(user_db_path, SQLITE_OPEN_READONLY);
+    if (!db)
+        return entries;
+    auto stmt = prepare(db.get(), "SELECT key, value FROM user_dictionary_operations "
+                                  "WHERE dictionary='pinyin' AND operation='upsert'");
+    if (!stmt)
+        return entries;
+    while (sqlite3_step(stmt.get()) == SQLITE_ROW)
+    {
+        const auto *key_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt.get(), 0));
+        const auto *val_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt.get(), 1));
+        if (key_ptr && val_ptr && *key_ptr && *val_ptr)
+        {
+            std::string combined;
+            combined.reserve(std::strlen(key_ptr) + 1 + std::strlen(val_ptr));
+            combined.append(key_ptr);
+            combined.push_back('\t');
+            combined.append(val_ptr);
+            entries.insert(std::move(combined));
+        }
+    }
+    return entries;
+}
+
 bool record_pinyin_upsert_from_database(const std::string &main_db_path, const std::string &key,
                                         const std::string &value, const std::string &user_db_path)
 {

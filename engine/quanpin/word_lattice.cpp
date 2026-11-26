@@ -172,6 +172,12 @@ std::vector<std::vector<LatticeEdge>> build_graph(const Segments &syllables, con
                     edge.base_score = dictionary_tiebreak(edge.weight, options) +
                                       reading_prior(edge.weight, reading_totals[row.key], options) +
                                       phrase_bonus(edge.weight, end - start, options);
+                    if (row.user_word && (end - start) >= 2 && options.user_word_oov_bonus > 0.0 &&
+                        model->is_unknown(edge.index))
+                    {
+                        const double max_safe_bonus = std::abs(static_cast<double>(model->unknown_penalty()));
+                        edge.base_score += (std::min)(options.user_word_oov_bonus, max_safe_bonus);
+                    }
                 }
                 else
                 {
@@ -216,6 +222,93 @@ std::string tail_codepoints(const std::string &text, size_t n)
             ++i;
     }
     return text.substr(i);
+}
+
+bool is_sentence_break(std::string_view cp)
+{
+    if (cp.size() == 1)
+    {
+        const char c = cp[0];
+        return c == '.' || c == '!' || c == '?' || c == ';' || c == '\n' || c == '\r';
+    }
+    return cp == "\xE3\x80\x82" || cp == "\xEF\xBC\x81" || cp == "\xEF\xBC\x9F" || cp == "\xEF\xBC\x9B" ||
+           cp == "\xE2\x80\xA6";
+}
+
+// 从已上屏前文里截取最后一个句末标点之后的当前从句尾部，避免跨句污染上下文状态。
+std::string trailing_clause(const std::string &text)
+{
+    if (text.empty())
+        return {};
+    std::vector<size_t> starts;
+    for (size_t i = 0; i < text.size();)
+    {
+        starts.push_back(i);
+        ++i;
+        while (i < text.size() && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80)
+            ++i;
+    }
+    size_t begin = 0;
+    for (size_t k = starts.size(); k-- > 0;)
+    {
+        const size_t s = starts[k];
+        const size_t e = (k + 1 < starts.size()) ? starts[k + 1] : text.size();
+        if (is_sentence_break(std::string_view(text.data() + s, e - s)))
+        {
+            begin = e;
+            break;
+        }
+    }
+    return begin < text.size() ? text.substr(begin) : std::string{};
+}
+
+// 用当前从句尾部的至多 2 个已知词（逆向最大匹配，单次至多 8 次词表查找）推进 kenlm 三元状态。
+ngram::State prime_language_model_state(const ngram::LanguageModel &model, const std::string &clause)
+{
+    ngram::State state = model.null_state();
+    if (clause.empty())
+        return state;
+    const std::string window = tail_codepoints(clause, kCollocationTailCodepoints);
+    std::vector<size_t> offsets;
+    for (size_t i = 0; i < window.size();)
+    {
+        offsets.push_back(i);
+        ++i;
+        while (i < window.size() && (static_cast<unsigned char>(window[i]) & 0xC0) == 0x80)
+            ++i;
+    }
+    offsets.push_back(window.size());
+
+    std::vector<ngram::WordIndex> matched;
+    matched.reserve(2);
+    size_t pos = offsets.size() - 1;
+    while (pos > 0 && matched.size() < 2)
+    {
+        bool found = false;
+        const size_t max_len = (std::min)(static_cast<size_t>(4), pos);
+        for (size_t len = max_len; len >= 1; --len)
+        {
+            const size_t b0 = offsets[pos - len];
+            const size_t b1 = offsets[pos];
+            const ngram::WordIndex idx = model.index(std::string_view(window.data() + b0, b1 - b0));
+            if (!model.is_unknown(idx))
+            {
+                matched.push_back(idx);
+                pos -= len;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            break;
+    }
+    for (auto it = matched.rbegin(); it != matched.rend(); ++it)
+    {
+        ngram::State next;
+        (void)model.score(state, *it, next);
+        state = next;
+    }
+    return state;
 }
 
 bool covers_all_syllables(const WordItem &item, size_t n_syllables)
@@ -279,9 +372,13 @@ std::vector<LatticePath> decode_word_lattice(const Segments &syllables, const Wo
     // Not begin_state(): the shipped sc.lm is built from an ARPA without
     // <s>/</s>, so a sentence-start context would only carry a word the model
     // has no n-grams for. Starting from the empty context makes the first word
-    // score as a plain unigram, which is what that model can actually express.
+    // score as a plain unigram, unless committed context primes the clause tail.
+    const std::string context_clause =
+        options.context_text.empty() ? std::string{} : trailing_clause(options.context_text);
     if (model)
-        start.state = model->null_state();
+        start.state = context_clause.empty() ? model->null_state() : prime_language_model_state(*model, context_clause);
+    if (options.collocation_scorer && options.collocation_weight > 0.0 && !context_clause.empty())
+        start.collocation_tail = tail_codepoints(context_clause, kCollocationTailCodepoints);
     columns[0].push_back(std::move(start));
 
     for (size_t pos = 0; pos < n; ++pos)

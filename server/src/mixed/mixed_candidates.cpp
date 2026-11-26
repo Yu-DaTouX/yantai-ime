@@ -7,6 +7,7 @@
 #include "engine/local_modes/emoji_query.h"
 #include "engine/local_modes/kaomoji_query.h"
 #include "engine/local_modes/symbol_query.h"
+#include "engine/quanpin/quanpin_utils.h"
 #include "config/ime_config.h"
 #include <algorithm>
 #include <atomic>
@@ -95,10 +96,23 @@ void WorkerLoop()
         if (request.english)
         {
             const std::string prefix = EnglishPrefix(request.input);
-            if (prefix.size() >= (std::max)(std::size_t{1}, request.english_min_prefix))
+            const std::size_t min_prefix = (std::max)(std::size_t{1}, request.english_min_prefix);
+            if (prefix.size() >= min_prefix)
+            {
                 result.english = request.english_first_page_count > 1
                                      ? english_dictionary.query_mixed_prefix(prefix)
                                      : english_dictionary.query_prefix(prefix, kEnglishCandidateLimit);
+            }
+            else if (prefix.size() >= 3 && !quanpin::is_complete_pinyin_input(prefix))
+            {
+                // 3–4 字母但切不出合法全拼的常见英文词/术语（如 git/sql/llm/mcp/json/rust），
+                // 即使低于混输长度门槛也允许精确匹配出英文，不带前缀补全，避免误伤简拼。
+                auto matches = english_dictionary.query_prefix(prefix, kEnglishCandidateLimit);
+                matches.erase(std::remove_if(matches.begin(), matches.end(),
+                                             [&](const WordItem &item) { return item.word.size() != prefix.size(); }),
+                              matches.end());
+                result.english = std::move(matches);
+            }
             if (IsStale(observed_generation))
                 continue;
         }

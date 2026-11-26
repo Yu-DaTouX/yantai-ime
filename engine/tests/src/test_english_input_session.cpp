@@ -200,6 +200,41 @@ int run_test()
     require(!threshold.set_english_input_options(mixed_options),
             "An out-of-range English minimum prefix was accepted.");
 
+    // Short (3-4 char) non-pinyin exact English words like "git" trigger below minimum_prefix without prefix noise.
+    {
+        const auto directory = root / "short-non-pinyin-english";
+        prepare_main_database(directory, true);
+        Database database(directory / "english.db");
+        database.execute("CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,"
+                         "weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID");
+        database.execute("INSERT INTO english_words VALUES"
+                         "('git','git',500),('github','GitHub',400),('wsman','wsman',300);");
+        set_data_directory(directory);
+        metasequoia::EnglishInputOptions short_opts;
+        short_opts.mixed_candidates = true;
+        short_opts.minimum_prefix = 5;
+        metasequoia::InputSession short_session(SchemeType::Quanpin);
+        require(short_session.set_english_input_options(short_opts), "Short mixed-English options rejected.");
+        type(short_session, "git");
+        require(std::any_of(short_session.candidates().begin(), short_session.candidates().end(),
+                            [](const WordItem &item) {
+                                return item.source == CandidateSource::EnglishDictionary && item.word == "git";
+                            }),
+                "Exact non-pinyin 3-letter English word 'git' did not trigger below minimum_prefix.");
+        require(std::none_of(short_session.candidates().begin(), short_session.candidates().end(),
+                             [](const WordItem &item) {
+                                 return item.source == CandidateSource::EnglishDictionary && item.word == "GitHub";
+                             }),
+                "Prefix completion 'GitHub' leaked below minimum_prefix.");
+        metasequoia::InputSession jianpin_session(SchemeType::Quanpin);
+        require(jianpin_session.set_english_input_options(short_opts), "Short mixed-English options rejected.");
+        type(jianpin_session, "wsm");
+        require(std::none_of(jianpin_session.candidates().begin(), jianpin_session.candidates().end(),
+                             [](const WordItem &item) { return item.source == CandidateSource::EnglishDictionary; }),
+                "Jianpin 'wsm' unexpectedly triggered English prefix completion.");
+    }
+    set_data_directory(english_mode_directory);
+
     metasequoia::InputSession dedicated(SchemeType::Quanpin);
     dedicated.set_dedicated_english_mode(true);
     require(dedicated.dedicated_english_mode() && !dedicated.has_composition(),

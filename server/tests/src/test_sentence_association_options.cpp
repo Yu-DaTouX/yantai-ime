@@ -1,4 +1,5 @@
 #include "engine/core/sentence_association_options.h"
+#include "engine/quanpin/word_lattice.h"
 #include "tests/includes/test_framework.h"
 
 // 打字闸门每段输入只翻效果档的模型路径：那种变化只影响 series_cache_，词典层只清整句那层。
@@ -39,4 +40,31 @@ TEST_CASE(sentence_association_only_an_effect_tier_model_path_is_series_only)
     SentenceAssociationOptions grammar_flipped = suppressed;
     grammar_flipped.collocation_grammar.collocation_penalty += 1.0;
     REQUIRE(!grammar_flipped.differs_only_in_effect_tier_model(configured));
+}
+
+TEST_CASE(word_lattice_primes_collocation_context_and_respects_sentence_break)
+{
+    auto lookup = [](const quanpin::Segments &span) -> std::vector<quanpin::LatticeLexeme> {
+        if (span.size() == 2 && span[0] == "gai" && span[1] == "dao")
+        {
+            return {{"gai'dao", "改到", 1000}, {"gai'dao", "该到", 1000}};
+        }
+        return {};
+    };
+    quanpin::WordLatticeOptions options;
+    options.collocation_weight = 1.0;
+    options.context_text = "昨天下雨。今天的会议";
+    std::string observed_tail;
+    options.collocation_scorer = [&](std::string_view tail, std::string_view word, bool) -> double {
+        if (observed_tail.empty())
+            observed_tail = std::string(tail);
+        if (tail.find("会议") != std::string_view::npos && word == "改到")
+            return 2.0;
+        return 0.0;
+    };
+    const auto paths = quanpin::decode_word_lattice({"gai", "dao"}, lookup, options);
+    REQUIRE(!paths.empty());
+    // 句号之前的内容被截断，只把「今天的会议」作为搭配上文喂给首词。
+    REQUIRE_EQ(observed_tail, std::string("今天的会议"));
+    REQUIRE_EQ(paths.front().sentence, std::string("改到"));
 }

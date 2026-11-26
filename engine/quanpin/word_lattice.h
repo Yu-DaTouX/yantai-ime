@@ -64,6 +64,8 @@ struct LatticeLexeme
     std::int64_t weight = 0;
     // 从边分里扣掉的分（与路径分同单位）。模糊读音的行（key 与跨度不同）靠它让位于敲出的读音。
     double penalty = 0.0;
+    // 来自用户个人词库/学习日志的多字词标记：在语言模型未登录（OOV）时触发合理补偿。
+    bool user_word = false;
 };
 
 using WordLatticeLookup = std::function<std::vector<LatticeLexeme>(const Segments &span)>;
@@ -162,6 +164,14 @@ struct WordLatticeOptions
     // 切分里有 t、k 这类单字母段、且它们都能被字母词（latin_words）覆盖时由调用方置位：
     // merge_lattice_candidates 平时只接受全是完整音节的切分，置位后也解这条切分。
     bool allow_latin_segments = false;
+    // 个人多字词在语言模型未登录（OOV）时的补偿上限（log10 域，0 = 关闭）。
+    // KenLM 对未登录词在 <unk> 一元分（约 -4.5）之外会再叠加一层 unknown_penalty（-7.78），
+    // 只作用于 user_word == true、跨度 >= 2 且 language_model->is_unknown(index) 的边，
+    // 抵消额外未登录罚分（上限为 |unknown_penalty|），保留其正常词频量级，不影响已登录词。
+    double user_word_oov_bonus = 7.8;
+    // 已上屏的前文（UTF-8）。非空时，decode_word_lattice 用当前从句尾部词推进语言模型初始状态，
+    // 并把尾部字符填进 octagram 搭配窗口，让词格与搭配模型在同步解码首帧即具备上下文感知。
+    std::string context_text;
 };
 
 // Optional second opinion on the decoded n-best, applied before the paths become candidates.

@@ -187,6 +187,9 @@ class QuanpinDictionary
     // 字母词表，第一次用到时从 db_ 载入，词库被写过后重读（见 quanpin::refresh_latin_words）。
     // 调用方按值拿着用完：重读换掉的旧表要等手上这份放掉才释放。
     std::shared_ptr<const quanpin::LatinWords> latin_words();
+    // 个人词库里的生效拼音词集合（"key\tvalue"），供词格解码对未登录个人多字词做 OOV 补偿。
+    // 随 reset_cache 标脏、按需惰性重读，不在按键路径上重复查库。
+    std::shared_ptr<const std::unordered_set<std::string>> user_pinyin_entries();
     // 打出的字母串整串等于某个字母词的编码时把它插进候选，三个字母起再补两条以它开头的更长的词
     // （txu 补 T恤衫）。排位见 quanpin::insert_latin_candidates。
     void insert_latin_words(std::vector<WordItem> &result, const std::string &raw_input,
@@ -241,6 +244,8 @@ class QuanpinDictionary
     std::shared_ptr<const quanpin::LatinWords> latin_words_;
     bool latin_words_stale_ = false;
     sqlite3_int64 latin_words_version_ = -1;
+    std::shared_ptr<const std::unordered_set<std::string>> user_pinyin_entries_;
+    bool user_pinyin_entries_stale_ = true;
     // 见 set_prefix_completion。缓存按前缀存打过分的补全，随 reset_cache 清（调频改了权重）。
     metasequoia::PrefixCompletionOptions prefix_completion_;
     quanpin::PrefixCompletionCache prefix_completion_cache_;

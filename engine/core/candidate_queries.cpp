@@ -5,6 +5,7 @@
 #include "../local_modes/kaomoji_query.h"
 #include "../local_modes/quick_phrase_query.h"
 #include "../local_modes/radical_query.h"
+#include "../quanpin/quanpin_utils.h"
 #include <algorithm>
 #include <cctype>
 #include <iterator>
@@ -126,9 +127,20 @@ std::vector<WordItem> CandidateQueries::mixed(std::vector<WordItem> candidates, 
     std::vector<WordItem> english_candidates;
     const bool lower_ascii_prefix = std::all_of(
         prefix.begin(), prefix.end(), [](unsigned char character) { return character >= 'a' && character <= 'z'; });
-    if (english_options.mixed_candidates && prefix.size() >= english_options.minimum_prefix && lower_ascii_prefix)
+    if (english_options.mixed_candidates && lower_ascii_prefix)
     {
-        english_candidates = collect_unique(english_dictionary().query_mixed_prefix(prefix));
+        if (prefix.size() >= english_options.minimum_prefix)
+        {
+            english_candidates = collect_unique(english_dictionary().query_mixed_prefix(prefix));
+        }
+        else if (prefix.size() >= 3 && !quanpin::is_complete_pinyin_input(prefix))
+        {
+            auto matches = english_dictionary().query_mixed_prefix(prefix);
+            matches.erase(std::remove_if(matches.begin(), matches.end(),
+                                         [&](const WordItem &item) { return item.word.size() != prefix.size(); }),
+                          matches.end());
+            english_candidates = collect_unique(std::move(matches));
+        }
     }
 
     std::vector<WordItem> emoji_candidates;
