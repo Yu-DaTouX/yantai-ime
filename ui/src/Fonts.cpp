@@ -1,10 +1,12 @@
 #include "msimeui/Fonts.h"
 
 #include <cstdint>
+#include <d2d1.h>
 #include <dwrite_2.h>
 #include <dwrite_3.h>
 #include <map>
 #include <mutex>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <wrl/client.h>
@@ -49,7 +51,8 @@ IDWriteFactory *SharedFactory()
 constexpr wchar_t kFluentIconsFamily[] = L"Segoe Fluent Icons";
 constexpr wchar_t kMdl2IconsFamily[] = L"Segoe MDL2 Assets";
 
-ComPtr<IDWriteFont> FindFont(IDWriteFactory *factory, const wchar_t *name)
+ComPtr<IDWriteFont> FindFont(IDWriteFactory *factory, const wchar_t *name,
+                             DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL)
 {
     if (!factory || !name)
     {
@@ -72,12 +75,24 @@ ComPtr<IDWriteFont> FindFont(IDWriteFactory *factory, const wchar_t *name)
         return nullptr;
     }
     ComPtr<IDWriteFont> font;
-    if (FAILED(family->GetFirstMatchingFont(DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
-                                            DWRITE_FONT_STYLE_NORMAL, font.GetAddressOf())))
+    if (FAILED(family->GetFirstMatchingFont(weight, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                                            font.GetAddressOf())))
     {
         return nullptr;
     }
     return font;
+}
+
+ID2D1Factory *SharedD2DFactory()
+{
+    static std::mutex mutex;
+    static ComPtr<ID2D1Factory> factory;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!factory)
+    {
+        D2D1CreateFactory(D2D1_FACTORY_TYPE_MULTI_THREADED, factory.GetAddressOf());
+    }
+    return factory.Get();
 }
 
 struct IconFontEntry
@@ -406,6 +421,113 @@ TextVerticalMetrics ResolveTextVerticalMetrics(const std::wstring &fontFamily,
     if (cache.size() >= 256)
         cache.clear();
     cache.emplace(std::move(key), metrics);
+    return metrics;
+}
+
+GlyphInkMetrics ResolveGlyphInkMetrics(const std::wstring &fontFamily, wchar_t codepoint, DWRITE_FONT_WEIGHT weight)
+{
+    GlyphInkMetrics metrics;
+    if (fontFamily.empty() || codepoint == 0)
+    {
+        return metrics;
+    }
+
+    using CacheKey = std::tuple<std::wstring, int, wchar_t>;
+    const CacheKey key{fontFamily, static_cast<int>(weight), codepoint};
+    static std::mutex cacheMutex;
+    static std::map<CacheKey, GlyphInkMetrics> cache;
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex);
+        const auto found = cache.find(key);
+        if (found != cache.end())
+        {
+            return found->second;
+        }
+    }
+
+    IDWriteFactory *factory = SharedFactory();
+    if (!factory)
+    {
+        return metrics;
+    }
+
+    const std::uint32_t u32 = static_cast<std::uint32_t>(codepoint);
+    ComPtr<IDWriteFont> font = FindFont(factory, fontFamily.c_str(), weight);
+    if (!HasCharacter(font.Get(), u32) && fontFamily == UiFontFamily())
+    {
+        font = FindFont(factory, UiFontFallbackFamily(), weight);
+    }
+    ComPtr<IDWriteFontFace> face;
+    if (!HasCharacter(font.Get(), u32) || FAILED(font->CreateFontFace(face.GetAddressOf())) || !face)
+    {
+        return metrics;
+    }
+
+    UINT16 glyph = 0;
+    if (FAILED(face->GetGlyphIndices(&u32, 1, &glyph)) || glyph == 0)
+    {
+        return metrics;
+    }
+
+    // 优先用字形真实矢量轮廓的外接框：对可变字体（如 Noto Sans SC）和图标字体（Segoe Fluent Icons）
+    // 都能得到严格紧贴墨迹的边界，不受字模上下留白或缺失 vmtx 影响。
+    if (ID2D1Factory *d2d = SharedD2DFactory())
+    {
+        ComPtr<ID2D1PathGeometry> geometry;
+        ComPtr<ID2D1GeometrySink> sink;
+        if (SUCCEEDED(d2d->CreatePathGeometry(geometry.GetAddressOf())) &&
+            SUCCEEDED(geometry->Open(sink.GetAddressOf())))
+        {
+            const HRESULT hr = face->GetGlyphRunOutline(1.0f, &glyph, nullptr, nullptr, 1, FALSE, FALSE, sink.Get());
+            const HRESULT closeHr = sink->Close();
+            D2D1_RECT_F bounds{};
+            if (SUCCEEDED(hr) && SUCCEEDED(closeHr) && SUCCEEDED(geometry->GetBounds(nullptr, &bounds)) &&
+                bounds.right > bounds.left && bounds.bottom > bounds.top)
+            {
+                metrics.valid = true;
+                metrics.widthEm = bounds.right - bounds.left;
+                metrics.heightEm = bounds.bottom - bounds.top;
+                metrics.inkCenterXEm = (bounds.left + bounds.right) * 0.5f;
+                // GetGlyphRunOutline 输出的 Y 轴向下，基线在 0，基线以上为负。
+                metrics.inkCenterYAboveBaselineEm = -(bounds.top + bounds.bottom) * 0.5f;
+            }
+        }
+    }
+
+    if (!metrics.valid)
+    {
+        DWRITE_FONT_METRICS fontMetrics{};
+        DWRITE_GLYPH_METRICS glyphMetrics{};
+        face->GetMetrics(&fontMetrics);
+        if (fontMetrics.designUnitsPerEm > 0 && SUCCEEDED(face->GetDesignGlyphMetrics(&glyph, 1, &glyphMetrics, FALSE)))
+        {
+            const float em = static_cast<float>(fontMetrics.designUnitsPerEm);
+            const float w = static_cast<float>(static_cast<INT32>(glyphMetrics.advanceWidth) -
+                                               glyphMetrics.leftSideBearing - glyphMetrics.rightSideBearing);
+            const float h = static_cast<float>(static_cast<INT32>(glyphMetrics.advanceHeight) -
+                                               glyphMetrics.topSideBearing - glyphMetrics.bottomSideBearing);
+            if (w > 0.0f && h > 0.0f)
+            {
+                const float inkTop = static_cast<float>(glyphMetrics.verticalOriginY - glyphMetrics.topSideBearing);
+                const float inkBottom = inkTop - h;
+                metrics.valid = true;
+                metrics.widthEm = w / em;
+                metrics.heightEm = h / em;
+                metrics.inkCenterXEm = (static_cast<float>(glyphMetrics.leftSideBearing) + w * 0.5f) / em;
+                metrics.inkCenterYAboveBaselineEm = (inkTop + inkBottom) * 0.5f / em;
+            }
+        }
+    }
+
+    if (metrics.valid)
+    {
+        std::lock_guard<std::mutex> lock(cacheMutex);
+        if (cache.size() >= 256)
+        {
+            cache.clear();
+        }
+        cache.emplace(key, metrics);
+    }
     return metrics;
 }
 } // namespace msimeui

@@ -3,8 +3,8 @@
 #include <d2d1.h>
 #include <string>
 
-// Colors and corner radii of the D2D floating toolbar, one set per built-in
-// skin and theme. Radii are in DIPs before the user scale.
+// Colors, geometry, and material of the D2D floating toolbar, one set per built-in
+// skin and theme. Radii and sizes are in DIPs before the user scale.
 struct FloatingToolbarSkin
 {
     D2D1_COLOR_F fill;
@@ -15,6 +15,24 @@ struct FloatingToolbarSkin
     D2D1_COLOR_F handle;
     float radius;
     float iconRadius;
+    // Optional status-pill accent colors (alpha == 0 means plain icon button).
+    D2D1_COLOR_F statusFill = {0.0f, 0.0f, 0.0f, 0.0f};
+    D2D1_COLOR_F statusHover = {0.0f, 0.0f, 0.0f, 0.0f};
+    D2D1_COLOR_F statusGlyph = {0.0f, 0.0f, 0.0f, 0.0f};
+    float borderWidth = 1.4f;
+    float barHeight = 35.0f;
+    float iconBox = 26.0f;
+    float iconScale = 0.82f;
+    float itemGap = 5.0f;
+    float padLeft = 8.0f;
+    float padRight = 4.0f;
+    std::string handleStyle = "bar";
+    std::string dividerStyle = "full";
+    bool dividerAfterStatus = false;
+    std::string backdrop;
+    // < 0 means fall back to fill.a / material default.
+    float backdropOpacity = -1.0f;
+    float backdropLuminosity = -1.0f;
 };
 
 namespace CandidateSkinCatalog

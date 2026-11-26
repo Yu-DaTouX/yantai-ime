@@ -153,6 +153,33 @@ class ManifestTests(unittest.TestCase):
                 for scope in ("candidate_window", "toolbar"):
                     if "corner_radius_dip" in data.get(scope, {}):
                         self.assertTrue(0 <= data[scope]["corner_radius_dip"] <= 32, scope)
+                if "backdrop" in toolbar:
+                    self.assertIn(toolbar["backdrop"], ("none", "acrylic", "mica"))
+                if "border_width_dip" in toolbar:
+                    self.assertTrue(0 <= toolbar["border_width_dip"] <= 4, "toolbar.border_width_dip")
+                if "bar_height_dip" in toolbar:
+                    self.assertTrue(24 <= toolbar["bar_height_dip"] <= 64, "toolbar.bar_height_dip")
+                if "icon_box_dip" in toolbar:
+                    self.assertTrue(18 <= toolbar["icon_box_dip"] <= 48, "toolbar.icon_box_dip")
+                if "icon_scale" in toolbar:
+                    self.assertTrue(0.4 <= toolbar["icon_scale"] <= 1.0, "toolbar.icon_scale")
+                if "item_gap_dip" in toolbar:
+                    self.assertTrue(0 <= toolbar["item_gap_dip"] <= 20, "toolbar.item_gap_dip")
+                for key in ("padding_left_dip", "padding_right_dip"):
+                    if key in toolbar:
+                        self.assertTrue(0 <= toolbar[key] <= 32, f"toolbar.{key}")
+                if "handle_style" in toolbar:
+                    self.assertIn(toolbar["handle_style"], ("bar", "dots", "none"))
+                if "divider_style" in toolbar:
+                    self.assertIn(toolbar["divider_style"], ("full", "short", "none"))
+                if "divider_after_status" in toolbar:
+                    self.assertIsInstance(toolbar["divider_after_status"], bool)
+                for theme in ("dark", "light"):
+                    tcolors = toolbar.get(theme, {})
+                    if isinstance(tcolors, dict):
+                        for key in ("backdrop_opacity", "backdrop_luminosity"):
+                            if key in tcolors:
+                                self.assertTrue(0 <= tcolors[key] <= 1, f"toolbar.{theme}.{key}")
                 if "background" in window:
                     self.assertTrue(0 <= window["background"].get("opacity", 1) <= 1)
                 for key, limit in (("border_width_dip", 4), ("item_corner_radius_dip", 16)):

@@ -583,7 +583,12 @@ bool ReadToolbarColors(const toml::node *node, ToolbarColors &out)
     const auto *table = node->as_table();
     return table && ReadCssColor(*table, "background", out.background) && ReadCssColor(*table, "border", out.border) &&
            ReadCssColor(*table, "handle", out.handle) && ReadCssColor(*table, "divider", out.divider) &&
-           ReadCssColor(*table, "icon", out.icon) && ReadCssColor(*table, "hover", out.hover);
+           ReadCssColor(*table, "icon", out.icon) && ReadCssColor(*table, "hover", out.hover) &&
+           ReadCssColor(*table, "status_background", out.statusBackground) &&
+           ReadCssColor(*table, "status_hover", out.statusHover) &&
+           ReadCssColor(*table, "status_icon", out.statusIcon) &&
+           ReadOptionalBounded(*table, "backdrop_opacity", 1.0, out.backdropOpacity) &&
+           ReadOptionalBounded(*table, "backdrop_luminosity", 1.0, out.backdropLuminosity);
 }
 
 // [candidate_window.decoration] 里的 candidate_overlay_* 一组键；candidate_overlay 不是 true 时其余键不读。
@@ -1042,6 +1047,60 @@ bool ReadLook(const toml::table &root, Package &package, std::string *error)
         if (!ReadOptionalBounded(*toolbar, "icon_corner_radius_dip", 16.0, package.toolbarIconCornerRadiusDip))
         {
             SetError(error, "toolbar.icon_corner_radius_dip 超出范围");
+            return false;
+        }
+        if (!ReadEnum(*toolbar, "backdrop", {"none", "acrylic", "mica"}, package.toolbarBackdrop))
+        {
+            SetError(error, "toolbar.backdrop 只能是 none、acrylic 或 mica");
+            return false;
+        }
+        if (!ReadOptionalBounded(*toolbar, "border_width_dip", 4.0, package.toolbarBorderWidthDip))
+        {
+            SetError(error, "toolbar.border_width_dip 超出范围");
+            return false;
+        }
+        if (!ReadOptionalBounded(*toolbar, "bar_height_dip", 64.0, package.toolbarBarHeightDip) ||
+            (package.toolbarBarHeightDip && *package.toolbarBarHeightDip < 24.0))
+        {
+            SetError(error, "toolbar.bar_height_dip 必须是 24–64 的数值");
+            return false;
+        }
+        if (!ReadOptionalBounded(*toolbar, "icon_box_dip", 48.0, package.toolbarIconBoxDip) ||
+            (package.toolbarIconBoxDip && *package.toolbarIconBoxDip < 18.0))
+        {
+            SetError(error, "toolbar.icon_box_dip 必须是 18–48 的数值");
+            return false;
+        }
+        if (!ReadOptionalBounded(*toolbar, "icon_scale", 1.0, package.toolbarIconScale) ||
+            (package.toolbarIconScale && *package.toolbarIconScale < 0.4))
+        {
+            SetError(error, "toolbar.icon_scale 必须是 0.4–1.0 的数值");
+            return false;
+        }
+        if (!ReadOptionalBounded(*toolbar, "item_gap_dip", 20.0, package.toolbarItemGapDip))
+        {
+            SetError(error, "toolbar.item_gap_dip 超出范围");
+            return false;
+        }
+        if (!ReadOptionalBounded(*toolbar, "padding_left_dip", 32.0, package.toolbarPaddingLeftDip) ||
+            !ReadOptionalBounded(*toolbar, "padding_right_dip", 32.0, package.toolbarPaddingRightDip))
+        {
+            SetError(error, "toolbar.padding_left_dip / padding_right_dip 超出范围");
+            return false;
+        }
+        if (!ReadEnum(*toolbar, "handle_style", {"bar", "dots", "none"}, package.toolbarHandleStyle))
+        {
+            SetError(error, "toolbar.handle_style 只能是 bar、dots 或 none");
+            return false;
+        }
+        if (!ReadEnum(*toolbar, "divider_style", {"full", "short", "none"}, package.toolbarDividerStyle))
+        {
+            SetError(error, "toolbar.divider_style 只能是 full、short 或 none");
+            return false;
+        }
+        if (!ReadOptionalBool(*toolbar, "divider_after_status", package.toolbarDividerAfterStatus))
+        {
+            SetError(error, "toolbar.divider_after_status 必须是 true 或 false");
             return false;
         }
     }

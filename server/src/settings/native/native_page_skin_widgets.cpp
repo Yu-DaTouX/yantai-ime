@@ -120,14 +120,34 @@ SizeF ToolbarPreview::ImageExtent() const
 
 float ToolbarPreview::BarWidth() const
 {
-    const float s = options_.scale;
-    const float icon = options_.iconSize * s;
+    const float s = ImageScale();
+    const float icon = look_.iconBox * s;
+    const float gap = look_.itemGap * s;
     int count = 0;
     for (const auto &entry : kToolbarIcons)
         count += entry.item < 0 || options_.items[entry.item] ? 1 : 0;
-    const float b = CssBorder(1.4f);
-    return b + 8.0f * s + 2.5f * s + 6.0f * s + 4.0f * s + 1.2f * s + 6.0f * s + count * icon +
-           std::max(count - 1, 0) * 6.0f * s + 4.0f * s + b;
+    const bool hideHandle = look_.handleStyle == "none";
+    const bool dotsHandle = look_.handleStyle == "dots";
+    const bool hideDivider = look_.dividerStyle == "none";
+    const bool shortDivider = look_.dividerStyle == "short";
+    const float handleW = hideHandle ? look_.padLeft * s : (look_.padLeft + 10.0f) * s;
+    const float dividerW = hideDivider ? 0.0f : ((shortDivider ? 1.0f + 4.0f : 1.2f) * s);
+    float width = handleW + count * icon + std::max(count - 1, 0) * gap + look_.padRight * s;
+    if (look_.dividerAfterStatus)
+    {
+        if (!hideHandle)
+            width += gap;
+        if (!hideDivider && count > 1)
+            width += dividerW + gap;
+    }
+    else
+    {
+        if (!hideHandle && !hideDivider)
+            width += 2.0f * s + dividerW + gap;
+        else if (!hideHandle || !hideDivider)
+            width += dividerW + gap;
+    }
+    return width;
 }
 
 float ToolbarPreview::ImageScale() const
@@ -144,7 +164,7 @@ SizeF ToolbarPreview::Measure(const SizeF &availableSize)
         return {options_.centered ? availableSize.width : std::min(extent.width * s, availableSize.width),
                 extent.height * s};
     }
-    const float height = 35.0f * options_.scale;
+    const float height = look_.barHeight * ImageScale();
     return {options_.centered ? availableSize.width : std::min(BarWidth(), availableSize.width), height};
 }
 
@@ -163,9 +183,9 @@ void ToolbarPreview::Render(msimeui::DeviceResources &dr)
         RenderImage(dr);
         return;
     }
-    const float s = options_.scale;
+    const float s = ImageScale();
     const float width = BarWidth();
-    const float height = 35.0f * s;
+    const float height = look_.barHeight * s;
     const float x = options_.centered ? std::round(bounds_.x + (bounds_.width - width) * 0.5f) : bounds_.x;
     const RectF bar = {x, bounds_.y, width, height};
     const float radius = look_.radius * s;
@@ -180,41 +200,161 @@ void ToolbarPreview::Render(msimeui::DeviceResources &dr)
         }
     }
     FillRounded(dr, bar, radius, look_.bg);
-    StrokeRounded(dr, bar, radius, look_.border, 1.4f);
+    StrokeRounded(dr, bar, radius, look_.border, look_.borderWidth);
 
-    const float b = CssBorder(1.4f);
-    float cx = bar.x + b + 8.0f * s;
     const float cy = bar.y + height * 0.5f;
-    FillRounded(dr, {cx, cy - 7.0f * s, 2.5f * s, 14.0f * s}, 2.0f * s, look_.handle);
-    cx += 2.5f * s + 6.0f * s + 4.0f * s;
-    FillRect(dr, {cx, bar.y + b, 1.2f * s, height - b * 2.0f}, look_.divider);
-    cx += 1.2f * s + 6.0f * s;
+    const float gap = look_.itemGap * s;
+    const bool hideHandle = look_.handleStyle == "none";
+    const bool dotsHandle = look_.handleStyle == "dots";
+    const bool hideDivider = look_.dividerStyle == "none";
+    const bool shortDivider = look_.dividerStyle == "short";
+    const float dividerStroke = (shortDivider ? 1.0f : 1.2f) * s;
+    const float dividerSlot = hideDivider ? 0.0f : ((shortDivider ? 1.0f + 4.0f : 1.2f) * s);
 
-    const float icon = options_.iconSize * s;
-    bool first = true;
+    const auto drawDivider = [&](float dx) {
+        if (hideDivider)
+            return;
+        const float lx = dx + (dividerSlot - dividerStroke) * 0.5f;
+        if (shortDivider)
+        {
+            const float lh = height * 0.44f;
+            FillRounded(dr, {lx, cy - lh * 0.5f, dividerStroke, lh}, dividerStroke * 0.5f, look_.divider);
+        }
+        else
+        {
+            const float b = CssBorder(look_.borderWidth);
+            FillRect(dr, {lx, bar.y + b, dividerStroke, height - b * 2.0f}, look_.divider);
+        }
+    };
+
+    float cx = bar.x;
+    if (!hideHandle)
+    {
+        const float slotW = (look_.padLeft + 10.0f) * s;
+        if (dotsHandle)
+        {
+            const D2D1_COLOR_F dotColor =
+                D2D1::ColorF(look_.icon.r, look_.icon.g, look_.icon.b, look_.light ? 0.28f : 0.30f);
+            if (ID2D1SolidColorBrush *brush = dr.GetSolidColorBrush(dotColor))
+            {
+                const float r = std::max(0.8f, 1.05f * s);
+                const float stepX = 3.6f * s;
+                const float stepY = 3.8f * s;
+                const float leftInset = look_.padLeft * s;
+                const float hcx = cx + leftInset + (slotW - leftInset) * 0.5f;
+                for (int col = 0; col < 2; ++col)
+                {
+                    const float px = hcx + (col == 0 ? -0.5f : 0.5f) * stepX;
+                    for (int row = -1; row <= 1; ++row)
+                        target->FillEllipse(
+                            D2D1::Ellipse(D2D1::Point2F(px, cy + static_cast<float>(row) * stepY), r, r), brush);
+                }
+            }
+        }
+        else
+        {
+            const float hx = cx + (slotW - 2.5f * s) * 0.5f;
+            FillRounded(dr, {hx, cy - 7.0f * s, 2.5f * s, 14.0f * s}, 2.0f * s, look_.handle);
+        }
+        cx += slotW;
+        if (!look_.dividerAfterStatus)
+        {
+            if (!hideDivider)
+            {
+                cx += 2.0f * s;
+                drawDivider(cx);
+                cx += dividerSlot;
+            }
+            cx += gap;
+        }
+        else
+        {
+            cx += gap;
+        }
+    }
+    else
+    {
+        cx += look_.padLeft * s;
+        if (!look_.dividerAfterStatus && !hideDivider)
+        {
+            drawDivider(cx);
+            cx += dividerSlot + gap;
+        }
+    }
+
+    const float icon = look_.iconBox * s;
+    const float iconRadius = std::min(look_.iconRadius * s, icon * 0.5f);
+    int totalShown = 0;
+    for (const auto &entry : kToolbarIcons)
+        totalShown += entry.item < 0 || options_.items[entry.item] ? 1 : 0;
+    int drawn = 0;
     for (const auto &entry : kToolbarIcons)
     {
         if (entry.item >= 0 && !options_.items[entry.item])
             continue;
-        if (!first)
-            cx += 6.0f * s;
-        first = false;
+        if (drawn > 0)
+            cx += gap;
         const RectF box = {cx, cy - icon * 0.5f, icon, icon};
-        const msimeui::IconGlyph glyph = msimeui::ResolveIconGlyph(entry.codepoint);
-        TextStyle style;
-        style.lineHeight = 1.0f;
-        if (glyph.family)
+        const bool isStatus = entry.item < 0;
+        const bool hasPill = isStatus && look_.statusFill.a > 0.001f;
+        if (hasPill)
         {
-            style.family = glyph.family;
-            style.size = options_.iconSize * 0.82f * s;
-            DrawCentered(dr, std::wstring(1, glyph.codepoint), style, box, look_.icon);
+            FillRounded(dr, box, iconRadius, look_.statusFill);
         }
-        else
+        const D2D1_COLOR_F glyphColor = hasPill ? look_.statusIcon : look_.icon;
+        const msimeui::IconGlyph glyph = msimeui::ResolveIconGlyph(entry.codepoint);
+        const std::wstring family = glyph.family ? std::wstring(glyph.family) : std::wstring(msimeui::UiFontFamily());
+        const std::wstring text = glyph.family ? std::wstring(1, glyph.codepoint) : std::wstring(entry.fallback);
+        const float baseSize = icon * look_.iconScale;
+        const msimeui::GlyphInkMetrics ink =
+            text.size() == 1 ? msimeui::ResolveGlyphInkMetrics(family, text[0]) : msimeui::GlyphInkMetrics{};
+        float fontSize = baseSize;
+        if (ink.valid)
         {
-            style.size = options_.iconSize * 0.8f * s;
-            DrawCentered(dr, entry.fallback, style, box, look_.icon);
+            const float maxInkEm = std::max(ink.widthEm, ink.heightEm);
+            if (maxInkEm > 0.05f)
+            {
+                const float targetFraction = hasPill ? 0.76f : 0.86f;
+                fontSize = baseSize * std::clamp(targetFraction / maxInkEm, 0.70f, 1.25f);
+            }
+        }
+        IDWriteFactory *factory = dr.GetDWriteFactory();
+        ID2D1SolidColorBrush *brush = dr.GetSolidColorBrush(glyphColor);
+        IDWriteTextFormat *format =
+            dr.GetTextFormat(family, fontSize, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER,
+                             DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
+        ComPtr<IDWriteTextLayout> layout;
+        if (factory && brush && format &&
+            SUCCEEDED(factory->CreateTextLayout(text.c_str(), static_cast<UINT32>(text.size()), format, box.width,
+                                                box.height, layout.GetAddressOf())))
+        {
+            float offsetX = 0.0f;
+            float offsetY = 0.0f;
+            if (ink.valid)
+            {
+                DWRITE_TEXT_METRICS tm{};
+                DWRITE_LINE_METRICS lm{};
+                UINT32 lineCount = 0;
+                if (SUCCEEDED(layout->GetMetrics(&tm)) && SUCCEEDED(layout->GetLineMetrics(&lm, 1, &lineCount)) &&
+                    lineCount >= 1)
+                {
+                    const float inkCenterX = tm.left + ink.inkCenterXEm * fontSize;
+                    const float inkCenterY = (tm.top + lm.baseline) - ink.inkCenterYAboveBaselineEm * fontSize;
+                    offsetX = box.width * 0.5f - inkCenterX;
+                    offsetY = box.height * 0.5f - inkCenterY;
+                }
+            }
+            target->DrawTextLayout(D2D1::Point2F(box.x + offsetX, box.y + offsetY), layout.Get(), brush,
+                                   ink.valid ? D2D1_DRAW_TEXT_OPTIONS_NONE : D2D1_DRAW_TEXT_OPTIONS_CLIP);
         }
         cx += icon;
+        ++drawn;
+        if (isStatus && look_.dividerAfterStatus && !hideDivider && drawn < totalShown)
+        {
+            cx += gap;
+            drawDivider(cx);
+            cx += dividerSlot;
+        }
     }
 }
 

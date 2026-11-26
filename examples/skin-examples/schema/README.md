@@ -193,8 +193,12 @@ translation_separator = "#529cca73"
 
 悬浮工具栏样式。所有键都可省略，不写的沿用 `base`。
 
-- `corner_radius_dip`：`0`–`32`
-- `[toolbar.dark]` / `[toolbar.light]`：`background`、`border`、`handle`（左侧拖动条）、`divider`、`icon`、`hover`。`handle` 不写时取同一主题的 `[candidate.*].accent`，与选中竖条、预编辑光标同色；`accent` 也没写才沿用 `base`。写的话也请与 `accent` 一致
+- `corner_radius_dip`：`0`–`32`；`icon_corner_radius_dip`：`0`–`16`
+- `border_width_dip`：`0`–`4`；`bar_height_dip`：`24`–`64`；`icon_box_dip`：`18`–`48`；`icon_scale`：`0.4`–`1.0`；`item_gap_dip`：`0`–`20`；`padding_left_dip` / `padding_right_dip`：`0`–`32`
+- `backdrop`：`none`（默认）| `acrylic` | `mica`，与 `[candidate_window].backdrop` 相同
+- `handle_style`：`bar`（默认，竖条）| `dots`（2×3 圆点抓手）| `none`
+- `divider_style`：`full`（默认，通高竖线）| `short`（居中浮空短竖线）| `none`；`divider_after_status`：`true` 时把分隔线放到中/英主状态按钮之后
+- `[toolbar.dark]` / `[toolbar.light]`：`background`、`border`、`handle`（左侧拖动条）、`divider`、`icon`、`hover`，以及可选的 `status_background`、`status_hover`、`status_icon`（中/英主状态胶囊底色/悬停/图标色）与 `backdrop_opacity`、`backdrop_luminosity`（`0`–`1`）。`handle` 不写时取同一主题的 `[candidate.*].accent`，与选中竖条、预编辑光标同色；`accent` 也没写才沿用 `base`。写的话也请与 `accent` 一致
 - `mode`：`bar`（默认，矩形条）| `image`（图片模式，见下）
 
 ### 图片模式（`mode = "image"`）

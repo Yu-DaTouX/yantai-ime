@@ -712,6 +712,7 @@ bool DeviceResources::EnsureSurfaceComposition(UINT width, UINT height)
         FAILED(composition->backdropShape.As(&shapeGeometry)) ||
         FAILED(compositor6->CreateGeometricClipWithGeometry(shapeGeometry.Get(), geometricClip.GetAddressOf())) ||
         FAILED(geometricClip.As(&clip)) || FAILED(composition->backdrop->put_Clip(clip.Get())) ||
+        FAILED(composition->backdrop->put_Opacity(backdropOpacity_)) ||
         FAILED(composition->backdrop->put_IsVisible(false)) ||
         FAILED(children->InsertAtBottom(composition->backdrop.Get())) ||
         // Content: Direct2D draws into a drawing surface shown at its pixel size, top-left aligned.
@@ -883,6 +884,15 @@ void DeviceResources::SetBackdrop(const RectF &rectDips, float radiusDips)
     surface_->backdrop->put_Size({right - left, bottom - top});
     surface_->backdropShape->put_Size({right - left, bottom - top});
     surface_->backdropShape->put_CornerRadius({radius, radius});
+}
+
+void DeviceResources::SetBackdropOpacity(float opacity)
+{
+    backdropOpacity_ = (std::clamp)(opacity, 0.0f, 1.0f);
+    if (surface_ && surface_->backdrop)
+    {
+        surface_->backdrop->put_Opacity(backdropOpacity_);
+    }
 }
 
 bool DeviceResources::BeginDraw()

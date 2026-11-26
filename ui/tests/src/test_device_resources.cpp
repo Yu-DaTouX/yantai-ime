@@ -132,6 +132,8 @@ TEST_CASE(backdrop_composition_draws_through_a_drawing_surface)
         REQUIRE(resources.BeginDraw());
         resources.GetRenderTarget()->Clear(D2D1::ColorF(0, 0.0f));
         resources.SetBackdrop({4.0f, 4.0f, 120.0f, 50.0f}, 8.0f);
+        resources.SetBackdropOpacity(0.5f);
+        resources.SetBackdropOpacity(1.0f);
         REQUIRE(SUCCEEDED(resources.EndDraw()));
     }
 

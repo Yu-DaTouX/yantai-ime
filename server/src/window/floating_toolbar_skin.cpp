@@ -14,6 +14,17 @@ void ApplyToolbarLayer(FloatingToolbarSkin &skin, const CandidateSkinCatalog::Pa
     skin.divider = ParseCandidateCssColor(colors.divider, skin.divider);
     skin.glyph = ParseCandidateCssColor(colors.icon, skin.glyph);
     skin.hover = ParseCandidateCssColor(colors.hover, skin.hover);
+    skin.statusFill = ParseCandidateCssColor(colors.statusBackground, skin.statusFill);
+    skin.statusHover = ParseCandidateCssColor(colors.statusHover, skin.statusHover);
+    skin.statusGlyph = ParseCandidateCssColor(colors.statusIcon, skin.statusGlyph);
+    if (colors.backdropOpacity)
+    {
+        skin.backdropOpacity = static_cast<float>(*colors.backdropOpacity);
+    }
+    if (colors.backdropLuminosity)
+    {
+        skin.backdropLuminosity = static_cast<float>(*colors.backdropLuminosity);
+    }
     if (layer.toolbarCornerRadiusDip)
     {
         skin.radius = static_cast<float>(*layer.toolbarCornerRadiusDip);
@@ -21,6 +32,50 @@ void ApplyToolbarLayer(FloatingToolbarSkin &skin, const CandidateSkinCatalog::Pa
     if (layer.toolbarIconCornerRadiusDip)
     {
         skin.iconRadius = static_cast<float>(*layer.toolbarIconCornerRadiusDip);
+    }
+    if (!layer.toolbarBackdrop.empty())
+    {
+        skin.backdrop = layer.toolbarBackdrop;
+    }
+    if (layer.toolbarBorderWidthDip)
+    {
+        skin.borderWidth = static_cast<float>(*layer.toolbarBorderWidthDip);
+    }
+    if (layer.toolbarBarHeightDip)
+    {
+        skin.barHeight = static_cast<float>(*layer.toolbarBarHeightDip);
+    }
+    if (layer.toolbarIconBoxDip)
+    {
+        skin.iconBox = static_cast<float>(*layer.toolbarIconBoxDip);
+    }
+    if (layer.toolbarIconScale)
+    {
+        skin.iconScale = static_cast<float>(*layer.toolbarIconScale);
+    }
+    if (layer.toolbarItemGapDip)
+    {
+        skin.itemGap = static_cast<float>(*layer.toolbarItemGapDip);
+    }
+    if (layer.toolbarPaddingLeftDip)
+    {
+        skin.padLeft = static_cast<float>(*layer.toolbarPaddingLeftDip);
+    }
+    if (layer.toolbarPaddingRightDip)
+    {
+        skin.padRight = static_cast<float>(*layer.toolbarPaddingRightDip);
+    }
+    if (!layer.toolbarHandleStyle.empty())
+    {
+        skin.handleStyle = layer.toolbarHandleStyle;
+    }
+    if (!layer.toolbarDividerStyle.empty())
+    {
+        skin.dividerStyle = layer.toolbarDividerStyle;
+    }
+    if (layer.toolbarDividerAfterStatus)
+    {
+        skin.dividerAfterStatus = *layer.toolbarDividerAfterStatus;
     }
 }
 } // namespace

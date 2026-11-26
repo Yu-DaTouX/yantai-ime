@@ -48,6 +48,25 @@ TextVerticalMetrics ResolveTextVerticalMetrics(const std::wstring &fontFamily,
 // 放到数据目录、只给候选窗用。文件不存在、不是字体或系统不支持 COLR 字体集时返回空。
 std::shared_ptr<IDWriteFontCollection> LoadPrivateFontCollection(const std::wstring &path);
 
+// 单个字形的精确墨迹外接框（全部以 em 为单位的比例给出，乘上字号就是 DIP）。
+// 用于把不同图标字体或中文字体里的单个字形归一到一致的视觉大小并按墨迹中心对齐。
+struct GlyphInkMetrics
+{
+    bool valid = false;
+    // 墨迹实际宽、高（em 比例）。
+    float widthEm = 0.0f;
+    float heightEm = 0.0f;
+    // 墨迹水平中心相对于字形原点（基线左端）的距离（em 比例）。
+    float inkCenterXEm = 0.5f;
+    // 墨迹纵向中心在基线上方的距离（em 比例，正值在基线之上）。
+    float inkCenterYAboveBaselineEm = 0.5f;
+};
+
+// 读取指定字体族里单个码位的真实轮廓外接框，结果按 (fontFamily, weight, codepoint) 缓存。
+// 找不到字体或字形时返回 valid == false。
+GlyphInkMetrics ResolveGlyphInkMetrics(const std::wstring &fontFamily, wchar_t codepoint,
+                                       DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL);
+
 // Ordered, per-format fallback for missing glyphs, followed by the system mappings.
 void ApplyFontFallback(IDWriteFactory *factory, IDWriteTextFormat *format, const std::vector<std::wstring> &families);
 } // namespace msimeui

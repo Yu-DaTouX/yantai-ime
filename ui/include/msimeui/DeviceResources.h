@@ -100,6 +100,8 @@ class DeviceResources
     // fills. Call it inside a frame so it lands in the same commit as the content; an
     // empty rect hides the backdrop. Ignored outside backdrop composition.
     void SetBackdrop(const RectF &rectDips, float radiusDips);
+    // Opacity of the backdrop visual (0–1), so a fading window fades its frosted glass with it.
+    void SetBackdropOpacity(float opacity);
     // Material of the backdrop; kept across surface recreation. The default, both opacities
     // 0, shows the blurred source as it is.
     void SetBackdropMaterial(const BackdropMaterial &material);
@@ -232,6 +234,7 @@ class DeviceResources
     bool compositionOpaque_ = false;
     bool backdropComposition_ = false;
     BackdropMaterial backdropMaterial_;
+    float backdropOpacity_ = 1.0f;
 
     // Windows.UI.Composition objects of backdrop composition; kept out of this header so
     // users of msimeui do not pull in the WinRT headers.

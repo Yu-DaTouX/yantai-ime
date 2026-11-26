@@ -69,8 +69,20 @@ CandidateLook ResolveCandidateLook(const SettingsModel &model, const std::string
 struct ToolbarLook
 {
     D2D1_COLOR_F bg = {}, border = {}, handle = {}, divider = {}, icon = {};
+    D2D1_COLOR_F statusFill = {}, statusIcon = {};
     float radius = 8.0f;     // multiplied by the scale
     float iconRadius = 6.0f; // multiplied by the scale
+    float borderWidth = 1.4f;
+    float barHeight = 35.0f;
+    float iconBox = 26.0f;
+    float iconScale = 0.82f;
+    float itemGap = 5.0f;
+    float padLeft = 8.0f;
+    float padRight = 4.0f;
+    std::string handleStyle = "bar";
+    std::string dividerStyle = "full";
+    bool dividerAfterStatus = false;
+    bool light = false;
     // box-shadow passes in CSS terms: x, y, blur, alpha.
     struct Shadow
     {

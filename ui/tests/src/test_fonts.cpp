@@ -62,3 +62,26 @@ TEST_CASE(icon_glyph_resolution_is_stable)
     REQUIRE(first.family == second.family);
     REQUIRE(first.codepoint == second.codepoint);
 }
+
+TEST_CASE(glyph_ink_metrics_measure_icons_and_cjk_tightly)
+{
+    const msimeui::GlyphInkMetrics cjk = msimeui::ResolveGlyphInkMetrics(msimeui::UiFontFamily(), kCjkZhong);
+    REQUIRE(cjk.valid);
+    REQUIRE(cjk.widthEm > 0.5f && cjk.widthEm < 1.2f);
+    REQUIRE(cjk.heightEm > 0.5f && cjk.heightEm < 1.2f);
+
+    const msimeui::IconGlyph settings = msimeui::ResolveIconGlyph(0xE713);
+    const msimeui::IconGlyph puncCn = msimeui::ResolveIconGlyph(0xF111);
+    if (settings.family != nullptr && puncCn.family != nullptr)
+    {
+        const msimeui::GlyphInkMetrics gear = msimeui::ResolveGlyphInkMetrics(settings.family, settings.codepoint);
+        const msimeui::GlyphInkMetrics punc = msimeui::ResolveGlyphInkMetrics(puncCn.family, puncCn.codepoint);
+        REQUIRE(gear.valid);
+        REQUIRE(punc.valid);
+        // Segoe Fluent / MDL2 gear fills almost the full em while punctuation sits smaller.
+        REQUIRE(gear.heightEm > punc.heightEm);
+    }
+
+    const msimeui::GlyphInkMetrics missing = msimeui::ResolveGlyphInkMetrics(L"MSIME nonexistent font", kCjkZhong);
+    REQUIRE(!missing.valid);
+}

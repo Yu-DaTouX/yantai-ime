@@ -10,9 +10,9 @@
 schema_version = 1
 id = "mac"
 name = "Mac 亚克力"
-version = "0.1.0"
+version = "0.2.0"
 author = "Metasequoia IME contributors"
-description = "照 macOS 候选窗的圆角与配色做的亚克力皮肤：系统蓝选中项、半透明卡片，深浅主题各一套。"
+description = "照 macOS 候选窗与悬浮栏的圆角与配色做的亚克力皮肤：系统蓝徽章、半透明毛玻璃卡片，深浅主题各一套。"
 base = "fluent"
 
 [supports]
@@ -59,3 +59,47 @@ text = "#f2f2f7"
 number = "#98989f"
 translation = "#98989f"
 show_selected_bar = false
+
+# 悬浮工具栏与候选窗同一套 macOS 亚克力语言：
+#   - 背后垫系统亚克力毛玻璃、1 DIP 细描边与 10 DIP 外圆角；
+#   - 左侧用 2×3 极简圆点抓手，中/英主状态用系统蓝 6 DIP 胶囊突出，后接半高浮空细分隔线与次要功能图标。
+[toolbar]
+corner_radius_dip = 10
+icon_corner_radius_dip = 6
+border_width_dip = 1
+backdrop = "acrylic"
+bar_height_dip = 36
+icon_box_dip = 26
+icon_scale = 0.68
+item_gap_dip = 3
+padding_left_dip = 6
+padding_right_dip = 6
+handle_style = "dots"
+divider_style = "short"
+divider_after_status = true
+
+[toolbar.light]
+background = "#f6f6f8"
+backdrop_opacity = 0.72
+backdrop_luminosity = 0.85
+border = "rgba(0, 0, 0, 0.10)"
+handle = "#007aff"
+divider = "rgba(0, 0, 0, 0.12)"
+icon = "#1d1d1f"
+hover = "rgba(0, 0, 0, 0.07)"
+status_background = "#007aff"
+status_hover = "#0066d6"
+status_icon = "#ffffff"
+
+[toolbar.dark]
+background = "#28282c"
+backdrop_opacity = 0.70
+backdrop_luminosity = 0.96
+border = "rgba(255, 255, 255, 0.14)"
+handle = "#0a84ff"
+divider = "rgba(255, 255, 255, 0.14)"
+icon = "#f2f2f7"
+hover = "rgba(255, 255, 255, 0.12)"
+status_background = "#0a84ff"
+status_hover = "#2994ff"
+status_icon = "#ffffff"

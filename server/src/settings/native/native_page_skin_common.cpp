@@ -186,8 +186,21 @@ ToolbarLook ResolveToolbarLook(const SettingsModel &model, const std::string &sk
     t.handle = skin.handle;
     t.divider = skin.divider;
     t.icon = skin.glyph;
+    t.statusFill = skin.statusFill;
+    t.statusIcon = skin.statusGlyph.a > 0.001f ? skin.statusGlyph : skin.glyph;
     t.radius = skin.radius;
     t.iconRadius = skin.iconRadius;
+    t.borderWidth = skin.borderWidth;
+    t.barHeight = skin.barHeight;
+    t.iconBox = skin.iconBox;
+    t.iconScale = skin.iconScale;
+    t.itemGap = skin.itemGap;
+    t.padLeft = skin.padLeft;
+    t.padRight = skin.padRight;
+    t.handleStyle = skin.handleStyle;
+    t.dividerStyle = skin.dividerStyle;
+    t.dividerAfterStatus = skin.dividerAfterStatus;
+    t.light = light;
     // The toolbar's own shadow pair (8px 10px 24px, 2px 3px 8px), light α .18/.10, dark α .34/.22.
     t.shadows = {{8.0f, 10.0f, 24.0f, light ? 0.18f : 0.34f}, {2.0f, 3.0f, 8.0f, light ? 0.10f : 0.22f}};
     if (!package || package->toolbarMode != "image")

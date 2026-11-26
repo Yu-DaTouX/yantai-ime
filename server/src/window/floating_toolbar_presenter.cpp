@@ -49,6 +49,19 @@ D2D1_COLOR_F ColorFromRgb(UINT rgb, float alpha = 1.0f)
     return D2D1::ColorF(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, alpha);
 }
 
+// 系统「透明效果」（设置 → 个性化 → 颜色）。关掉时亚克力退回不透明底色；读不到时按开启处理。
+bool SystemTransparencyEnabled()
+{
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                     L"EnableTransparency", RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS)
+    {
+        return true;
+    }
+    return value != 0;
+}
+
 // Same reserve as the candidate card shadow: about 2σ of the shadow below,
 // biased to the lower right like the shadow is.
 constexpr float kShadowPadLeft = 16.0f;
@@ -143,11 +156,13 @@ class ToolbarIconButton : public msimeui::Visual
         onClick_ = std::move(handler);
     }
 
-    void SetColors(const D2D1_COLOR_F &glyph, const D2D1_COLOR_F &hover, float hoverRadius)
+    void SetColors(const D2D1_COLOR_F &glyph, const D2D1_COLOR_F &hover, float hoverRadius,
+                   const D2D1_COLOR_F &pillFill = D2D1::ColorF(0, 0.0f))
     {
         glyphColor_ = glyph;
         hoverFill_ = hover;
         hoverRadius_ = hoverRadius;
+        pillFill_ = pillFill;
         InvalidateVisual();
     }
 
@@ -204,10 +219,27 @@ class ToolbarIconButton : public msimeui::Visual
 
         const bool useGlyph = glyph_ != 0 && !glyphFamily_.empty();
         const std::wstring family = useGlyph ? glyphFamily_ : std::wstring(msimeui::UiFontFamily());
+        const bool isSingleGlyph = useGlyph || (!underline_ && text_.size() == 1);
+        const wchar_t singleChar = useGlyph ? glyph_ : (isSingleGlyph ? text_[0] : 0);
+        const msimeui::GlyphInkMetrics ink =
+            isSingleGlyph ? msimeui::ResolveGlyphInkMetrics(family, singleChar) : msimeui::GlyphInkMetrics{};
+
         // 带下划线的 "En" 比图标字形小一号，比例跟着图标字号走。
         float fontSize =
             underline_ ? glyphSize_ * (kToolbarUnderlinedTextFontSizeFactor / kToolbarGlyphFontSizeFactor) : glyphSize_;
-        if (!useGlyph && !underline_ && text_.size() > 1)
+        if (ink.valid)
+        {
+            // 把不同图标（如偏大的齿轮、偏小的标点、以及 UI 字体的「译」）按真实轮廓外接框归一到
+            // 一致的视觉大小；带实心状态胶囊底的按钮（如 Mac 蓝底「中/英」）略微收紧以留出内边距。
+            const float maxInkEm = (std::max)(ink.widthEm, ink.heightEm);
+            if (maxInkEm > 0.05f)
+            {
+                const float targetFraction = pillFill_.a > 0.001f ? 0.76f : 0.86f;
+                const float ratio = (std::clamp)(targetFraction / maxInkEm, 0.70f, 1.25f);
+                fontSize = glyphSize_ * ratio;
+            }
+        }
+        else if (!useGlyph && !underline_ && text_.size() > 1)
         {
             // 「还原」「译中」「2/5」这类多字标签要塞进一个按钮：汉字按一个字号宽、拉丁字符约 0.55
             // 个字号宽估算，超出就缩小。
@@ -234,7 +266,25 @@ class ToolbarIconButton : public msimeui::Visual
         {
             return;
         }
-        target->DrawTextLayout(D2D1::Point2F(bounds_.x, bounds_.y), layout.Get(), brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+
+        float offsetX = 0.0f;
+        float offsetY = 0.0f;
+        if (ink.valid)
+        {
+            DWRITE_TEXT_METRICS tm{};
+            DWRITE_LINE_METRICS lm{};
+            UINT32 lineCount = 0;
+            if (SUCCEEDED(layout->GetMetrics(&tm)) && SUCCEEDED(layout->GetLineMetrics(&lm, 1, &lineCount)) &&
+                lineCount >= 1)
+            {
+                const float inkCenterX = tm.left + ink.inkCenterXEm * fontSize;
+                const float inkCenterY = (tm.top + lm.baseline) - ink.inkCenterYAboveBaselineEm * fontSize;
+                offsetX = bounds_.width * 0.5f - inkCenterX;
+                offsetY = bounds_.height * 0.5f - inkCenterY;
+            }
+        }
+        target->DrawTextLayout(D2D1::Point2F(bounds_.x + offsetX, bounds_.y + offsetY), layout.Get(), brush,
+                               ink.valid ? D2D1_DRAW_TEXT_OPTIONS_NONE : D2D1_DRAW_TEXT_OPTIONS_CLIP);
 
         if (underline_ && bounds_.width > 4.0f)
         {
@@ -298,17 +348,20 @@ class ToolbarIconButton : public msimeui::Visual
   private:
     void FillHover(msimeui::DeviceResources &deviceResources, ID2D1RenderTarget *target)
     {
-        if (!hovered_ && !pressed_)
+        const bool active = hovered_ || pressed_;
+        const bool hasPill = pillFill_.a > 0.001f;
+        if (!active && !hasPill)
         {
             return;
         }
-        if (ID2D1SolidColorBrush *hover = deviceResources.GetSolidColorBrush(hoverFill_))
+        const D2D1_COLOR_F color = active && hoverFill_.a > 0.001f ? hoverFill_ : pillFill_;
+        if (ID2D1SolidColorBrush *fill = deviceResources.GetSolidColorBrush(color))
         {
             const float radius = std::min(hoverRadius_, size_ * 0.5f);
             const auto rounded = D2D1::RoundedRect(
                 D2D1::RectF(bounds_.x, bounds_.y, bounds_.x + bounds_.width, bounds_.y + bounds_.height), radius,
                 radius);
-            target->FillRoundedRectangle(rounded, hover);
+            target->FillRoundedRectangle(rounded, fill);
         }
     }
 
@@ -325,6 +378,7 @@ class ToolbarIconButton : public msimeui::Visual
     bool pressed_ = false;
     D2D1_COLOR_F glyphColor_ = D2D1::ColorF(0xFFFFFF);
     D2D1_COLOR_F hoverFill_ = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.10f);
+    D2D1_COLOR_F pillFill_ = D2D1::ColorF(0, 0.0f);
     float hoverRadius_ = 6.0f;
     ClickHandler onClick_;
     std::shared_ptr<msimeui::Image> image_;
@@ -334,8 +388,10 @@ class ToolbarIconButton : public msimeui::Visual
 class ToolbarDragHandle : public msimeui::Visual
 {
   public:
-    ToolbarDragHandle(float width, float slotHeight, float barWidth, float barHeight, D2D1_COLOR_F color)
-        : width_(width), slotHeight_(slotHeight), barWidth_(barWidth), barHeight_(barHeight), color_(color)
+    ToolbarDragHandle(float width, float slotHeight, float barWidth, float barHeight, D2D1_COLOR_F color,
+                      bool dots = false, float dotScale = 1.0f, float leftInset = 0.0f)
+        : width_(width), slotHeight_(slotHeight), barWidth_(barWidth), barHeight_(barHeight), color_(color),
+          dots_(dots), dotScale_(dotScale), leftInset_(leftInset)
     {
         SetWidth(width_);
     }
@@ -357,6 +413,25 @@ class ToolbarDragHandle : public msimeui::Visual
         ID2D1SolidColorBrush *brush = deviceResources.GetSolidColorBrush(color_);
         if (!target || !brush)
         {
+            return;
+        }
+        if (dots_)
+        {
+            // 2×3 极简圆点抓手，在左侧外边距之后居中绘制，随用户缩放等比放大。
+            const float r = (std::max)(0.8f, 1.05f * dotScale_);
+            const float stepX = 3.6f * dotScale_;
+            const float stepY = 3.8f * dotScale_;
+            const float cx = bounds_.x + leftInset_ + (bounds_.width - leftInset_) * 0.5f;
+            const float cy = bounds_.y + bounds_.height * 0.5f;
+            for (int col = 0; col < 2; ++col)
+            {
+                const float x = cx + (col == 0 ? -0.5f : 0.5f) * stepX;
+                for (int row = -1; row <= 1; ++row)
+                {
+                    const float y = cy + static_cast<float>(row) * stepY;
+                    target->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), r, r), brush);
+                }
+            }
             return;
         }
         const float x = bounds_.x + (bounds_.width - barWidth_) * 0.5f;
@@ -384,12 +459,17 @@ class ToolbarDragHandle : public msimeui::Visual
     float barWidth_ = 2.5f;
     float barHeight_ = 14.0f;
     D2D1_COLOR_F color_ = ColorFromRgb(0x8E8CD8);
+    bool dots_ = false;
+    float dotScale_ = 1.0f;
+    float leftInset_ = 0.0f;
 };
 
 class ToolbarDivider : public msimeui::Visual
 {
   public:
-    ToolbarDivider(float width, float height, D2D1_COLOR_F color) : width_(width), height_(height), color_(color)
+    ToolbarDivider(float width, float height, D2D1_COLOR_F color, float lineHeight = 0.0f, float sideMargin = 0.0f)
+        : width_(width + sideMargin * 2.0f), strokeWidth_(width), height_(height), lineHeight_(lineHeight),
+          color_(color)
     {
         SetWidth(width_);
     }
@@ -413,13 +493,23 @@ class ToolbarDivider : public msimeui::Visual
         {
             return;
         }
-        target->FillRectangle(D2D1::RectF(bounds_.x, bounds_.y, bounds_.x + bounds_.width, bounds_.y + bounds_.height),
-                              brush);
+        const float x = bounds_.x + (bounds_.width - strokeWidth_) * 0.5f;
+        if (lineHeight_ > 0.0f && lineHeight_ < bounds_.height)
+        {
+            const float y = bounds_.y + (bounds_.height - lineHeight_) * 0.5f;
+            const float r = strokeWidth_ * 0.5f;
+            target->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(x, y, x + strokeWidth_, y + lineHeight_), r, r),
+                                         brush);
+            return;
+        }
+        target->FillRectangle(D2D1::RectF(x, bounds_.y, x + strokeWidth_, bounds_.y + bounds_.height), brush);
     }
 
   private:
     float width_ = 1.2f;
+    float strokeWidth_ = 1.2f;
     float height_ = 35.0f;
+    float lineHeight_ = 0.0f;
     D2D1_COLOR_F color_ = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f);
 };
 
@@ -485,8 +575,23 @@ struct FloatingToolbarPresenter::Impl
     D2D1_COLOR_F hover = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.10f);
     D2D1_COLOR_F divider = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f);
     D2D1_COLOR_F handle = ColorFromRgb(0x8E8CD8);
+    D2D1_COLOR_F statusFill = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F statusHover = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F statusGlyph = D2D1::ColorF(0, 0.0f);
     float radius = 8.0f;
     float iconRadius = 6.0f;
+    float borderWidth = kToolbarStrokeWidth;
+    float barHeight = 35.0f;
+    float iconBox = 26.0f;
+    float iconScale = kToolbarGlyphFontSizeFactor;
+    float itemGap = 5.0f;
+    float padLeft = 8.0f;
+    float padRight = 4.0f;
+    std::string handleStyle = "bar";
+    std::string dividerStyle = "full";
+    bool dividerAfterStatus = false;
+    bool backdropActive = false;
+    bool backdropUnavailable = false;
     bool light = false;
     bool shadow = false;
     float cardHeightDip = 0.0f;
@@ -571,11 +676,12 @@ void FloatingToolbarPresenter::RebuildScene()
     }
 
     const float s = ToolbarUserScale();
-    const float barHeight = 35.0f * s;
-    const float iconSize = 26.0f * s;
-    const float gap = 5.0f * s;
-    const float padLeft = 8.0f * s;
-    const float padRight = 4.0f * s;
+    const float barHeight = impl_->barHeight * s;
+    const float iconSize = impl_->iconBox * s;
+    const float glyphSize = iconSize * impl_->iconScale;
+    const float gap = impl_->itemGap * s;
+    const float padLeft = impl_->padLeft * s;
+    const float padRight = impl_->padRight * s;
     const float radius = impl_->radius * s;
     const float iconRadius = impl_->iconRadius * s;
 
@@ -723,37 +829,110 @@ void FloatingToolbarPresenter::RebuildScene()
         return;
     }
 
-    auto row = std::make_shared<msimeui::HorizontalStackPanel>(gap);
-    row->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
-    row->SetPadding({0.0f, 0.0f, padRight, 0.0f});
-    row->SetHeight(barHeight);
+    const bool dotsHandle = impl_->handleStyle == "dots";
+    const bool hideHandle = impl_->handleStyle == "none";
+    const bool shortDivider = impl_->dividerStyle == "short";
+    const bool hideDivider = impl_->dividerStyle == "none";
+    const float dividerWidth = (shortDivider ? 1.0f : 1.2f) * s;
+    const float dividerLineHeight = shortDivider ? barHeight * 0.44f : 0.0f;
+    const float dividerSideMargin = shortDivider ? 2.0f * s : 0.0f;
 
-    auto handle =
-        std::make_shared<ToolbarDragHandle>(padLeft + 10.0f * s, barHeight, 2.5f * s, 14.0f * s, impl_->handle);
-    auto divider = std::make_shared<ToolbarDivider>(1.2f * s, barHeight, impl_->divider);
-    auto leading = std::make_shared<msimeui::HorizontalStackPanel>(2.0f * s);
-    leading->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
-    leading->AddChild(handle);
-    leading->AddChild(divider);
-    impl_->dragLimit = divider;
-    auto icons = std::make_shared<msimeui::HorizontalStackPanel>(gap);
-    icons->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
-
-    for (ToolbarButtonSpec &spec : specs)
-    {
+    auto makeButton = [&](ToolbarButtonSpec &spec) {
         auto button = MakeToolbarButton(spec, iconSize, iconSize);
-        button->SetColors(impl_->glyph, impl_->hover, iconRadius);
+        button->SetGlyphSize(glyphSize);
+        if (spec.key == "status" && impl_->statusFill.a > 0.001f)
+        {
+            const D2D1_COLOR_F glyphColor = impl_->statusGlyph.a > 0.001f ? impl_->statusGlyph : impl_->glyph;
+            const D2D1_COLOR_F hoverColor = impl_->statusHover.a > 0.001f ? impl_->statusHover : impl_->statusFill;
+            button->SetColors(glyphColor, hoverColor, iconRadius, impl_->statusFill);
+        }
+        else
+        {
+            button->SetColors(impl_->glyph, impl_->hover, iconRadius);
+        }
         button->SetOnClick(std::move(spec.click));
-        icons->AddChild(button);
+        return button;
+    };
+
+    const D2D1_COLOR_F gripColor =
+        dotsHandle ? D2D1::ColorF(impl_->glyph.r, impl_->glyph.g, impl_->glyph.b, impl_->light ? 0.28f : 0.30f)
+                   : impl_->handle;
+    const float handleSlotWidth = dotsHandle ? (padLeft + 10.0f * s) : (padLeft + 10.0f * s);
+    std::shared_ptr<ToolbarDragHandle> handle;
+    if (!hideHandle)
+    {
+        handle = std::make_shared<ToolbarDragHandle>(handleSlotWidth, barHeight, 2.5f * s, 14.0f * s, gripColor,
+                                                     dotsHandle, s, dotsHandle ? padLeft : 0.0f);
+    }
+    std::shared_ptr<ToolbarDivider> divider;
+    if (!hideDivider)
+    {
+        divider = std::make_shared<ToolbarDivider>(dividerWidth, barHeight, impl_->divider, dividerLineHeight,
+                                                   dividerSideMargin);
     }
 
-    row->AddChild(leading);
-    row->AddChild(icons);
+    auto row = std::make_shared<msimeui::HorizontalStackPanel>(gap);
+    row->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
+    row->SetPadding({hideHandle ? padLeft : 0.0f, 0.0f, padRight, 0.0f});
+    row->SetHeight(barHeight);
+
+    if (impl_->dividerAfterStatus)
+    {
+        if (handle)
+        {
+            row->AddChild(handle);
+        }
+        impl_->dragLimit = handle;
+        auto icons = std::make_shared<msimeui::HorizontalStackPanel>(gap);
+        icons->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
+        bool insertedDivider = false;
+        for (size_t i = 0; i < specs.size(); ++i)
+        {
+            icons->AddChild(makeButton(specs[i]));
+            if (!insertedDivider && specs[i].key == "status" && divider && i + 1 < specs.size())
+            {
+                icons->AddChild(divider);
+                insertedDivider = true;
+            }
+        }
+        row->AddChild(icons);
+    }
+    else
+    {
+        if (handle || divider)
+        {
+            auto leading = std::make_shared<msimeui::HorizontalStackPanel>(2.0f * s);
+            leading->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
+            if (handle)
+            {
+                leading->AddChild(handle);
+            }
+            if (divider)
+            {
+                leading->AddChild(divider);
+            }
+            row->AddChild(leading);
+            impl_->dragLimit = divider ? std::static_pointer_cast<msimeui::Visual>(divider)
+                                       : std::static_pointer_cast<msimeui::Visual>(handle);
+        }
+        else
+        {
+            impl_->dragLimit.reset();
+        }
+        auto icons = std::make_shared<msimeui::HorizontalStackPanel>(gap);
+        icons->SetVerticalContentAlignment(msimeui::VerticalAlignment::Center);
+        for (ToolbarButtonSpec &spec : specs)
+        {
+            icons->AddChild(makeButton(spec));
+        }
+        row->AddChild(icons);
+    }
 
     msimeui::Brush brush;
-    brush.fill = impl_->fill;
+    // 亚克力/云母开启时，色调由合成层按 Fluent 材质配方画，D2D 卡片底色留空以免遮住毛玻璃。
+    brush.fill = impl_->backdropActive ? D2D1::ColorF(0, 0.0f) : impl_->fill;
     brush.stroke = impl_->border;
-    brush.strokeWidth = kToolbarStrokeWidth;
+    brush.strokeWidth = impl_->borderWidth;
     brush.radiusX = radius;
     brush.radiusY = radius;
     impl_->card = std::make_shared<msimeui::Card>(brush, 0.0f);
@@ -769,6 +948,7 @@ void FloatingToolbarPresenter::RebuildScene()
             {12.0f, impl_->light ? 0.18f : 0.34f, 8.0f, 10.0f},
             {4.0f, impl_->light ? 0.10f : 0.22f, 2.0f, 3.0f},
         });
+        impl_->card->SetShadowOutsideOnly(impl_->backdropActive);
     }
     impl_->card->AddChild(row);
     impl_->frame = std::make_shared<msimeui::Container>();
@@ -778,7 +958,7 @@ void FloatingToolbarPresenter::RebuildScene()
     }
     else
     {
-        impl_->frame->SetPadding(kNoShadowPad);
+        impl_->frame->SetPadding((std::max)(kNoShadowPad, impl_->borderWidth * 0.5f + 0.5f));
     }
     impl_->frame->SetChild(impl_->card);
     auto root = std::make_shared<msimeui::StackPanel>(0.0f);
@@ -842,8 +1022,35 @@ void FloatingToolbarPresenter::ApplyTheme()
     impl_->hover = skin.hover;
     impl_->divider = skin.divider;
     impl_->handle = skin.handle;
+    impl_->statusFill = skin.statusFill;
+    impl_->statusHover = skin.statusHover;
+    impl_->statusGlyph = skin.statusGlyph;
     impl_->radius = skin.radius;
     impl_->iconRadius = skin.iconRadius;
+    impl_->borderWidth = skin.borderWidth;
+    impl_->barHeight = skin.barHeight;
+    impl_->iconBox = skin.iconBox;
+    impl_->iconScale = skin.iconScale;
+    impl_->itemGap = skin.itemGap;
+    impl_->padLeft = skin.padLeft;
+    impl_->padRight = skin.padRight;
+    impl_->handleStyle = skin.handleStyle;
+    impl_->dividerStyle = skin.dividerStyle;
+    impl_->dividerAfterStatus = skin.dividerAfterStatus;
+    const bool wantsBackdrop = !impl_->imageMode && !skin.backdrop.empty() && skin.backdrop != "none";
+    impl_->backdropActive = wantsBackdrop && !impl_->backdropUnavailable && SystemTransparencyEnabled();
+    if (impl_->backdropActive)
+    {
+        const bool mica = skin.backdrop == "mica";
+        msimeui::BackdropMaterial material;
+        material.source =
+            mica ? msimeui::BackdropMaterial::Source::Wallpaper : msimeui::BackdropMaterial::Source::WindowsBehind;
+        material.tint = impl_->fill;
+        material.tintOpacity = skin.backdropOpacity >= 0.0f ? skin.backdropOpacity : impl_->fill.a;
+        material.luminosityOpacity = skin.backdropLuminosity >= 0.0f ? skin.backdropLuminosity : (mica ? 1.0f : 0.85f);
+        impl_->resources.SetBackdropMaterial(material);
+    }
+    impl_->resources.SetBackdropComposition(impl_->backdropActive);
     impl_->light = light;
     ApplyAppearance();
 }
@@ -1009,11 +1216,12 @@ RECT FloatingToolbarPresenter::ShadowInsetsPx(int hostWidthPx, int hostHeightPx,
     // the measured height, so the rounded-up host height is spare room below.
     // Fixed pads alone left that rounding (1-3 px) between the bar and the edge.
     // Without the shadow this trims the kNoShadowPad slack the same way.
-    const float padLeft = impl_->shadow ? kShadowPadLeft : kNoShadowPad;
-    const float padTop = impl_->shadow ? kShadowPadTop : kNoShadowPad;
-    const float padRight = impl_->shadow ? kShadowPadRight : kNoShadowPad;
+    const float noShadowPad = (std::max)(kNoShadowPad, impl_->borderWidth * 0.5f + 0.5f);
+    const float padLeft = impl_->shadow ? kShadowPadLeft : noShadowPad;
+    const float padTop = impl_->shadow ? kShadowPadTop : noShadowPad;
+    const float padRight = impl_->shadow ? kShadowPadRight : noShadowPad;
     const float s = static_cast<float>(scale);
-    const float half = kToolbarStrokeWidth * 0.5f;
+    const float half = impl_->borderWidth * 0.5f;
     const float hostWidthDip = static_cast<float>(hostWidthPx) / s;
     const float left = padLeft - half;
     const float top = padTop - half;
@@ -1057,19 +1265,35 @@ void FloatingToolbarPresenter::Present()
     const UINT height = static_cast<UINT>((std::max)(1L, rc.bottom));
     if (!impl_->resources.EnsureForComposition(hwnd_))
     {
-        return;
+        if (!impl_->resources.UsesBackdropComposition())
+        {
+            return;
+        }
+        FTB_DIAG_LOGF(L"ftb-d2d backdrop composition unavailable, falling back to swap chain");
+        impl_->backdropUnavailable = true;
+        impl_->backdropActive = false;
+        impl_->resources.SetBackdropComposition(false);
+        RebuildScene();
+        if (!impl_->resources.EnsureForComposition(hwnd_))
+        {
+            return;
+        }
     }
     impl_->resources.Resize(width, height);
     // 系统的「动画效果」开关随时可能改，每帧都重读；bar 与 v1 皮肤从不播放。
     impl_->resources.SetAnimationsEnabled(impl_->skinAnimates && SystemAnimationsEnabled());
     // Samples the animation clock for this frame and starts the next-frame deadline over.
     impl_->resources.BeginFrame();
-    ID2D1RenderTarget *target = impl_->resources.GetRenderTarget();
-    if (!target)
+    if (!impl_->resources.BeginDraw())
     {
         return;
     }
-    target->BeginDraw();
+    ID2D1RenderTarget *target = impl_->resources.GetRenderTarget();
+    if (!target)
+    {
+        impl_->resources.EndDraw();
+        return;
+    }
     target->Clear(D2D1::ColorF(0, 0.0f));
     msimeui::Scene *scene = impl_->window->GetScene();
     if (scene && impl_->opacity > 0.0f)
@@ -1092,7 +1316,16 @@ void FloatingToolbarPresenter::Present()
             target->PopLayer();
         }
     }
-    const HRESULT hr = target->EndDraw();
+    if (impl_->backdropActive && impl_->card && impl_->opacity > 0.0f)
+    {
+        impl_->resources.SetBackdrop(impl_->card->GetBounds(), impl_->radius * ToolbarUserScale());
+        impl_->resources.SetBackdropOpacity(impl_->opacity);
+    }
+    else if (impl_->resources.UsesBackdropComposition())
+    {
+        impl_->resources.SetBackdrop({}, 0.0f);
+    }
+    const HRESULT hr = impl_->resources.EndDraw();
     if (hr == D2DERR_RECREATE_TARGET)
     {
         impl_->resources.DiscardTarget();

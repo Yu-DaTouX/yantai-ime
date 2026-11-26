@@ -64,6 +64,13 @@ struct ToolbarColors
     std::string divider;
     std::string icon;
     std::string hover;
+    // 主状态按钮（中/英）胶囊徽章配色，留空时不画常驻胶囊底色。
+    std::string statusBackground;
+    std::string statusHover;
+    std::string statusIcon;
+    // toolbar.backdrop 不是 none 时的材质参数，0–1；同 CandidateColors 的同名字段。
+    std::optional<double> backdropOpacity;
+    std::optional<double> backdropLuminosity;
 };
 
 // 图片模式（[toolbar] mode = "image"）下一个按钮的摆法与贴图：[toolbar.buttons.<key>]。
@@ -278,6 +285,20 @@ struct Package
     // 覆盖基础皮肤的悬浮工具栏外框圆角与图标悬停底色的圆角；未设置时沿用基础皮肤。
     std::optional<double> toolbarCornerRadiusDip;
     std::optional<double> toolbarIconCornerRadiusDip;
+    // 悬浮工具栏条形模式的可选外观覆盖：系统材质、描边宽度、条高、按钮框尺寸、图标字号比例、
+    // 按钮间距、左右内边距、把手样式（bar / dots / none）、分隔线样式（full / short / none）
+    // 以及是否将分隔线放在中/英状态按钮之后。未设置时全部沿用基础皮肤默认值。
+    std::string toolbarBackdrop;
+    std::optional<double> toolbarBorderWidthDip;
+    std::optional<double> toolbarBarHeightDip;
+    std::optional<double> toolbarIconBoxDip;
+    std::optional<double> toolbarIconScale;
+    std::optional<double> toolbarItemGapDip;
+    std::optional<double> toolbarPaddingLeftDip;
+    std::optional<double> toolbarPaddingRightDip;
+    std::string toolbarHandleStyle;
+    std::string toolbarDividerStyle;
+    std::optional<bool> toolbarDividerAfterStatus;
     ToolbarColors toolbarDark;
     ToolbarColors toolbarLight;
     // 悬浮工具栏的画法：bar（缺省）是矩形条；image 是一整张背景图，按钮按 toolbarButtons 的坐标摆在图上，
