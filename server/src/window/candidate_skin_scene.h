@@ -18,7 +18,7 @@
 class CandidateSkinOverlay;
 
 // 候选条下面那行英文：左边是高亮候选的第一条英文词义（超长末尾省略号），后面跟小号灰字的词性，
-// 右边贴一条淡色提示（如「Ctrl+↵ 上屏」）。宽度跟着候选条走：Measure 宽度返回 0，不把卡片撑宽。
+// 右边贴一条淡色提示（如「Ctrl+↵」）。宽度跟着候选条走：Measure 宽度返回 0，不把卡片撑宽。
 class CandidateEnglishLine : public msimeui::Panel
 {
   public:

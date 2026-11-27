@@ -51,7 +51,7 @@ std::wstring MakeEnglishLineHint()
     if ((parsed.modifiers & FanyImeKeyChord::Alt) != 0)
         label += "Alt+";
     label += BindingKeyLabel(parsed.key);
-    return string_to_wstring(label) + L" 上屏";
+    return string_to_wstring(label);
 }
 
 // 造词中间态的管道载荷：前缀（已上屏的文字）+ 剩余拼音 + 光标。与 ProcessSelectionKey 的

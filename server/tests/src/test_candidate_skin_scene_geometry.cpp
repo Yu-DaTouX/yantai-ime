@@ -156,12 +156,12 @@ TEST_CASE(candidate_skin_scene_english_line_keeps_selected_padding_and_does_not_
                     scene.EnglishLine()->SetLineVisible(true);
                     scene.EnglishLine()->SetContent(L"", L"", L"");
                     const auto blankSize = scene.Root()->MeasureInLayout({1200, 1200});
-                    scene.EnglishLine()->SetContent(L"Hi", L"n.", L"Ctrl+\u21B5 \u4E0A\u5C4F");
+                    scene.EnglishLine()->SetContent(L"Hi", L"n.", L"Ctrl+\u21B5");
                     const auto shortSize = scene.Root()->MeasureInLayout({1200, 1200});
                     REQUIRE(std::fabs(blankSize.height - shortSize.height) < 0.02f);
                     REQUIRE(std::fabs(blankSize.width - shortSize.width) < 0.02f);
                     REQUIRE(blankSize.height > hiddenSize.height);
-                    scene.EnglishLine()->SetContent(std::wstring(3000, L'x'), L"n.", L"Ctrl+\u21B5 \u4E0A\u5C4F");
+                    scene.EnglishLine()->SetContent(std::wstring(3000, L'x'), L"n.", L"Ctrl+\u21B5");
                     const auto size = scene.Root()->MeasureInLayout({1200, 1200});
                     scene.Root()->ArrangeInLayout({0, 0, size.width, size.height});
                     // 3000 个字符的英文只在行内省略，不撑宽卡片，只多出一行的高度。
