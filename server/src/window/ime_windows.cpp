@@ -3,6 +3,7 @@
 #include "ipc/ipc.h"
 #include "ime_windows.h"
 #include "window/candidate_presenter.h"
+#include "window/floating_toolbar_placement.h"
 #include "window/floating_toolbar_presenter.h"
 #include "window/tray_menu_presenter.h"
 #include "defines/defines.h"
@@ -337,14 +338,23 @@ int CreateCandidateWindow(HINSTANCE hInstance)
                 WS_EX_TOOLWINDOW |          //
                 WS_EX_NOACTIVATE;           //
                                             // WS_EX_TOPMOST;                               //
-    MonitorCoordinates ftbMonitor = GetMainMonitorCoordinates();
+    const MonitorCoordinates ftbWorkArea = GetMainMonitorWorkAreaCoordinates();
+    FLOAT ftbScale = scale;
+    if (ftbWorkArea.right > ftbWorkArea.left && ftbWorkArea.bottom > ftbWorkArea.top)
+    {
+        const FLOAT primaryScale = GetScaleForPoint({ftbWorkArea.left + (ftbWorkArea.right - ftbWorkArea.left) / 2,
+                                                     ftbWorkArea.top + (ftbWorkArea.bottom - ftbWorkArea.top) / 2});
+        if (primaryScale > 0.0f)
+        {
+            ftbScale = primaryScale;
+        }
+    }
     const int ftbShadowWidth = GetConfiguredFloatingToolbarShadow() ? ::FTB_WND_SHADOW_WIDTH : 0;
-    const int ftbWidth = static_cast<int>((::FTB_WND_WIDTH + ftbShadowWidth) * scale);
-    const int ftbHeight = static_cast<int>((::FTB_WND_HEIGHT + ftbShadowWidth) * scale);
-    const int ftbTaskbarHeight = GetTaskbarHeight();
-    const int ftbCornerInset = static_cast<int>(std::lround(10.0 * static_cast<double>(scale > 0 ? scale : 1.0f)));
-    const int ftbX = ftbMonitor.right - ftbWidth - ftbCornerInset;
-    const int ftbY = ftbMonitor.bottom - ftbHeight - ftbTaskbarHeight - ftbCornerInset;
+    const int ftbWidth = static_cast<int>((::FTB_WND_WIDTH + ftbShadowWidth) * ftbScale);
+    const int ftbHeight = static_cast<int>((::FTB_WND_HEIGHT + ftbShadowWidth) * ftbScale);
+    const POINT ftbPos = FanyImeUi::FloatingToolbarDefaultPosition(ftbWidth, ftbHeight, {}, ftbWorkArea, ftbScale);
+    const int ftbX = ftbPos.x;
+    const int ftbY = ftbPos.y;
     // The caret badge is optional: without its window every post is a no-op,
     // so a creation failure must not take the input windows down with it.
     HWND hwnd_caret_state =

@@ -17,6 +17,7 @@
 #include <string>
 #include <fmt/xchar.h>
 #include "utils/window_utils.h"
+#include "window/floating_toolbar_placement.h"
 #include "window/floating_toolbar_visibility_policy.h"
 #include "log/ftb_diag_log.h"
 #include <windowsx.h>
@@ -163,17 +164,16 @@ void LayoutFloatingToolbar(HWND hwnd, bool reset_to_default_corner, FLOAT scaleO
     // The presenter measures its shadow margin into the scene.
     const int width = static_cast<int>(std::ceil(::FTB_WND_WIDTH * static_cast<double>(scale)));
     const int height = static_cast<int>(std::ceil(::FTB_WND_HEIGHT * static_cast<double>(scale)));
-    const int cornerInset = static_cast<int>(std::lround(10.0 * static_cast<double>(scale)));
     const RECT shadowInsets = FloatingToolbarShadowInsetsPx(width, height, scale);
     int posX = 0;
     int posY = 0;
     if (reset_to_default_corner)
     {
         // The inset is measured from the visible bar, not the shadow margin.
-        MonitorCoordinates coordinates = GetMainMonitorCoordinates();
-        const int taskbarHeight = GetTaskbarHeight();
-        posX = coordinates.right - width + shadowInsets.right - cornerInset;
-        posY = coordinates.bottom - height + shadowInsets.bottom - taskbarHeight - cornerInset;
+        const POINT defaultPos = FanyImeUi::FloatingToolbarDefaultPosition(width, height, shadowInsets,
+                                                                           GetMainMonitorWorkAreaCoordinates(), scale);
+        posX = defaultPos.x;
+        posY = defaultPos.y;
     }
     else
     {

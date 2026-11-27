@@ -50,6 +50,7 @@ bool CheckFullscreen(HWND hwnd);
 
 MonitorCoordinates GetMonitorCoordinates();
 MonitorCoordinates GetMainMonitorCoordinates();
+MonitorCoordinates GetMainMonitorWorkAreaCoordinates();
 int GetTaskbarHeight();
 
 // Half of the target monitor in CSS DIPs (physical/2 / dpiScale). Single source

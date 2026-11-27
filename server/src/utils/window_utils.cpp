@@ -486,6 +486,11 @@ MonitorCoordinates GetMainMonitorCoordinates()
     return coordinates;
 }
 
+MonitorCoordinates GetMainMonitorWorkAreaCoordinates()
+{
+    return MonitorWorkAreaCoordinatesFromHandle(MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY));
+}
+
 /**
  * @brief Get the Taskbar Height
  *
